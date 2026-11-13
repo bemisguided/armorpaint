@@ -11,7 +11,7 @@
 // - meta_t:    category, index, bool_keys, bool_values, i32_keys, i32_values, f32_keys, f32_values, i32_array_keys,
 //              i32_array_values (the entry maps of metas, every field written in this order)
 // layer_data_t has the upstream layout, its object_mask is written as 0 (layer coverage is in metas).
-// project_t atlas_objects / atlas_names of upstream "23" are skipped on load (Export > Atlases was removed).
+// project_t atlas_objects / atlas_names of upstream "23" are only read to convert atlas group object masks (Export > Atlases was removed).
 // History steps are not saved.
 // Metadata (meta_t, see util_meta.c): one list of sparse entries, one per item that has metadata. category says which list
 // the item is in, index its position there when the project was saved: layers (MC_LAYER) by their position in layer_datas,
@@ -314,10 +314,90 @@ void project_format_set_defaults(project_t *raw) {
 	raw->metas = any_array_create(0); // Every layer covers all objects and tiles
 }
 
-// Upstream "23": no migration, every layer covers all objects and tiles.
-// Object masks, atlas groups and name based udim tiles of the old file are dropped.
+// Upstream "23" object masks (layer_data_t.object_mask of the old format):
+// 0 every object, 1..N paint object mask - 1 (N paint objects in file order, their ids become 1..N),
+// N + 1 + k the k-th used atlas group of Export > Atlases (see project_format_atlas_ids).
+// Upstream only applied a mask on paint layers, masks and filters used their parent layer's and groups ignored theirs,
+// so those convert to every object (masks and filters still follow their parent, groups restrict nothing as before).
+
+// Ids of the objects in the k-th used atlas group, NULL when it can not be resolved.
+// Mirrors upstream project_get_used_atlases / project_get_atlas_objects: used atlases are the distinct atlas_objects values
+// in order of first appearance, only counted when more than one is used, and an atlas is found again by its name.
+static i32_array_t *project_format_atlas_ids(any_map_t *old, i32 k, i32 object_count) {
+	i32_array_t    *atlas_objects = any_map_get(old, "atlas_objects");
+	string_array_t *atlas_names   = any_map_get(old, "atlas_names");
+	if (atlas_objects == NULL || atlas_names == NULL || atlas_objects->length == 0 || atlas_names->length == 0 || k < 0) {
+		return NULL;
+	}
+	i32_array_t *used = i32_array_create(0);
+	for (i32 i = 0; i < atlas_objects->length; ++i) {
+		if (i32_array_index_of(used, atlas_objects->buffer[i]) == -1) {
+			i32_array_push(used, atlas_objects->buffer[i]);
+		}
+	}
+	i32_array_t *ids = NULL;
+	if (used->length > 1 && k < used->length && used->buffer[k] >= 0 && used->buffer[k] < atlas_names->length) {
+		i32 atlas_i = string_array_index_of(atlas_names, atlas_names->buffer[used->buffer[k]]);
+		ids         = i32_array_create(0);
+		for (i32 i = 0; i < object_count && i < atlas_objects->length; ++i) {
+			if (atlas_objects->buffer[i] == atlas_i) {
+				i32_array_push(ids, i + 1);
+			}
+		}
+		if (ids->length == 0) {
+			array_delete(ids);
+			ids = NULL;
+		}
+	}
+	array_delete(used);
+	return ids;
+}
+
+// Layer i of a converted project: its object mask becomes a metas entry with the object set
+static void project_format_convert_object_mask(any_map_t *old, project_t *project, i32 i, i32 object_count) {
+	layer_data_t *ld       = project->layer_datas->buffer[i];
+	bool          is_layer = ld->texpaint != NULL && ld->texpaint_nor != NULL;
+	bool          is_child = false; // Filter, a paint layer inside a paint layer
+	if (is_layer && ld->parent >= 0) {
+		any_array_t *lds = any_map_get(old, "layer_datas");
+		if (ld->parent < lds->length) {
+			any_map_t *parent = lds->buffer[ld->parent];
+			is_child          = any_map_get(parent, "texpaint") != NULL && any_map_get(parent, "texpaint_nor") != NULL;
+		}
+	}
+	i32 mask = ld->object_mask;
+	if (!is_layer || is_child || mask <= 0) {
+		return;
+	}
+	i32_array_t *ids = NULL;
+	if (mask <= object_count) {
+		ids = i32_array_create(0);
+		i32_array_push(ids, mask);
+	}
+	else {
+		ids = project_format_atlas_ids(old, mask - object_count - 1, object_count);
+	}
+	if (ids == NULL) { // Unresolved groups stay on every object, as upstream fell back to every paint object
+		return;
+	}
+	meta_t *m   = meta_create();
+	m->category = MC_LAYER;
+	m->index    = i;
+	meta_set_bool(m, META_ALL_OBJECTS, false);
+	meta_set_i32_array(m, META_OBJECTS, ids->buffer, ids->length);
+	any_array_push(project->metas, m);
+	array_delete(ids);
+}
+
+// Upstream "23": layer object masks and atlas groups become object id sets in metas, every layer covers all tiles.
+// Name based udim tile objects (X.1001, ...) keep their objects, tile migration is phase B.
 project_t *import_arm_from_version_23(any_map_t *old) {
 	project_t *project = import_arm_from_map_to_arm(old);
 	project_format_set_defaults(project);
+	any_array_t *lds          = any_map_get(old, "layer_datas");
+	i32          object_count = project->mesh_datas != NULL ? project->mesh_datas->length : 0;
+	for (i32 i = 0; lds != NULL && project->layer_datas != NULL && i < project->layer_datas->length && i < lds->length; ++i) {
+		project_format_convert_object_mask(old, project, i, object_count);
+	}
 	return project;
 }
