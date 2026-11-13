@@ -860,3 +860,15 @@ type
 sans titre
 x
 {shortcut} et déplacer la souris
+
+
+
+
+
+
+
+
+
+
+
+

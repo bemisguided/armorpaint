@@ -860,3 +860,15 @@ típus
 Névtelen
 x
 {shortcut} és egér mozgatása
+
+
+
+
+
+
+
+
+
+
+
+

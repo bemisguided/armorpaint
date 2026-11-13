@@ -182,10 +182,55 @@ void tab_layers_draw_layer_slot_full_delete_layer(void *_) {
 	tab_layers_delete_layer(g_context->layer);
 }
 
-void tab_layers_combo_object_layer_clear(slot_layer_t *l) {
-	g_context->material = l->fill_material;
-	slot_layer_clear(l, 0x00000000, NULL, 1.0, layers_default_rough, 0.0);
-	layers_update_fill_layers();
+static bool tab_layers_coverage_under(slot_layer_t *m, slot_layer_t *l) {
+	for (slot_layer_t *p = m; p != NULL; p = p->parent) {
+		if (p == l) {
+			return true;
+		}
+	}
+	return false;
+}
+
+// The fill layers and fill masks whose coverage depends on l, the first one of each material
+static bool tab_layers_coverage_fill(slot_layer_t *l, i32 i) {
+	slot_layer_t *m = g_project->_->layers->buffer[i];
+	if (m->fill_material == NULL || !tab_layers_coverage_under(m, l)) {
+		return false;
+	}
+	for (i32 j = 0; j < i; ++j) {
+		slot_layer_t *n = g_project->_->layers->buffer[j];
+		if (n->fill_material == m->fill_material && tab_layers_coverage_under(n, l)) {
+			return false;
+		}
+	}
+	return true;
+}
+
+// Fills only reach the objects they cover, refill them on the next frame
+static void tab_layers_coverage_refill(slot_layer_t *l) {
+	for (i32 i = 0; i < g_project->_->layers->length; ++i) {
+		if (tab_layers_coverage_fill(l, i)) {
+			slot_layer_t *m     = g_project->_->layers->buffer[i];
+			g_context->material = m->fill_material;
+			slot_layer_clear(m, 0x00000000, NULL, 1.0, layers_default_rough, 0.0);
+			layers_update_fill_layers();
+		}
+	}
+}
+
+// After the coverage of l (a layer or a group) changed, l is the context layer
+void tab_layers_coverage_changed(slot_layer_t *l) {
+	make_material_parse_mesh_material();
+	bool has_fill = false;
+	for (i32 i = 0; i < g_project->_->layers->length && !has_fill; ++i) {
+		has_fill = tab_layers_coverage_fill(l, i);
+	}
+	if (has_fill) {
+		sys_notify_on_next_frame(&tab_layers_coverage_refill, l);
+	}
+	else {
+		layers_update_paint_set();
+	}
 }
 
 // Combo items with the paint id of each, 0 is the first item (shared or all)
@@ -225,41 +270,202 @@ static bool tab_layers_object_combo(i32 *value, string_array_t *ar, i32_array_t 
 	return changed;
 }
 
-// Single combo for the layer's own object set: shared, one object, or the set shown as an extra item
-bool tab_layers_combo_object(slot_layer_t *l, bool label) {
-	i32_array_t    *ids   = i32_array_create(0);
-	string_array_t *ar    = tab_layers_object_items(tr("Shared"), ids);
-	i32             value = 0;
-	if (!l->all_objects) {
-		i32 live = 0;
-		for (i32 i = 0; i < g_project->_->paint_objects->length; ++i) {
-			i32 pid = g_project->_->paint_objects->buffer[i]->paint_id;
-			if (i32_array_index_of(l->objects, pid) >= 0) {
-				live++;
-				value = pid;
-			}
-		}
-		if (live != 1 || i32_array_index_of(ids, value) < 0) {
-			any_array_push(ar, live == 0 ? tr("No objects") : string("%s: %d", tr("Objects"), live));
-			i32_array_push(ids, -1);
-			value = -1;
+// Coverage buttons edit the layer's own sets, deleted ids stay in the lists but are not shown or counted
+static slot_layer_t *tab_layers_coverage_l = NULL;
+
+static bool tab_layers_coverage_object_item(mesh_object_t *o) {
+	return o->data->index_array->length > 0;
+}
+
+static char *tab_layers_objects_label(slot_layer_t *l) {
+	if (l->all_objects) {
+		return tr("Objects: All");
+	}
+	i32   count  = 0;
+	char *first  = NULL;
+	char *second = NULL;
+	for (i32 i = 0; i < g_project->_->paint_objects->length; ++i) {
+		mesh_object_t *o = g_project->_->paint_objects->buffer[i];
+		if (o->paint_id > 0 && i32_array_index_of(l->objects, o->paint_id) >= 0) {
+			count++;
+			first  = first == NULL ? o->base->name : first;
+			second = count == 2 ? o->base->name : second;
 		}
 	}
-	i32  prev    = value;
-	bool changed = tab_layers_object_combo(&value, ar, ids, tr("Object"), label, (ui_id_t)&l->objects) && value != prev && value != -1;
+	if (count == 0) {
+		return tr("No objects");
+	}
+	if (count == 1) {
+		return first;
+	}
+	if (count == 2) {
+		return string_tmp("%s, %s", first, second);
+	}
+	return string_tmp("%d %s", count, tr("objects"));
+}
+
+static char *tab_layers_tiles_label(slot_layer_t *l) {
+	if (l->all_tiles) {
+		return tr("Tiles: All");
+	}
+	i32 count  = 0;
+	i32 first  = 0;
+	i32 second = 0;
+	for (i32 i = 0; i < util_udim_count(); ++i) {
+		i32 tile = util_udim_tile(i);
+		if (i32_array_index_of(l->tiles, tile) >= 0) {
+			count++;
+			first  = first == 0 ? tile : first;
+			second = count == 2 ? tile : second;
+		}
+	}
+	if (count == 0) {
+		return tr("No tiles");
+	}
+	if (count == 1) {
+		return string_tmp("%d", first);
+	}
+	if (count == 2) {
+		return string_tmp("%d, %d", first, second);
+	}
+	return string_tmp("%d %s", count, tr("tiles"));
+}
+
+// Phase B: "X shares UV space with Y on tile T..." when a covered object overlaps an uncovered one in UV space, NULL until then
+static char *tab_layers_objects_overlap_note(slot_layer_t *l) {
+	return NULL;
+}
+
+// One history step per toggle, taken before the change
+static void tab_layers_coverage_push(slot_layer_t *l) {
+	context_set_layer(l);
+	history_layer_coverage();
+}
+
+static void tab_layers_coverage_toggle(i32_array_t *ids, i32 id) {
+	i32 pos = i32_array_index_of(ids, id);
+	if (pos >= 0) {
+		i32_array_splice(ids, pos, 1);
+	}
+	else {
+		i32_array_push(ids, id);
+	}
+}
+
+// All on top, the list stays when All is ticked and is used again when it is unticked
+static bool tab_layers_coverage_all_check(slot_layer_t *l, bool *all) {
+	bool value = *all;
+	ui_menu_align();
+	ui_check(&value, tr("All"), "");
+	if (!ui_item_changed()) {
+		return false;
+	}
+	tab_layers_coverage_push(l);
+	*all = value;
+	return true;
+}
+
+static bool tab_layers_coverage_id_check(slot_layer_t *l, i32_array_t *ids, i32 id, char *text) {
+	bool value = i32_array_index_of(ids, id) >= 0;
+	ui_menu_align();
+	ui_check(&value, text, "");
+	if (!ui_item_changed()) {
+		return false;
+	}
+	tab_layers_coverage_push(l);
+	tab_layers_coverage_toggle(ids, id);
+	return true;
+}
+
+static void tab_layers_objects_items_draw(slot_layer_t *l) {
+	bool changed = tab_layers_coverage_all_check(l, &l->all_objects);
+	ui_menu_separator();
+	for (i32 i = 0; i < g_project->_->paint_objects->length; ++i) {
+		mesh_object_t *o = g_project->_->paint_objects->buffer[i];
+		if (tab_layers_coverage_object_item(o) && o->paint_id > 0) {
+			changed |= tab_layers_coverage_id_check(l, l->objects, o->paint_id, o->base->name);
+		}
+	}
 	if (changed) {
-		context_set_layer(l);
-		history_layer_coverage();
-		slot_layer_set_objects(l, value > 0 ? &value : NULL, 1, value == 0); // Shared keeps the list
-		make_material_parse_mesh_material();
-		if (l->fill_material != NULL) {
-			sys_notify_on_next_frame(&tab_layers_combo_object_layer_clear, l);
-		}
-		else {
-			layers_update_paint_set();
-		}
+		tab_layers_coverage_changed(l);
+		ui_menu_keep_open = true;
 	}
-	return changed;
+}
+
+static void tab_layers_tiles_items_draw(slot_layer_t *l) {
+	bool changed = tab_layers_coverage_all_check(l, &l->all_tiles);
+	ui_menu_separator();
+	for (i32 i = 0; i < util_udim_count(); ++i) {
+		i32 tile = util_udim_tile(i);
+		changed |= tab_layers_coverage_id_check(l, l->tiles, tile, string_tmp("%d", tile));
+	}
+	if (changed) {
+		tab_layers_coverage_changed(l);
+		ui_menu_keep_open = true;
+	}
+}
+
+static i32 tab_layers_objects_items_count() {
+	i32 count = 1; // All
+	for (i32 i = 0; i < g_project->_->paint_objects->length; ++i) {
+		count += tab_layers_coverage_object_item(g_project->_->paint_objects->buffer[i]) ? 1 : 0;
+	}
+	return count;
+}
+
+static void tab_layers_objects_menu_draw() {
+	tab_layers_objects_items_draw(tab_layers_coverage_l);
+}
+
+static void tab_layers_tiles_menu_draw() {
+	tab_layers_tiles_items_draw(tab_layers_coverage_l);
+}
+
+// Objects and Tiles buttons of a layer or group row, the Tiles button only shows with more than one tile
+static void tab_layers_coverage_buttons(slot_layer_t *l) {
+	bool tiles = util_udim_count() > 1;
+	f32  w     = g_ui->_w;
+	f32  x     = g_ui->_x;
+	f32  y     = g_ui->_y;
+	if (tiles) {
+		g_ui->_w = w / 2.0;
+	}
+	if (ui_button(tab_layers_objects_label(l), UI_ALIGN_LEFT, "")) {
+		tab_layers_coverage_l = l;
+		ui_menu_draw(&tab_layers_objects_menu_draw, -1, -1);
+	}
+	else if (g_ui->is_hovered) {
+		char *note = tab_layers_objects_overlap_note(l);
+		char *tip  = tr("Limit this layer to the selected objects.");
+		ui_tooltip(note != NULL ? string_tmp("%s\n%s", tip, note) : tip);
+	}
+	if (tiles) {
+		g_ui->_x = x + w / 2.0;
+		g_ui->_y = y;
+		if (ui_button(tab_layers_tiles_label(l), UI_ALIGN_LEFT, "")) {
+			tab_layers_coverage_l = l;
+			ui_menu_draw(&tab_layers_tiles_menu_draw, -1, -1);
+		}
+		else if (g_ui->is_hovered) {
+			ui_tooltip(tr("Limit this layer to the selected UDIM tiles."));
+		}
+		g_ui->_x = x;
+	}
+	g_ui->_w = w;
+}
+
+// Objects and Tiles sub menus of the mini layer context menu
+static void tab_layers_coverage_sub_menus(slot_layer_t *l) {
+	if (ui_menu_sub_button(tr("Objects"))) {
+		ui_menu_sub_begin(tab_layers_objects_items_count());
+		tab_layers_objects_items_draw(l);
+		ui_menu_sub_end();
+	}
+	if (util_udim_count() > 1 && ui_menu_sub_button(tr("Tiles"))) {
+		ui_menu_sub_begin(util_udim_count() + 1);
+		tab_layers_tiles_items_draw(l);
+		ui_menu_sub_end();
+	}
 }
 
 bool tab_layers_combo_blending(slot_layer_t *l, bool label) {
@@ -348,9 +554,9 @@ void tab_layers_draw_layer_slot_full(slot_layer_t *l, i32 i) {
 	f32 uiy    = g_ui->_y;
 
 	bool has_children = tab_layers_has_children(l);
-	bool has_combos   = !slot_layer_is_group(l) && !slot_layer_is_mask(l) && !slot_layer_is_filter(l);
+	bool has_combos   = !slot_layer_is_mask(l) && !slot_layer_is_filter(l); // Masks and filters use the parent's coverage
 
-	// Columns: eye | indent | icon | name | combo | expand arrow
+	// Columns: eye | indent | icon | name | objects (tiles) | expand arrow
 	i32 depth = 0;
 	for (slot_layer_t *p = l->parent; p != NULL; p = p->parent) {
 		++depth;
@@ -432,7 +638,17 @@ void tab_layers_draw_layer_slot_full(slot_layer_t *l, i32 i) {
 			}
 		}
 
-		ui_state_t state = ui_text(l->name, UI_ALIGN_LEFT, 0x00000000);
+		// Dimmed like the eye of a hidden group when the layer's objects or tiles are gone
+		bool covers_nothing = layer_covers_nothing(l);
+		i32  text_col       = g_theme->TEXT_COL;
+		if (covers_nothing) {
+			g_theme->TEXT_COL -= 0x99000000;
+		}
+		ui_state_t state  = ui_text(l->name, UI_ALIGN_LEFT, 0x00000000);
+		g_theme->TEXT_COL = text_col;
+		if (covers_nothing && g_ui->is_hovered) {
+			ui_tooltip(tr("This layer's objects were deleted, so it covers nothing. Select objects or choose All to use it again."));
+		}
 		if (state == UI_STATE_RELEASED) {
 			if (sys_time() - g_context->select_time < 0.2) {
 				tab_layers_layer_name_edit = l->id;
@@ -456,12 +672,12 @@ void tab_layers_draw_layer_slot_full(slot_layer_t *l, i32 i) {
 		}
 	}
 
-	// Object combo, blending is in the context menu
+	// Objects and tiles, blending is in the context menu
 	if (has_combos) {
 		g_ui->_x = combo_x;
 		g_ui->_y = uiy + center;
 		g_ui->_w = combo_w;
-		tab_layers_combo_object(l, false);
+		tab_layers_coverage_buttons(l);
 	}
 
 	// Expand arrow, enlarged and centered in its column
@@ -646,10 +862,8 @@ void tab_layers_draw_layer_context_menu_draw() {
 			ui_menu_keep_open = true;
 		}
 
-		if (slot_layer_is_layer(l) && !slot_layer_is_filter(l)) {
-			if (tab_layers_combo_object(l, true)) {
-				ui_menu_keep_open = true;
-			}
+		if (!slot_layer_is_mask(l) && !slot_layer_is_filter(l)) {
+			tab_layers_coverage_sub_menus(l);
 		}
 	}
 

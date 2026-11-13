@@ -17,6 +17,11 @@ static gpu_texture_t *sculpt_remap_texture        = NULL;
 static gpu_texture_t *sculpt_adj_texture0         = NULL;
 static gpu_texture_t *sculpt_adj_texture1         = NULL;
 static f32            sculpt_cloth_drag           = 1.0;
+static i32            sculpt_weld_version         = 0;    // Bumped whenever the texel layout is rebuilt
+static gpu_texture_t *sculpt_coverage_texture     = NULL; // Per texel 1 where the active layer covers the vertex
+static u8            *sculpt_coverage_key         = NULL; // Per object covered flags the texture was built from
+static i32            sculpt_coverage_key_version = -1;
+static i32            sculpt_coverage_key_width   = 0;
 
 i32 sculpt_object_vertex_offset(mesh_object_t *o) {
 	i32 offset = 0;
@@ -28,10 +33,6 @@ i32 sculpt_object_vertex_offset(mesh_object_t *o) {
 		offset += p->data->vertex_arrays->buffer[0]->values->length / 4;
 	}
 	return -1;
-}
-
-i32 sculpt_object_texel_offset(i32 object_index) {
-	return object_index < sculpt_object_count ? sculpt_object_texel_offsets[object_index] : 0;
 }
 
 i32 sculpt_object_texel_count(i32 object_index) {
@@ -196,6 +197,7 @@ static void sculpt_build_weld() {
 	sculpt_object_texel_offsets[objects->length] = texels;
 	sculpt_texel_count                           = texels;
 	sculpt_weld_keys                             = NULL;
+	sculpt_weld_version++;
 	free(order);
 	free(leader);
 
@@ -270,6 +272,43 @@ static void sculpt_build_weld() {
 		buffer_set_f32(r, v * 4, (f32)sculpt_remap[v]);
 	}
 	sculpt_remap_texture = sculpt_create_index_texture(r, w, rh, GPU_TEXTURE_FORMAT_R32, sculpt_remap_texture);
+}
+
+// Rebuild the active layer's coverage texels when the covered objects, the texel layout or the width changed
+static void sculpt_update_coverage_texture() {
+	slot_layer_t *l     = g_context->layer;
+	i32           count = sculpt_object_count;
+	i32           w     = config_get_texture_res_x();
+	// Every vertex is on tile 1001 until per vertex tiles land
+	bool tile = layer_covers_tile(l, 1001);
+	u8  *key  = malloc(count > 0 ? count : 1);
+	for (i32 o = 0; o < count; ++o) {
+		mesh_object_t *p = o < g_project->_->paint_objects->length ? g_project->_->paint_objects->buffer[o] : NULL;
+		key[o]           = tile && p != NULL && layer_covers_object(l, p);
+	}
+	if (sculpt_coverage_texture != NULL && sculpt_coverage_key_version == sculpt_weld_version && sculpt_coverage_key_width == w &&
+	    memcmp(key, sculpt_coverage_key, count) == 0) {
+		free(key);
+		return;
+	}
+	free(sculpt_coverage_key);
+	sculpt_coverage_key         = key;
+	sculpt_coverage_key_version = sculpt_weld_version;
+	sculpt_coverage_key_width   = w;
+
+	i32       h = sculpt_texel_count > 0 ? (sculpt_texel_count + w - 1) / w : 1;
+	buffer_t *b = buffer_create(w * h);
+	memset(b->buffer, 0, w * h);
+	for (i32 o = 0; o < count; ++o) {
+		if (key[o]) {
+			memset(b->buffer + sculpt_object_texel_offsets[o], 255, sculpt_object_texel_offsets[o + 1] - sculpt_object_texel_offsets[o]);
+		}
+	}
+	sculpt_coverage_texture = sculpt_create_index_texture(b, w, h, GPU_TEXTURE_FORMAT_R8, sculpt_coverage_texture);
+}
+
+gpu_texture_t *sculpt_get_coverage_texture() {
+	return sculpt_coverage_texture;
 }
 
 static void sculpt_ensure_texture_res() {
@@ -506,17 +545,19 @@ node_shader_context_t *sculpt_make_sculpt_run(material_t *data) {
 	node_shader_write_attrib_frag(kong, "float2 tex_coord = input.tex_coord;");
 	node_shader_write_attrib_frag(kong, "float2 sculpt_uv = tex_coord;");
 
-	// Restrict displacement to the object selected in the layer's object combo
-	if (g_project->_->paint_objects->length > 1) {
-		node_shader_add_texture(kong, "texpaint_sculpt_undo", "_texpaint_sculpt_undo");
-		node_shader_add_constant(kong, "float2 texpaint_undo_size", "_size(_texpaint_sculpt_undo)");
-		node_shader_add_constant(kong, "float sculpt_mask_offset", "_sculpt_mask_offset");
-		node_shader_add_constant(kong, "float sculpt_mask_count", "_sculpt_mask_count");
-		node_shader_write_frag(kong, "float sculpt_mask_lin = floor(sculpt_uv.y * constants.texpaint_undo_size.y) * "
-		                             "constants.texpaint_undo_size.x + floor(sculpt_uv.x * constants.texpaint_undo_size.x);");
-		node_shader_write_frag(kong, "if (sculpt_mask_lin < constants.sculpt_mask_offset || sculpt_mask_lin >= "
-		                             "constants.sculpt_mask_offset + constants.sculpt_mask_count) { discard; }");
-	}
+	// Restrict displacement to the vertices the layer covers, the texture is only read for a restricted layer
+	node_shader_add_texture(kong, "texpaint_sculpt_undo", "_texpaint_sculpt_undo");
+	node_shader_add_constant(kong, "float2 texpaint_undo_size", "_size(_texpaint_sculpt_undo)");
+	node_shader_add_texture(kong, "sculpt_coverage", "_sculpt_coverage");
+	node_shader_add_constant(kong, "float2 sculpt_coverage_size", "_size(_sculpt_coverage)");
+	node_shader_add_constant(kong, "float sculpt_coverage_on", "_sculpt_coverage_on");
+	node_shader_write_frag(kong, "if (constants.sculpt_coverage_on > 0.0) {");
+	node_shader_write_frag(kong, "uint2 coverage_uv = uint2(uint(sculpt_uv.x * constants.texpaint_undo_size.x), uint(sculpt_uv.y * "
+	                             "constants.texpaint_undo_size.y));");
+	node_shader_write_frag(kong, "if (floor(sculpt_uv.y * constants.texpaint_undo_size.y) >= constants.sculpt_coverage_size.y) { discard; }");
+	node_shader_write_frag(kong, "float4 coverage = sculpt_coverage[coverage_uv];");
+	node_shader_write_frag(kong, "if (coverage.r < 0.5) { discard; }");
+	node_shader_write_frag(kong, "}");
 
 	node_shader_add_constant(kong, "float4 inp", "_input_brush");
 	node_shader_add_constant(kong, "float4 inplast", "_input_brush_last");
@@ -1570,6 +1611,9 @@ void render_path_sculpt_displace_pass(char *texpaint_sculpt) {
 	// The adjacency texture is addressed with the sculpt texture width
 	if (sculpt_mode_uses_adjacency() && (sculpt_adj_texture0 == NULL || sculpt_adj_texture0->width != config_get_texture_res_x())) {
 		sculpt_build_weld();
+	}
+	if (layer_is_restricted(g_context->layer)) {
+		sculpt_update_coverage_texture();
 	}
 
 	// Snapshot the current state so the displacement pass accumulates on top of the previous one

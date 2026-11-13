@@ -177,12 +177,6 @@ void history_update_fill_layer(slot_layer_t *l) {
 	layers_update_fill_layers();
 }
 
-void history_layer_coverage_clear(slot_layer_t *l) {
-	g_context->material = l->fill_material;
-	slot_layer_clear(l, 0x00000000, NULL, 1.0, layers_default_rough, 0.0);
-	layers_update_fill_layers();
-}
-
 void history_swap_layer_props(history_step_t *step) {
 	slot_layer_t *l = g_project->_->layers->buffer[step->layer];
 
@@ -215,13 +209,7 @@ void history_swap_layer_props(history_step_t *step) {
 		step->layer_all_tiles    = all_tiles;
 		step->layer_tiles        = tiles;
 		context_set_layer(l);
-		make_material_parse_mesh_material();
-		if (l->fill_material != NULL) {
-			sys_notify_on_next_frame(&history_layer_coverage_clear, l);
-		}
-		else {
-			layers_update_paint_set();
-		}
+		tab_layers_coverage_changed(l);
 	}
 	else if (step->action == HISTORY_ACTION_LAYER_SCALE) {
 		f32 t             = l->scale;
