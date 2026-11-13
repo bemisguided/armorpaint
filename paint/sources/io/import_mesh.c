@@ -10,6 +10,67 @@ bool import_mesh_append        = false;
 
 static mesh_object_t *import_mesh_appended = NULL;
 
+// Replace import keeping layers: names and ids of the replaced objects, taken over by the new meshes
+static string_array_t *import_mesh_replaced_names = NULL;
+static i32_array_t    *import_mesh_replaced_ids   = NULL;
+static i32             import_mesh_replaced_main  = 0;
+
+static void import_mesh_clear_replaced() {
+	if (import_mesh_replaced_names != NULL) {
+		for (i32 i = 0; i < import_mesh_replaced_names->length; ++i) {
+			free(import_mesh_replaced_names->buffer[i]);
+		}
+	}
+	array_delete(import_mesh_replaced_names);
+	array_delete(import_mesh_replaced_ids);
+	import_mesh_replaced_names = NULL;
+	import_mesh_replaced_ids   = NULL;
+	import_mesh_replaced_main  = 0;
+}
+
+static void import_mesh_remember_replaced() {
+	import_mesh_clear_replaced();
+	if (import_mesh_clear_layers) {
+		return;
+	}
+	import_mesh_replaced_names = string_array_create(0);
+	import_mesh_replaced_ids   = i32_array_create(0);
+	import_mesh_replaced_main  = g_project->_->paint_objects->length == 1 ? context_main_object()->paint_id : 0;
+	for (i32 i = 0; i < g_project->_->paint_objects->length; ++i) {
+		mesh_object_t *p = g_project->_->paint_objects->buffer[i];
+		string_array_push(import_mesh_replaced_names, string_copy(p->base->name));
+		i32_array_push(import_mesh_replaced_ids, p->paint_id);
+	}
+}
+
+// A new mesh takes over the id of the replaced object with its name (the first mesh the id of a single replaced object),
+// so object restricted layers keep covering it. Other meshes get a new id.
+static void import_mesh_take_over_id(mesh_object_t *o, bool first) {
+	i32 id = 0;
+	for (i32 i = 0; !import_mesh_append && import_mesh_replaced_names != NULL && i < import_mesh_replaced_names->length; ++i) {
+		if (string_equals(import_mesh_replaced_names->buffer[i], o->base->name)) {
+			id = import_mesh_replaced_ids->buffer[i];
+			break;
+		}
+	}
+	if (id == 0 && first && !import_mesh_append) {
+		id = import_mesh_replaced_main;
+	}
+	for (i32 i = 0; id > 0 && i < g_project->_->paint_objects->length; ++i) {
+		mesh_object_t *p = g_project->_->paint_objects->buffer[i];
+		if (p != o && p->paint_id == id) {
+			id = 0; // Already taken over by an earlier mesh
+		}
+	}
+	if (id > 0) {
+		o->paint_id = id;
+		util_mesh_changed();
+	}
+	else {
+		project_assign_object_id(o);
+	}
+}
+
 void import_mesh_run(char *path, bool _clear_layers, bool replace_existing, bool keep_camera) {
 	if (!path_is_mesh(path)) {
 		if (!context_enable_import_plugin(path)) {
@@ -78,7 +139,7 @@ static mesh_object_t *import_mesh_make_root() {
 	md->name          = name;
 	mesh_object_t *mo = scene_add_mesh_object(md, g_context->paint_object->material, NULL);
 	mo->base->name    = name;
-	project_assign_object_id(mo);
+	import_mesh_take_over_id(mo, false);
 	tab_stages_add_object(name);
 	return mo;
 }
@@ -165,6 +226,7 @@ void import_mesh_finish_import(void *_) {
 	}
 
 	import_mesh_append = false;
+	import_mesh_clear_replaced();
 }
 
 void _import_mesh_make_mesh_clear_layers(void *_) {
@@ -248,6 +310,7 @@ void import_mesh_make_mesh(raw_mesh_t *mesh) {
 		viewport_reset();
 	}
 
+	import_mesh_remember_replaced();
 	nodes_mesh_reset();
 	util_mesh_remove_objects(g_project->_->paint_objects, g_context->paint_object);
 
@@ -267,7 +330,8 @@ void import_mesh_make_mesh(raw_mesh_t *mesh) {
         },
         1);
 	array_delete(old_paint_objects);
-	project_assign_object_id(g_context->paint_object); // Replaced mesh is a new object
+	g_context->paint_object->paint_id = 0;
+	import_mesh_take_over_id(g_context->paint_object, true);
 
 	if (!import_mesh_keep_timeline) {
 		tab_timeline_reset();
@@ -324,7 +388,7 @@ void import_mesh_add_mesh(raw_mesh_t *mesh) {
 		raw->name          = string_copy(uname);
 	}
 
-	project_assign_object_id(object);
+	import_mesh_take_over_id(object, false);
 	any_array_push(g_project->_->paint_objects, object);
 	tab_stages_add_object(object->base->name);
 	if (import_mesh_append && import_mesh_appended == NULL) {
