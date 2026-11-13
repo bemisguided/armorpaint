@@ -735,8 +735,10 @@ f32 slot_layer_get_opacity(slot_layer_t *raw) {
 	return f;
 }
 
+// Resolved mask, a udim tile group (negative) whose tile has no objects is shared (0), see project_object_in_mask()
 i32 slot_layer_get_object_mask(slot_layer_t *raw) {
-	return (slot_layer_is_mask(raw) || slot_layer_is_filter(raw)) ? raw->parent->object_mask : raw->object_mask;
+	i32 mask = (slot_layer_is_mask(raw) || slot_layer_is_filter(raw)) ? raw->parent->object_mask : raw->object_mask;
+	return mask < 0 ? project_mask_resolve(mask) : mask;
 }
 
 i32 slot_layer_get_blending(slot_layer_t *raw) {

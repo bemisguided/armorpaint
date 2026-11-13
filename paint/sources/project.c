@@ -598,6 +598,82 @@ mesh_object_t_array_t *project_get_atlas_objects(i32 object_mask) {
 	return visibles;
 }
 
+// Layer object masks, saved as is in slot_layer_t.object_mask:
+//   0        shared, every paint object
+//   1..N     a single paint object, index + 1
+//   > N      an atlas group, project_get_atlas_objects()
+//   < 0      a udim tile group, -tile id, every paint object named "<name>.<tile>"
+// Tile groups are computed from the object names, never stored. A tile group without objects acts as shared.
+bool project_mask_is_tile(i32 mask) {
+	return mask < 0;
+}
+
+i32 project_mask_tile_id(i32 mask) {
+	return mask < 0 ? -mask : -1;
+}
+
+i32 project_tile_mask(i32 tile) {
+	return -tile;
+}
+
+bool project_tile_has_objects(i32 tile) {
+	if (g_project == NULL || g_project->_->paint_objects == NULL) {
+		return false;
+	}
+	for (i32 i = 0; i < g_project->_->paint_objects->length; ++i) {
+		if (util_mesh_udim_tile(g_project->_->paint_objects->buffer[i]->base->name) == tile) {
+			return true;
+		}
+	}
+	return false;
+}
+
+// New array, owned by the caller
+mesh_object_t_array_t *project_get_tile_objects(i32 tile) {
+	mesh_object_t_array_t *ar = any_array_create_from_raw((void *[]){}, 0);
+	for (i32 i = 0; i < g_project->_->paint_objects->length; ++i) {
+		mesh_object_t *p = g_project->_->paint_objects->buffer[i];
+		if (util_mesh_udim_tile(p->base->name) == tile) {
+			any_array_push(ar, p);
+		}
+	}
+	return ar;
+}
+
+// Mask as consumers see it, a tile group without objects is shared
+i32 project_mask_resolve(i32 mask) {
+	if (mask < 0 && !project_tile_has_objects(-mask)) {
+		return 0;
+	}
+	return mask;
+}
+
+static bool project_object_in_atlas_mask(mesh_object_t *o, i32 mask) {
+	string_array_t *atlases = project_get_used_atlases();
+	i32             i       = mask - g_project->_->paint_objects->length - 1;
+	if (atlases == NULL || i >= atlases->length) {
+		return true; // Same as project_get_atlas_objects(), every object
+	}
+	i32 atlas_i = string_array_index_of(g_project->atlas_names, atlases->buffer[i]);
+	i32 oi      = array_index_of(g_project->_->paint_objects, o);
+	return oi >= 0 && oi < g_project->atlas_objects->length && g_project->atlas_objects->buffer[oi] == atlas_i;
+}
+
+// Whether a layer with this mask paints on and shows on the object
+bool project_object_in_mask(mesh_object_t *o, i32 mask) {
+	mask = project_mask_resolve(mask);
+	if (mask == 0) {
+		return true;
+	}
+	if (mask < 0) {
+		return util_mesh_udim_tile(o->base->name) == -mask;
+	}
+	if (mask <= g_project->_->paint_objects->length) {
+		return g_project->_->paint_objects->buffer[mask - 1] == o;
+	}
+	return project_object_in_atlas_mask(o, mask);
+}
+
 bool project_packed_asset_exists(packed_asset_t_array_t *packed_assets, char *name) {
 	for (i32 i = 0; i < packed_assets->length; ++i) {
 		packed_asset_t *pa = packed_assets->buffer[i];

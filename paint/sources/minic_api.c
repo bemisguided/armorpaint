@@ -678,7 +678,7 @@ void minic_register_builtins() {
 	MINIC_O(parent, slot_layer_t);
 	MINIC_F(mask_opacity);
 	MINIC_O(fill_material, slot_material_t);
-	MINIC_I(object_mask);
+	MINIC_I(object_mask); // Signed: 0 shared, 1..N object index + 1, > N atlas group, < 0 udim tile group (-tile id), see project_object_in_mask()
 	MINIC_F(scale);
 	MINIC_F(angle);
 	MINIC_I(blending);
