@@ -23,6 +23,7 @@ All processing is done locally on device
 Allow Upside Down Camera
 Alpha
 Alpha Discard
+Also split each object by UDIM tile
 Amount
 Angle
 Angle Reject
@@ -696,6 +697,7 @@ Spherical
 Splash Screen
 Split
 Split By
+Split UDIM Tiles
 Split View
 Split mesh into objects
 Square Root

@@ -308,6 +308,11 @@ static void obj_weld(raw_mesh_t *part) {
 
 // 'o' for object split, 'g' for groups, 'u'semtl for materials
 raw_mesh_t *obj_parse(buffer_t *file_bytes, char split_code, uint64_t start_pos, bool udim) {
+	return obj_parse_split(file_bytes, split_code, start_pos, udim, false);
+}
+
+// udim: split indices per uv tile into part->udims. udim_per_part: still split the file into parts by split_code, tiles are computed per part
+raw_mesh_t *obj_parse_split(buffer_t *file_bytes, char split_code, uint64_t start_pos, bool udim, bool udim_per_part) {
 	bytes        = file_bytes->buffer;
 	bytes_length = file_bytes->length;
 
@@ -533,7 +538,7 @@ raw_mesh_t *obj_parse(buffer_t *file_bytes, char split_code, uint64_t start_pos,
 				part->pos += 5; // "u"semtl
 			}
 			skip_whitespace();
-			if (!udim) {
+			if (!udim || udim_per_part) {
 				reading_object = true;
 			}
 			free(part->name);
@@ -625,6 +630,7 @@ raw_mesh_t *obj_parse(buffer_t *file_bytes, char split_code, uint64_t start_pos,
 		}
 	}
 
+	float *uv_backup = NULL;
 	if (uv_indices.length > 0) {
 		if (udim) {
 			// Find number of tiles
@@ -666,7 +672,10 @@ raw_mesh_t *obj_parse(buffer_t *file_bytes, char split_code, uint64_t start_pos,
 			}
 
 			// Normalize uvs to 0-1 range
-			int16_t *uvtiles = (int16_t *)malloc(uv_temp.length * sizeof(int16_t));
+			// uv_temp is shared by all parts of the file, keep the original values so uvs shared with other parts stay intact
+			uv_backup        = (float *)malloc(uv_temp.length * sizeof(float));
+			memcpy(uv_backup, uv_temp.buffer, uv_temp.length * sizeof(float));
+			int16_t *uvtiles = (int16_t *)calloc(uv_temp.length, sizeof(int16_t));
 			for (int i = 0; i < (int)(inda_length / 3); ++i) { // TODO: merge loops
 				int i1                                 = part->inda->buffer[i * 3];
 				int i2                                 = part->inda->buffer[i * 3 + 1];
@@ -704,6 +713,11 @@ raw_mesh_t *obj_parse(buffer_t *file_bytes, char split_code, uint64_t start_pos,
 			part->texa->buffer[i * 2]     = (int)(uvx * 32767);
 			part->texa->buffer[i * 2 + 1] = (int)((1.0 - uvy) * 32767);
 		}
+	}
+
+	if (uv_backup != NULL) {
+		memcpy(uv_temp.buffer, uv_backup, uv_temp.length * sizeof(float));
+		free(uv_backup);
 	}
 
 	obj_weld(part);
