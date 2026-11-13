@@ -371,10 +371,10 @@ static bool tab_layers_coverage_id_check(slot_layer_t *l, i32_array_t *ids, i32 
 	bool enabled = !all && !excluded;
 	bool value   = excluded ? false : all ? true : i32_array_index_of(ids, id) >= 0;
 	ui_menu_align();
-	f32 x = g_ui->_window_x + g_ui->_x;
-	f32 y = g_ui->_window_y + g_ui->_y;
-	f32 w = g_ui->_w;
-	f32 h = UI_ELEMENT_H();
+	f32 x         = g_ui->_window_x + g_ui->_x;
+	f32 y         = g_ui->_window_y + g_ui->_y;
+	f32 w         = g_ui->_w;
+	f32 h         = UI_ELEMENT_H();
 	g_ui->enabled = enabled;
 	ui_check(&value, text, "");
 	g_ui->enabled = true;
