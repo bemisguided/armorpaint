@@ -1913,7 +1913,7 @@ static minic_val_t bake_maps_save(minic_val_t *a, int n) {
 #endif
 	i32 stride = bake_maps_out_stride;
 	if (stride > 1 && util_mesh_udim_active() && util_mesh_atlas_stride() == stride && w % stride == 0 && h % stride == 0) {
-		// One png per udim tile cropped out of the atlas, name.1001.png
+		// One png per udim tile cropped out of the atlas, name_1001.png
 		i32   tw   = w / stride;
 		i32   th   = h / stride;
 		i32   len  = (i32)strlen(file_name);
@@ -1929,7 +1929,7 @@ static minic_val_t bake_maps_save(minic_val_t *a, int n) {
 			for (i32 y = 0; y < th; ++y) {
 				memcpy(tile + y * tw * 4, out + ((sy + y) * w + sx) * 4, tw * 4);
 			}
-			char    *tile_file = string("%s%s%s.%d.png", folder, PATH_SEP, base, id);
+			char    *tile_file = string("%s%s%s_%d.png", folder, PATH_SEP, base, id);
 			buffer_t tile_buf  = {.buffer = tile, .length = tw * th * 4};
 			iron_write_png(tile_file, &tile_buf, tw, th, 0);
 			bake_maps_import_file(tile_file);

@@ -263,7 +263,9 @@ static void export_texture_run_layers(char *path, slot_layer_t_array_t *layers, 
 
 	bool is_udim = g_context->layers_export == EXPORT_MODE_PER_UDIM_TILE;
 	if (is_udim) {
-		ext = string("%s%s", object_name, ext);
+		// Tile name is ".1001", written as "_1001"
+		bool dotted = string_length(object_name) > 1 && object_name[0] == '.';
+		ext         = string("%s%s%s", dotted ? "_" : "", dotted ? substring(object_name, 1, string_length(object_name)) : object_name, ext);
 	}
 
 	layers_make_temp_img();
