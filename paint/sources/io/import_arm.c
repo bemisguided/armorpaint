@@ -64,6 +64,7 @@ void import_arm_run_mesh(project_t *raw) {
 		mesh_object_t *object = NULL;
 		if (i == 0) {
 			mesh_object_set_data(g_context->paint_object, md);
+			util_mesh_changed();
 			object = g_context->paint_object;
 		}
 		else {
@@ -955,6 +956,7 @@ void import_arm_run_project(char *path) {
 	mesh_data_t *md = mesh_datas->buffer[0];
 
 	mesh_object_set_data(g_context->paint_object, md);
+	util_mesh_changed();
 	g_context->paint_object->base->transform->scale = (vec4_t){1, 1, 1, 1.0};
 	transform_build_matrix(g_context->paint_object->base->transform);
 	g_context->paint_object->base->name = mesh_names->buffer[0];

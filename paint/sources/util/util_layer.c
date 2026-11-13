@@ -582,13 +582,23 @@ bool layers_paint_blocked() {
 	return layers_paint_set_empty;
 }
 
-// Tile object of a layer stored tile-local (name based udim), painted on its own instead of the merged mesh
+// Tile object of a layer stored tile-local (name based udim), painted on its own instead of the merged mesh.
+// Decided from the stored ids, not the live objects, so deleting, adding, joining or splitting objects never flips how the pixels are read.
 static mesh_object_t *layers_udim_tile_object(slot_layer_t *l) {
 	if (!util_mesh_udim_active() || l == NULL || l->uv_map == 1) {
 		return NULL;
 	}
-	mesh_object_t *o = layer_coverage_single_object(l);
+	mesh_object_t *o = project_object_by_id(layer_coverage_single_id(l));
 	return o != NULL && util_mesh_udim_tile(o->base->name) >= 0 ? o : NULL;
+}
+
+// Geometry the uv maps are made from, see util_uv_paint_geometry
+static mesh_data_t *layers_paint_geometry() {
+	mesh_object_t *merged = g_context->merged_object;
+	if (merged != NULL && merged->base->visible) {
+		return merged->data;
+	}
+	return g_context->paint_object != NULL ? g_context->paint_object->data : NULL;
 }
 
 // The merged mesh holds the visible objects the active layer covers
@@ -596,6 +606,7 @@ void layers_update_paint_set() {
 	slot_layer_t  *l           = g_context->layer;
 	i32            filter      = g_context->layer_filter_object;
 	mesh_object_t *tile_object = layers_udim_tile_object(l);
+	mesh_data_t   *_geometry   = layers_paint_geometry();
 	layers_paint_set_empty     = false;
 
 	if (tile_object != NULL && (filter == 0 || filter == tile_object->paint_id)) {
@@ -609,7 +620,7 @@ void layers_update_paint_set() {
 	}
 	else if (!layer_is_restricted(l) && filter == 0) {
 		if (g_context->merged_object == NULL || g_context->merged_object_is_subset) {
-			util_mesh_merge(NULL);
+			util_mesh_merge_if_changed(NULL);
 		}
 		context_select_paint_object(context_main_object());
 		if (g_context->merged_object != NULL) {
@@ -624,9 +635,11 @@ void layers_update_paint_set() {
 				any_array_push(set, covered->buffer[i]);
 			}
 		}
-		layers_paint_set_empty = set->length == 0;
+		// Objects rendered with their own material are not painted, falling back to an uncovered object would paint it
+		mesh_object_t_array_t *paintable = util_mesh_paintable(set);
+		layers_paint_set_empty           = paintable->length == 0;
 		if (!layers_paint_set_empty) {
-			util_mesh_merge(set);
+			util_mesh_merge_if_changed(set);
 			context_select_paint_object(context_main_object());
 			if (g_context->merged_object != NULL) {
 				g_context->merged_object->base->visible = true;
@@ -634,8 +647,12 @@ void layers_update_paint_set() {
 		}
 		array_delete(covered);
 		array_delete(set);
+		array_delete(paintable);
 	}
-	util_uv_dilatemap_cached = false;
+	// The dilate map only depends on the painted geometry, a rebuilt merged mesh resets it in util_mesh_merge
+	if (layers_paint_geometry() != _geometry) {
+		util_uv_dilatemap_cached = false;
+	}
 }
 
 void tab_layers_apply_filter(i32 filter) {

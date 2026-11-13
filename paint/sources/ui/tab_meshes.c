@@ -382,6 +382,7 @@ void tab_meshes_set_override_data(mesh_object_t *o, i32 mat_index, shader_data_t
 	if (old != o->material) {
 		tab_meshes_delete_override_material(old);
 	}
+	util_mesh_changed(); // Objects with an override are not painted
 }
 
 void tab_meshes_set_override(mesh_object_t *o, i32 mat_index) {
@@ -389,6 +390,7 @@ void tab_meshes_set_override(mesh_object_t *o, i32 mat_index) {
 }
 
 void tab_meshes_reset_overrides() {
+	util_mesh_changed();
 	shader_data_t *def = g_project->_->materials->buffer[0]->data;
 	for (i32 i = 0; i < g_project->_->paint_objects->length; ++i) {
 		mesh_object_t *o   = g_project->_->paint_objects->buffer[i];
