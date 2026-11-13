@@ -215,9 +215,11 @@ static i32_array_t *_coverage_copy(i32_array_t *a) {
 	return a != NULL ? i32_array_create_from_array(a) : i32_array_create(0);
 }
 
+// Copies before freeing, src may be *dst
 static void _coverage_set(i32_array_t **dst, i32_array_t *src) {
-	array_delete(*dst);
-	*dst = _coverage_copy(src);
+	i32_array_t *old = *dst;
+	*dst             = _coverage_copy(src);
+	array_delete(old);
 }
 
 static void _coverage_union(i32_array_t *dst, i32_array_t *src) {
@@ -274,20 +276,59 @@ void slot_layer_coverage_intersect(slot_layer_t *dst, slot_layer_t *group) {
 	}
 }
 
-void slot_layer_set_objects(slot_layer_t *l, i32 *ids, i32 count, bool all) {
-	l->all_objects = all;
+// The list is replaced when ids are given or all is off, ids may point into the current list
+static void _coverage_replace(bool *dst_all, i32_array_t **dst, i32 *ids, i32 count, bool all) {
+	*dst_all = all;
 	if (ids != NULL || !all) {
-		array_delete(l->objects);
-		l->objects = i32_array_create_from_raw(ids, ids != NULL ? count : 0);
+		i32_array_t *old = *dst;
+		*dst             = i32_array_create_from_raw(ids, ids != NULL ? count : 0);
+		array_delete(old);
 	}
 }
 
-void slot_layer_set_tiles(slot_layer_t *l, i32 *ids, i32 count, bool all) {
-	l->all_tiles = all;
-	if (ids != NULL || !all) {
-		array_delete(l->tiles);
-		l->tiles = i32_array_create_from_raw(ids, ids != NULL ? count : 0);
+// Whether _coverage_replace with these arguments would change anything, the list compares as a set
+static bool _coverage_differs(bool cur_all, i32_array_t *cur, i32 *ids, i32 count, bool all) {
+	if (cur_all != all) {
+		return true;
 	}
+	if (ids == NULL && all) {
+		return false;
+	}
+	if (ids == NULL) {
+		count = 0;
+	}
+	i32 cur_count = cur != NULL ? cur->length : 0;
+	for (i32 i = 0; i < count; ++i) {
+		if (cur == NULL || i32_array_index_of(cur, ids[i]) < 0) {
+			return true;
+		}
+	}
+	for (i32 i = 0; i < cur_count; ++i) {
+		bool found = false;
+		for (i32 j = 0; j < count && !found; ++j) {
+			found = ids[j] == cur->buffer[i];
+		}
+		if (!found) {
+			return true;
+		}
+	}
+	return cur == NULL && !all;
+}
+
+void slot_layer_set_objects(slot_layer_t *l, i32 *ids, i32 count, bool all) {
+	_coverage_replace(&l->all_objects, &l->objects, ids, count, all);
+}
+
+void slot_layer_set_tiles(slot_layer_t *l, i32 *ids, i32 count, bool all) {
+	_coverage_replace(&l->all_tiles, &l->tiles, ids, count, all);
+}
+
+bool slot_layer_objects_differ(slot_layer_t *l, i32 *ids, i32 count, bool all) {
+	return _coverage_differs(l->all_objects, l->objects, ids, count, all);
+}
+
+bool slot_layer_tiles_differ(slot_layer_t *l, i32 *ids, i32 count, bool all) {
+	return _coverage_differs(l->all_tiles, l->tiles, ids, count, all);
 }
 
 // New layers made while the list is filtered only cover the filtered object
