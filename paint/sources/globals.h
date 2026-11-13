@@ -369,6 +369,8 @@ bool            render_path_paint_live_layer_locked = false;
 bool            render_path_paint_push_undo_last;
 bool            render_path_paint_baking    = false;
 bool            render_path_paint_fill_pick = false;
+bool            render_path_paint_cover_pick     = false; // Check the object under the cursor at stroke start, see render_path_paint_stroke_start
+bool            render_path_paint_stroke_skipped = false; // The stroke started on an object the layer does not cover
 bool            ui_box_show                 = false;
 ui_window_t    *ui_box_hwnd;
 bool            ui_box_click_to_hide  = true;

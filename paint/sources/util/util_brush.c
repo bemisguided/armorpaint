@@ -62,6 +62,7 @@ void util_brush_update() {
 						console_info(layer_covers_nothing(g_context->layer) ? tr("Layer covers no objects")
 						                                                    : tr("Layer's objects are hidden or use another material"));
 					}
+					render_path_paint_stroke_start();
 
 					if (g_context->tool == TOOL_TYPE_CLONE && g_context->clone_start_x >= 0.0) { // Clone delta
 						g_context->clone_delta_x = (g_context->clone_start_x - mx) / (float)ww;
@@ -89,6 +90,7 @@ void util_brush_update() {
 	}
 	else if (g_context->brush_time > 0) { // Brush released
 		g_context->brush_time          = 0;
+		render_path_paint_stroke_end();
 		g_context->prev_paint_vec_x    = -1;
 		g_context->prev_paint_vec_y    = -1;
 		g_context->brush_blend_dirty   = true; // Update brush mask

@@ -1310,6 +1310,8 @@ gpu_texture_t         *uniforms_ext_tex_link(object_t *object, shader_data_t *ma
 void                   render_path_paint_use_live_layer(bool use);
 void                   render_path_paint_commands_cursor();
 bool                   render_path_paint_paint_enabled();
+void                   render_path_paint_stroke_start();
+void                   render_path_paint_stroke_end();
 void                   render_path_paint_begin();
 void                   render_path_paint_end();
 bool                   render_path_paint_is_rt_bake();
