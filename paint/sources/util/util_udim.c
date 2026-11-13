@@ -307,6 +307,27 @@ void slot_layer_set_tiles(slot_layer_t *l, i32 *ids, i32 count, bool all) {
 	_coverage_store(l, META_ALL_TILES, META_TILES, all, ids, ids != NULL ? count : 0);
 }
 
+// Sets all of objects (tiles false) or tiles, the stored list stays
+void slot_layer_coverage_set_all(slot_layer_t *l, bool tiles, bool all) {
+	i32_array_t *cur = tiles ? slot_layer_tiles(l) : slot_layer_objects(l);
+	_coverage_store(l, tiles ? META_ALL_TILES : META_ALL_OBJECTS, tiles ? META_TILES : META_OBJECTS, all, cur->buffer, cur->length);
+}
+
+// Adds or removes one id of the stored objects (tiles false) or tiles list, all stays as it is
+void slot_layer_coverage_toggle(slot_layer_t *l, bool tiles, i32 id) {
+	i32_array_t *ids = i32_array_create_from_array(tiles ? slot_layer_tiles(l) : slot_layer_objects(l));
+	i32          pos = i32_array_index_of(ids, id);
+	if (pos >= 0) {
+		i32_array_splice(ids, pos, 1);
+	}
+	else {
+		i32_array_push(ids, id);
+	}
+	bool all = tiles ? slot_layer_all_tiles(l) : slot_layer_all_objects(l);
+	_coverage_store(l, tiles ? META_ALL_TILES : META_ALL_OBJECTS, tiles ? META_TILES : META_OBJECTS, all, ids->buffer, ids->length);
+	array_delete(ids);
+}
+
 // New layers made while the list is filtered only cover the filtered object
 void slot_layer_coverage_from_filter(slot_layer_t *l) {
 	if (g_context->layer_filter_object > 0) {

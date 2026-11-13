@@ -31,3 +31,15 @@ D7. Default per-tile resolution? - DECIDED: 2k per tile; show atlas size + memor
 ## Reusable from archive: resolution helpers, export crop, bake crop + import helper, `_1001` naming; NOT the layer rescale; c68da65dc calloc fix becomes obsolete when the OBJ importer is rewritten.
 
 ## Cross-cutting principle (user, corrected): isolate only the save/load format code; the rest follows the best code layout.
+
+## Deviations found during implementation (2026-11-13, phase A)
+- A1: `next_object_id` lives in `project_runtime_t` (the live counter); the format copies it to/from `project_t.next_object_id` at save/load. Mesh nodes never create paint objects (design listed nodes_mesh.c); `util_mesh_split` and the import Root object do, and get new ids. Replace import ("keep layers") gives the new mesh a new id, so object-restricted layers then cover nothing.
+- A2: split parts are added to every explicit object set that lists the original (same geometry, analogous to the join union rule). Join/merge-all/split update the object lists even when `all_objects` is on, so the kept list stays consistent.
+- A2: `atlas_objects`/`atlas_names` leave the save format in A2 and are session-only in `project_runtime_t` until A3 removes Export > Atlases.
+- A2: `mesh_tiles` is saved as one i16 array per mesh, an EMPTY array meaning "no tile data" (armpack cannot decode NULL elements inside an array of arrays).
+- A2: the "99" string stays defined in globals.h (unity include order), with a pointer to io/project_format.c, which holds all other format code.
+- A2: the single-object non-merged paint path is kept only for name-based UDIM tile objects (effective coverage = exactly one live object with a tile suffix), so existing name-based UDIM projects keep painting tile-local layers.
+- A2: merging a group into its child intersects the child's coverage with the group's (D1). Mesh fill only paints a picked object the active layer covers.
+- A2: a coverage level only restricts when its list exists, so zero-initialised temporary layers (previews) count as unrestricted.
+- A2 UI: the layer filter has no tile entries yet (phase B), and tiles are not marked "(unused)" (needs per-mesh tile data). The no-objects indicator dims the layer name and shows the decided tooltip; mini mode has no indicator. The status hint uses `console_info` (it is the status-bar message). New locale strings are appended to en.txt with empty lines in every other locale so line counts stay equal (empty means untranslated).
+- A2 sculpt: the coverage texture is rebuilt lazily from a key (weld version, width, covered flags per object) instead of explicit invalidation hooks. A layer that covers nothing discards every sculpt texel but still pushes an (empty) undo step.

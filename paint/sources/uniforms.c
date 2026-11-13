@@ -106,22 +106,8 @@ f32 uniforms_ext_f32_link(object_t *object, shader_data_t *mat, char *link) {
 	else if (string_equals(link, "_object_id")) {
 		return array_index_of(g_project->_->paint_objects, object->ext);
 	}
-	else if (string_equals(link, "_sculpt_mask_offset")) {
-		// Only a layer covering a single object limits sculpting, to its texel range
-		mesh_object_t *o  = layer_coverage_single_object(g_context->layer);
-		i32            oi = o != NULL ? array_index_of(g_project->_->paint_objects, o) : -1;
-		if (oi < 0) {
-			return 0;
-		}
-		return sculpt_object_texel_offset(oi);
-	}
-	else if (string_equals(link, "_sculpt_mask_count")) {
-		mesh_object_t *o  = layer_coverage_single_object(g_context->layer);
-		i32            oi = o != NULL ? array_index_of(g_project->_->paint_objects, o) : -1;
-		if (oi < 0) {
-			return config_get_texture_res_x() * config_get_texture_res_y();
-		}
-		return sculpt_object_texel_count(oi);
+	else if (string_equals(link, "_sculpt_coverage_on")) {
+		return layer_is_restricted(g_context->layer) ? 1.0 : 0.0;
 	}
 	else if (string_equals(link, "_sculpt_cloth_drag")) {
 		return sculpt_get_cloth_drag();
@@ -439,6 +425,11 @@ gpu_texture_t *uniforms_ext_tex_link(object_t *object, shader_data_t *mat, char 
 	}
 	else if (string_equals(link, "_sculpt_adj1")) {
 		return sculpt_get_adj_texture(1);
+	}
+	else if (string_equals(link, "_sculpt_coverage")) {
+		// Not read for an unrestricted layer, a missing texture leaves every texel uncovered
+		gpu_texture_t *image = layer_is_restricted(g_context->layer) ? sculpt_get_coverage_texture() : NULL;
+		return image != NULL ? image : ((render_target_t *)any_map_get(render_path_render_targets, "empty_black"))->_image;
 	}
 	else if (string_equals(link, "_texviewport")) {
 		gpu_texture_t *image = g_context->viewport_texture;

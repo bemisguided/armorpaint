@@ -860,3 +860,15 @@ typ
 bez tytułu
 x
 {shortcut} i poruszaj myszą
+
+
+
+
+
+
+
+
+
+
+
+
