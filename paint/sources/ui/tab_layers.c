@@ -203,6 +203,16 @@ static string_array_t *tab_layers_object_items(char *first, i32_array_t *masks) 
 		any_array_push(ar, p->base->name);
 		i32_array_push(masks, i + 1);
 	}
+	// Udim tile groups, every object named "<name>.<tile>"
+	if (util_mesh_udim_active()) {
+		for (i32 slot = 0; util_mesh_udim_tile_id(slot) >= 0; ++slot) {
+			i32 tile = util_mesh_udim_tile_id(slot);
+			if (project_tile_has_objects(tile)) {
+				any_array_push(ar, string_tmp("%s %d", tr("Tile"), tile));
+				i32_array_push(masks, project_tile_mask(tile));
+			}
+		}
+	}
 	string_array_t *atlases = project_get_used_atlases();
 	if (atlases != NULL) {
 		for (i32 i = 0; i < atlases->length; ++i) {
@@ -844,13 +854,29 @@ void tab_layers_draw_layer_context_menu(slot_layer_t *l, bool mini) {
 	ui_menu_draw(&tab_layers_draw_layer_context_menu_draw, -1, -1);
 }
 
+// An object filter also lists the udim tile and atlas group layers painting that object,
+// a tile filter also lists the layers of single objects in that tile
+static bool tab_layers_filtered_out(i32 filter, i32 mask) {
+	if (filter == 0 || mask == 0 || mask == filter) {
+		return false;
+	}
+	i32 n = g_project->_->paint_objects->length;
+	if (filter > 0 && filter <= n) {
+		return !project_object_in_mask(g_project->_->paint_objects->buffer[filter - 1], mask);
+	}
+	if (filter < 0 && mask > 0 && mask <= n) {
+		return !project_object_in_mask(g_project->_->paint_objects->buffer[mask - 1], filter);
+	}
+	return true;
+}
+
 static bool tab_layers_slot_hidden(slot_layer_t *l) {
 	stage_t *stage = tab_stages_get_stage();
 	if (stage != NULL && string_array_index_of(stage->layers, l->name) < 0) {
 		return true;
 	}
 
-	if (g_context->layer_filter > 0 && slot_layer_get_object_mask(l) > 0 && slot_layer_get_object_mask(l) != g_context->layer_filter) {
+	if (tab_layers_filtered_out(project_mask_resolve(g_context->layer_filter), slot_layer_get_object_mask(l))) {
 		return true;
 	}
 
