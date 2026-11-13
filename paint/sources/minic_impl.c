@@ -884,44 +884,70 @@ bool script_layer_set_group(slot_layer_t *l, slot_layer_t *group) {
 	return moved && l->parent == group;
 }
 
-void script_layer_set_object(slot_layer_t *l, object_t *object) {
+// Coverage edit as one undo step, ids NULL keeps the list (all objects or tiles with the list kept)
+static void script_layer_set_coverage(slot_layer_t *l, bool tiles, i32 *ids, i32 count, bool all) {
 	if (!script_layer_valid(l)) {
 		return;
 	}
 	if (slot_layer_is_mask(l) || slot_layer_is_filter(l)) {
 		l = l->parent;
 	}
-	i32 mask = 0;
-	if (object != NULL) {
-		for (i32 i = 0; i < g_project->_->paint_objects->length; ++i) {
-			if (g_project->_->paint_objects->buffer[i]->base == object) {
-				mask = i + 1;
-				break;
-			}
-		}
-		if (mask == 0) {
-			return;
-		}
-	}
-	if (l->object_mask == mask) {
-		return;
-	}
 	gpu_texture_t *current;
 	bool           in_use;
 	script_gpu_begin(&current, &in_use);
 	context_set_layer(l);
-	history_layer_object();
-	l->object_mask = mask;
+	history_layer_coverage();
+	if (tiles) {
+		slot_layer_set_tiles(l, ids, count, all);
+	}
+	else {
+		slot_layer_set_objects(l, ids, count, all);
+	}
 	make_material_parse_mesh_material();
 	if (l->fill_material != NULL) {
 		script_layer_refill(l);
 	}
 	else {
-		layers_set_object_mask();
+		layers_update_paint_set();
 	}
 	script_gpu_end(current, in_use);
 	g_context->rtdirty = 1;
 	g_context->ddirty  = 2;
+}
+
+// Persistent paint ids (mesh_object_t.paint_id), all covers every object and keeps ids for later
+void script_layer_set_objects(slot_layer_t *l, i32_array_t *ids, bool all) {
+	script_layer_set_coverage(l, false, ids != NULL ? ids->buffer : NULL, ids != NULL ? ids->length : 0, all);
+}
+
+// Udim tile ids (1001..), all covers every tile and keeps ids for later
+void script_layer_set_tiles(slot_layer_t *l, i32_array_t *ids, bool all) {
+	script_layer_set_coverage(l, true, ids != NULL ? ids->buffer : NULL, ids != NULL ? ids->length : 0, all);
+}
+
+// Single object, NULL covers all objects
+void script_layer_set_object(slot_layer_t *l, object_t *object) {
+	if (object == NULL) {
+		script_layer_set_coverage(l, false, NULL, 0, true);
+		return;
+	}
+	for (i32 i = 0; i < g_project->_->paint_objects->length; ++i) {
+		mesh_object_t *o = g_project->_->paint_objects->buffer[i];
+		if (o->base == object) {
+			script_layer_set_coverage(l, false, &o->paint_id, 1, false);
+			return;
+		}
+	}
+}
+
+// Compatibility with the old positional object mask: 0 covers all objects, k covers paint object k
+void script_layer_set_object_mask(slot_layer_t *l, i32 mask) {
+	if (mask <= 0) {
+		script_layer_set_coverage(l, false, NULL, 0, true);
+	}
+	else if (mask <= g_project->_->paint_objects->length) {
+		script_layer_set_object(l, g_project->_->paint_objects->buffer[mask - 1]->base);
+	}
 }
 
 // Layer context menu operations
@@ -1295,7 +1321,7 @@ void script_append_mesh_obj(char *data) {
 	import_mesh_clear_layers = false;
 	import_mesh_no_reset     = true;
 	import_mesh_append       = true;
-	g_context->layer_filter  = 0;
+	g_context->layer_filter_object = 0;
 	buffer_t *b              = buffer_create_from_raw((u8 *)data, strlen(data));
 	obj_parse_y_to_z_up      = false;
 	i32 first                = g_project->_->paint_objects->length;

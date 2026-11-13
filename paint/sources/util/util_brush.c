@@ -58,6 +58,9 @@ void util_brush_update() {
 					}
 
 					history_push_undo = g_context->tool < TOOL_TYPE_PLUGIN; // Plugin tools do not paint layers
+					if (history_push_undo && layers_paint_blocked()) {
+						console_info(tr("Layer covers no objects"));
+					}
 
 					if (g_context->tool == TOOL_TYPE_CLONE && g_context->clone_start_x >= 0.0) { // Clone delta
 						g_context->clone_delta_x = (g_context->clone_start_x - mx) / (float)ww;

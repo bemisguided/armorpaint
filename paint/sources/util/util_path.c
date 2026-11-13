@@ -658,7 +658,7 @@ static void path_repaint(slot_layer_t *l) {
 
 	make_material_save_paint_material();
 	make_material_parse_paint_material(false);
-	layers_set_object_mask();
+	layers_update_paint_set();
 
 	path_clear_layer(l);
 

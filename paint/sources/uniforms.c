@@ -107,18 +107,21 @@ f32 uniforms_ext_f32_link(object_t *object, shader_data_t *mat, char *link) {
 		return array_index_of(g_project->_->paint_objects, object->ext);
 	}
 	else if (string_equals(link, "_sculpt_mask_offset")) {
-		i32 om = slot_layer_get_object_mask(g_context->layer);
-		if (om <= 0 || om > g_project->_->paint_objects->length) {
+		// Only a layer covering a single object limits sculpting, to its texel range
+		mesh_object_t *o  = layer_coverage_single_object(g_context->layer);
+		i32            oi = o != NULL ? array_index_of(g_project->_->paint_objects, o) : -1;
+		if (oi < 0) {
 			return 0;
 		}
-		return sculpt_object_texel_offset(om - 1);
+		return sculpt_object_texel_offset(oi);
 	}
 	else if (string_equals(link, "_sculpt_mask_count")) {
-		i32 om = slot_layer_get_object_mask(g_context->layer);
-		if (om <= 0 || om > g_project->_->paint_objects->length) {
+		mesh_object_t *o  = layer_coverage_single_object(g_context->layer);
+		i32            oi = o != NULL ? array_index_of(g_project->_->paint_objects, o) : -1;
+		if (oi < 0) {
 			return config_get_texture_res_x() * config_get_texture_res_y();
 		}
-		return sculpt_object_texel_count(om - 1);
+		return sculpt_object_texel_count(oi);
 	}
 	else if (string_equals(link, "_sculpt_cloth_drag")) {
 		return sculpt_get_cloth_drag();

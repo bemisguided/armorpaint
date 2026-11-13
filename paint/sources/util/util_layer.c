@@ -390,7 +390,7 @@ void layers_update_fill_layers() {
 						first = false;
 						make_material_parse_paint_material(false);
 					}
-					layers_set_object_mask();
+					layers_update_paint_set();
 					if (l->texpaint_sculpt != NULL) {
 						i32 tid = l->id;
 						i32 hid = history_undo_i - 1 < 0 ? g_config->undo_steps - 1 : history_undo_i - 1;
@@ -418,7 +418,7 @@ void layers_update_fill_layers() {
 						first = false;
 						make_material_parse_paint_material(false);
 					}
-					layers_set_object_mask();
+					layers_update_paint_set();
 					slot_layer_clear(l, 0x00000000, NULL, 1.0, layers_default_rough, 0.0);
 					render_path_paint_commands_paint(false);
 					render_path_paint_dilate(true, true);
@@ -432,7 +432,7 @@ void layers_update_fill_layers() {
 		if (in_use)
 			draw_begin(current, false, 0);
 		g_context->layer = _layer;
-		layers_set_object_mask();
+		layers_update_paint_set();
 		g_context->tool      = _tool;
 		g_context->fill_type = _fill_type;
 		make_material_parse_paint_material(false);
@@ -575,74 +575,82 @@ void layers_update_frame_fill_layers() {
 	}
 }
 
-void layers_set_object_mask() {
-	string_array_t *ar = any_array_create_from_raw(
-	    (void *[]){
-	        tr("None"),
-	    },
-	    1);
-	for (i32 i = 0; i < g_project->_->paint_objects->length; ++i) {
-		mesh_object_t *p = g_project->_->paint_objects->buffer[i];
-		any_array_push(ar, p->base->name);
-	}
+static bool layers_paint_set_empty = false;
 
-	i32 mask = context_object_mask_used() ? slot_layer_get_object_mask(g_context->layer) : 0;
-	if (context_layer_filter_used()) {
-		mask = g_context->layer_filter;
+// Painting draws nothing while the layer covers no visible object
+bool layers_paint_blocked() {
+	return layers_paint_set_empty;
+}
+
+// Tile object of a layer stored tile-local (name based udim), painted on its own instead of the merged mesh
+static mesh_object_t *layers_udim_tile_object(slot_layer_t *l) {
+	if (!util_mesh_udim_active() || l == NULL || l->uv_map == 1) {
+		return NULL;
 	}
-	if (mask > 0) {
+	mesh_object_t *o = layer_coverage_single_object(l);
+	return o != NULL && util_mesh_udim_tile(o->base->name) >= 0 ? o : NULL;
+}
+
+// The merged mesh holds the visible objects the active layer covers
+void layers_update_paint_set() {
+	slot_layer_t  *l           = g_context->layer;
+	i32            filter      = g_context->layer_filter_object;
+	mesh_object_t *tile_object = layers_udim_tile_object(l);
+	layers_paint_set_empty     = false;
+
+	if (tile_object != NULL && (filter == 0 || filter == tile_object->paint_id)) {
 		if (g_context->merged_object != NULL) {
 			g_context->merged_object->base->visible = false;
 		}
-		mesh_object_t *o = g_project->_->paint_objects->buffer[0];
-		for (i32 i = 0; i < g_project->_->paint_objects->length; ++i) {
-			mesh_object_t *p         = g_project->_->paint_objects->buffer[i];
-			char          *mask_name = ar->buffer[mask];
-			if (string_equals(p->base->name, mask_name)) {
-				o = p;
-				break;
-			}
-		}
-		context_select_paint_object(o);
+		context_select_paint_object(tile_object);
 	}
-	else {
-		i32 atlas_mask = g_context->layer_filter > g_project->_->paint_objects->length ? g_context->layer_filter : slot_layer_get_object_mask(g_context->layer);
-		bool is_atlas  = atlas_mask > g_project->_->paint_objects->length;
-		if (g_context->merged_object == NULL || is_atlas || g_context->merged_object_is_atlas) {
-			mesh_object_t_array_t *visibles = is_atlas ? project_get_atlas_objects(atlas_mask) : NULL;
-			util_mesh_merge(visibles);
+	else if (layer_covers_nothing(l)) {
+		layers_paint_set_empty = true;
+	}
+	else if (!layer_is_restricted(l) && filter == 0) {
+		if (g_context->merged_object == NULL || g_context->merged_object_is_subset) {
+			util_mesh_merge(NULL);
 		}
 		context_select_paint_object(context_main_object());
 		if (g_context->merged_object != NULL) {
 			g_context->merged_object->base->visible = true;
 		}
 	}
+	else {
+		mesh_object_t_array_t *covered = layer_coverage_objects(l);
+		mesh_object_t_array_t *set     = any_array_create_from_raw((void *[]){}, 0);
+		for (i32 i = 0; i < covered->length; ++i) {
+			if (covered->buffer[i]->base->visible) {
+				any_array_push(set, covered->buffer[i]);
+			}
+		}
+		layers_paint_set_empty = set->length == 0;
+		if (!layers_paint_set_empty) {
+			util_mesh_merge(set);
+			context_select_paint_object(context_main_object());
+			if (g_context->merged_object != NULL) {
+				g_context->merged_object->base->visible = true;
+			}
+		}
+		array_delete(covered);
+		array_delete(set);
+	}
 	util_uv_dilatemap_cached = false;
 }
 
 void tab_layers_apply_filter(i32 filter) {
-	g_context->layer_filter = filter;
-	char *filter_name       = NULL;
-	if (filter > 0 && filter <= g_project->_->paint_objects->length) {
-		filter_name = g_project->_->paint_objects->buffer[filter - 1]->base->name;
-	}
-	else if (filter > g_project->_->paint_objects->length) {
-		string_array_t *atlases = project_get_used_atlases();
-		if (atlases != NULL) {
-			filter_name = atlases->buffer[filter - g_project->_->paint_objects->length - 1];
-		}
-	}
+	g_context->layer_filter_object = filter;
 	for (i32 i = 0; i < g_project->_->paint_objects->length; ++i) {
 		mesh_object_t *p = g_project->_->paint_objects->buffer[i];
-		p->base->visible = filter == 0 || (filter_name != NULL && string_equals(p->base->name, filter_name)) || project_is_atlas_object(p);
+		p->base->visible = filter == 0 || p->paint_id == filter;
 	}
-	if (filter == 0 && g_context->merged_object_is_atlas) {
+	if (filter == 0 && g_context->merged_object_is_subset) {
 		util_mesh_merge(NULL);
 	}
-	else if (filter > g_project->_->paint_objects->length || util_mesh_udim_active()) {
+	else if (util_mesh_udim_active()) {
 		util_mesh_merge(util_mesh_get_visible());
 	}
-	layers_set_object_mask();
+	layers_update_paint_set();
 	util_uv_uvmap_cached       = false;
 	g_context->ddirty          = 2;
 	render_path_raytrace_ready = false;
@@ -664,7 +672,7 @@ slot_layer_t *layers_new_layer(bool clear, i32 position, slot_layer_t *parent) {
 	}
 
 	slot_layer_t *l = slot_layer_create("", LAYER_SLOT_TYPE_LAYER, parent);
-	l->object_mask  = g_context->layer_filter;
+	slot_layer_coverage_from_filter(l);
 
 	if (position == -1 && slot_layer_is_filter(l)) {
 		position = array_index_of(g_project->_->layers, parent);
@@ -788,7 +796,7 @@ void layers_create_fill_layer_on_next_frame(void *_) {
 	if (!mat4_isnan(_layers_decal_mat)) {
 		l->decal_mat = _layers_decal_mat;
 	}
-	l->object_mask = g_context->layer_filter;
+	slot_layer_coverage_from_filter(l);
 
 	if (g_config->tools == TOOLS_SCULPT) {
 		sculpt_init();
@@ -882,8 +890,8 @@ void layers_create_image_layer(asset_t *asset) {
 void layers_create_color_layer_on_next_frame(void *_) {
 	slot_layer_t *l = layers_new_layer(false, _layers_position, NULL);
 	history_new_layer();
-	l->uv_type     = UV_TYPE_UVMAP;
-	l->object_mask = g_context->layer_filter;
+	l->uv_type = UV_TYPE_UVMAP;
+	slot_layer_coverage_from_filter(l);
 	slot_layer_clear(l, _layers_base_color, NULL, _layers_occlusion, _layers_roughness, _layers_metallic);
 }
 
@@ -990,9 +998,7 @@ void layers_merge_down() {
 
 	layers_bake_opacity(l0);
 	if (slot_layer_is_layer(l0)) {
-		if (l0->object_mask != l1->object_mask) {
-			l0->object_mask = 0;
-		}
+		slot_layer_coverage_union(l0, l1);
 	}
 	layers_merge_layer(l0, l1, false);
 	slot_layer_delete(l1);
@@ -1048,6 +1054,7 @@ slot_layer_t *layers_merge_group(slot_layer_t *l) {
 
 	children->buffer[0]->parent = l->parent;
 	children->buffer[0]->name   = l->name;
+	slot_layer_coverage_intersect(children->buffer[0], l);
 	if (children->buffer[0]->fill_material != NULL) {
 		slot_layer_to_paint_layer(children->buffer[0]);
 	}
@@ -1260,14 +1267,10 @@ slot_layer_t *layers_udim_remap(slot_layer_t *l, gpu_texture_t **mask, i32 slot,
 	return &remapped;
 }
 
-// Atlas slot of a layer assigned to a single udim tile object, -1 otherwise
+// Atlas slot of a layer covering exactly one udim tile object, -1 otherwise
 i32 layers_udim_tile_slot(slot_layer_t *l) {
-	i32 mask = slot_layer_get_object_mask(l);
-	if (!util_mesh_udim_active() || l->uv_map == 1 || mask <= 0 || mask > g_project->_->paint_objects->length) {
-		return -1;
-	}
-	i32 tile = util_mesh_udim_tile(g_project->_->paint_objects->buffer[mask - 1]->base->name);
-	return tile < 0 ? -1 : util_mesh_udim_slot(tile);
+	mesh_object_t *o = layers_udim_tile_object(l);
+	return o != NULL ? util_mesh_udim_slot(util_mesh_udim_tile(o->base->name)) : -1;
 }
 
 static gpu_texture_t *layers_move_a    = NULL;
@@ -1477,13 +1480,13 @@ void layers_on_resized_on_next_frame(void *_) {
 		if (l->fill_material != NULL) {
 			g_context->layer    = l;
 			g_context->material = l->fill_material;
-			layers_set_object_mask();
+			layers_update_paint_set();
 			layers_update_fill_layer(true);
 		}
 	}
 	g_context->layer    = _layer;
 	g_context->material = _material;
-	layers_set_object_mask();
+	layers_update_paint_set();
 	make_material_parse_paint_material(true);
 }
 

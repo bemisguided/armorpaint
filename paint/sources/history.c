@@ -57,7 +57,7 @@ char *history_action_to_string(history_action_t action) {
 		return tr("Layer Visibility");
 	case HISTORY_ACTION_LAYER_NAME:
 		return tr("Rename Layer");
-	case HISTORY_ACTION_LAYER_OBJECT:
+	case HISTORY_ACTION_LAYER_COVERAGE:
 		return tr("Layer Object");
 	case HISTORY_ACTION_LAYER_SCALE:
 		return tr("Layer UV Scale");
@@ -96,6 +96,8 @@ static void history_step_free(history_step_t *step) {
 	for (i32 i = 0; step->merge_layers != NULL && i < step->merge_layers->length; ++i) {
 		slot_layer_unload(step->merge_layers->buffer[i]);
 	}
+	array_delete(step->layer_objects);
+	array_delete(step->layer_tiles);
 	free(step);
 }
 
@@ -175,7 +177,7 @@ void history_update_fill_layer(slot_layer_t *l) {
 	layers_update_fill_layers();
 }
 
-void history_layer_object_clear(slot_layer_t *l) {
+void history_layer_coverage_clear(slot_layer_t *l) {
 	g_context->material = l->fill_material;
 	slot_layer_clear(l, 0x00000000, NULL, 1.0, layers_default_rough, 0.0);
 	layers_update_fill_layers();
@@ -199,17 +201,26 @@ void history_swap_layer_props(history_step_t *step) {
 		step->layer_name = t;
 		context_set_layer(l);
 	}
-	else if (step->action == HISTORY_ACTION_LAYER_OBJECT) {
-		i32 t              = l->object_mask;
-		l->object_mask     = step->layer_object;
-		step->layer_object = t;
+	else if (step->action == HISTORY_ACTION_LAYER_COVERAGE) {
+		bool         all_objects = l->all_objects;
+		i32_array_t *objects     = l->objects;
+		bool         all_tiles   = l->all_tiles;
+		i32_array_t *tiles       = l->tiles;
+		l->all_objects           = step->layer_all_objects;
+		l->objects               = step->layer_objects;
+		l->all_tiles             = step->layer_all_tiles;
+		l->tiles                 = step->layer_tiles;
+		step->layer_all_objects  = all_objects;
+		step->layer_objects      = objects;
+		step->layer_all_tiles    = all_tiles;
+		step->layer_tiles        = tiles;
 		context_set_layer(l);
 		make_material_parse_mesh_material();
 		if (l->fill_material != NULL) {
-			sys_notify_on_next_frame(&history_layer_object_clear, l);
+			sys_notify_on_next_frame(&history_layer_coverage_clear, l);
 		}
 		else {
-			layers_set_object_mask();
+			layers_update_paint_set();
 		}
 	}
 	else if (step->action == HISTORY_ACTION_LAYER_SCALE) {
@@ -511,7 +522,7 @@ void history_undo() {
 			step->layer_blending       = t;
 			make_material_parse_mesh_material();
 		}
-		else if (step->action == HISTORY_ACTION_LAYER_VISIBLE || step->action == HISTORY_ACTION_LAYER_NAME || step->action == HISTORY_ACTION_LAYER_OBJECT ||
+		else if (step->action == HISTORY_ACTION_LAYER_VISIBLE || step->action == HISTORY_ACTION_LAYER_NAME || step->action == HISTORY_ACTION_LAYER_COVERAGE ||
 		         step->action == HISTORY_ACTION_LAYER_SCALE || step->action == HISTORY_ACTION_LAYER_ANGLE || step->action == HISTORY_ACTION_LAYER_UV_TYPE) {
 			history_swap_layer_props(step);
 		}
@@ -789,7 +800,7 @@ void history_redo() {
 			step->layer_blending       = t;
 			make_material_parse_mesh_material();
 		}
-		else if (step->action == HISTORY_ACTION_LAYER_VISIBLE || step->action == HISTORY_ACTION_LAYER_NAME || step->action == HISTORY_ACTION_LAYER_OBJECT ||
+		else if (step->action == HISTORY_ACTION_LAYER_VISIBLE || step->action == HISTORY_ACTION_LAYER_NAME || step->action == HISTORY_ACTION_LAYER_COVERAGE ||
 		         step->action == HISTORY_ACTION_LAYER_SCALE || step->action == HISTORY_ACTION_LAYER_ANGLE || step->action == HISTORY_ACTION_LAYER_UV_TYPE) {
 			history_swap_layer_props(step);
 		}
@@ -929,8 +940,11 @@ history_step_t *history_push(history_action_t action) {
 	                                .material       = mpos,
 	                                .brush          = bpos,
 	                                .layer_opacity  = g_context->layer->mask_opacity,
-	                                .layer_object   = g_context->layer->object_mask,
 	                                .layer_blending = g_context->layer->blending});
+	step->layer_all_objects = g_context->layer->all_objects;
+	step->layer_objects     = g_context->layer->objects != NULL ? i32_array_create_from_array(g_context->layer->objects) : i32_array_create(0);
+	step->layer_all_tiles   = g_context->layer->all_tiles;
+	step->layer_tiles       = g_context->layer->tiles != NULL ? i32_array_create_from_array(g_context->layer->tiles) : i32_array_create(0);
 
 	any_array_push(history_steps, step);
 
@@ -1129,8 +1143,8 @@ void history_layer_name(slot_layer_t *l, char *prev_name) {
 	g_context->layer     = prev;
 }
 
-void history_layer_object() {
-	history_push(HISTORY_ACTION_LAYER_OBJECT);
+void history_layer_coverage() {
+	history_push(HISTORY_ACTION_LAYER_COVERAGE);
 }
 
 void history_layer_scale() {

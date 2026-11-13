@@ -4,7 +4,7 @@
 void context_init() {
 	g_context = ALLOC_INIT(context_t, {0});
 
-	g_context->merged_object_is_atlas       = false; // Only objects referenced by atlas are merged
+	g_context->merged_object_is_subset      = false; // Only some paint objects are merged (covered or visible)
 	g_context->ddirty                       = 0;     // depth
 	g_context->pdirty                       = 0;     // paint
 	g_context->brush_blend_dirty            = true;
@@ -108,7 +108,7 @@ void context_init() {
 	g_context->particle_mass                = 1.0;
 	g_context->particle_random              = 0.1;
 	g_context->particle_spawn_distance      = 0.0;
-	g_context->layer_filter                 = 0;
+	g_context->layer_filter_object          = 0;
 	g_context->gizmo_started                = false;
 	g_context->gizmo_offset                 = 0.0;
 	g_context->gizmo_drag                   = 0.0;
@@ -287,7 +287,7 @@ void context_set_layer(slot_layer_t *l) {
 	if (in_use)
 		draw_end();
 
-	layers_set_object_mask();
+	layers_update_paint_set();
 	make_material_parse_mesh_material();
 	make_material_parse_paint_material(true);
 
@@ -345,14 +345,6 @@ mesh_object_t *context_main_object() {
 		}
 	}
 	return g_project->_->paint_objects->buffer[0];
-}
-
-bool context_layer_filter_used() {
-	return g_context->layer_filter > 0 && g_context->layer_filter <= g_project->_->paint_objects->length;
-}
-
-bool context_object_mask_used() {
-	return slot_layer_get_object_mask(g_context->layer) > 0 && slot_layer_get_object_mask(g_context->layer) <= g_project->_->paint_objects->length;
 }
 
 bool context_in_3d_view() {

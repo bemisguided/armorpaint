@@ -768,7 +768,7 @@ void import_arm_run_project(char *path) {
 	}
 
 	g_context->layers_preview_dirty = true;
-	g_context->layer_filter         = 0;
+	g_context->layer_filter_object  = 0;
 	ui_header_draw_progress(0.1);
 
 	i32 progress_assets = project->assets->length + (project->sound_assets != NULL ? project->sound_assets->length : 0);
@@ -963,16 +963,13 @@ void import_arm_run_project(char *path) {
             g_context->paint_object,
         },
         1);
-	// Ids 1..N in mesh order, until the format stores them
-	g_project->_->next_object_id = 0;
-	project_assign_object_id(g_context->paint_object);
 
 	for (i32 i = 1; i < mesh_datas->length; ++i) {
 		mesh_object_t *object = scene_add_mesh_object(mesh_datas->buffer[i], g_context->paint_object->material, g_context->paint_object->base);
 		object->base->name    = mesh_names->buffer[i];
-		project_assign_object_id(object);
 		any_array_push(g_project->_->paint_objects, object);
 	}
+	project_format_load_object_ids(g_project);
 
 	transform_set_matrix(g_context->paint_object->base->transform, mat4_from_f32_array(g_project->mesh_transforms->buffer[0], 0));
 	for (i32 i = 1; i < g_project->mesh_datas->length; ++i) {
@@ -1011,6 +1008,7 @@ void import_arm_run_project(char *path) {
 			l->name = string_copy(ld->name);
 		}
 		l->visible = ld->visible;
+		project_format_layer_from_data(l, ld);
 		any_array_push(g_project->_->layers, l);
 		if (!is_group) {
 			gpu_texture_t *_texpaint      = NULL;
@@ -1081,8 +1079,7 @@ void import_arm_run_project(char *path) {
 			if (i == 0 && l->mask_opacity < 1.0) {
 				g_project->_->translucency = true;
 			}
-			l->object_mask = ld->object_mask;
-			l->blending    = ld->blending;
+			l->blending = ld->blending;
 
 			l->paint_base         = ld->paint_base;
 			l->paint_opac         = ld->paint_opac;
@@ -1126,8 +1123,8 @@ void import_arm_run_project(char *path) {
 	// Layer
 	g_context->layer        = g_project->_->layers->buffer[0];
 	ui_view2d_hwnd->redraws = 2;
-	if (slot_layer_get_object_mask(g_context->layer) > 0 || g_context->layer_filter > 0) {
-		layers_set_object_mask();
+	if (layer_is_restricted(g_context->layer) || g_context->layer_filter_object > 0) {
+		layers_update_paint_set();
 	}
 	make_material_parse_mesh_material();
 
@@ -1265,8 +1262,8 @@ void import_arm_run_project(char *path) {
 	if (g_context->merged_object == NULL) {
 		util_mesh_merge(NULL);
 	}
-	if (slot_layer_get_object_mask(g_context->layer) > 0 || g_context->layer_filter > 0) {
-		layers_set_object_mask();
+	if (layer_is_restricted(g_context->layer) || g_context->layer_filter_object > 0) {
+		layers_update_paint_set();
 	}
 	else {
 		context_select_paint_object(context_main_object());

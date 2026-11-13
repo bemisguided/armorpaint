@@ -75,7 +75,6 @@ slot_layer_t *slot_layer_create(char *ext, layer_slot_type_t type, slot_layer_t 
 	raw->mask_opacity       = 1.0; // Opacity mask
 	raw->show_panel         = true;
 	raw->blending           = BLEND_TYPE_MIX;
-	raw->object_mask        = 0;
 	raw->scale              = 1.0;
 	raw->angle              = 0.0;
 	raw->uv_type            = UV_TYPE_UVMAP;
@@ -91,6 +90,7 @@ slot_layer_t *slot_layer_create(char *ext, layer_slot_type_t type, slot_layer_t 
 	raw->paint_emis         = true;
 	raw->paint_subs         = true;
 	raw->decal_mat          = mat4_identity(); // Decal layer
+	slot_layer_coverage_init(raw);
 
 	if (string_equals(ext, "")) {
 		raw->id = 0;
@@ -387,7 +387,6 @@ static slot_layer_t *slot_layer_copy(slot_layer_t *raw) {
 	l->visible            = raw->visible;
 	l->mask_opacity       = raw->mask_opacity;
 	l->fill_material      = raw->fill_material;
-	l->object_mask        = raw->object_mask;
 	l->blending           = raw->blending;
 	l->uv_type            = raw->uv_type;
 	l->decal_mat          = raw->decal_mat;
@@ -404,6 +403,7 @@ static slot_layer_t *slot_layer_copy(slot_layer_t *raw) {
 	l->paint_height_blend = raw->paint_height_blend;
 	l->paint_emis         = raw->paint_emis;
 	l->paint_subs         = raw->paint_subs;
+	slot_layer_coverage_copy(l, raw);
 
 	if (raw->path_points != NULL) {
 		l->path_points        = f32_array_create_from_raw(raw->path_points->buffer, raw->path_points->length);
@@ -733,10 +733,6 @@ f32 slot_layer_get_opacity(slot_layer_t *raw) {
 		}
 	}
 	return f;
-}
-
-i32 slot_layer_get_object_mask(slot_layer_t *raw) {
-	return (slot_layer_is_mask(raw) || slot_layer_is_filter(raw)) ? raw->parent->object_mask : raw->object_mask;
 }
 
 i32 slot_layer_get_blending(slot_layer_t *raw) {

@@ -188,67 +188,75 @@ void tab_layers_combo_object_layer_clear(slot_layer_t *l) {
 	layers_update_fill_layers();
 }
 
-static string_array_t *tab_layers_object_items(char *first, i32_array_t *masks) {
+// Combo items with the paint id of each, 0 is the first item (shared or all)
+static string_array_t *tab_layers_object_items(char *first, i32_array_t *ids) {
 	string_array_t *ar = any_array_create_from_raw(
 	    (void *[]){
 	        first,
 	    },
 	    1);
-	i32_array_push(masks, 0);
+	i32_array_push(ids, 0);
 	for (i32 i = 0; i < g_project->_->paint_objects->length; ++i) {
 		mesh_object_t *p = g_project->_->paint_objects->buffer[i];
 		if (p->data->index_array->length == 0) {
 			continue;
 		}
 		any_array_push(ar, p->base->name);
-		i32_array_push(masks, i + 1);
-	}
-	string_array_t *atlases = project_get_used_atlases();
-	if (atlases != NULL) {
-		for (i32 i = 0; i < atlases->length; ++i) {
-			char *a = atlases->buffer[i];
-			any_array_push(ar, a);
-			i32_array_push(masks, g_project->_->paint_objects->length + 1 + i);
-		}
+		i32_array_push(ids, p->paint_id);
 	}
 	return ar;
 }
 
-static bool tab_layers_object_combo(i32 *value, char *first, char *label, bool show_label) {
-	i32_array_t    *masks = i32_array_create(0);
-	string_array_t *ar    = tab_layers_object_items(first, masks);
-	i32             pos   = i32_array_index_of(masks, *value);
+static bool tab_layers_object_combo(i32 *value, string_array_t *ar, i32_array_t *ids, char *label, bool show_label, ui_id_t id) {
+	i32 pos = i32_array_index_of(ids, *value);
 	if (pos == -1) {
 		pos = 0;
 	}
-	ui_set_next_id((ui_id_t)value);
+	ui_set_next_id(id);
 	ui_combo(&pos, ar, label, show_label, UI_ALIGN_LEFT, true);
 	bool changed = ui_item_changed();
 	if (changed) {
-		*value = masks->buffer[pos];
+		*value = ids->buffer[pos];
 	}
 	array_free(ar);
 	free(ar);
-	array_free(masks);
-	free(masks);
+	array_free(ids);
+	free(ids);
 	return changed;
 }
 
+// Single combo for the layer's own object set: shared, one object, or the set shown as an extra item
 bool tab_layers_combo_object(slot_layer_t *l, bool label) {
-	i32  prev_object_mask = l->object_mask;
-	bool changed          = tab_layers_object_combo(&l->object_mask, tr("Shared"), tr("Object"), label);
+	i32_array_t    *ids   = i32_array_create(0);
+	string_array_t *ar    = tab_layers_object_items(tr("Shared"), ids);
+	i32             value = 0;
+	if (!l->all_objects) {
+		i32 live = 0;
+		for (i32 i = 0; i < g_project->_->paint_objects->length; ++i) {
+			i32 pid = g_project->_->paint_objects->buffer[i]->paint_id;
+			if (i32_array_index_of(l->objects, pid) >= 0) {
+				live++;
+				value = pid;
+			}
+		}
+		if (live != 1 || i32_array_index_of(ids, value) < 0) {
+			any_array_push(ar, live == 0 ? tr("No objects") : string("%s: %d", tr("Objects"), live));
+			i32_array_push(ids, -1);
+			value = -1;
+		}
+	}
+	i32  prev    = value;
+	bool changed = tab_layers_object_combo(&value, ar, ids, tr("Object"), label, (ui_id_t)&l->objects) && value != prev && value != -1;
 	if (changed) {
-		i32 new_object_mask = l->object_mask;
-		l->object_mask      = prev_object_mask;
 		context_set_layer(l);
-		history_layer_object();
-		l->object_mask = new_object_mask;
+		history_layer_coverage();
+		slot_layer_set_objects(l, value > 0 ? &value : NULL, 1, value == 0); // Shared keeps the list
 		make_material_parse_mesh_material();
 		if (l->fill_material != NULL) {
 			sys_notify_on_next_frame(&tab_layers_combo_object_layer_clear, l);
 		}
 		else {
-			layers_set_object_mask();
+			layers_update_paint_set();
 		}
 	}
 	return changed;
@@ -850,7 +858,7 @@ static bool tab_layers_slot_hidden(slot_layer_t *l) {
 		return true;
 	}
 
-	if (g_context->layer_filter > 0 && slot_layer_get_object_mask(l) > 0 && slot_layer_get_object_mask(l) != g_context->layer_filter) {
+	if (g_context->layer_filter_object > 0 && !layer_covers_object_id(l, g_context->layer_filter_object)) {
 		return true;
 	}
 
@@ -1068,8 +1076,10 @@ void tab_layers_button_new(char *text) {
 }
 
 void tab_layers_combo_filter() {
-	if (tab_layers_object_combo(&g_context->layer_filter, tr("All"), tr("Filter"), false)) {
-		tab_layers_apply_filter(g_context->layer_filter);
+	i32_array_t    *ids = i32_array_create(0);
+	string_array_t *ar  = tab_layers_object_items(tr("All"), ids);
+	if (tab_layers_object_combo(&g_context->layer_filter_object, ar, ids, tr("Filter"), false, (ui_id_t)&g_context->layer_filter_object)) {
+		tab_layers_apply_filter(g_context->layer_filter_object);
 	}
 }
 

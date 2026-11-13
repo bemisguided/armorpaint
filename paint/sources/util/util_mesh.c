@@ -209,12 +209,12 @@ i32 util_mesh_udim_slot(i32 tile) {
 	return util_mesh_udim_tiles_spent ? ATLAS_MAX_SLOTS - 1 : 0;
 }
 
+// Layers covering exactly one tile object are stored tile-local, every other layer in the atlas
 bool util_mesh_udim_layer(slot_layer_t *l) {
 	if (!util_mesh_udim_active() || l == NULL || l->uv_map == 1) {
 		return false;
 	}
-	i32 mask = slot_layer_get_object_mask(l);
-	return mask == 0 || mask > g_project->_->paint_objects->length;
+	return layers_udim_tile_slot(l) < 0;
 }
 
 static i32 _util_mesh_atlas_slot_for_object(mesh_object_t *o) {
@@ -469,7 +469,7 @@ static void _util_mesh_merge(mesh_object_t_array_t *paint_objects, bool paintabl
 	if (paint_objects->length == 0) {
 		return;
 	}
-	g_context->merged_object_is_atlas = paint_objects->length < g_project->_->paint_objects->length;
+	g_context->merged_object_is_subset = paint_objects->length < g_project->_->paint_objects->length;
 
 	// Meshes rendered with an override material are not painted
 	mesh_object_t_array_t *paintable = paintable_only ? util_mesh_paintable(paint_objects) : NULL;
@@ -517,7 +517,7 @@ static void _util_mesh_merge(mesh_object_t_array_t *paint_objects, bool paintabl
 }
 
 bool util_mesh_merged_partial() {
-	if (!g_context->merged_object_is_atlas || util_mesh_merged_objects == NULL) {
+	if (!g_context->merged_object_is_subset || util_mesh_merged_objects == NULL) {
 		return false;
 	}
 	for (i32 i = 0; i < g_project->_->paint_objects->length; ++i) {
@@ -601,6 +601,9 @@ void util_mesh_visibility_changed() {
 	mesh_object_t_array_t *visibles = util_mesh_get_visible();
 	util_mesh_merge(visibles);
 	array_delete(visibles);
+	if (g_context->layer != NULL && layer_is_restricted(g_context->layer)) {
+		layers_update_paint_set(); // Merged objects stay limited to the layer coverage
+	}
 	util_uv_uvmap_cached       = false;
 	util_uv_trianglemap_cached = false;
 	util_uv_seammap_cached     = false;
@@ -741,6 +744,8 @@ static void util_mesh_join_geometry(mesh_object_t_array_t *objects) {
 
 static void util_mesh_geometry_joined() {
 	util_mesh_merge(NULL);
+	layers_update_paint_set();
+	make_material_parse_mesh_material(); // Coverage ids changed
 	util_uv_uvmap_cached       = false;
 	util_uv_trianglemap_cached = false;
 	util_uv_seammap_cached     = false;
@@ -761,6 +766,7 @@ void util_mesh_merge_geometry() {
 	string_array_t *merged_names = string_array_create(0);
 	for (i32 i = 1; i < objects->length; ++i) {
 		mesh_object_t *o = objects->buffer[i];
+		layers_coverage_add_alias(o->paint_id, main_object->paint_id);
 		string_array_push(merged_names, string_copy(o->base->name));
 		object_set_parent(o->base, NULL);
 		util_mesh_delete_data_uncache(o->data);
@@ -778,10 +784,7 @@ void util_mesh_merge_geometry() {
 		tab_timeline_on_mesh_deleted(merged_names->buffer[i]);
 	}
 
-	for (i32 i = 0; i < g_project->_->layers->length; ++i) {
-		g_project->_->layers->buffer[i]->object_mask = 0;
-	}
-	g_context->layer_filter = 0;
+	g_context->layer_filter_object = 0;
 	tab_stages_prune();
 	tab_meshes_reset_preview_map();
 	util_mesh_geometry_joined();
@@ -804,9 +807,8 @@ void util_mesh_merge_geometry_objects(mesh_object_t_array_t *merged) {
 
 	string_array_t *merged_names = string_array_create(0);
 	for (i32 k = 1; k < merged->length; ++k) {
-		mesh_object_t *o          = merged->buffer[k];
-		i32            main_index = array_index_of(objects, main_object);
-		i32            index      = array_index_of(objects, o);
+		mesh_object_t *o     = merged->buffer[k];
+		i32            index = array_index_of(objects, o);
 
 		while (o->base->children->length > 0) {
 			object_t *child  = o->base->children->buffer[0];
@@ -817,24 +819,17 @@ void util_mesh_merge_geometry_objects(mesh_object_t_array_t *merged) {
 			transform_set_matrix(child->transform, mat4_mult_mat(world, mat4_inv(parent_world)));
 		}
 
+		// The joined geometry stays covered wherever the removed object was
+		layers_coverage_add_alias(o->paint_id, main_object->paint_id);
+		if (g_context->layer_filter_object == o->paint_id) {
+			g_context->layer_filter_object = main_object->paint_id;
+		}
+
 		string_array_push(merged_names, string_copy(o->base->name));
 		array_splice(objects, index, 1);
-		if (g_project->atlas_objects != NULL && index < g_project->atlas_objects->length) {
-			i32_array_splice(g_project->atlas_objects, index, 1);
-		}
 		object_set_parent(o->base, NULL);
 		util_mesh_delete_data_uncache(o->data);
 		mesh_object_remove(o);
-
-		i32 merged_mask = index + 1;
-		i32 new_mask    = (main_index < index ? main_index : main_index - 1) + 1;
-		for (i32 i = 0; i < g_project->_->layers->length; ++i) {
-			slot_layer_t *l = g_project->_->layers->buffer[i];
-			l->object_mask  = l->object_mask == merged_mask ? new_mask : l->object_mask > merged_mask ? l->object_mask - 1 : l->object_mask;
-		}
-		g_context->layer_filter = g_context->layer_filter == merged_mask  ? new_mask
-		                          : g_context->layer_filter > merged_mask ? g_context->layer_filter - 1
-		                                                                  : g_context->layer_filter;
 	}
 
 	tab_meshes_sort_hierarchy();
@@ -2747,20 +2742,6 @@ void util_mesh_subdivide(mesh_object_t_array_t *objects) {
 	_util_mesh_modifier_end(objects, false);
 }
 
-static void _util_mesh_shift_object_masks(i32 from) {
-	if (g_project->_->layers != NULL) {
-		for (i32 i = 0; i < g_project->_->layers->length; ++i) {
-			slot_layer_t *l = g_project->_->layers->buffer[i];
-			if (l->object_mask >= from) {
-				++l->object_mask;
-			}
-		}
-	}
-	if (g_context->layer_filter >= from) {
-		++g_context->layer_filter;
-	}
-}
-
 mesh_object_t *util_mesh_duplicate_object(mesh_object_t *so) {
 	// Mesh
 	if (so == NULL) {
@@ -2776,7 +2757,6 @@ mesh_object_t *util_mesh_duplicate_object(mesh_object_t *so) {
 	i32 index = array_index_of(g_project->_->paint_objects, so);
 	i32 at    = index < 0 ? g_project->_->paint_objects->length : index + 1;
 	array_insert((any_array_t *)g_project->_->paint_objects, at, dup);
-	_util_mesh_shift_object_masks(at + 1);
 
 	// Ensure unique name
 	dup->base->name = string_copy(_import_mesh_unique_name(so->base->name));
@@ -3019,7 +2999,7 @@ void util_mesh_split(mesh_object_t *o) {
 		transform_set_matrix(p->base->transform, o->base->transform->local);
 		project_assign_object_id(p);
 		array_insert((any_array_t *)objects, index + c, p);
-		_util_mesh_shift_object_masks(index + 2);
+		layers_coverage_add_alias(o->paint_id, p->paint_id); // Same geometry as before the split
 		tab_stages_add_object(p->base->name);
 
 		if (mat_index >= 0) {

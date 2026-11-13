@@ -632,9 +632,9 @@ void step_layer_refill() {
 
 	context_t *ctx = script_get_context();
 	script_layer_set_object(layer_fill, ctx->paint_object->base);
-	int ok = layer_fill->object_mask == 1;
-	script_layer_set_object(layer_fill, NULL);
-	check(ok && layer_fill->object_mask == 0, "layer object mask");
+	int ok = !layer_fill->all_objects && layer_fill->objects->length == 1 && layer_fill->objects->buffer[0] == ctx->paint_object->paint_id;
+	script_layer_set_object_mask(layer_fill, 0);
+	check(ok && layer_fill->all_objects, "layer object mask");
 
 	layer_fill->visible = 0;
 	script_layer_update(layer_fill);

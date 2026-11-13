@@ -193,7 +193,6 @@ project_t *import_arm_from_map_to_arm(any_map_t *old) {
 			ld->decal_mat          = any_map_get(old, "decal_mat");
 			ld->opacity_mask       = armpack_map_get_f32(old, "opacity_mask");
 			ld->fill_material      = armpack_map_get_i32(old, "fill_material");
-			ld->object_mask        = armpack_map_get_i32(old, "object_mask");
 			ld->blending           = armpack_map_get_i32(old, "blending");
 			ld->parent             = armpack_map_get_i32(old, "parent");
 			ld->visible            = armpack_map_get_i32(old, "visible") > 0;
@@ -256,8 +255,6 @@ project_t *import_arm_from_map_to_arm(any_map_t *old) {
 	project->mesh_physics_shapes = any_map_get(old, "mesh_physics_shapes");
 	project->mesh_physics_masses = any_map_get(old, "mesh_physics_masses");
 	project->mesh_skins          = any_map_get(old, "mesh_skins");
-	project->atlas_objects       = any_map_get(old, "atlas_objects");
-	project->atlas_names         = any_map_get(old, "atlas_names");
 	project->script_datas        = any_map_get(old, "script_datas");
 	project->script_names        = any_map_get(old, "script_names");
 	project->timeline_frame_rate = armpack_map_get_i32(old, "timeline_frame_rate");
@@ -324,7 +321,7 @@ project_t *import_arm_from_map_to_arm(any_map_t *old) {
 
 project_t *import_arm_from_version_22(any_map_t *old) {
 	any_map_set(old, "mesh_groups", NULL);
-	return import_arm_from_map_to_arm(old);
+	return import_arm_from_version_23(old);
 }
 
 project_t *import_arm_from_version_21(any_map_t *old) {
@@ -537,7 +534,7 @@ project_t *import_arm_from_old(buffer_t *b) {
 	    import_arm_from_version_5,  import_arm_from_version_6,  import_arm_from_version_7,  import_arm_from_version_8,  import_arm_from_version_9,
 	    import_arm_from_version_10, import_arm_from_version_11, import_arm_from_version_12, import_arm_from_version_13, import_arm_from_version_14,
 	    import_arm_from_version_15, import_arm_from_version_16, import_arm_from_version_17, import_arm_from_version_18, import_arm_from_version_19,
-	    import_arm_from_version_20, import_arm_from_version_21, import_arm_from_version_22,
+	    import_arm_from_version_20, import_arm_from_version_21, import_arm_from_version_22, import_arm_from_version_23,
 	};
 	for (i32 v = sizeof(fns) / sizeof(fns[0]) - 1; v >= 0; --v) {
 		if (import_arm_is_version(b, i32_to_string(v))) {

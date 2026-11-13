@@ -203,11 +203,11 @@ buffer_t *util_encode_project(project_t *raw) {
 	           util_encode_packed_assets_size(raw->packed_assets) + util_encode_buffers_size(raw->brush_icons) + util_encode_buffers_size(raw->material_icons) +
 	           util_encode_buffers_size(raw->mesh_icons) + util_encode_buffers_size(raw->mesh_skins) + util_encode_f32_arrays_size(raw->mesh_transforms) +
 	           util_encode_f32_arrays_size(raw->mesh_paths) + util_encode_timeline_layers_size(raw->timeline_layers) +
-	           util_encode_timeline_meshes_size(raw->timeline_meshes);
+	           util_encode_timeline_meshes_size(raw->timeline_meshes) + project_format_encode_size(raw);
 	buffer_t *encoded = buffer_create(size);
 
 	armpack_encode_start(encoded->buffer);
-	armpack_encode_map(46);
+	armpack_encode_map(48);
 
 	armpack_encode_string("version");
 	armpack_encode_string(raw->version);
@@ -371,7 +371,7 @@ buffer_t *util_encode_project(project_t *raw) {
 	if (raw->layer_datas != NULL) {
 		armpack_encode_array(raw->layer_datas->length);
 		for (i32 i = 0; i < raw->layer_datas->length; ++i) {
-			armpack_encode_map(37);
+			armpack_encode_map(40);
 			armpack_encode_string("name");
 			armpack_encode_string(raw->layer_datas->buffer[i]->name);
 			armpack_encode_string("res");
@@ -392,8 +392,7 @@ buffer_t *util_encode_project(project_t *raw) {
 			armpack_encode_f32(raw->layer_datas->buffer[i]->opacity_mask);
 			armpack_encode_string("fill_material");
 			armpack_encode_i32(raw->layer_datas->buffer[i]->fill_material);
-			armpack_encode_string("object_mask");
-			armpack_encode_i32(raw->layer_datas->buffer[i]->object_mask);
+			project_format_encode_layer(raw->layer_datas->buffer[i]);
 			armpack_encode_string("blending");
 			armpack_encode_i32(raw->layer_datas->buffer[i]->blending);
 			armpack_encode_string("parent");
@@ -502,10 +501,6 @@ buffer_t *util_encode_project(project_t *raw) {
 		armpack_encode_null();
 	}
 
-	armpack_encode_string("atlas_objects");
-	armpack_encode_array_i32(raw->atlas_objects);
-	armpack_encode_string("atlas_names");
-	armpack_encode_array_string(raw->atlas_names);
 	armpack_encode_string("script_datas");
 	armpack_encode_array_string(raw->script_datas);
 	armpack_encode_string("script_names");
@@ -625,6 +620,8 @@ buffer_t *util_encode_project(project_t *raw) {
 	else {
 		armpack_encode_null();
 	}
+
+	project_format_encode_project(raw);
 
 	i32 ei          = armpack_encode_end();
 	encoded->length = ei;
