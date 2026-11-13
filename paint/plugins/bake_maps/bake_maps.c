@@ -44,6 +44,9 @@ gpu_texture_t     *gpu_create_render_target(i32 width, i32 height, i32 format);
 bool               util_mesh_udim_active();
 i32                util_mesh_atlas_stride();
 i32                util_mesh_atlas_slot(object_t *object);
+i32                util_mesh_atlas_res_x();
+i32                util_mesh_atlas_res_y();
+i32                util_mesh_udim_tile_id(i32 slot);
 i32                config_get_texture_res_x();
 i32                config_get_texture_res_y();
 extern bool        bake_texture_node_baking;
@@ -1649,6 +1652,22 @@ static bool bake_rays_prepare_layout(i32 w, i32 h) {
 // starts one map on worker threads, type is a bake_type_t or 14 for cavity
 static bool bake_maps_gpu_last; // Defined with the gpu bake below
 
+// Atlas stride of the finished bake, 1 when it is a single image
+static i32 bake_maps_out_stride = 1;
+
+// Tiles per atlas side for a per tile resolution, 1 without udim or when the atlas would be too large
+static i32 bake_maps_tile_stride(i32 w, i32 h) {
+	if (!util_mesh_udim_active()) {
+		return 1;
+	}
+	i32 stride = util_mesh_atlas_stride();
+	if (stride > 1 && bake_rays_imax(w, h) * stride > 16384) {
+		console_error("UDIM bake atlas exceeds 16384, baking at the per tile resolution into one atlas");
+		return 1;
+	}
+	return stride;
+}
+
 static minic_val_t bake_maps_start(minic_val_t *a, int n) {
 	bake_maps_gpu_last = false;
 	i32  type          = bake_maps_arg_i(a, n, 0);
@@ -1659,6 +1678,11 @@ static minic_val_t bake_maps_start(minic_val_t *a, int n) {
 	if (w <= 0 || h <= 0) {
 		return minic_val_int(0);
 	}
+
+	// With udim tiles the resolution is per tile, the atlas holds every tile at that resolution
+	bake_maps_out_stride = bake_maps_tile_stride(w, h);
+	w *= bake_maps_out_stride;
+	h *= bake_maps_out_stride;
 
 	if (!bake_rays_prepare_layout(w, h)) {
 		return minic_val_int(0);
@@ -1755,7 +1779,7 @@ static minic_val_t bake_maps_gpu_supported(minic_val_t *a, int n) {
 
 // int bake_maps_gpu_res(): gpu maps bake at the layer resolution
 static minic_val_t bake_maps_gpu_res(minic_val_t *a, int n) {
-	return minic_val_int(config_get_texture_res_x());
+	return minic_val_int(config_get_texture_res_x()); // Per udim tile
 }
 
 // bool bake_maps_gpu_start(int type, int samples, float ao_strength, float ao_radius, float ao_offset):
@@ -1764,8 +1788,13 @@ static minic_val_t bake_maps_gpu_start(minic_val_t *a, int n) {
 	if (bake_texture_node_baking || bake_rays_working || !gpu_raytrace_supported()) {
 		return minic_val_int(0);
 	}
-	i32 w = config_get_texture_res_x();
-	i32 h = config_get_texture_res_y();
+	// The target is the whole udim atlas
+	i32 w = util_mesh_atlas_res_x();
+	i32 h = util_mesh_atlas_res_y();
+	bake_maps_out_stride = config_get_texture_res_x() > 0 ? w / config_get_texture_res_x() : 1;
+	if (bake_maps_out_stride < 1 || !util_mesh_udim_active()) {
+		bake_maps_out_stride = 1;
+	}
 	if (bake_maps_gpu_rt == NULL) {
 		bake_maps_gpu_rt         = render_target_create();
 		bake_maps_gpu_rt->name   = "bake_maps_gpu";
@@ -1854,6 +1883,18 @@ static minic_val_t bake_maps_cancel(minic_val_t *a, int n) {
 	return minic_val_int(0);
 }
 
+// Adds a written map to the project textures, or reloads the texture when it is already there
+static void bake_maps_import_file(char *file) {
+	asset_t_array_t *assets = g_project->_->assets;
+	for (i32 i = 0; i < assets->length; ++i) {
+		if (string_equals(assets->buffer[i]->file, file)) {
+			project_reimport_texture(assets->buffer[i]);
+			return;
+		}
+	}
+	import_texture_run(file, false);
+}
+
 // bool bake_maps_save(char *folder, char *file_name): writes the finished map as png and adds it to the
 // project textures, or reloads the texture when it is already there
 static minic_val_t bake_maps_save(minic_val_t *a, int n) {
@@ -1870,19 +1911,41 @@ static minic_val_t bake_maps_save(minic_val_t *a, int n) {
 #ifdef IRON_BGRA
 	buffer_bgra_swap(&pixels); // The png writer takes the native order, the bake is RGBA
 #endif
+	i32 stride = bake_maps_out_stride;
+	if (stride > 1 && util_mesh_udim_active() && util_mesh_atlas_stride() == stride && w % stride == 0 && h % stride == 0) {
+		// One png per udim tile cropped out of the atlas, name.1001.png
+		i32   tw   = w / stride;
+		i32   th   = h / stride;
+		i32   len  = (i32)strlen(file_name);
+		char *base = len > 4 && strcmp(file_name + len - 4, ".png") == 0 ? substring(file_name, 0, len - 4) : file_name;
+		u8   *tile = malloc(tw * th * 4);
+		for (i32 slot = 0; slot < stride * stride; ++slot) {
+			i32 id = util_mesh_udim_tile_id(slot);
+			if (id < 0) {
+				continue;
+			}
+			i32 sx = (slot % stride) * tw;
+			i32 sy = (slot / stride) * th;
+			for (i32 y = 0; y < th; ++y) {
+				memcpy(tile + y * tw * 4, out + ((sy + y) * w + sx) * 4, tw * 4);
+			}
+			char    *tile_file = string("%s%s%s.%d.png", folder, PATH_SEP, base, id);
+			buffer_t tile_buf  = {.buffer = tile, .length = tw * th * 4};
+			iron_write_png(tile_file, &tile_buf, tw, th, 0);
+			bake_maps_import_file(tile_file);
+		}
+		free(tile);
+#ifdef IRON_BGRA
+		buffer_bgra_swap(&pixels);
+#endif
+		return minic_val_int(1);
+	}
 	iron_write_png(file, &pixels, w, h, 0);
 #ifdef IRON_BGRA
 	buffer_bgra_swap(&pixels);
 #endif
 
-	asset_t_array_t *assets = g_project->_->assets;
-	for (i32 i = 0; i < assets->length; ++i) {
-		if (string_equals(assets->buffer[i]->file, file)) {
-			project_reimport_texture(assets->buffer[i]);
-			return minic_val_int(1);
-		}
-	}
-	import_texture_run(file, false);
+	bake_maps_import_file(file);
 	return minic_val_int(1);
 }
 
