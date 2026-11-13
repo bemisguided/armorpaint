@@ -63,15 +63,14 @@ stage_t *tab_stages_get_stage() {
 
 void tab_stages_apply(stage_t *stage) {
 	tab_timeline_set_stage(stage);
-	mesh_object_t_array_t *visibles = any_array_create_from_raw((void *[]){}, 0);
 	for (i32 i = 0; i < g_project->_->paint_objects->length; ++i) {
 		mesh_object_t *p = g_project->_->paint_objects->buffer[i];
 		p->base->visible = string_array_index_of(stage->objects, p->base->name) >= 0 && !tab_stages_is_hidden(stage, p->base->name);
-		if (p->base->visible) {
-			any_array_push(visibles, p);
-		}
 	}
+	// Visible objects, of the atlas or udim tile group when the active layer paints one
+	mesh_object_t_array_t *visibles = layers_paint_set();
 	util_mesh_merge(visibles);
+	array_delete(visibles);
 	util_physics_apply_stage(stage);
 	g_context->ddirty = 2;
 }

@@ -606,11 +606,13 @@ void layers_set_object_mask() {
 		context_select_paint_object(o);
 	}
 	else {
-		i32 atlas_mask = g_context->layer_filter > g_project->_->paint_objects->length ? g_context->layer_filter : slot_layer_get_object_mask(g_context->layer);
-		bool is_atlas  = atlas_mask > g_project->_->paint_objects->length;
-		if (g_context->merged_object == NULL || is_atlas || g_context->merged_object_is_atlas) {
-			mesh_object_t_array_t *visibles = is_atlas ? project_get_atlas_objects(atlas_mask) : NULL;
-			util_mesh_merge(visibles);
+		// The merged mesh is the paint set, the visible objects of the atlas or udim tile group, or of the whole project
+		if (g_context->merged_object == NULL || layers_group_mask() != 0 || g_context->merged_object_is_atlas) {
+			mesh_object_t_array_t *set = layers_paint_set();
+			if (!util_mesh_merged_is(set)) {
+				util_mesh_merge(set);
+			}
+			array_delete(set);
 		}
 		context_select_paint_object(context_main_object());
 		if (g_context->merged_object != NULL) {
@@ -620,7 +622,80 @@ void layers_set_object_mask() {
 	util_uv_dilatemap_cached = false;
 }
 
+static bool layers_context_layer_valid() {
+	return g_context->layer != NULL && g_project != NULL && g_project->_->layers != NULL && g_project->_->paint_objects != NULL &&
+	       array_index_of(g_project->_->layers, g_context->layer) >= 0;
+}
+
+// Atlas or udim tile group the merged paint set follows, from the filter or else the active layer,
+// 0 when painting a single object or everything
+i32 layers_group_mask() {
+	if (!layers_context_layer_valid() || context_object_mask_used() || context_layer_filter_used()) {
+		return 0;
+	}
+	i32 n = g_project->_->paint_objects->length;
+	i32 f = project_mask_resolve(g_context->layer_filter);
+	if (f < 0 || f > n) {
+		return f;
+	}
+	i32 m = slot_layer_get_object_mask(g_context->layer);
+	return m < 0 || m > n ? m : 0;
+}
+
+// Objects painted into the merged mesh: members of the group that are visible, new array owned by the caller.
+// A group with all of its members hidden keeps all of its members, so fill layers still fill the group.
+mesh_object_t_array_t *layers_paint_set() {
+	i32                    group = layers_group_mask();
+	mesh_object_t_array_t *ar    = any_array_create_from_raw((void *[]){}, 0);
+	for (i32 i = 0; i < g_project->_->paint_objects->length; ++i) {
+		mesh_object_t *p = g_project->_->paint_objects->buffer[i];
+		if (p->base->visible && (group == 0 || project_object_in_mask(p, group))) {
+			any_array_push(ar, p);
+		}
+	}
+	if (ar->length == 0 && group != 0) {
+		for (i32 i = 0; i < g_project->_->paint_objects->length; ++i) {
+			mesh_object_t *p = g_project->_->paint_objects->buffer[i];
+			if (project_object_in_mask(p, group)) {
+				any_array_push(ar, p);
+			}
+		}
+	}
+	return ar;
+}
+
+static bool layers_any_group_mask() {
+	i32 n = g_project->_->paint_objects->length;
+	for (i32 i = 0; i < g_project->_->layers->length; ++i) {
+		i32 m = g_project->_->layers->buffer[i]->object_mask;
+		if (m < 0 || m > n) {
+			return true;
+		}
+	}
+	return g_context->layer_filter < 0 || g_context->layer_filter > n;
+}
+
+// Paint objects were added, removed or renamed, udim tile groups follow the object names:
+// recompute the paint set of the active layer and the per object visibility in the mesh shader
+bool layers_objects_changed() {
+	if (!layers_context_layer_valid() || !layers_any_group_mask()) {
+		return false;
+	}
+	if (g_context->layer_filter < 0 && !project_tile_has_objects(-g_context->layer_filter)) {
+		tab_layers_apply_filter(0); // Filtered tile is gone
+	}
+	else {
+		layers_set_object_mask();
+	}
+	make_material_parse_mesh_material();
+	g_context->ddirty = 2;
+	return true;
+}
+
 void tab_layers_apply_filter(i32 filter) {
+	if (filter < 0 && !project_tile_has_objects(-filter)) {
+		filter = 0;
+	}
 	g_context->layer_filter = filter;
 	char *filter_name       = NULL;
 	if (filter > 0 && filter <= g_project->_->paint_objects->length) {
@@ -634,12 +709,13 @@ void tab_layers_apply_filter(i32 filter) {
 	}
 	for (i32 i = 0; i < g_project->_->paint_objects->length; ++i) {
 		mesh_object_t *p = g_project->_->paint_objects->buffer[i];
-		p->base->visible = filter == 0 || (filter_name != NULL && string_equals(p->base->name, filter_name)) || project_is_atlas_object(p);
+		p->base->visible = filter == 0 || (filter_name != NULL && string_equals(p->base->name, filter_name)) || project_is_atlas_object(p) ||
+		                   (filter < 0 && project_object_in_mask(p, filter));
 	}
 	if (filter == 0 && g_context->merged_object_is_atlas) {
 		util_mesh_merge(NULL);
 	}
-	else if (filter > g_project->_->paint_objects->length) {
+	else if (filter > g_project->_->paint_objects->length || filter < 0) {
 		util_mesh_merge(util_mesh_get_visible());
 	}
 	layers_set_object_mask();

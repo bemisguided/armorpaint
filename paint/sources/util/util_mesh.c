@@ -219,7 +219,7 @@ bool util_mesh_udim_layer(slot_layer_t *l) {
 		return false;
 	}
 	i32 mask = slot_layer_get_object_mask(l);
-	return mask == 0 || mask > g_project->_->paint_objects->length;
+	return mask <= 0 || mask > g_project->_->paint_objects->length; // Shared, udim tile group or atlas group
 }
 
 static i32 _util_mesh_atlas_slot_for_object(mesh_object_t *o) {
@@ -589,7 +589,32 @@ bool util_mesh_merged_partial() {
 	return false;
 }
 
+// Whether the merged mesh holds exactly the paintable objects of the list, in order
+bool util_mesh_merged_is(mesh_object_t_array_t *objects) {
+	if (g_context->merged_object == NULL || util_mesh_merged_objects == NULL || util_mesh_merged_stale) {
+		return false;
+	}
+	mesh_object_t_array_t *paintable = util_mesh_paintable(objects);
+	bool                   same      = paintable->length == util_mesh_merged_objects->length;
+	for (i32 i = 0; same && i < paintable->length; ++i) {
+		same = paintable->buffer[i] == util_mesh_merged_objects->buffer[i];
+	}
+	array_delete(paintable);
+	return same;
+}
+
+bool util_mesh_merged_has(mesh_object_t *o) {
+	return g_context->merged_object != NULL && util_mesh_merged_objects != NULL && array_index_of(util_mesh_merged_objects, o) >= 0;
+}
+
 void util_mesh_merge(mesh_object_t_array_t *paint_objects) {
+	// Merging everything while an atlas or udim tile group is painted keeps painting the group
+	if (paint_objects == NULL && layers_group_mask() != 0) {
+		mesh_object_t_array_t *set = layers_paint_set();
+		_util_mesh_merge(set, true);
+		array_delete(set);
+		return;
+	}
 	_util_mesh_merge(paint_objects, true);
 }
 
@@ -658,7 +683,7 @@ void util_mesh_visibility_changed() {
 		g_context->ddirty          = 2;
 		return;
 	}
-	mesh_object_t_array_t *visibles = util_mesh_get_visible();
+	mesh_object_t_array_t *visibles = layers_paint_set();
 	util_mesh_merge(visibles);
 	array_delete(visibles);
 	util_uv_uvmap_cached       = false;
@@ -2875,6 +2900,7 @@ void util_mesh_duplicate() {
 		ui_dock_redraw(TAB_AREA_SIDEBAR0);
 	}
 	util_mesh_merge(NULL);
+	layers_objects_changed(); // The copy may join a udim tile group
 	g_context->ddirty = 2;
 }
 
@@ -3137,11 +3163,17 @@ char *util_mesh_unique_name(mesh_object_t *self, char *name) {
 }
 
 void util_mesh_rename(mesh_object_t *o, char *name) {
-	name = string_copy(name);
+	name         = string_copy(name);
+	bool retiled = util_mesh_udim_tile(o->base->name) != util_mesh_udim_tile(name);
 	tab_stages_rename_object(o->base->name, name);
 	o->base->name = name;
 	// Mesh data shared by linked duplicates is named after the object holding it
 	if (o->data != NULL && util_mesh_data_owner(o->data) == array_index_of(g_project->_->paint_objects, o)) {
 		o->data->name = string_copy(name);
+	}
+	// The udim tile slots and tile groups follow the object names
+	if (retiled) {
+		util_mesh_merge(NULL);
+		layers_objects_changed();
 	}
 }

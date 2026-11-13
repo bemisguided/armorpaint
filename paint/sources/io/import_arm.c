@@ -1127,7 +1127,7 @@ void import_arm_run_project(char *path) {
 	// Layer
 	g_context->layer        = g_project->_->layers->buffer[0];
 	ui_view2d_hwnd->redraws = 2;
-	if (slot_layer_get_object_mask(g_context->layer) > 0 || g_context->layer_filter > 0) {
+	if (slot_layer_get_object_mask(g_context->layer) != 0 || g_context->layer_filter != 0) { // Single object, atlas or udim tile group
 		layers_set_object_mask();
 	}
 	make_material_parse_mesh_material();
@@ -1266,7 +1266,7 @@ void import_arm_run_project(char *path) {
 	if (g_context->merged_object == NULL) {
 		util_mesh_merge(NULL);
 	}
-	if (slot_layer_get_object_mask(g_context->layer) > 0 || g_context->layer_filter > 0) {
+	if (slot_layer_get_object_mask(g_context->layer) != 0 || g_context->layer_filter != 0) { // Single object, atlas or udim tile group
 		layers_set_object_mask();
 	}
 	else {
