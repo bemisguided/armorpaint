@@ -239,6 +239,34 @@ static void export_texture_set_channel(f32 value, buffer_t *to, i32 to_channel, 
 	}
 }
 
+// Whether a layer mask paints any object of the udim tile, tile is from the ".1001" export name
+static bool export_texture_mask_in_tile(i32 mask, i32 tile) {
+	if (mask == 0) {
+		return true;
+	}
+	if (mask < 0) {
+		return project_mask_tile_id(mask) == tile;
+	}
+	for (i32 i = 0; i < g_project->_->paint_objects->length; ++i) {
+		mesh_object_t *p = g_project->_->paint_objects->buffer[i];
+		if (util_mesh_udim_tile(p->base->name) == tile && project_object_in_mask(p, mask)) {
+			return true;
+		}
+	}
+	return false;
+}
+
+// Whether a layer mask paints the named object
+static bool export_texture_mask_has_object(i32 mask, char *object_name) {
+	for (i32 i = 0; i < g_project->_->paint_objects->length; ++i) {
+		mesh_object_t *p = g_project->_->paint_objects->buffer[i];
+		if (string_equals(p->base->name, object_name)) {
+			return project_object_in_mask(p, mask);
+		}
+	}
+	return false;
+}
+
 static void export_texture_run_layers(char *path, slot_layer_t_array_t *layers, char *object_name, bool bake_material) {
 	i32 texture_size_x = util_mesh_atlas_res_x();
 	i32 texture_size_y = util_mesh_atlas_res_y();
@@ -275,8 +303,19 @@ static void export_texture_run_layers(char *path, slot_layer_t_array_t *layers, 
 
 	// Append object mask name
 	bool export_selected = g_context->layers_export == EXPORT_MODE_SELECTED;
-	if (export_selected && slot_layer_get_object_mask(layers->buffer[0]) > 0) {
-		f = string("%s_%s", f, g_project->_->paint_objects->buffer[slot_layer_get_object_mask(layers->buffer[0]) - 1]->base->name);
+	i32  selected_mask   = export_selected ? slot_layer_get_object_mask(layers->buffer[0]) : 0;
+	if (selected_mask > 0 && selected_mask <= g_project->_->paint_objects->length) {
+		f = string("%s_%s", f, g_project->_->paint_objects->buffer[selected_mask - 1]->base->name);
+	}
+	else if (selected_mask < 0) { // Udim tile group
+		f = string("%s_%d", f, project_mask_tile_id(selected_mask));
+	}
+	else if (selected_mask > 0) { // Atlas group
+		string_array_t *atlases = project_get_used_atlases();
+		i32             ai      = selected_mask - g_project->_->paint_objects->length - 1;
+		if (atlases != NULL && ai < atlases->length) {
+			f = string("%s_%s", f, atlases->buffer[ai]);
+		}
 	}
 	if (!is_udim && !export_selected && !string_equals(object_name, "")) {
 		f = string("%s_%s", f, object_name);
@@ -288,6 +327,9 @@ static void export_texture_run_layers(char *path, slot_layer_t_array_t *layers, 
 		i32 udim_tile = util_mesh_udim_tile(object_name);
 		if (udim_tile >= 0) {
 			udim_slot = util_mesh_udim_slot(udim_tile);
+		}
+		else if (export_selected && selected_mask < 0) {
+			udim_slot = util_mesh_udim_slot(project_mask_tile_id(selected_mask));
 		}
 		else if (export_selected) {
 			udim_slot = layers_udim_tile_slot(layers->buffer[0]);
@@ -315,12 +357,12 @@ static void export_texture_run_layers(char *path, slot_layer_t_array_t *layers, 
 			continue;
 		}
 
-		if (!string_equals(object_name, "") && slot_layer_get_object_mask(l1) > 0) {
-			if (is_udim && !ends_with(g_project->_->paint_objects->buffer[slot_layer_get_object_mask(l1) - 1]->base->name, object_name)) {
+		if (!string_equals(object_name, "") && slot_layer_get_object_mask(l1) != 0) {
+			if (is_udim && !export_texture_mask_in_tile(slot_layer_get_object_mask(l1), util_mesh_udim_tile(object_name))) {
 				continue;
 			}
 			bool per_object = g_context->layers_export == EXPORT_MODE_PER_OBJECT;
-			if (per_object && !string_equals(g_project->_->paint_objects->buffer[slot_layer_get_object_mask(l1) - 1]->base->name, object_name)) {
+			if (per_object && !export_texture_mask_has_object(slot_layer_get_object_mask(l1), object_name)) {
 				continue;
 			}
 		}
@@ -794,11 +836,20 @@ void export_texture_run(char *path, bool bake_material) {
 	else if (g_context->layers_export == EXPORT_MODE_PER_OBJECT) {
 		string_array_t *object_names = any_array_create_from_raw((void *[]){}, 0);
 		for (i32 i = 0; i < g_project->_->layers->length; ++i) {
-			slot_layer_t *l = g_project->_->layers->buffer[i];
-			if (slot_layer_get_object_mask(l) > 0) {
-				char *name = g_project->_->paint_objects->buffer[slot_layer_get_object_mask(l) - 1]->base->name;
+			slot_layer_t *l    = g_project->_->layers->buffer[i];
+			i32           mask = slot_layer_get_object_mask(l);
+			if (mask > 0 && mask <= g_project->_->paint_objects->length) {
+				char *name = g_project->_->paint_objects->buffer[mask - 1]->base->name;
 				if (string_array_index_of(object_names, name) == -1) {
 					any_array_push(object_names, name);
+				}
+			}
+			else if (mask < 0) { // Every object of the udim tile group
+				for (i32 j = 0; j < g_project->_->paint_objects->length; ++j) {
+					char *name = g_project->_->paint_objects->buffer[j]->base->name;
+					if (project_object_in_mask(g_project->_->paint_objects->buffer[j], mask) && string_array_index_of(object_names, name) == -1) {
+						any_array_push(object_names, name);
+					}
 				}
 			}
 		}
@@ -843,6 +894,11 @@ void export_texture_run(char *path, bool bake_material) {
 					bool          add  = false;
 					if (mask == 0) { // Shared object
 						add = true;
+					}
+					else if (mask < 0) { // Udim tile group, when any of its objects is in the atlas
+						for (i32 j = 0; j < g_project->_->paint_objects->length && j < g_project->atlas_objects->length && !add; ++j) {
+							add = g_project->atlas_objects->buffer[j] == atlas_index && project_object_in_mask(g_project->_->paint_objects->buffer[j], mask);
+						}
 					}
 					else if (mask <= g_project->_->paint_objects->length) { // Specific object
 						add = g_project->atlas_objects->buffer[mask - 1] == atlas_index;
