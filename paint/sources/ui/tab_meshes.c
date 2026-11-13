@@ -583,7 +583,34 @@ void tab_meshes_on_material_reordered(i32 old_index, i32 new_index) {
 	}
 }
 
-static i32 tab_meshes_delete_index = 0;
+static i32  tab_meshes_delete_index         = 0;
+static bool tab_meshes_delete_masks_changed = false;
+static bool tab_meshes_delete_reset_filter  = false;
+
+// Layer masks follow the paint object indices: layers of the removed object become shared, later objects and atlas groups
+// shift down. Udim tile groups (negative) key on the tile id and stay, they follow the object names.
+static void tab_meshes_remove_object_mask(i32 removed_mask) {
+	for (i32 i = 0; i < g_project->_->layers->length; ++i) {
+		slot_layer_t *l = g_project->_->layers->buffer[i];
+		i32           m = l->object_mask;
+		if (m == removed_mask) {
+			l->object_mask = 0;
+		}
+		else if (m > removed_mask) {
+			l->object_mask = m - 1;
+		}
+		if (l->object_mask != m) {
+			tab_meshes_delete_masks_changed = true;
+		}
+	}
+	if (g_context->layer_filter == removed_mask) {
+		g_context->layer_filter        = 0;
+		tab_meshes_delete_reset_filter = true;
+	}
+	else if (g_context->layer_filter > removed_mask) {
+		g_context->layer_filter--;
+	}
+}
 
 static mesh_object_t *tab_meshes_select_after_delete() {
 	// Keep the selection on the same row
@@ -616,6 +643,18 @@ void tab_meshes_draw_context_menu_delete_next_frame(mesh_object_t *o) {
 	tab_stages_prune();
 	g_context->paint_object = tab_meshes_select_after_delete();
 	util_mesh_merge(NULL);
+	if (tab_meshes_delete_reset_filter) {
+		tab_meshes_delete_reset_filter = false;
+		tab_layers_apply_filter(0); // The filtered object is gone
+	}
+	bool reparsed = layers_objects_changed();
+	if (tab_meshes_delete_masks_changed) {
+		tab_meshes_delete_masks_changed = false;
+		if (!reparsed) {
+			layers_set_object_mask();
+			make_material_parse_mesh_material();
+		}
+	}
 	g_context->ddirty = 2;
 	ui_dock_redraw(TAB_AREA_SIDEBAR0);
 }
@@ -659,6 +698,10 @@ void tab_meshes_draw_context_menu_delete(mesh_object_t *o) {
 	}
 
 	array_remove(g_project->_->paint_objects, o);
+	if (g_project->atlas_objects != NULL && tab_meshes_delete_index < g_project->atlas_objects->length) {
+		i32_array_splice(g_project->atlas_objects, tab_meshes_delete_index, 1);
+	}
+	tab_meshes_remove_object_mask(tab_meshes_delete_index + 1);
 	tab_timeline_on_mesh_deleted(mesh_name);
 	nodes_mesh_remove(o);
 
