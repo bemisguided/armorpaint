@@ -10,7 +10,7 @@
 // - layer_data_t: all_objects, objects, all_tiles, tiles (after fill_material, before blending)
 // - slot_layer_t: all_objects, objects, all_tiles, tiles (runtime copy of the above)
 // - project_t:    next_object_id, mesh_ids, udim_tiles, mesh_tiles (after mesh_groups, before _)
-// project_t atlas_objects / atlas_names of upstream "23" are not saved (they moved to project_runtime_t).
+// project_t atlas_objects / atlas_names of upstream "23" are skipped on load (Export > Atlases was removed).
 // History steps are not saved.
 
 static i16_array_t project_format_no_tiles = {0}; // Mesh with no tile data, every vertex is in 1001

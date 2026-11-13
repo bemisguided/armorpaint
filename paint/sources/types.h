@@ -657,9 +657,7 @@ typedef struct {
 	i32                           next_asset_id;
 	i32                           next_object_id; // Last paint_id given out, ids are never reused, saved as project_t.next_object_id
 	struct mesh_object_t_array   *paint_objects;
-	bool                          translucency;  // See-through meshes, detected from the bottom layer and kept on
-	struct i32_array             *atlas_objects; // Export > Atlases groups, session only
-	struct string_array          *atlas_names;
+	bool                          translucency; // See-through meshes, detected from the bottom layer and kept on
 } project_runtime_t;
 
 typedef struct project {

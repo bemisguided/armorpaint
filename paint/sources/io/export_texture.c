@@ -783,65 +783,23 @@ void export_texture_run(char *path, bool bake_material) {
 		}
 	}
 	else { // Visible or selected
-		i32_array_t *atlas_objects = g_project->_->atlas_objects;
-		bool         atlas_export  = false;
-		if (atlas_objects != NULL) {
-			for (i32 i = 1; i < atlas_objects->length; ++i) {
-				if (atlas_objects->buffer[i - 1] != atlas_objects->buffer[i]) {
-					atlas_export = true;
-					break;
-				}
+		slot_layer_t_array_t *layers;
+		if (g_context->layers_export == EXPORT_MODE_SELECTED) {
+			if (slot_layer_is_group(g_context->layer)) {
+				layers = slot_layer_get_children(g_context->layer);
 			}
-		}
-		if (atlas_export) {
-			for (i32 atlas_index = 0; atlas_index < atlas_objects->length; ++atlas_index) {
-				// Skip atlases that no object is assigned to
-				bool atlas_used = false;
-				for (i32 object_index = 0; object_index < atlas_objects->length; ++object_index) {
-					if (atlas_objects->buffer[object_index] == atlas_index) {
-						atlas_used = true;
-						break;
-					}
-				}
-				if (!atlas_used) {
-					continue;
-				}
-				// Layers covering any object of the atlas
-				slot_layer_t_array_t *layers = any_array_create_from_raw((void *[]){}, 0);
-				for (i32 i = 0; i < g_project->_->layers->length; ++i) {
-					slot_layer_t *l   = g_project->_->layers->buffer[i];
-					bool          add = !layer_objects_restricted(l);
-					for (i32 j = 0; !add && j < atlas_objects->length && j < g_project->_->paint_objects->length; ++j) {
-						add = atlas_objects->buffer[j] == atlas_index && layer_covers_object(l, g_project->_->paint_objects->buffer[j]);
-					}
-					if (add) {
-						any_array_push(layers, l);
-					}
-				}
-				if (layers->length > 0) {
-					export_texture_run_layers(path, layers, g_project->_->atlas_names->buffer[atlas_index], false);
-				}
+			else {
+				layers = any_array_create_from_raw(
+				    (void *[]){
+				        g_context->layer,
+				    },
+				    1);
 			}
 		}
 		else {
-			slot_layer_t_array_t *layers;
-			if (g_context->layers_export == EXPORT_MODE_SELECTED) {
-				if (slot_layer_is_group(g_context->layer)) {
-					layers = slot_layer_get_children(g_context->layer);
-				}
-				else {
-					layers = any_array_create_from_raw(
-					    (void *[]){
-					        g_context->layer,
-					    },
-					    1);
-				}
-			}
-			else {
-				layers = g_project->_->layers;
-			}
-			export_texture_run_layers(path, layers, "", false);
+			layers = g_project->_->layers;
 		}
+		export_texture_run_layers(path, layers, "", false);
 	}
 
 #ifdef IRON_IOS

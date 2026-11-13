@@ -389,26 +389,6 @@ void box_export_tab_presets() {
 	}
 }
 
-void box_export_tab_atlases() {
-	bool tab_vertical = g_config->touch_ui;
-	if (ui_tab(&box_export_tab, tr("Atlases"), tab_vertical, -1, false)) {
-		if (g_project->_->atlas_objects == NULL || g_project->_->atlas_objects->length != g_project->_->paint_objects->length) {
-			g_project->_->atlas_objects = i32_array_create_from_raw((i32[]){}, 0);
-			g_project->_->atlas_names   = any_array_create_from_raw((void *[]){}, 0);
-			for (i32 i = 0; i < g_project->_->paint_objects->length; ++i) {
-				i32_array_push(g_project->_->atlas_objects, 0);
-				i32 i1 = i + 1;
-				any_array_push(g_project->_->atlas_names, string("%s %s", tr("Atlas"), i32_to_string(i1)));
-			}
-		}
-		for (i32 i = 0; i < g_project->_->paint_objects->length; ++i) {
-			ui_row2();
-			ui_text(g_project->_->paint_objects->buffer[i]->base->name, UI_ALIGN_LEFT, 0x00000000);
-			ui_combo(&g_project->_->atlas_objects->buffer[i], g_project->_->atlas_names, tr("Atlas"), false, UI_ALIGN_LEFT, true);
-		}
-	}
-}
-
 void box_export_tab_export_mesh_path_picked(char *path) {
 #if defined(IRON_ANDROID) || defined(IRON_IOS)
 	char *f = sys_title();
@@ -516,7 +496,6 @@ void box_export_show_textures_box() {
 	box_export_tab_export_textures(tr("Export Textures"), false);
 	box_export_tab_presets();
 
-	box_export_tab_atlases();
 #if defined(IRON_ANDROID) || defined(IRON_IOS)
 	box_export_tab_export_mesh(&box_export_tab);
 #endif
