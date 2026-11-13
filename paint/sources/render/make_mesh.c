@@ -89,6 +89,35 @@ char *make_mesh_context_id(i32 layer_pass) {
 	return ids[layer_pass];
 }
 
+// Opens "if (<object is in mask>) {" for a layer shown on some objects only, returns whether a block was opened.
+// A group without resolvable members writes nothing, the layer shows as shared.
+static bool make_mesh_write_object_mask(node_shader_t *kong, i32 mask) {
+	if (mask == 0) {
+		return false;
+	}
+	i32 count = 0;
+	for (i32 i = 0; i < g_project->_->paint_objects->length; ++i) {
+		mesh_object_t *p = g_project->_->paint_objects->buffer[i];
+		if (!project_object_in_mask(p, mask)) {
+			continue;
+		}
+		if (count == 0) {
+			node_shader_add_constant(kong, "int uid", "_uid");
+			node_shader_write_frag(kong, "if (");
+		}
+		else {
+			node_shader_write_frag(kong, " || ");
+		}
+		node_shader_write_frag(kong, string_tmp("%s == constants.uid", i32_to_string(p->base->uid)));
+		count++;
+	}
+	if (count == 0) {
+		return false;
+	}
+	node_shader_write_frag(kong, ") {");
+	return true;
+}
+
 node_shader_context_t *make_mesh_run(material_t *data, i32 layer_pass) {
 	char                  *context_id = make_mesh_context_id(layer_pass);
 	shader_context_t      *props      = ALLOC_INIT(shader_context_t, {.name            = context_id,
@@ -296,26 +325,8 @@ node_shader_context_t *make_mesh_run(material_t *data, i32 layer_pass) {
 		}
 
 		for (i32 i = 0; i < layers->length; ++i) {
-			slot_layer_t *l = layers->buffer[i];
-			if (slot_layer_get_object_mask(l) > 0) {
-				node_shader_add_constant(kong, "int uid", "_uid");
-				if (slot_layer_get_object_mask(l) > g_project->_->paint_objects->length) { // Atlas
-					mesh_object_t_array_t *visibles = project_get_atlas_objects(slot_layer_get_object_mask(l));
-					node_shader_write_frag(kong, "if (");
-					for (i32 i = 0; i < visibles->length; ++i) {
-						if (i > 0) {
-							node_shader_write_frag(kong, " || ");
-						}
-						i32 uid = visibles->buffer[i]->base->uid;
-						node_shader_write_frag(kong, string_tmp("%s == constants.uid", i32_to_string(uid)));
-					}
-					node_shader_write_frag(kong, ") {");
-				}
-				else { // Object mask
-					i32 uid = g_project->_->paint_objects->buffer[slot_layer_get_object_mask(l) - 1]->base->uid;
-					node_shader_write_frag(kong, string_tmp("if (%s == constants.uid) {", i32_to_string(uid)));
-				}
-			}
+			slot_layer_t *l      = layers->buffer[i];
+			bool          masked = make_mesh_write_object_mask(kong, slot_layer_get_object_mask(l));
 
 			char *tex_coord = l->uv_map == 1 ? "tex_coord1" : util_mesh_udim_layer(l) ? "tex_coord_atlas" : "tex_coord";
 			node_shader_add_texture(kong, string_tmp("texpaint%s", i32_to_string(l->id)), NULL);
@@ -447,7 +458,7 @@ node_shader_context_t *make_mesh_run(material_t *data, i32 layer_pass) {
 				}
 			}
 
-			if (slot_layer_get_object_mask(l) > 0) {
+			if (masked) {
 				node_shader_write_frag(kong, "}");
 			}
 		}
