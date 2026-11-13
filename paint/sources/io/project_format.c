@@ -11,7 +11,7 @@
 // - meta_t:    category, index, bool_keys, bool_values, i32_keys, i32_values, f32_keys, f32_values, i32_array_keys,
 //              i32_array_values (the entry maps of metas, every field written in this order)
 // layer_data_t has the upstream layout, its object_mask is written as 0 (layer coverage is in metas).
-// project_t atlas_objects / atlas_names of upstream "23" are not saved (they moved to project_runtime_t).
+// project_t atlas_objects / atlas_names of upstream "23" are skipped on load (Export > Atlases was removed).
 // History steps are not saved.
 // Metadata (meta_t, see util_meta.c): one list of sparse entries, one per item that has metadata. category says which list
 // the item is in, index its position there when the project was saved: layers (MC_LAYER) by their position in layer_datas,

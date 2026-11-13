@@ -143,11 +143,9 @@ void project_new(bool reset_layers) {
 		project_cleanup();
 		g_project->_->filepath = "";
 	}
-	g_project->stages           = NULL;
-	g_project->_->translucency  = false;
-	g_project->_->atlas_objects = NULL;
-	g_project->_->atlas_names   = NULL;
-	project_scripts_trusted     = true;
+	g_project->stages          = NULL;
+	g_project->_->translucency = false;
+	project_scripts_trusted    = true;
 
 	if (g_project->_->layers->length == 0) {
 		any_array_push(g_project->_->layers, slot_layer_create("", LAYER_SLOT_TYPE_LAYER, NULL));
