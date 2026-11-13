@@ -544,5 +544,5 @@ project_t *import_arm_from_old(buffer_t *b) {
 			return fns[v](old);
 		}
 	}
-	return NULL;
+	return NULL; // Unknown version (newer or from a fork), callers fail the load
 }
