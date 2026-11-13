@@ -995,6 +995,12 @@ bool render_path_paint_paint_enabled() {
 		return true;
 	}
 
+	// A sculpt stroke on a layer that covers nothing would only push an empty undo step
+	bool picking_tool = g_context->tool == TOOL_TYPE_PICKER || g_context->tool == TOOL_TYPE_MATERIAL || g_context->tool == TOOL_TYPE_COLORID;
+	if (g_context->layer->texpaint_sculpt != NULL && !picking_tool && layer_covers_nothing(g_context->layer)) {
+		return false;
+	}
+
 	bool fill_layer = g_context->layer->fill_material != NULL && g_context->tool != TOOL_TYPE_PICKER && g_context->tool != TOOL_TYPE_MATERIAL &&
 	                  g_context->tool != TOOL_TYPE_COLORID;
 	bool group_layer = slot_layer_is_group(g_context->layer);
