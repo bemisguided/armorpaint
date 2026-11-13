@@ -19,6 +19,7 @@ static raw_mesh_t **mat_split_meshes  = NULL;
 static int          mat_split_count   = 0;
 static int          mat_split_idx     = 0;
 extern int          plugins_split_by;
+extern int          plugins_split_udim;
 
 static bool valid_mesh(ufbx_node *n) {
 	return n->mesh != NULL && n->mesh->num_triangles > 0;
@@ -133,6 +134,37 @@ static raw_mesh_t *mat_build_raw(char *name, fbuf_t *pf, fbuf_t *nf, fbuf_t *tf)
 	raw->scale_pos = sp;
 	raw->scale_tex = 1.0f;
 	return raw;
+}
+
+// Tile of a triangle (by its mean uv) and the corner emitter shared by the udim based splits.
+// Tile id math matches the obj importer: 1001 + v * 10 + u
+static void tri_tile(ufbx_mesh *mesh, bool has_tex, uint32_t a0, uint32_t a1, uint32_t a2, int *tile_u, int *tile_v) {
+	*tile_u = 0;
+	*tile_v = 0;
+	if (has_tex) {
+		ufbx_vec2 uv0 = ufbx_get_vertex_vec2(&mesh->vertex_uv, a0);
+		ufbx_vec2 uv1 = ufbx_get_vertex_vec2(&mesh->vertex_uv, a1);
+		ufbx_vec2 uv2 = ufbx_get_vertex_vec2(&mesh->vertex_uv, a2);
+		*tile_u       = (int)((uv0.x + uv1.x + uv2.x) / 3.0);
+		*tile_v       = (int)((uv0.y + uv1.y + uv2.y) / 3.0);
+	}
+}
+
+static void emit_corner(fbuf_t *pf, fbuf_t *nf, fbuf_t *tf, ufbx_node *n, ufbx_matrix *normal_mat, uint32_t a, bool has_tex, int tile_u, int tile_v) {
+	ufbx_mesh *mesh = n->mesh;
+	ufbx_vec3  v    = ufbx_transform_position(&n->geometry_to_world, ufbx_get_vertex_vec3(&mesh->vertex_position, a));
+	fbuf_push(pf, v.x);
+	fbuf_push(pf, -v.z);
+	fbuf_push(pf, v.y);
+	ufbx_vec3 nv = ufbx_transform_direction(normal_mat, ufbx_get_vertex_vec3(&mesh->vertex_normal, a));
+	fbuf_push(nf, nv.x);
+	fbuf_push(nf, -nv.z);
+	fbuf_push(nf, nv.y);
+	if (has_tex) {
+		ufbx_vec2 uv = ufbx_get_vertex_vec2(&mesh->vertex_uv, a);
+		fbuf_push(tf, uv.x - tile_u);
+		fbuf_push(tf, uv.y - tile_v);
+	}
 }
 
 static void build_material_split(ufbx_scene *scene) {
@@ -253,14 +285,8 @@ static void build_udim_split(ufbx_scene *scene) {
 				uint32_t a1 = indices[tri * 3 + 1];
 				uint32_t a2 = indices[tri * 3 + 2];
 
-				int tile_u = 0, tile_v = 0;
-				if (has_tex) {
-					ufbx_vec2 uv0 = ufbx_get_vertex_vec2(&mesh->vertex_uv, a0);
-					ufbx_vec2 uv1 = ufbx_get_vertex_vec2(&mesh->vertex_uv, a1);
-					ufbx_vec2 uv2 = ufbx_get_vertex_vec2(&mesh->vertex_uv, a2);
-					tile_u        = (int)((uv0.x + uv1.x + uv2.x) / 3.0);
-					tile_v        = (int)((uv0.y + uv1.y + uv2.y) / 3.0);
-				}
+				int tile_u, tile_v;
+				tri_tile(mesh, has_tex, a0, a1, a2, &tile_u, &tile_v);
 				int tile_id = 1000 + tile_v * 10 + tile_u + 1;
 
 				int t = -1;
@@ -279,20 +305,7 @@ static void build_udim_split(ufbx_scene *scene) {
 
 				uint32_t verts[3] = {a0, a1, a2};
 				for (int vi = 0; vi < 3; ++vi) {
-					uint32_t  a = verts[vi];
-					ufbx_vec3 v = ufbx_transform_position(&n->geometry_to_world, ufbx_get_vertex_vec3(&mesh->vertex_position, a));
-					fbuf_push(&pf[t], v.x);
-					fbuf_push(&pf[t], -v.z);
-					fbuf_push(&pf[t], v.y);
-					ufbx_vec3 nv = ufbx_transform_direction(&normal_mat, ufbx_get_vertex_vec3(&mesh->vertex_normal, a));
-					fbuf_push(&nf[t], nv.x);
-					fbuf_push(&nf[t], -nv.z);
-					fbuf_push(&nf[t], nv.y);
-					if (has_tex) {
-						ufbx_vec2 uv = ufbx_get_vertex_vec2(&mesh->vertex_uv, a);
-						fbuf_push(&tf[t], uv.x - tile_u);
-						fbuf_push(&tf[t], uv.y - tile_v);
-					}
+					emit_corner(&pf[t], &nf[t], &tf[t], n, &normal_mat, verts[vi], has_tex, tile_u, tile_v);
 				}
 			}
 		}
@@ -310,6 +323,139 @@ static void build_udim_split(ufbx_scene *scene) {
 		free(nf[t].data);
 		free(tf[t].data);
 	}
+}
+
+typedef struct {
+	char  *name; // group name (node or material)
+	int    group;
+	int    tile; // 0 = no uvs, unsuffixed
+	fbuf_t pf, nf, tf;
+} split_bucket_t;
+
+// Splits every object (by_material = false) or every material (by_material = true) additionally by udim tile.
+// Pieces are named <group>.<tile id>, parts without uvs keep their plain name.
+static void build_group_tile_split(ufbx_scene *scene, bool by_material) {
+	split_bucket_t *buckets                  = NULL;
+	int             num_buckets              = 0;
+	int             cap_buckets              = 0;
+	char           *mat_names[MAT_SPLIT_MAX] = {0};
+	int             num_mats                 = 0;
+	bool            tile_limit_hit           = false;
+	bool            mat_limit_hit            = false;
+
+	uint32_t max_tris = 1;
+	for (size_t ni = 0; ni < scene->nodes.count; ++ni) {
+		ufbx_node *n = scene->nodes.data[ni];
+		if (n->mesh && n->mesh->max_face_triangles > max_tris)
+			max_tris = n->mesh->max_face_triangles;
+	}
+	uint32_t *indices = malloc(sizeof(uint32_t) * max_tris * 3);
+
+	for (size_t ni = 0; ni < scene->nodes.count; ++ni) {
+		ufbx_node *n = scene->nodes.data[ni];
+		if (!valid_mesh(n))
+			continue;
+		ufbx_mesh  *mesh       = n->mesh;
+		ufbx_matrix normal_mat = ufbx_get_compatible_matrix_for_normals(n);
+		bool        has_tex    = mesh->vertex_uv.exists;
+
+		for (size_t fi = 0; fi < mesh->faces.count; ++fi) {
+			ufbx_face face = mesh->faces.data[fi];
+
+			int         group    = (int)ni;
+			const char *grp_name = n->name.data;
+			if (by_material) {
+				uint32_t midx = (mesh->face_material.count > 0) ? mesh->face_material.data[fi] : 0;
+				grp_name      = (midx < n->materials.count && n->materials.data[midx]) ? n->materials.data[midx]->name.data : n->name.data;
+				group         = -1;
+				for (int k = 0; k < num_mats; ++k) {
+					if (strcmp(mat_names[k], grp_name) == 0) {
+						group = k;
+						break;
+					}
+				}
+				if (group == -1) {
+					if (num_mats >= MAT_SPLIT_MAX) {
+						mat_limit_hit = true;
+						continue;
+					}
+					group            = num_mats++;
+					mat_names[group] = malloc(strlen(grp_name) + 1);
+					strcpy(mat_names[group], grp_name);
+				}
+			}
+
+			uint32_t num_triangles = ufbx_triangulate_face(indices, max_tris * 3, mesh, face);
+			for (uint32_t tri = 0; tri < num_triangles; ++tri) {
+				uint32_t a0 = indices[tri * 3];
+				uint32_t a1 = indices[tri * 3 + 1];
+				uint32_t a2 = indices[tri * 3 + 2];
+
+				int tile_u, tile_v;
+				tri_tile(mesh, has_tex, a0, a1, a2, &tile_u, &tile_v);
+				int tile_id = has_tex ? 1000 + tile_v * 10 + tile_u + 1 : 0;
+
+				int b = -1, group_tiles = 0;
+				for (int k = 0; k < num_buckets; ++k) {
+					if (buckets[k].group == group) {
+						group_tiles++;
+						if (buckets[k].tile == tile_id) {
+							b = k;
+							break;
+						}
+					}
+				}
+				if (b == -1) {
+					if (group_tiles >= MAX_UDIM_TILES) {
+						tile_limit_hit = true;
+						continue;
+					}
+					if (num_buckets >= cap_buckets) {
+						cap_buckets = cap_buckets ? cap_buckets * 2 : 16;
+						buckets     = realloc(buckets, sizeof(split_bucket_t) * cap_buckets);
+					}
+					b                = num_buckets++;
+					buckets[b]       = (split_bucket_t){0};
+					buckets[b].group = group;
+					buckets[b].tile  = tile_id;
+					buckets[b].name  = malloc(strlen(grp_name) + 1);
+					strcpy(buckets[b].name, grp_name);
+				}
+
+				uint32_t verts[3] = {a0, a1, a2};
+				for (int vi = 0; vi < 3; ++vi) {
+					emit_corner(&buckets[b].pf, &buckets[b].nf, &buckets[b].tf, n, &normal_mat, verts[vi], has_tex, tile_u, tile_v);
+				}
+			}
+		}
+	}
+
+	free(indices);
+
+	if (tile_limit_hit)
+		fprintf(stderr, "io_fbx: more than %d udim tiles in one part, extra triangles dropped\n", MAX_UDIM_TILES);
+	if (mat_limit_hit)
+		fprintf(stderr, "io_fbx: more than %d materials, extra materials dropped\n", MAT_SPLIT_MAX);
+
+	mat_split_meshes = malloc(sizeof(raw_mesh_t *) * (num_buckets > 0 ? num_buckets : 1));
+	mat_split_count  = num_buckets;
+	for (int b = 0; b < num_buckets; ++b) {
+		split_bucket_t *bk = &buckets[b];
+		char           *name = bk->name;
+		char            tile_name[512];
+		if (bk->tile > 0) {
+			snprintf(tile_name, sizeof(tile_name), "%s.%d", bk->name, bk->tile);
+			name = tile_name;
+		}
+		mat_split_meshes[b] = mat_build_raw(name, &bk->pf, &bk->nf, &bk->tf);
+		free(bk->name);
+		free(bk->pf.data);
+		free(bk->nf.data);
+		free(bk->tf.data);
+	}
+	for (int k = 0; k < num_mats; ++k)
+		free(mat_names[k]);
+	free(buckets);
 }
 
 void io_fbx_parse_mesh(raw_mesh_t *raw, ufbx_mesh *mesh, ufbx_matrix *to_world, ufbx_matrix *to_world_unscaled, bool force_tex, bool force_col) {
@@ -511,17 +657,21 @@ void *io_fbx_parse(char *buf, size_t size) {
 				break;
 			}
 		}
-		if (plugins_split_by == 1 /* SPLIT_TYPE_MATERIAL */) {
-			build_material_split(active_eval_scene);
+		if (plugins_split_by == 2 /* SPLIT_TYPE_UDIM */) {
+			build_udim_split(active_eval_scene);
 			mat_split_idx = 0;
 		}
-		else if (plugins_split_by == 2 /* SPLIT_TYPE_UDIM */) {
-			build_udim_split(active_eval_scene);
+		else if (plugins_split_udim && plugins_split_by <= 1) {
+			build_group_tile_split(active_eval_scene, plugins_split_by == 1 /* SPLIT_TYPE_MATERIAL */);
+			mat_split_idx = 0;
+		}
+		else if (plugins_split_by == 1 /* SPLIT_TYPE_MATERIAL */) {
+			build_material_split(active_eval_scene);
 			mat_split_idx = 0;
 		}
 	}
 
-	if (plugins_split_by == 1 /* SPLIT_TYPE_MATERIAL */ || plugins_split_by == 2 /* SPLIT_TYPE_UDIM */) {
+	if (mat_split_meshes != NULL) {
 		raw_mesh_t *raw = mat_split_meshes[mat_split_idx++];
 		raw->has_next   = (mat_split_idx < mat_split_count);
 		if (!raw->has_next) {

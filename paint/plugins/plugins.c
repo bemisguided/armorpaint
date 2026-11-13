@@ -38,6 +38,7 @@ void                   bake_maps_init(void);
 
 int plugins_skinning_frame = -1;
 int plugins_split_by       = 0;
+int plugins_split_udim     = 0;
 
 void io_psd_import_layer(char *file_name, char *layer_name, void *tex) {
 	char *path = string("%s.%s.png", file_name, layer_name);

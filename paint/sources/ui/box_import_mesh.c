@@ -9,6 +9,7 @@ void (*_project_import_mesh_box_done)(void);
 
 extern int plugins_skinning_frame;
 extern int plugins_split_by;
+extern int plugins_split_udim;
 
 void project_import_mesh_box_menu() {
 	if (ui_menu_button(tr("Append"), "", ICON_CHECK)) {
@@ -45,8 +46,10 @@ void project_import_mesh_box_draw() {
 		if (g_ui->is_hovered) {
 			ui_tooltip(tr("Split mesh into objects"));
 		}
-		if (path_has_ext(path, "obj") && g_context->split_by != SPLIT_TYPE_UDIM) {
+		plugins_split_udim = 0;
+		if (g_context->split_by != SPLIT_TYPE_UDIM) {
 			ui_check(&g_context->split_udim, tr("Split UDIM Tiles"), tr("Also split each object by UDIM tile"));
+			plugins_split_udim = path_has_ext(path, "fbx") && g_context->split_udim;
 		}
 	}
 
