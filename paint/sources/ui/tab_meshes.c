@@ -1253,6 +1253,7 @@ mesh_object_t *tab_meshes_append_data(mesh_data_t *md) {
 	mo->base->name = string_copy(_import_mesh_unique_name(md->name));
 
 	mo->base->transform->has_dim = true; // Keeps the default 2 unit bounds, never measured
+	project_assign_object_id(mo);
 	any_array_push(g_project->_->paint_objects, mo);
 	tab_stages_add_object(mo->base->name);
 	g_context->paint_object = mo;

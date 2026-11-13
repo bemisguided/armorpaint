@@ -2770,6 +2770,7 @@ mesh_object_t *util_mesh_duplicate_object(mesh_object_t *so) {
 	mesh_data_t   *data = so->data;
 	mesh_object_t *dup  = scene_add_mesh_object(data, so->material, so->base->parent);
 	transform_set_matrix(dup->base->transform, so->base->transform->local);
+	project_assign_object_id(dup);
 
 	// Insert below the original
 	i32 index = array_index_of(g_project->_->paint_objects, so);
@@ -3016,6 +3017,7 @@ void util_mesh_split(mesh_object_t *o) {
 		p->base->name    = string_copy(name);
 		p->base->visible = o->base->visible;
 		transform_set_matrix(p->base->transform, o->base->transform->local);
+		project_assign_object_id(p);
 		array_insert((any_array_t *)objects, index + c, p);
 		_util_mesh_shift_object_masks(index + 2);
 		tab_stages_add_object(p->base->name);

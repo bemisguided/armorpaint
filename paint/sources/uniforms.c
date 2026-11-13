@@ -8,6 +8,10 @@ i32 uniforms_ext_i32_link(object_t *object, shader_data_t *mat, char *link) {
 	else if (string_equals(link, "_sculpt_vertex_offset")) {
 		return sculpt_object_vertex_offset(object->ext);
 	}
+	else if (string_equals(link, "_object_pid")) {
+		bool mesh = object->ext != NULL && string_equals(object->ext_type, "mesh_object_t");
+		return mesh ? ((mesh_object_t *)object->ext)->paint_id : 0;
+	}
 	return INT_MAX;
 }
 

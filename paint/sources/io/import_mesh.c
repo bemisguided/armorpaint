@@ -78,6 +78,7 @@ static mesh_object_t *import_mesh_make_root() {
 	md->name          = name;
 	mesh_object_t *mo = scene_add_mesh_object(md, g_context->paint_object->material, NULL);
 	mo->base->name    = name;
+	project_assign_object_id(mo);
 	tab_stages_add_object(name);
 	return mo;
 }
@@ -265,6 +266,7 @@ void import_mesh_make_mesh(raw_mesh_t *mesh) {
         },
         1);
 	array_delete(old_paint_objects);
+	project_assign_object_id(g_context->paint_object); // Replaced mesh is a new object
 
 	if (!import_mesh_keep_timeline) {
 		tab_timeline_reset();
@@ -321,6 +323,7 @@ void import_mesh_add_mesh(raw_mesh_t *mesh) {
 		raw->name          = string_copy(uname);
 	}
 
+	project_assign_object_id(object);
 	any_array_push(g_project->_->paint_objects, object);
 	tab_stages_add_object(object->base->name);
 	if (import_mesh_append && import_mesh_appended == NULL) {

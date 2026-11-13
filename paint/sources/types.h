@@ -649,6 +649,7 @@ typedef struct {
 	struct node_group_t_array    *mesh_groups;
 	char                         *filepath;
 	i32                           next_asset_id;
+	i32                           next_object_id; // Last paint_id given out, ids are never reused
 	struct mesh_object_t_array   *paint_objects;
 	bool                          translucency; // See-through meshes, detected from the bottom layer and kept on
 } project_runtime_t;

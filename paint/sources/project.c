@@ -133,6 +133,11 @@ void project_new_resize_layers(void *_) {
 	layers_resize();
 }
 
+// Every new paint object gets a fresh id, ids are never reused within a project
+void project_assign_object_id(mesh_object_t *o) {
+	o->paint_id = ++g_project->_->next_object_id;
+}
+
 void project_new(bool reset_layers) {
 	if (g_context->paint_object != NULL) {
 		project_cleanup();
@@ -184,6 +189,8 @@ void project_new(bool reset_layers) {
 	        g_context->paint_object,
 	    },
 	    1);
+	g_project->_->next_object_id = 0;
+	project_assign_object_id(g_context->paint_object);
 	g_context->paint_object = context_main_object();
 	context_select_paint_object(context_main_object());
 

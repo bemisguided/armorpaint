@@ -781,6 +781,7 @@ asset_t_array_t       *project_get_assets();
 string_array_t        *project_get_used_atlases();
 bool                   project_is_atlas_object(mesh_object_t *p);
 mesh_object_t_array_t *project_get_atlas_objects(i32 object_mask);
+void                   project_assign_object_id(mesh_object_t *o);
 bool                   project_packed_asset_exists(packed_asset_t_array_t *packed_assets, char *name);
 void                   project_export_swatches();
 swatch_color_t        *project_make_swatch(i32 base);

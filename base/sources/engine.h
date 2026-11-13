@@ -255,7 +255,8 @@ typedef struct mesh_object {
 	shader_data_t *material;
 	f32            camera_dist;
 	bool           frustum_culling;
-	bool           culled; // Outside the camera frustum when last drawn
+	bool           culled;   // Outside the camera frustum when last drawn
+	i32            paint_id; // Persistent per-project id, 0 = not a paint object
 } mesh_object_t;
 
 typedef struct transform {

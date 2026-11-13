@@ -57,7 +57,8 @@ static mesh_data_t_array_t *import_arm_get_mesh_datas(project_t *project, string
 }
 
 void import_arm_run_mesh(project_t *raw) {
-	g_project->_->paint_objects = any_array_create_from_raw((void *[]){}, 0);
+	g_project->_->paint_objects  = any_array_create_from_raw((void *[]){}, 0);
+	g_project->_->next_object_id = 0;
 	for (i32 i = 0; i < raw->mesh_datas->length; ++i) {
 		mesh_data_t   *md     = mesh_data_create(raw->mesh_datas->buffer[i]);
 		mesh_object_t *object = NULL;
@@ -72,6 +73,7 @@ void import_arm_run_mesh(project_t *raw) {
 		object->base->transform->scale = (vec4_t){1, 1, 1, 1.0};
 		transform_build_matrix(object->base->transform);
 		object->base->name = md->name;
+		project_assign_object_id(object);
 		any_array_push(g_project->_->paint_objects, object);
 		util_mesh_merge(NULL);
 		viewport_scale_to_bounds(2.0);
@@ -188,6 +190,7 @@ static void import_arm_run_mesh_append_from_project(project_t *project, i32_arra
 			transform_build_matrix(object->base->transform);
 		}
 
+		project_assign_object_id(object);
 		any_array_push(g_project->_->paint_objects, object);
 		tab_stages_add_object(object->base->name);
 		appended++;
@@ -960,10 +963,14 @@ void import_arm_run_project(char *path) {
             g_context->paint_object,
         },
         1);
+	// Ids 1..N in mesh order, until the format stores them
+	g_project->_->next_object_id = 0;
+	project_assign_object_id(g_context->paint_object);
 
 	for (i32 i = 1; i < mesh_datas->length; ++i) {
 		mesh_object_t *object = scene_add_mesh_object(mesh_datas->buffer[i], g_context->paint_object->material, g_context->paint_object->base);
 		object->base->name    = mesh_names->buffer[i];
+		project_assign_object_id(object);
 		any_array_push(g_project->_->paint_objects, object);
 	}
 
