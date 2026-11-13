@@ -709,6 +709,7 @@ bool nodes_mesh_holds(mesh_data_t *data) {
 // Replaces the mesh of an object, the previous one is left to the caller
 static void nodes_mesh_set_data(mesh_object_t *o, mesh_data_t *data, bool unwrap) {
 	mesh_object_set_data(o, data);
+	util_mesh_changed();
 	transform_build_matrix(o->base->transform);
 	nodes_mesh_refresh_pending = true; // Meshes using this one
 

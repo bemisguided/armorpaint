@@ -136,6 +136,7 @@ void project_new_resize_layers(void *_) {
 // Every new paint object gets a fresh id, ids are never reused within a project
 void project_assign_object_id(mesh_object_t *o) {
 	o->paint_id = ++g_project->_->next_object_id;
+	util_mesh_changed();
 }
 
 void project_new(bool reset_layers) {
@@ -182,6 +183,7 @@ void project_new(bool reset_layers) {
 	}
 	else {
 		mesh_object_set_data(g_context->paint_object, md);
+		util_mesh_changed();
 	}
 
 	g_project->_->paint_objects = any_array_create_from_raw(
@@ -410,6 +412,7 @@ bool project_reskin_object(mesh_object_t *o, i32 frame) {
 
 	md->_->skin_frame = mesh_frame;
 	mesh_data_build_vertices(md->_->vertex_buffer, md->vertex_arrays);
+	util_mesh_changed();
 	return true;
 }
 

@@ -4,6 +4,12 @@
 i16_array_t *util_mesh_va0;
 
 static mesh_object_t_array_t *util_mesh_merged_objects = NULL;
+static i32                    util_mesh_merged_version = -1; // util_mesh_version the merged mesh was built at
+
+// Paint objects changed (geometry, uvs, names, materials, objects added or replaced), a merged mesh built before is not reused
+void util_mesh_changed() {
+	util_mesh_version++;
+}
 
 void util_mesh_remove_merged() {
 	if (util_mesh_merged_objects != NULL) {
@@ -103,6 +109,7 @@ void util_mesh_unshare_data(mesh_object_t *o) {
 		return;
 	}
 	mesh_object_set_data(o, util_mesh_data_duplicate(o->data));
+	util_mesh_changed();
 	o->data->name = string_copy(o->base->name);
 }
 
@@ -445,7 +452,8 @@ static mesh_data_t *util_mesh_build_merged_data(mesh_object_t_array_t *paint_obj
 	return raw;
 }
 
-static mesh_object_t_array_t *util_mesh_paintable(mesh_object_t_array_t *objects) {
+// Objects without an override material, caller frees
+mesh_object_t_array_t *util_mesh_paintable(mesh_object_t_array_t *objects) {
 	mesh_object_t_array_t *ar = any_array_create_from_raw((void *[]){}, 0);
 	for (i32 i = 0; i < objects->length; ++i) {
 		if (tab_meshes_get_linked_override(objects->buffer[i]) < 0) {
@@ -480,6 +488,7 @@ static void _util_mesh_merge(mesh_object_t_array_t *paint_objects, bool paintabl
 		if (g_context->merged_object != NULL) {
 			util_mesh_remove_merged();
 			util_mesh_merged_toggled();
+			util_uv_dilatemap_cached = false;
 		}
 		util_mesh_merged_stale = false;
 		array_delete(paintable);
@@ -492,7 +501,9 @@ static void _util_mesh_merge(mesh_object_t_array_t *paint_objects, bool paintabl
 	mesh_data_t *raw            = util_mesh_build_merged_data(paint_objects, g_context->paint_object->base->name, parent);
 
 	util_mesh_remove_merged();
-	util_mesh_merged_stale = false;
+	util_mesh_merged_stale   = false;
+	util_mesh_merged_version = util_mesh_version;
+	util_uv_dilatemap_cached = false;
 	if (util_mesh_merged_objects == NULL) {
 		util_mesh_merged_objects = any_array_create(0);
 	}
@@ -531,6 +542,43 @@ bool util_mesh_merged_partial() {
 
 void util_mesh_merge(mesh_object_t_array_t *paint_objects) {
 	_util_mesh_merge(paint_objects, true);
+}
+
+static int _util_mesh_compare_i32(const void *a, const void *b) {
+	return *(i32 *)a - *(i32 *)b;
+}
+
+static i32_array_t *_util_mesh_sorted_ids(mesh_object_t_array_t *objects) {
+	i32_array_t *ids = i32_array_create(objects->length);
+	for (i32 i = 0; i < objects->length; ++i) {
+		ids->buffer[i] = objects->buffer[i]->paint_id;
+	}
+	i32_array_sort(ids, _util_mesh_compare_i32);
+	return ids;
+}
+
+// Same as util_mesh_merge, but keeps the merged mesh when it already holds these objects and no paint object changed since.
+// Returns whether the merged mesh was rebuilt.
+bool util_mesh_merge_if_changed(mesh_object_t_array_t *paint_objects) {
+	mesh_object_t_array_t *requested = paint_objects != NULL ? paint_objects : g_project->_->paint_objects;
+	if (g_context->merged_object != NULL && util_mesh_merged_objects != NULL && !util_mesh_merged_stale && util_mesh_merged_version == util_mesh_version) {
+		mesh_object_t_array_t *paintable = util_mesh_paintable(requested);
+		i32_array_t           *want      = _util_mesh_sorted_ids(paintable);
+		i32_array_t           *have      = _util_mesh_sorted_ids(util_mesh_merged_objects);
+		bool                   same      = want->length == have->length;
+		for (i32 i = 0; same && i < want->length; ++i) {
+			same = want->buffer[i] == have->buffer[i] && array_index_of(util_mesh_merged_objects, paintable->buffer[i]) >= 0;
+		}
+		array_delete(paintable);
+		array_delete(want);
+		array_delete(have);
+		if (same) {
+			g_context->merged_object_is_subset = requested->length < g_project->_->paint_objects->length;
+			return false;
+		}
+	}
+	util_mesh_merge(paint_objects);
+	return true;
 }
 
 void util_mesh_merge_all() {
@@ -677,6 +725,7 @@ static void util_mesh_apply_matrix(mesh_object_t *o, mat4_t m) {
 		}
 	}
 	mesh_data_build_vertices(g->_->vertex_buffer, g->vertex_arrays);
+	util_mesh_changed();
 	mesh_data_build_indices(g->_->index_buffer, g->index_array);
 
 	// Children stay in place
@@ -739,6 +788,7 @@ static void util_mesh_join_geometry(mesh_object_t_array_t *objects) {
 	md->_->owns_arrays = true;
 	sys_notify_on_next_frame(&util_mesh_delete_data_uncache, main_object->data);
 	mesh_object_set_data(main_object, md);
+	util_mesh_changed();
 	transform_build_matrix(main_object->base->transform);
 }
 
@@ -867,6 +917,7 @@ void util_mesh_swap_axis(mesh_object_t_array_t *objects, i32 a, i32 b) {
 		}
 		mesh_data_t *g = o->data;
 		mesh_data_build_vertices(g->_->vertex_buffer, vas);
+		util_mesh_changed();
 	}
 	util_mesh_merge(NULL);
 }
@@ -887,6 +938,7 @@ void util_mesh_flip_normals(mesh_object_t_array_t *objects) {
 		}
 		mesh_data_t *g = o->data;
 		mesh_data_build_vertices(g->_->vertex_buffer, vas);
+		util_mesh_changed();
 	}
 	render_path_raytrace_ready = false;
 }
@@ -1012,6 +1064,7 @@ void util_mesh_calc_normals(mesh_object_t_array_t *objects, bool smooth) {
 		}
 
 		mesh_data_build_vertices(g->_->vertex_buffer, o->data->vertex_arrays);
+		util_mesh_changed();
 	}
 
 	util_mesh_merge(NULL);
@@ -1109,6 +1162,7 @@ void util_mesh_to_origin(mesh_object_t_array_t *objects) {
 		}
 
 		mesh_data_build_vertices(g->_->vertex_buffer, o->data->vertex_arrays);
+		util_mesh_changed();
 
 		for (i32 j = 0; j < g_project->_->paint_objects->length; ++j) {
 			mesh_object_t *p = g_project->_->paint_objects->buffer[j];
@@ -1156,6 +1210,7 @@ void util_mesh_origin_to_geometry(mesh_object_t_array_t *objects) {
 		}
 		g->scale_pos = max_scale;
 		mesh_data_build_vertices(g->_->vertex_buffer, g->vertex_arrays);
+		util_mesh_changed();
 
 		// Every object using this data moves by the offset, its children move back
 		for (i32 j = 0; j < g_project->_->paint_objects->length; ++j) {
@@ -2975,6 +3030,7 @@ void util_mesh_split(mesh_object_t *o) {
 	md->_->owns_arrays = true;
 	md->_->skin_frame  = -1;
 	mesh_object_set_data(o, md);
+	util_mesh_changed();
 	if (!shared) {
 		sys_notify_on_next_frame(&util_mesh_delete_data_uncache, g);
 	}
@@ -3062,6 +3118,7 @@ void util_mesh_rename(mesh_object_t *o, char *name) {
 	name = string_copy(name);
 	tab_stages_rename_object(o->base->name, name);
 	o->base->name = name;
+	util_mesh_changed(); // Udim tile objects take their atlas slot from the name
 	// Mesh data shared by linked duplicates is named after the object holding it
 	if (o->data != NULL && util_mesh_data_owner(o->data) == array_index_of(g_project->_->paint_objects, o)) {
 		o->data->name = string_copy(name);

@@ -598,3 +598,10 @@ typedef enum {
 	HISTORY_ACTION_EDIT_SWATCH,
 	HISTORY_ACTION_OBJECT_TRANSFORM,
 } history_action_t;
+
+typedef enum {
+	LAYER_COVERAGE_SOME,
+	LAYER_COVERAGE_OBJECTS_DELETED, // Every object of the stored list was deleted
+	LAYER_COVERAGE_NO_OBJECTS,      // The list (or its intersection with a group's) is empty
+	LAYER_COVERAGE_NO_TILES,
+} layer_coverage_empty_t;

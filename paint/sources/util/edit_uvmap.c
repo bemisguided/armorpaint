@@ -104,6 +104,7 @@ void edit_uvmap_update() {
 			_is_dragging     = false;
 			mesh_object_t *o = g_context->paint_object;
 			mesh_data_build_vertices(o->data->_->vertex_buffer, o->data->vertex_arrays);
+			util_mesh_changed();
 
 			if (g_context->merged_object != NULL) {
 				util_mesh_merge(util_mesh_get_visible());

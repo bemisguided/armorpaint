@@ -93,44 +93,62 @@ mesh_object_t_array_t *layer_coverage_objects(slot_layer_t *l) {
 	return ar;
 }
 
-// The only live object of an object restricted layer, NULL otherwise
-mesh_object_t *layer_coverage_single_object(slot_layer_t *l) {
-	if (!layer_objects_restricted(l)) {
-		return NULL;
-	}
-	mesh_object_t *found = NULL;
-	for (i32 i = 0; i < g_project->_->paint_objects->length; ++i) {
-		mesh_object_t *o = g_project->_->paint_objects->buffer[i];
-		if (layer_covers_object(l, o)) {
-			if (found != NULL) {
-				return NULL;
-			}
-			found = o;
+// Ids every restricting level lists (the stored coverage, deleted ids included), NULL when objects are unrestricted, caller frees
+static i32_array_t *_layer_stored_objects(slot_layer_t *l) {
+	for (slot_layer_t *p = slot_layer_coverage_owner(l); p != NULL; p = p->parent) {
+		if (!_layer_level_objects(p)) {
+			continue;
 		}
+		i32_array_t *ids = i32_array_create(0);
+		for (i32 i = 0; i < p->objects->length; ++i) {
+			i32 id = p->objects->buffer[i];
+			if (i32_array_index_of(ids, id) < 0 && layer_covers_object_id(l, id)) {
+				i32_array_push(ids, id);
+			}
+		}
+		return ids;
 	}
-	return found;
+	return NULL;
 }
 
-// Deleted objects or removed tiles leave nothing to apply the layer to
-bool layer_covers_nothing(slot_layer_t *l) {
+// The only id of the stored coverage of an object restricted layer, 0 otherwise.
+// Deleted ids count, so deleting or adding objects never changes the result.
+i32 layer_coverage_single_id(slot_layer_t *l) {
+	i32_array_t *ids = _layer_stored_objects(l);
+	i32          id  = ids != NULL && ids->length == 1 ? ids->buffer[0] : 0;
+	array_delete(ids);
+	return id;
+}
+
+// Why a layer has nothing to apply to, LAYER_COVERAGE_SOME when it covers something
+layer_coverage_empty_t layer_coverage_empty_reason(slot_layer_t *l) {
+	if (layer_objects_restricted(l)) {
+		bool any = false;
+		for (i32 i = 0; i < g_project->_->paint_objects->length && !any; ++i) {
+			any = layer_covers_object(l, g_project->_->paint_objects->buffer[i]);
+		}
+		if (!any) {
+			i32_array_t *ids    = _layer_stored_objects(l);
+			bool         stored = ids != NULL && ids->length > 0;
+			array_delete(ids);
+			return stored ? LAYER_COVERAGE_OBJECTS_DELETED : LAYER_COVERAGE_NO_OBJECTS;
+		}
+	}
 	if (layer_tiles_restricted(l)) {
 		bool any = false;
 		for (i32 i = 0; i < util_udim_count() && !any; ++i) {
 			any = layer_covers_tile(l, util_udim_tile(i));
 		}
 		if (!any) {
-			return true;
+			return LAYER_COVERAGE_NO_TILES;
 		}
 	}
-	if (layer_objects_restricted(l)) {
-		for (i32 i = 0; i < g_project->_->paint_objects->length; ++i) {
-			if (layer_covers_object(l, g_project->_->paint_objects->buffer[i])) {
-				return false;
-			}
-		}
-		return true;
-	}
-	return false;
+	return LAYER_COVERAGE_SOME;
+}
+
+// Deleted objects, empty selections or removed tiles leave nothing to apply the layer to
+bool layer_covers_nothing(slot_layer_t *l) {
+	return layer_coverage_empty_reason(l) != LAYER_COVERAGE_SOME;
 }
 
 static int _util_udim_compare_i32(const void *a, const void *b) {
@@ -279,10 +297,14 @@ void slot_layer_coverage_from_filter(slot_layer_t *l) {
 	}
 }
 
-// Geometry of from now also lives in to (join, split), layers listing from also list to
+// Geometry of from now also lives in to (join, split), layers listing from also list to.
+// Tile-local layers of name based udim projects keep their single id, a second id would make them read their pixels as atlas.
 void layers_coverage_add_alias(i32 from, i32 to) {
 	for (i32 i = 0; g_project->_->layers != NULL && i < g_project->_->layers->length; ++i) {
 		slot_layer_t *l = g_project->_->layers->buffer[i];
+		if (layers_udim_tile_slot(l) >= 0) {
+			continue;
+		}
 		if (l->objects != NULL && i32_array_index_of(l->objects, from) >= 0 && i32_array_index_of(l->objects, to) < 0) {
 			i32_array_push(l->objects, to);
 		}

@@ -1519,6 +1519,7 @@ void sculpt_init_meshes() {
 		                                            .scale_pos   = 1.0,
 		                                            .scale_tex   = 1.0});
 		mesh_object_set_data(object, mesh_data_create(raw));
+		util_mesh_changed();
 	}
 
 	sculpt_build_weld();
@@ -1814,6 +1815,7 @@ void sculpt_bake_to_mesh() {
 
 	g->scale_pos = max_abs;
 	mesh_data_build_vertices(g->_->vertex_buffer, g->vertex_arrays);
+	util_mesh_changed();
 	render_path_raytrace_ready = false;
 
 	array_delete(pos);
@@ -2046,6 +2048,7 @@ void slot_layer_apply_sculpt(slot_layer_t *raw) {
 		}
 
 		mesh_data_build_vertices(g->_->vertex_buffer, g->vertex_arrays);
+		util_mesh_changed();
 		offset += nv;
 	}
 
