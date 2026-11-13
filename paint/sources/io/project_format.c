@@ -10,7 +10,7 @@
 // - layer_data_t: all_objects, objects, all_tiles, tiles (after fill_material, before blending)
 // - slot_layer_t: all_objects, objects, all_tiles, tiles (runtime copy of the above)
 // - project_t:    next_object_id, mesh_ids, udim_tiles, mesh_tiles (after mesh_groups, before _)
-// project_t atlas_objects / atlas_names of upstream "23" are skipped on load (Export > Atlases was removed).
+// project_t atlas_objects / atlas_names of upstream "23" are only read to convert atlas group object masks (Export > Atlases was removed).
 // History steps are not saved.
 
 static i16_array_t project_format_no_tiles = {0}; // Mesh with no tile data, every vertex is in 1001
@@ -162,10 +162,83 @@ void project_format_set_defaults(project_t *raw) {
 	project_format_reset_tiles(raw, mesh_count);
 }
 
-// Upstream "23": no migration, every layer covers all objects and tiles.
-// Object masks, atlas groups and name based udim tiles of the old file are dropped.
+// Upstream "23" object masks (layer_data_t.object_mask of the old format):
+// 0 every object, 1..N paint object mask - 1 (N paint objects in file order, their ids become 1..N),
+// N + 1 + k the k-th used atlas group of Export > Atlases (see project_format_atlas_ids).
+// Upstream only applied a mask on paint layers, masks and filters used their parent layer's and groups ignored theirs,
+// so those convert to every object (masks and filters still follow their parent, groups restrict nothing as before).
+
+// Ids of the objects in the k-th used atlas group, NULL when it can not be resolved.
+// Mirrors upstream project_get_used_atlases / project_get_atlas_objects: used atlases are the distinct atlas_objects values
+// in order of first appearance, only counted when more than one is used, and an atlas is found again by its name.
+static i32_array_t *project_format_atlas_ids(any_map_t *old, i32 k, i32 object_count) {
+	i32_array_t    *atlas_objects = any_map_get(old, "atlas_objects");
+	string_array_t *atlas_names   = any_map_get(old, "atlas_names");
+	if (atlas_objects == NULL || atlas_names == NULL || atlas_objects->length == 0 || atlas_names->length == 0 || k < 0) {
+		return NULL;
+	}
+	i32_array_t *used = i32_array_create(0);
+	for (i32 i = 0; i < atlas_objects->length; ++i) {
+		if (i32_array_index_of(used, atlas_objects->buffer[i]) == -1) {
+			i32_array_push(used, atlas_objects->buffer[i]);
+		}
+	}
+	i32_array_t *ids = NULL;
+	if (used->length > 1 && k < used->length && used->buffer[k] >= 0 && used->buffer[k] < atlas_names->length) {
+		i32 atlas_i = string_array_index_of(atlas_names, atlas_names->buffer[used->buffer[k]]);
+		ids         = i32_array_create(0);
+		for (i32 i = 0; i < object_count && i < atlas_objects->length; ++i) {
+			if (atlas_objects->buffer[i] == atlas_i) {
+				i32_array_push(ids, i + 1);
+			}
+		}
+		if (ids->length == 0) {
+			array_delete(ids);
+			ids = NULL;
+		}
+	}
+	array_delete(used);
+	return ids;
+}
+
+static void project_format_convert_object_mask(any_map_t *old, any_map_t *old_ld, layer_data_t *ld, i32 object_count) {
+	bool is_layer = ld->texpaint != NULL && ld->texpaint_nor != NULL;
+	bool is_child = false; // Filter, a paint layer inside a paint layer
+	if (is_layer && ld->parent >= 0) {
+		any_array_t *lds = any_map_get(old, "layer_datas");
+		if (ld->parent < lds->length) {
+			any_map_t *parent = lds->buffer[ld->parent];
+			is_child          = any_map_get(parent, "texpaint") != NULL && any_map_get(parent, "texpaint_nor") != NULL;
+		}
+	}
+	i32 mask = armpack_map_get_i32(old_ld, "object_mask");
+	if (!is_layer || is_child || mask <= 0) {
+		return;
+	}
+	if (mask <= object_count) {
+		i32_array_push(ld->objects, mask);
+		ld->all_objects = false;
+		return;
+	}
+	i32_array_t *ids = project_format_atlas_ids(old, mask - object_count - 1, object_count);
+	if (ids != NULL) { // Unresolved groups stay on every object, as upstream fell back to every paint object
+		for (i32 i = 0; i < ids->length; ++i) {
+			i32_array_push(ld->objects, ids->buffer[i]);
+		}
+		ld->all_objects = false;
+		array_delete(ids);
+	}
+}
+
+// Upstream "23": layer object masks and atlas groups become object id sets, every layer covers all tiles.
+// Name based udim tile objects (X.1001, ...) keep their objects, tile migration is phase B.
 project_t *import_arm_from_version_23(any_map_t *old) {
 	project_t *project = import_arm_from_map_to_arm(old);
 	project_format_set_defaults(project);
+	any_array_t *lds          = any_map_get(old, "layer_datas");
+	i32          object_count = project->mesh_datas != NULL ? project->mesh_datas->length : 0;
+	for (i32 i = 0; lds != NULL && project->layer_datas != NULL && i < project->layer_datas->length && i < lds->length; ++i) {
+		project_format_convert_object_mask(old, lds->buffer[i], project->layer_datas->buffer[i], object_count);
+	}
 	return project;
 }
