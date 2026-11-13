@@ -24,6 +24,7 @@
 #include "io/import_text.c"
 #include "io/import_texture.c"
 #include "io/import_theme.c"
+#include "io/project_format.c"
 
 #include "nodes_brush/boolean_node.c"
 #include "nodes_brush/brush_output_node.c"
@@ -214,6 +215,7 @@
 #include "util/util_geom.c"
 #include "util/util_layer.c"
 #include "util/util_mesh.c"
+#include "util/util_meta.c"
 #include "util/util_nodes.c"
 #include "util/util_particle.c"
 #include "util/util_path.c"
@@ -230,6 +232,7 @@
 #include "util/util_text_tool.c"
 #include "util/util_texture.c"
 #include "util/util_touch.c"
+#include "util/util_udim.c"
 #include "util/util_ui.c"
 #include "util/util_uv.c"
 #include "util/util_uv_unwrap.c"

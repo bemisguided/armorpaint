@@ -266,15 +266,7 @@ static void tab_meshes_collect_children(mesh_object_t_array_t *objects, mesh_obj
 	}
 }
 
-static i32 tab_meshes_remapped_mask(mesh_object_t **old_order, i32 length, i32 mask) {
-	if (mask < 1 || mask > length) {
-		return mask;
-	}
-	i32 index = array_index_of(g_project->_->paint_objects, old_order[mask - 1]);
-	return index >= 0 ? index + 1 : mask;
-}
-
-static void tab_meshes_sort_hierarchy_from(mesh_object_t **old_order) {
+static void tab_meshes_sort_hierarchy_objects() {
 	mesh_object_t_array_t *objects = g_project->_->paint_objects;
 	i32                    length  = objects->length;
 	mesh_object_t        **sorted  = calloc(length, sizeof(mesh_object_t *));
@@ -297,26 +289,7 @@ static void tab_meshes_sort_hierarchy_from(mesh_object_t **old_order) {
 
 	memcpy(objects->buffer, sorted, length * sizeof(mesh_object_t *));
 	free(sorted);
-
-	bool changed = false;
-	for (i32 i = 0; i < length; ++i) {
-		if (old_order[i] != objects->buffer[i]) {
-			changed = true;
-			break;
-		}
-	}
-	sculpt_sync_objects();
-	if (!changed) {
-		return;
-	}
-
-	if (g_project->_->layers != NULL) {
-		for (i32 i = 0; i < g_project->_->layers->length; ++i) {
-			slot_layer_t *l = g_project->_->layers->buffer[i];
-			l->object_mask  = tab_meshes_remapped_mask(old_order, length, l->object_mask);
-		}
-	}
-	g_context->layer_filter = tab_meshes_remapped_mask(old_order, length, g_context->layer_filter);
+	sculpt_sync_objects(); // Layer coverage is by persistent id, the order does not matter
 }
 
 void tab_meshes_sort_hierarchy() {
@@ -325,10 +298,7 @@ void tab_meshes_sort_hierarchy() {
 		sculpt_sync_objects();
 		return;
 	}
-	mesh_object_t **old_order = malloc(objects->length * sizeof(mesh_object_t *));
-	memcpy(old_order, objects->buffer, objects->length * sizeof(mesh_object_t *));
-	tab_meshes_sort_hierarchy_from(old_order);
-	free(old_order);
+	tab_meshes_sort_hierarchy_objects();
 }
 
 static int tab_meshes_sort_by_name_compare(const void *pa, const void *pb) {
@@ -342,12 +312,9 @@ void tab_meshes_sort_by_name() {
 	if (objects == NULL || objects->length < 2) {
 		return;
 	}
-	mesh_object_t **old_order = malloc(objects->length * sizeof(mesh_object_t *));
-	memcpy(old_order, objects->buffer, objects->length * sizeof(mesh_object_t *));
 	// Siblings keep the sorted order when regrouped under parents
 	array_sort((any_array_t *)objects, &tab_meshes_sort_by_name_compare);
-	tab_meshes_sort_hierarchy_from(old_order);
-	free(old_order);
+	tab_meshes_sort_hierarchy_objects();
 	tab_timeline_sync();
 	ui_dock_redraw(TAB_AREA_SIDEBAR0);
 }
@@ -368,14 +335,11 @@ void tab_meshes_accept_mesh_drop(mesh_object_t *mesh) {
 	if (dest == pos || dest == pos + 1) {
 		return;
 	}
-	mesh_object_t_array_t *objects   = g_project->_->paint_objects;
-	mesh_object_t        **old_order = malloc(objects->length * sizeof(mesh_object_t *));
-	memcpy(old_order, objects->buffer, objects->length * sizeof(mesh_object_t *));
+	mesh_object_t_array_t *objects = g_project->_->paint_objects;
 	array_remove(objects, mesh);
 	i32 new_pos = dest > pos ? dest - 1 : dest;
 	array_insert(objects, new_pos, mesh);
-	tab_meshes_sort_hierarchy_from(old_order);
-	free(old_order);
+	tab_meshes_sort_hierarchy_objects();
 	tab_timeline_sync();
 }
 
@@ -606,6 +570,7 @@ static mesh_object_t *tab_meshes_select_after_delete() {
 }
 
 void tab_meshes_draw_context_menu_delete_next_frame(mesh_object_t *o) {
+	i32 paint_id = o->paint_id;
 	util_mesh_remove_merged();
 	i32 pending = tab_meshes_pending_data != NULL ? array_index_of(tab_meshes_pending_data, o->data) : -1;
 	if (pending >= 0) {
@@ -616,6 +581,12 @@ void tab_meshes_draw_context_menu_delete_next_frame(mesh_object_t *o) {
 	tab_stages_prune();
 	g_context->paint_object = tab_meshes_select_after_delete();
 	util_mesh_merge(NULL);
+	// Layers keep the deleted id, those left with no live object cover nothing
+	if (g_context->layer_filter_object == paint_id) {
+		tab_layers_apply_filter(0);
+	}
+	layers_update_paint_set();
+	make_material_parse_mesh_material();
 	g_context->ddirty = 2;
 	ui_dock_redraw(TAB_AREA_SIDEBAR0);
 }

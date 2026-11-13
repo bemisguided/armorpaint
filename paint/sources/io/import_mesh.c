@@ -18,11 +18,11 @@ void import_mesh_run(char *path, bool _clear_layers, bool replace_existing, bool
 		}
 	}
 
-	import_mesh_clear_layers = _clear_layers;
-	import_mesh_no_reset     = keep_camera;
-	import_mesh_append       = !replace_existing;
-	import_mesh_appended     = NULL;
-	g_context->layer_filter  = 0;
+	import_mesh_clear_layers       = _clear_layers;
+	import_mesh_no_reset           = keep_camera;
+	import_mesh_append             = !replace_existing;
+	import_mesh_appended           = NULL;
+	g_context->layer_filter_object = 0;
 
 	if (path_has_ext(path, "obj")) {
 		import_obj_run(path, replace_existing);

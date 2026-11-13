@@ -4,6 +4,12 @@
 buffer_t       *util_uv_dilate_bytes = NULL;
 gpu_pipeline_t *util_uv_pipe_dilate  = NULL;
 
+// Geometry being painted, the merged mesh of the covered objects or a single object
+static mesh_data_t *util_uv_paint_geometry() {
+	mesh_object_t *merged = g_context->merged_object;
+	return merged != NULL && merged->base->visible ? merged->data : g_context->paint_object->data;
+}
+
 void util_uv_cache_uv_map() {
 	if (util_uv_uvmap != NULL && (util_uv_uvmap->width != config_get_texture_res_x() || util_uv_uvmap->height != config_get_texture_res_y())) {
 		gpu_delete_texture(util_uv_uvmap);
@@ -22,11 +28,7 @@ void util_uv_cache_uv_map() {
 	}
 
 	util_uv_uvmap_cached = true;
-	i32            mask  = slot_layer_get_object_mask(g_context->layer);
-	mesh_object_t *merged =
-	    (mask > 0 && mask <= g_project->_->paint_objects->length) ? g_project->_->paint_objects->buffer[mask - 1] : g_context->merged_object;
-	bool         use_merged = merged != NULL && (g_context->layer_filter == 0 || util_mesh_udim_layer(g_context->layer));
-	mesh_data_t *mesh       = use_merged ? merged->data : g_context->paint_object->data;
+	mesh_data_t *mesh    = util_uv_paint_geometry();
 
 	i16_array_t *texa = mesh->vertex_arrays->buffer[2]->values;
 	u32_array_t *inda = mesh->index_array;
@@ -118,12 +120,7 @@ void util_uv_cache_dilate_map() {
 		// dilate_tex_unpack = getConstantLocation(pipeDilate, "tex_unpack");
 	}
 
-	i32 mask = context_object_mask_used() ? slot_layer_get_object_mask(g_context->layer) : 0;
-	if (context_layer_filter_used()) {
-		mask = g_context->layer_filter;
-	}
-	bool         use_merged = g_context->merged_object != NULL && (mask == 0 || util_mesh_udim_layer(g_context->layer));
-	mesh_data_t *geom       = use_merged ? g_context->merged_object->data : g_context->paint_object->data;
+	mesh_data_t *geom = util_uv_paint_geometry();
 	_gpu_begin(util_uv_dilatemap, NULL, NULL, GPU_CLEAR_COLOR, 0x00000000, 0.0);
 	gpu_set_pipeline(util_uv_pipe_dilate);
 	gpu_set_vertex_buffer(geom->_->vertex_buffer);

@@ -134,8 +134,11 @@ void render_path_paint_draw_fullscreen_triangle() {
 	render_path_end();
 }
 
-// The merged mesh is painted unless an object mask selects a single object
+// The merged mesh of the covered objects is painted, a udim tile-local layer paints its object
 mesh_object_t *render_path_paint_target() {
+	if (layers_paint_blocked()) {
+		return NULL;
+	}
 	mesh_object_t *merged = g_context->merged_object;
 	if (merged != NULL && merged->base->visible) {
 		return merged;
@@ -182,7 +185,7 @@ static void render_path_paint_draw_fill_object() {
 	mesh_object_t *o       = render_path_paint_fill_object;
 	mesh_object_t *target  = render_path_paint_target();
 	bool           merged  = target != NULL && target == g_context->merged_object;
-	bool           painted = o != NULL && (merged || o == target) && array_index_of(g_project->_->paint_objects, o) >= 0;
+	bool           painted = o != NULL && (merged || o == target) && array_index_of(g_project->_->paint_objects, o) >= 0 && layer_covers_object(g_context->layer, o);
 	bool           submesh = g_context->fill_type == FILL_TYPE_SUBMESH;
 	if (submesh && render_path_paint_fill_indices == NULL) {
 		painted = false;
@@ -574,11 +577,6 @@ void render_path_paint_commands_paint(bool dilation) {
 				context_deselected_uid    = -1;
 				ui_header_handle->redraws = 2;
 				tab_meshes_reveal_slot(g_context->paint_object);
-
-				// g_context->layer->object_mask = index + 1;
-				// context_set_layer(g_context->layer);
-				// make_material_parse_mesh_material();
-				// layers_set_object_mask();
 
 				base_redraw_status();
 			}
@@ -1203,11 +1201,9 @@ void render_path_paint_draw() {
 				}
 			}
 			else if (g_context->bake_type == BAKE_TYPE_OBJECTID) {
-				i32            _layer_filter = g_context->layer_filter;
 				mesh_object_t *_paint_object = g_context->paint_object;
 				bool           is_merged     = g_context->merged_object != NULL;
 				bool           _visible      = is_merged && g_context->merged_object->base->visible;
-				g_context->layer_filter      = 1;
 				if (is_merged) {
 					g_context->merged_object->base->visible = false;
 				}
@@ -1218,7 +1214,6 @@ void render_path_paint_draw() {
 					render_path_paint_commands_paint(true);
 				}
 
-				g_context->layer_filter = _layer_filter;
 				context_select_paint_object(_paint_object);
 				if (is_merged)
 					g_context->merged_object->base->visible = _visible;

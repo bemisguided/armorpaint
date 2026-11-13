@@ -143,9 +143,11 @@ void project_new(bool reset_layers) {
 		project_cleanup();
 		g_project->_->filepath = "";
 	}
-	g_project->stages          = NULL;
-	g_project->_->translucency = false;
-	project_scripts_trusted    = true;
+	g_project->stages           = NULL;
+	g_project->_->translucency  = false;
+	g_project->_->atlas_objects = NULL;
+	g_project->_->atlas_names   = NULL;
+	project_scripts_trusted     = true;
 
 	if (g_project->_->layers->length == 0) {
 		any_array_push(g_project->_->layers, slot_layer_create("", LAYER_SLOT_TYPE_LAYER, NULL));
@@ -153,7 +155,7 @@ void project_new(bool reset_layers) {
 	}
 
 	g_context->layer_preview_dirty = true;
-	g_context->layer_filter        = 0;
+	g_context->layer_filter_object = 0;
 	g_context->texture             = NULL;
 	g_project->mesh_assets         = any_array_create_from_raw((void *[]){}, 0);
 
@@ -553,56 +555,6 @@ gpu_texture_t *project_get_image(asset_t *asset) {
 
 asset_t_array_t *project_get_assets() {
 	return g_project->_->assets;
-}
-
-string_array_t *project_get_used_atlases() {
-	if (g_project->atlas_objects == NULL) {
-		return NULL;
-	}
-
-	static i32_array_t    used = {0};
-	static string_array_t res  = {0};
-	used.length                = 0;
-	for (i32 i = 0; i < g_project->atlas_objects->length; ++i) {
-		i32 ao = g_project->atlas_objects->buffer[i];
-		if (i32_array_index_of(&used, ao) == -1) {
-			i32_array_push(&used, ao);
-		}
-	}
-	if (used.length > 1) {
-		res.length = 0;
-		for (i32 i = 0; i < used.length; ++i) {
-			string_array_push(&res, g_project->atlas_names->buffer[used.buffer[i]]);
-		}
-		return &res;
-	}
-	return NULL;
-}
-
-bool project_is_atlas_object(mesh_object_t *p) {
-	if (g_context->layer_filter <= g_project->_->paint_objects->length) {
-		return false;
-	}
-	char *atlas_name = project_get_used_atlases()->buffer[g_context->layer_filter - g_project->_->paint_objects->length - 1];
-	i32   atlas_i    = string_array_index_of(g_project->atlas_names, atlas_name);
-	return atlas_i == g_project->atlas_objects->buffer[array_index_of(g_project->_->paint_objects, p)];
-}
-
-mesh_object_t_array_t *project_get_atlas_objects(i32 object_mask) {
-	string_array_t *atlases = project_get_used_atlases();
-	i32             i       = object_mask - g_project->_->paint_objects->length - 1;
-	if (atlases == NULL || i >= atlases->length) {
-		return g_project->_->paint_objects;
-	}
-	char                  *atlas_name = atlases->buffer[i];
-	i32                    atlas_i    = string_array_index_of(g_project->atlas_names, atlas_name);
-	mesh_object_t_array_t *visibles   = any_array_create_from_raw((void *[]){}, 0);
-	for (i32 i = 0; i < g_project->_->paint_objects->length; ++i) {
-		if (g_project->atlas_objects->buffer[i] == atlas_i) {
-			any_array_push(visibles, g_project->_->paint_objects->buffer[i]);
-		}
-	}
-	return visibles;
 }
 
 bool project_packed_asset_exists(packed_asset_t_array_t *packed_assets, char *name) {

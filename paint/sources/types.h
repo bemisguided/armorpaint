@@ -6,6 +6,22 @@
 #include "minic.h"
 #include "minic_tcc.h"
 
+// Metadata of an item, see util/util_meta.c. Saved as the entries of project_t.metas by io/project_format.c, decoded by field
+// position: keep the order. Keys (meta_key_t) are parallel key / value arrays per kind, bools are stored as 0 / 1, i32 array
+// values are one i32_array_t per key. NULL arrays mean empty, a NULL meta_t pointer on an item means no metadata.
+typedef struct meta {
+	i32               category; // meta_category_t, only set on the entries of project_t.metas
+	i32               index;    // Position of the item in its own list, only set on the entries of project_t.metas
+	i32_array_t      *bool_keys;
+	i32_array_t      *bool_values;
+	i32_array_t      *i32_keys;
+	i32_array_t      *i32_values;
+	i32_array_t      *f32_keys;
+	f32_array_t      *f32_values;
+	i32_array_t      *i32_array_keys;
+	struct any_array *i32_array_values;
+} meta_t;
+
 typedef struct slot_brush {
 	struct ui_nodes       *nodes;
 	struct ui_node_canvas *canvas;
@@ -62,7 +78,7 @@ typedef struct slot_layer {
 	struct slot_material *fill_material;
 	bool                  show_panel;
 	blend_type_t          blending;
-	i32                   object_mask;
+	struct meta          *meta; // NULL = none, covers every object and tile (coverage keys, see util_udim.c)
 	f32                   scale;
 	f32                   angle;
 	uv_type_t             uv_type;
@@ -255,7 +271,7 @@ typedef struct context {
 	struct asset        *texture;
 	struct mesh_object  *paint_object;
 	struct mesh_object  *merged_object;
-	bool                 merged_object_is_atlas;
+	bool                 merged_object_is_subset;
 	i32                  ddirty;  // depth
 	i32                  pdirty;  // paint
 	i32                  rtdirty; // raytrace
@@ -391,7 +407,7 @@ typedef struct context {
 	bool                        write_icon_on_export;
 	struct gpu_texture         *text_tool_image;
 	char                       *text_tool_text;
-	i32                         layer_filter;
+	i32                         layer_filter_object; // Paint id of the filtered object, 0 = all
 	struct object              *gizmo;
 	struct object              *gizmo_translate_x;
 	struct object              *gizmo_translate_y;
@@ -579,7 +595,7 @@ typedef struct history_step {
 	i32                          material;
 	i32                          brush;
 	f32                          layer_opacity;
-	i32                          layer_object;
+	struct meta                 *layer_meta; // Copy of the layer's metadata, owned by the step
 	i32                          layer_blending;
 	i32                          prev_order; // Previous layer position
 	i32                          canvas_type;
@@ -649,9 +665,11 @@ typedef struct {
 	struct node_group_t_array    *mesh_groups;
 	char                         *filepath;
 	i32                           next_asset_id;
-	i32                           next_object_id; // Last paint_id given out, ids are never reused
+	i32                           next_object_id; // Last paint_id given out, ids are never reused, saved as project_t.next_object_id
 	struct mesh_object_t_array   *paint_objects;
-	bool                          translucency; // See-through meshes, detected from the bottom layer and kept on
+	bool                          translucency;  // See-through meshes, detected from the bottom layer and kept on
+	struct i32_array             *atlas_objects; // Export > Atlases groups, session only
+	struct string_array          *atlas_names;
 } project_runtime_t;
 
 typedef struct project {
@@ -688,8 +706,6 @@ typedef struct project {
 	struct i32_array                            *mesh_physics_shapes; // -1 = no physics
 	struct f32_array                            *mesh_physics_masses;
 	struct buffer_t_array                       *mesh_skins; // NULL = no skin
-	struct i32_array                            *atlas_objects;
-	struct string_array                         *atlas_names;
 	struct string_array                         *script_datas;
 	struct string_array                         *script_names;
 	i32                                          timeline_frame_rate;
@@ -701,6 +717,11 @@ typedef struct project {
 	struct i32_array                            *mesh_nodes_objects; // Object index for each mesh_nodes canvas
 	struct f32_array_t_array                    *mesh_paths;         // Path and curve tool points
 	struct ui_node_canvas_t_array               *mesh_groups;
+	i32                                          next_object_id; // Saved by io/project_format.c, see there
+	struct i32_array                            *mesh_ids;       // Persistent paint id per mesh_datas entry
+	struct i32_array                            *udim_tiles;     // Sorted project udim tile ids
+	struct any_array                            *mesh_tiles;     // i16 tile index (id - 1001) per vertex for each mesh, empty = all 1001
+	struct meta_t_array                         *metas;          // Item metadata, sparse entries, see io/project_format.c
 	project_runtime_t                           *_;
 } project_t;
 
@@ -1056,6 +1077,12 @@ typedef struct material_data2_t_array {
 	int                length;
 	int                capacity;
 } material_data2_t_array_t;
+
+typedef struct meta_t_array {
+	meta_t **buffer;
+	int      length;
+	int      capacity;
+} meta_t_array_t;
 
 typedef struct ui_node_t_array {
 	ui_node_t **buffer;

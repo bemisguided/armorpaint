@@ -267,6 +267,9 @@ node_shader_context_t *make_mesh_run(material_t *data, i32 layer_pass) {
 			if (slot_layer_has_visible_filter(l)) {
 				continue;
 			}
+			if (layer_covers_nothing(l)) {
+				continue;
+			}
 
 			i32 count = 3;
 
@@ -296,26 +299,8 @@ node_shader_context_t *make_mesh_run(material_t *data, i32 layer_pass) {
 		}
 
 		for (i32 i = 0; i < layers->length; ++i) {
-			slot_layer_t *l = layers->buffer[i];
-			if (slot_layer_get_object_mask(l) > 0) {
-				node_shader_add_constant(kong, "int uid", "_uid");
-				if (slot_layer_get_object_mask(l) > g_project->_->paint_objects->length) { // Atlas
-					mesh_object_t_array_t *visibles = project_get_atlas_objects(slot_layer_get_object_mask(l));
-					node_shader_write_frag(kong, "if (");
-					for (i32 i = 0; i < visibles->length; ++i) {
-						if (i > 0) {
-							node_shader_write_frag(kong, " || ");
-						}
-						i32 uid = visibles->buffer[i]->base->uid;
-						node_shader_write_frag(kong, string_tmp("%s == constants.uid", i32_to_string(uid)));
-					}
-					node_shader_write_frag(kong, ") {");
-				}
-				else { // Object mask
-					i32 uid = g_project->_->paint_objects->buffer[slot_layer_get_object_mask(l) - 1]->base->uid;
-					node_shader_write_frag(kong, string_tmp("if (%s == constants.uid) {", i32_to_string(uid)));
-				}
-			}
+			slot_layer_t *l             = layers->buffer[i];
+			bool          coverage_test = layer_write_coverage_test(kong, l); // Objects the layer does not cover skip it
 
 			char *tex_coord = l->uv_map == 1 ? "tex_coord1" : util_mesh_udim_layer(l) ? "tex_coord_atlas" : "tex_coord";
 			node_shader_add_texture(kong, string_tmp("texpaint%s", i32_to_string(l->id)), NULL);
@@ -447,7 +432,7 @@ node_shader_context_t *make_mesh_run(material_t *data, i32 layer_pass) {
 				}
 			}
 
-			if (slot_layer_get_object_mask(l) > 0) {
+			if (coverage_test) {
 				node_shader_write_frag(kong, "}");
 			}
 		}

@@ -255,7 +255,6 @@ buffer_t *export_arm_encode_project(char *path) {
 		                              .decal_mat          = l->uv_type == UV_TYPE_PROJECT ? mat4_to_f32_array(l->decal_mat) : NULL,
 		                              .opacity_mask       = l->mask_opacity,
 		                              .fill_material      = l->fill_material != NULL ? array_index_of(g_project->_->materials, l->fill_material) : -1,
-		                              .object_mask        = l->object_mask,
 		                              .blending           = l->blending,
 		                              .parent             = l->parent != NULL ? array_index_of(g_project->_->layers, l->parent) : -1,
 		                              .visible            = l->visible,
@@ -326,6 +325,7 @@ buffer_t *export_arm_encode_project(char *path) {
 		any_array_push(mesh_transforms, ar);
 	}
 	g_project->mesh_transforms = mesh_transforms;
+	project_format_save_prep(g_project);
 	util_path_tool_export();
 
 	// Source mesh bytes

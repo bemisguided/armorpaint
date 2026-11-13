@@ -678,7 +678,6 @@ void minic_register_builtins() {
 	MINIC_O(parent, slot_layer_t);
 	MINIC_F(mask_opacity);
 	MINIC_O(fill_material, slot_material_t);
-	MINIC_I(object_mask);
 	MINIC_F(scale);
 	MINIC_F(angle);
 	MINIC_I(blending);
@@ -861,6 +860,7 @@ void minic_register_builtins() {
 	MINIC_F(camera_dist);
 	MINIC_B(frustum_culling);
 	MINIC_B(culled);
+	MINIC_I(paint_id);
 	MINIC_END();
 
 	MINIC_STRUCT(transform_t);

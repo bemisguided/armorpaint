@@ -235,6 +235,21 @@ static void export_texture_set_channel(f32 value, buffer_t *to, i32 to_channel, 
 	}
 }
 
+// Layer applies to the object of that name, or to an object ending in that udim tile suffix
+static bool export_texture_layer_covers_name(slot_layer_t *l, char *name, bool suffix) {
+	if (!layer_objects_restricted(l)) {
+		return true;
+	}
+	for (i32 i = 0; i < g_project->_->paint_objects->length; ++i) {
+		mesh_object_t *o     = g_project->_->paint_objects->buffer[i];
+		bool           match = suffix ? ends_with(o->base->name, name) : string_equals(o->base->name, name);
+		if (match && layer_covers_object(l, o)) {
+			return true;
+		}
+	}
+	return false;
+}
+
 static void export_texture_run_layers(char *path, slot_layer_t_array_t *layers, char *object_name, bool bake_material) {
 	i32 texture_size_x = config_get_texture_res_x();
 	i32 texture_size_y = config_get_texture_res_y();
@@ -267,11 +282,9 @@ static void export_texture_run_layers(char *path, slot_layer_t_array_t *layers, 
 	render_target_t *rt    = any_map_get(render_path_render_targets, "empty_white");
 	gpu_texture_t   *empty = rt->_image;
 
-	// Append object mask name
+	// Append object name, selected layers can cover any set of objects and get none
 	bool export_selected = g_context->layers_export == EXPORT_MODE_SELECTED;
-	if (export_selected && slot_layer_get_object_mask(layers->buffer[0]) > 0) {
-		f = string("%s_%s", f, g_project->_->paint_objects->buffer[slot_layer_get_object_mask(layers->buffer[0]) - 1]->base->name);
-	}
+	bool per_object      = g_context->layers_export == EXPORT_MODE_PER_OBJECT;
 	if (!is_udim && !export_selected && !string_equals(object_name, "")) {
 		f = string("%s_%s", f, object_name);
 	}
@@ -309,14 +322,11 @@ static void export_texture_run_layers(char *path, slot_layer_t_array_t *layers, 
 			continue;
 		}
 
-		if (!string_equals(object_name, "") && slot_layer_get_object_mask(l1) > 0) {
-			if (is_udim && !ends_with(g_project->_->paint_objects->buffer[slot_layer_get_object_mask(l1) - 1]->base->name, object_name)) {
-				continue;
-			}
-			bool per_object = g_context->layers_export == EXPORT_MODE_PER_OBJECT;
-			if (per_object && !string_equals(g_project->_->paint_objects->buffer[slot_layer_get_object_mask(l1) - 1]->base->name, object_name)) {
-				continue;
-			}
+		if (layer_covers_nothing(l1)) {
+			continue;
+		}
+		if ((is_udim || per_object) && !string_equals(object_name, "") && !export_texture_layer_covers_name(l1, object_name, is_udim)) {
+			continue;
 		}
 
 		gpu_texture_t        *mask    = empty;
@@ -750,13 +760,15 @@ void export_texture_run(char *path, bool bake_material) {
 		}
 	}
 	else if (g_context->layers_export == EXPORT_MODE_PER_OBJECT) {
+		// Objects some object restricted layer covers, each gets its own texture set
 		string_array_t *object_names = any_array_create_from_raw((void *[]){}, 0);
-		for (i32 i = 0; i < g_project->_->layers->length; ++i) {
-			slot_layer_t *l = g_project->_->layers->buffer[i];
-			if (slot_layer_get_object_mask(l) > 0) {
-				char *name = g_project->_->paint_objects->buffer[slot_layer_get_object_mask(l) - 1]->base->name;
-				if (string_array_index_of(object_names, name) == -1) {
-					any_array_push(object_names, name);
+		for (i32 i = 0; i < g_project->_->paint_objects->length; ++i) {
+			mesh_object_t *o = g_project->_->paint_objects->buffer[i];
+			for (i32 j = 0; j < g_project->_->layers->length; ++j) {
+				slot_layer_t *l = g_project->_->layers->buffer[j];
+				if (layer_objects_restricted(l) && layer_covers_object(l, o)) {
+					any_array_push(object_names, o->base->name);
+					break;
 				}
 			}
 		}
@@ -771,22 +783,22 @@ void export_texture_run(char *path, bool bake_material) {
 		}
 	}
 	else { // Visible or selected
-		bool atlas_export = false;
-		if (g_project->atlas_objects != NULL) {
-			for (i32 i = 1; i < g_project->atlas_objects->length; ++i) {
-				if (g_project->atlas_objects->buffer[i - 1] != g_project->atlas_objects->buffer[i]) {
+		i32_array_t *atlas_objects = g_project->_->atlas_objects;
+		bool         atlas_export  = false;
+		if (atlas_objects != NULL) {
+			for (i32 i = 1; i < atlas_objects->length; ++i) {
+				if (atlas_objects->buffer[i - 1] != atlas_objects->buffer[i]) {
 					atlas_export = true;
 					break;
 				}
 			}
 		}
 		if (atlas_export) {
-			string_array_t *used_atlases = project_get_used_atlases();
-			for (i32 atlas_index = 0; atlas_index < g_project->atlas_objects->length; ++atlas_index) {
+			for (i32 atlas_index = 0; atlas_index < atlas_objects->length; ++atlas_index) {
 				// Skip atlases that no object is assigned to
 				bool atlas_used = false;
-				for (i32 object_index = 0; object_index < g_project->atlas_objects->length; ++object_index) {
-					if (g_project->atlas_objects->buffer[object_index] == atlas_index) {
+				for (i32 object_index = 0; object_index < atlas_objects->length; ++object_index) {
+					if (atlas_objects->buffer[object_index] == atlas_index) {
 						atlas_used = true;
 						break;
 					}
@@ -794,29 +806,20 @@ void export_texture_run(char *path, bool bake_material) {
 				if (!atlas_used) {
 					continue;
 				}
+				// Layers covering any object of the atlas
 				slot_layer_t_array_t *layers = any_array_create_from_raw((void *[]){}, 0);
 				for (i32 i = 0; i < g_project->_->layers->length; ++i) {
-					slot_layer_t *l    = g_project->_->layers->buffer[i];
-					i32           mask = slot_layer_get_object_mask(l);
-					bool          add  = false;
-					if (mask == 0) { // Shared object
-						add = true;
-					}
-					else if (mask <= g_project->_->paint_objects->length) { // Specific object
-						add = g_project->atlas_objects->buffer[mask - 1] == atlas_index;
-					}
-					else if (used_atlases != NULL) { // Atlas
-						i32 used_index = mask - g_project->_->paint_objects->length - 1;
-						if (used_index < used_atlases->length) {
-							add = string_array_index_of(g_project->atlas_names, used_atlases->buffer[used_index]) == atlas_index;
-						}
+					slot_layer_t *l   = g_project->_->layers->buffer[i];
+					bool          add = !layer_objects_restricted(l);
+					for (i32 j = 0; !add && j < atlas_objects->length && j < g_project->_->paint_objects->length; ++j) {
+						add = atlas_objects->buffer[j] == atlas_index && layer_covers_object(l, g_project->_->paint_objects->buffer[j]);
 					}
 					if (add) {
 						any_array_push(layers, l);
 					}
 				}
 				if (layers->length > 0) {
-					export_texture_run_layers(path, layers, g_project->atlas_names->buffer[atlas_index], false);
+					export_texture_run_layers(path, layers, g_project->_->atlas_names->buffer[atlas_index], false);
 				}
 			}
 		}

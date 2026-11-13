@@ -584,7 +584,7 @@ typedef enum {
 	HISTORY_ACTION_DUPLICATE_MATERIAL,
 	HISTORY_ACTION_LAYER_VISIBLE,
 	HISTORY_ACTION_LAYER_NAME,
-	HISTORY_ACTION_LAYER_OBJECT,
+	HISTORY_ACTION_LAYER_COVERAGE,
 	HISTORY_ACTION_LAYER_SCALE,
 	HISTORY_ACTION_LAYER_ANGLE,
 	HISTORY_ACTION_LAYER_UV_TYPE,
@@ -598,3 +598,18 @@ typedef enum {
 	HISTORY_ACTION_EDIT_SWATCH,
 	HISTORY_ACTION_OBJECT_TRANSFORM,
 } history_action_t;
+
+// Kinds of items that carry metadata (meta_t.category), saved in project files: explicit numbers, never renumber or reuse
+typedef enum {
+	MC_LAYER = 0,
+} meta_category_t;
+
+// Keys of meta_t, saved in project files: explicit numbers, never renumber or reuse. Unknown ids are kept as they are.
+// Layer coverage (util_udim.c): all objects (bool, absent = true), objects (i32 array of paint ids, absent = empty),
+// all tiles (bool, absent = true), tiles (i32 array of udim tile ids, absent = empty).
+typedef enum {
+	META_ALL_OBJECTS = 0,
+	META_OBJECTS     = 1,
+	META_ALL_TILES   = 2,
+	META_TILES       = 3,
+} meta_key_t;
