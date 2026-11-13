@@ -2863,9 +2863,24 @@ mesh_object_t *util_mesh_duplicate_object(mesh_object_t *so) {
 	_util_mesh_shift_object_masks(at + 1);
 
 	// Ensure unique name
-	// A udim tile name (Body.1001) would count up into another tile (Body.1002), so the copy is Body.1001.001
-	char *dup_name = util_mesh_udim_tile(so->base->name) > 0 ? string_tmp("%s.001", so->base->name) : so->base->name;
-	dup->base->name = string_copy(_import_mesh_unique_name(dup_name));
+	// A udim tile name keeps its tile id last, Body.1001 is copied to Body.001.1001 so the copy stays on the tile
+	i32 tile = util_mesh_udim_tile(so->base->name);
+	if (tile > 0) {
+		char *stem = string_tmp("%.*s", string_length(so->base->name) - 5, so->base->name);
+		char *base;
+		strings_split_number_ext(stem, &base);
+		char *cand = NULL;
+		for (i32 n = 1; n < 100000; ++n) {
+			cand = string_tmp("%s%s.%d", base, strings_number_ext(n), tile);
+			if (_import_mesh_is_unique_name(cand)) {
+				break;
+			}
+		}
+		dup->base->name = string_copy(cand);
+	}
+	else {
+		dup->base->name = string_copy(_import_mesh_unique_name(so->base->name));
+	}
 	tab_stages_add_object(dup->base->name);
 
 	// Skinned meshes are posed in their vertices, make a copy so it can play a clip on its own
