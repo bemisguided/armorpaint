@@ -59,6 +59,25 @@ bool layer_covers_tile(slot_layer_t *l, i32 tile) {
 	return true;
 }
 
+// Whether the groups above the layer (not the layer itself) leave the object or tile in its coverage
+bool layer_ancestors_cover_object_id(slot_layer_t *l, i32 paint_id) {
+	for (slot_layer_t *p = slot_layer_coverage_owner(l)->parent; p != NULL; p = p->parent) {
+		if (_layer_level_objects(p) && i32_array_index_of(p->objects, paint_id) < 0) {
+			return false;
+		}
+	}
+	return true;
+}
+
+bool layer_ancestors_cover_tile(slot_layer_t *l, i32 tile) {
+	for (slot_layer_t *p = slot_layer_coverage_owner(l)->parent; p != NULL; p = p->parent) {
+		if (_layer_level_tiles(p) && i32_array_index_of(p->tiles, tile) < 0) {
+			return false;
+		}
+	}
+	return true;
+}
+
 bool layer_objects_restricted(slot_layer_t *l) {
 	for (slot_layer_t *p = slot_layer_coverage_owner(l); p != NULL; p = p->parent) {
 		if (_layer_level_objects(p)) {

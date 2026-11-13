@@ -1071,6 +1071,8 @@ slot_layer_t             *slot_layer_coverage_owner(slot_layer_t *l);
 bool                      layer_covers_object_id(slot_layer_t *l, i32 paint_id);
 bool                      layer_covers_object(slot_layer_t *l, mesh_object_t *o);
 bool                      layer_covers_tile(slot_layer_t *l, i32 tile);
+bool                      layer_ancestors_cover_object_id(slot_layer_t *l, i32 paint_id);
+bool                      layer_ancestors_cover_tile(slot_layer_t *l, i32 tile);
 bool                      layer_objects_restricted(slot_layer_t *l);
 bool                      layer_is_restricted(slot_layer_t *l);
 mesh_object_t_array_t    *layer_coverage_objects(slot_layer_t *l);

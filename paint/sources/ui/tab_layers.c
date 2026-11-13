@@ -365,11 +365,23 @@ static bool tab_layers_coverage_all_check(slot_layer_t *l, bool *all) {
 	return true;
 }
 
-static bool tab_layers_coverage_id_check(slot_layer_t *l, i32_array_t *ids, i32 id, char *text) {
-	bool value = i32_array_index_of(ids, id) >= 0;
+// While All is ticked every row shows checked and disabled, the stored list is kept and shown again when All is unticked.
+// Rows a group above the layer excludes show unchecked and disabled, the stored list is not changed.
+static bool tab_layers_coverage_id_check(slot_layer_t *l, i32_array_t *ids, i32 id, char *text, bool all, bool excluded) {
+	bool enabled = !all && !excluded;
+	bool value   = excluded ? false : all ? true : i32_array_index_of(ids, id) >= 0;
 	ui_menu_align();
+	f32 x = g_ui->_window_x + g_ui->_x;
+	f32 y = g_ui->_window_y + g_ui->_y;
+	f32 w = g_ui->_w;
+	f32 h = UI_ELEMENT_H();
+	g_ui->enabled = enabled;
 	ui_check(&value, text, "");
-	if (!ui_item_changed()) {
+	g_ui->enabled = true;
+	if (excluded && ui_input_in_rect(x, y, w, h)) { // Disabled items are never hovered
+		ui_tooltip(tr("Excluded by the group"));
+	}
+	if (!enabled || !ui_item_changed()) {
 		return false;
 	}
 	tab_layers_coverage_push(l);
@@ -383,7 +395,8 @@ static void tab_layers_objects_items_draw(slot_layer_t *l) {
 	for (i32 i = 0; i < g_project->_->paint_objects->length; ++i) {
 		mesh_object_t *o = g_project->_->paint_objects->buffer[i];
 		if (tab_layers_coverage_object_item(o) && o->paint_id > 0) {
-			changed |= tab_layers_coverage_id_check(l, l->objects, o->paint_id, o->base->name);
+			bool excluded = !layer_ancestors_cover_object_id(l, o->paint_id);
+			changed |= tab_layers_coverage_id_check(l, l->objects, o->paint_id, o->base->name, l->all_objects, excluded);
 		}
 	}
 	if (changed) {
@@ -396,8 +409,9 @@ static void tab_layers_tiles_items_draw(slot_layer_t *l) {
 	bool changed = tab_layers_coverage_all_check(l, &l->all_tiles);
 	ui_menu_separator();
 	for (i32 i = 0; i < util_udim_count(); ++i) {
-		i32 tile = util_udim_tile(i);
-		changed |= tab_layers_coverage_id_check(l, l->tiles, tile, string_tmp("%d", tile));
+		i32  tile     = util_udim_tile(i);
+		bool excluded = !layer_ancestors_cover_tile(l, tile);
+		changed |= tab_layers_coverage_id_check(l, l->tiles, tile, string_tmp("%d", tile), l->all_tiles, excluded);
 	}
 	if (changed) {
 		tab_layers_coverage_changed(l);
