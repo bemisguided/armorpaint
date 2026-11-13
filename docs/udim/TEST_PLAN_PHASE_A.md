@@ -51,7 +51,10 @@ PASS if 1.1 and 1.2 behave like upstream main.
 2.5 Right-click the copy > **Delete**.
 - Expected: still `B`, and B keeps its paint.
 
-PASS if coverage follows B through reorder, sort, duplicate and delete.
+2.6 Layer still set to `{B}`. File > **Reimport Mesh** (or File > Import > Mesh... with Replace Existing and layers kept) of the same `three_cubes.obj`.
+- Expected: the button still reads `B` and the layer still applies to cube B only. A new mesh takes over the id of the replaced object with the same name (or, when a single object is replaced, the first new mesh takes over its id).
+
+PASS if coverage follows B through reorder, sort, duplicate, delete and reimport.
 
 ## 3. Objects multi-select and All
 
@@ -97,7 +100,7 @@ PASS if paint and fill never reach uncovered objects.
 - Expected: Layer 2 shows only on A.
 
 5.4 Set the group to `B` only.
-- Expected: Layer 2 covers nothing. Its name is dimmed with the tooltip from step 6. A stroke paints nothing.
+- Expected: Layer 2 covers nothing. Its name is dimmed with the `No objects are selected...` tooltip from 6.4. A stroke paints nothing.
 
 5.5 Masks inside Layer 2 have no Objects button (they inherit from Layer 2).
 
@@ -118,7 +121,13 @@ PASS if 5.1-5.6 match.
 6.3 Tick `All` in its Objects popup.
 - Expected: the layer applies to every object again, and the name is no longer dimmed.
 
-PASS if 6.1-6.3 match.
+6.4 New paint layer. Objects popup: untick `All` while nothing is ticked in the list.
+- Expected: the button reads `No objects`, the name is dimmed, and hovering it shows `No objects are selected for this layer or its group, so it covers nothing. Select objects or choose All to use it.` (not the "were deleted" text). The same text shows for a layer whose set and its group's set have nothing in common (5.4).
+
+6.5 Layer set to `{A}`. Hide A with its eye in the Meshes tab, then try a brush stroke.
+- Expected: nothing is painted, the name is not dimmed, and the Console tab title shows `Layer's objects are hidden or use another material`. The same message shows when A has a material set in the Meshes tab instead of being hidden, and no other object is painted.
+
+PASS if 6.1-6.5 match.
 
 ## 7. Layer filter
 
@@ -189,7 +198,7 @@ PASS if no Atlases UI remains.
 12.3 Optional check of the format version: run `head -c 32 p99.arm | xxd`. Bytes 22-23 read `99`.
 
 12.4 Upstream main opening `p99.arm`.
-- Expected: it fails to load cleanly (unknown version), with no crash.
+- Expected: upstream main as of 22097dfdd crashes on an unknown version (pre-existing upstream bug). With branch `fix/import-arm-unknown-version` it refuses the file with a console error and no crash. The fork has the same fix, so a future upstream format opened in the fork fails the same way.
 
 PASS if 12.1-12.3 hold (12.4 optional).
 
@@ -212,7 +221,13 @@ PASS if it opens, every layer is All, and the resave round-trips.
 14.2 Layer limited to `Body.1002` only: paint on it.
 - Expected: it behaves as upstream's single-tile-object layer.
 
-PASS if behaviour matches upstream main for these steps.
+14.3 A layer is read tile-local only when its stored object list names exactly one tile object. Layer `L2` limited to `{Body.1001, Body.1002}`, paint a stroke across both. Delete `Body.1002`.
+- Expected: L2's paint on Body.1001 stays where it was (atlas reading kept, not squeezed into 0-1). Before the fix this flipped to tile-local.
+
+14.4 Layer limited to `Body.1001` only, painted. Import (Append) another mesh, and Duplicate an unrelated object.
+- Expected: the layer's paint on Body.1001 does not move. Merge Geometry or Split of Body.1001 leaves the layer listing only Body.1001 (it is not extended to the joined or split objects), so the paint never changes reading; split parts are not covered by it, and a merge that removes Body.1001 leaves the layer covering nothing.
+
+PASS if behaviour matches upstream main for 14.1-14.2 and the paint never changes reading in 14.3-14.4.
 
 ## 15. Sculpt coverage
 
@@ -225,6 +240,9 @@ PASS if behaviour matches upstream main for these steps.
 15.3 Set it to `All`.
 - Expected: everything deforms. Also try a grab or inflate brush.
 
+15.4 Set it to `{B}` and delete B (or untick All with nothing ticked), then sculpt.
+- Expected: nothing deforms, the Console tab title shows `Layer covers no objects`, and no undo step is added (Edit menu's Undo entry is unchanged).
+
 PASS if deformation follows the set.
 
 ## 16. Expected limitations in phase A (not failures)
@@ -234,7 +252,13 @@ PASS if deformation follows the set.
 - Exports and path tracing don't mask object-restricted layers to their UV footprint (phase B4). The viewport is exact per object.
 - The overlap tooltip sentence ("X shares UV space with Y...") is not implemented.
 - Mesh delete has no undo (deferred). Deleted objects leave layers covering nothing.
-- A sculpt stroke on a layer that covers nothing pushes an empty undo step.
+- Selecting a layer whose painted set is unchanged reuses the merged mesh instead of rebuilding it (the merged mesh is rebuilt after any mesh, name or material change). Watch for stale geometry when painting right after a mesh edit and a layer switch.
+
+## Watch for (review findings not fixed in phase A)
+
+- m7: with the Objects popup open, a shortcut (for example ctrl+z undoing "new layer" while the mouse is over the header) can leave the popup pointing at a layer that no longer exists. The next toggle would act on it. Report any crash or odd undo after using shortcuts with the popup open.
+- m8: the sculpt shader always binds the coverage texture, even in single-object projects. Brush or material graphs close to the texture slot limit could fail to compile. Report any sculpt shader compile error.
+- m9: Reimport Mesh keeps an object's id only when a new mesh has the same name (or a single object is replaced). A restricted layer whose objects all got new names covers nothing afterwards, with no warning beyond the dimmed name.
 
 ## Result
 
