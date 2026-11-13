@@ -995,6 +995,10 @@ bool render_path_paint_paint_enabled() {
 		return true;
 	}
 
+	if (render_path_paint_stroke_skipped) {
+		return false;
+	}
+
 	// A sculpt stroke on a layer that covers nothing would only push an empty undo step
 	bool picking_tool = g_context->tool == TOOL_TYPE_PICKER || g_context->tool == TOOL_TYPE_MATERIAL || g_context->tool == TOOL_TYPE_COLORID;
 	if (g_context->layer->texpaint_sculpt != NULL && !picking_tool && layer_covers_nothing(g_context->layer)) {
@@ -1020,6 +1024,37 @@ bool render_path_paint_paint_enabled() {
 	return !fill_layer && !group_layer && !g_context->foreground_event && !self_in_material;
 }
 
+// Strokes of these tools on an object restricted paint layer are skipped, with no undo step, when they start on an uncovered object.
+// Fills keep their own rules (object fill paints every covered object, mesh fill only a covered picked one), sculpt layers are not checked.
+void render_path_paint_stroke_start() {
+	tool_type_t t = g_context->tool;
+	bool        stroke_tool =
+	    t == TOOL_TYPE_BRUSH || t == TOOL_TYPE_ERASER || t == TOOL_TYPE_DECAL || t == TOOL_TYPE_TEXT || t == TOOL_TYPE_CLONE || t == TOOL_TYPE_BLUR;
+	render_path_paint_stroke_skipped = false;
+	render_path_paint_cover_pick     = history_push_undo && stroke_tool && !g_context->paint2d && g_context->layer->texpaint_sculpt == NULL &&
+	                                   !slot_layer_is_path(g_context->layer) && layer_objects_restricted(g_context->layer);
+}
+
+void render_path_paint_stroke_end() {
+	render_path_paint_stroke_skipped = false;
+	render_path_paint_cover_pick     = false;
+}
+
+// Object under the cursor, a miss (no object) counts as covered so strokes starting off the mesh behave as before
+static bool render_path_paint_stroke_start_covered() {
+	i32         _pdirty       = g_context->pdirty;
+	tool_type_t _tool         = g_context->tool;
+	g_context->tool           = TOOL_TYPE_CURSOR;
+	g_context->pick_object_id = true;
+	mesh_object_t *o          = render_path_paint_pick_object();
+	g_context->pick_object_id = false;
+	g_context->tool           = _tool;
+	g_context->pdirty         = _pdirty;
+	make_material_parse_paint_material(false);
+	render_path_base_draw_gbuffer();
+	return o == NULL || layer_covers_object(g_context->layer, o);
+}
+
 void render_path_paint_begin() {
 	if (render_path_paint_live_layer_drawn > 0) {
 		render_path_paint_live_layer_drawn--;
@@ -1037,6 +1072,15 @@ void render_path_paint_begin() {
 
 	if (!render_path_paint_paint_enabled()) {
 		return;
+	}
+
+	if (render_path_paint_cover_pick) {
+		render_path_paint_cover_pick = false;
+		if (!render_path_paint_stroke_start_covered()) {
+			render_path_paint_stroke_skipped = true; // Nothing is painted until the brush is released
+			history_push_undo                = false;
+			return;
+		}
 	}
 
 	render_path_paint_push_undo_last = history_push_undo;
@@ -1063,6 +1107,10 @@ void render_path_paint_end() {
 
 	g_context->last_paint_vec_x = g_context->paint_vec.x;
 	g_context->last_paint_vec_y = g_context->paint_vec.y;
+
+	if (render_path_paint_stroke_skipped) {
+		g_context->pdirty = 0; // Nothing of the skipped stroke is left to paint once the brush is released
+	}
 
 	if (!render_path_paint_paint_enabled()) {
 		return;
