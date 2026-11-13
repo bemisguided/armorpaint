@@ -42,8 +42,6 @@ Arc tangente 2
 Arc tangente
 Réseau
 Asset
-Atlas
-Atlas
 Attributs
 Auto
 Moyenne
@@ -663,7 +661,6 @@ Configuration
 Shader
 Forme
 Partager le lien du lecteur
-Partagé
 Afficher la vue 2D
 Montrer les noms des assets
 Afficher la grille
@@ -860,6 +857,9 @@ type
 sans titre
 x
 {shortcut} et déplacer la souris
+
+
+
 
 
 

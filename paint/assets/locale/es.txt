@@ -42,8 +42,6 @@ Arc tangente 2
 Arc tangente
 Matriz
 Recurso
-Atlas
-Atlas
 Atributo
 Automático
 Promedio
@@ -663,7 +661,6 @@ Configuración
 Sombreador
 Forma
 Compartir enlace del reproductor
-Compartido
 Mostrar vista 2D
 Mostrar nombres de recursos
 Mostrar rejilla
@@ -860,6 +857,9 @@ tipo
 Sin título
 x
 {shortcut} y mover ratón
+
+
+
 
 
 

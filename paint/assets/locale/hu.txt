@@ -42,8 +42,6 @@ Arkusz tangens 2
 Arkusz tangens
 Tömb
 Asset
-Atlasz
-Atlaszok
 Attribútum
 Auto
 Átlag
@@ -663,7 +661,6 @@ Beállítás
 Shader
 Alakzat
 Player hivatkozás megosztása
-Megosztott
 2D Nézet megjelenítése
 Asset nevek mutatása
 Rács megjelenítése
@@ -860,6 +857,9 @@ típus
 Névtelen
 x
 {shortcut} és egér mozgatása
+
+
+
 
 
 
