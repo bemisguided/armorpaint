@@ -182,7 +182,8 @@ static void render_path_paint_draw_fill_object() {
 	mesh_object_t *o       = render_path_paint_fill_object;
 	mesh_object_t *target  = render_path_paint_target();
 	bool           merged  = target != NULL && target == g_context->merged_object;
-	bool           painted = o != NULL && (merged || o == target) && array_index_of(g_project->_->paint_objects, o) >= 0;
+	// The merged mesh holds the paint set, an object outside of the layer's atlas or udim tile group is not filled
+	bool painted = o != NULL && (merged ? util_mesh_merged_has(o) : o == target) && array_index_of(g_project->_->paint_objects, o) >= 0;
 	bool           submesh = g_context->fill_type == FILL_TYPE_SUBMESH;
 	if (submesh && render_path_paint_fill_indices == NULL) {
 		painted = false;
@@ -1078,10 +1079,11 @@ static void render_path_paint_commands_low_poly() {
 		return;
 	}
 	mesh_object_t *high_poly = g_project->_->paint_objects->buffer[g_context->bake_high_poly];
+	i32            group     = layers_group_mask(); // Bake into the atlas or udim tile group members only
 	i32            last      = -1;
 	for (i32 i = 0; i < g_project->_->paint_objects->length; ++i) {
 		mesh_object_t *p = g_project->_->paint_objects->buffer[i];
-		if (p != high_poly && p->base->visible) {
+		if (p != high_poly && p->base->visible && project_object_in_mask(p, group)) {
 			last = i;
 		}
 	}
@@ -1093,7 +1095,7 @@ static void render_path_paint_commands_low_poly() {
 	merged->base->visible        = false;
 	for (i32 i = 0; i <= last; ++i) {
 		mesh_object_t *p = g_project->_->paint_objects->buffer[i];
-		if (p != high_poly && p->base->visible) {
+		if (p != high_poly && p->base->visible && project_object_in_mask(p, group)) {
 			context_select_paint_object(p);
 			render_path_paint_commands_paint(i == last); // Dilate once all objects are drawn
 		}
@@ -1204,6 +1206,7 @@ void render_path_paint_draw() {
 			}
 			else if (g_context->bake_type == BAKE_TYPE_OBJECTID) {
 				i32            _layer_filter = g_context->layer_filter;
+				i32            group         = layers_group_mask(); // Before the filter is overridden
 				mesh_object_t *_paint_object = g_context->paint_object;
 				bool           is_merged     = g_context->merged_object != NULL;
 				bool           _visible      = is_merged && g_context->merged_object->base->visible;
@@ -1214,6 +1217,9 @@ void render_path_paint_draw() {
 
 				for (i32 i = 0; i < g_project->_->paint_objects->length; ++i) {
 					mesh_object_t *p = g_project->_->paint_objects->buffer[i];
+					if (!project_object_in_mask(p, group)) {
+						continue; // Outside of the atlas or udim tile group
+					}
 					context_select_paint_object(p);
 					render_path_paint_commands_paint(true);
 				}
