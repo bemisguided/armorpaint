@@ -4,7 +4,7 @@ Running record of the item-by-item review of DESIGN.md. Where this file and DESI
 
 Design doc (agent output, base main @ 22097dfdd): /private/tmp/claude-501/-Users-martin-crawford-Development-Workspaces-Game-armorpaint/b8bfd9f3-2c7e-4d01-9c91-d7daa0a9e8e7/scratchpad/udim-design.md Durable copy: ~/.claude/projects/-Users-martin-crawford-Development-Workspaces-Game-armorpaint/udim-design.md (copy into the repo/branch once settled).
 User reviews it ONE ITEM AT A TIME in chat. Work the list in order, record the decision here after each, then move on. Context: [[udim-layer-selection-design]].
-Branch plan: new `feat/udim-object-tile-selection` off `main`, not created yet; `custom` = main + iron_obj calloc fix merge; old work on `archive/custom-name-based-udim`.
+Branch `feat/udim-object-tile-selection` CREATED off main and pushed (commit ced6a00f5) with docs/udim/{DESIGN,DECISIONS,DEFERRED}.md; this log is the live copy, DECISIONS.md in the repo needs re-syncing after each further decision; `custom` = main + iron_obj calloc fix merge; old work on `archive/custom-name-based-udim`.
 
 Corrections the agent found to my brief: main has no mesh-delete mask remap and no mesh-delete undo; per-tile resolution is archive-only; main names exports `.1001.png`; main OBJ UDIM import reads only the first object; saved projects decode by field position (version bump needed, proposed v24); nothing can be added to `mesh_data_t`; vertex layout is per pipeline.
 
@@ -23,10 +23,10 @@ Corrections the agent found to my brief: main has no mesh-delete mask remap and 
 D1. Do layers inside a group intersect with the group's coverage? - DECIDED: YES, intersection (effective coverage = own set AND every ancestor group's). No format change (runtime rule). Finding: on main groups have NO object UI and nothing reads a group's object_mask (dormant, always 0), so groups need new Objects/Tiles controls on the group row or context menu; masks/filters keep inheriting from their parent layer; All is default so old files unaffected.
 D2. Add mesh-delete undo? - DECIDED: DEFER as its own change (main has no mesh-delete undo; with stable ids a restored object with its old id would restore coverage automatically). Until then deleting an object leaves layers covering nothing.
 D3. Keep named export groups (id-based) or drop? - DECIDED: EXCLUDE for now (Export > Atlases tab removed with no replacement; it is exposed today as an Atlases tab in box_export.c with positional, unrenamable 'Atlas N' groups that reset on object count change). Revisit later as an id-based 'Export groups' list if wanted.
-D4. Support importing UDIM texture sets? - open
-D5. Translucency with the path tracer? - open
-D6. Mesh-nodes object index is positional too: convert to ids? - open
-D7. Default per-tile resolution? - open
+D4. Support importing UDIM texture sets? - DECIDED: DEFER (captured in docs/udim/DEFERRED.md).
+D5. Translucency with the path tracer? - DECIDED: LEAVE AS IS (matches main), MARKED TO REVISIT in docs/udim/DEFERRED.md. Known mismatch: with a restricted bottom layer, uncovered texels flatten to alpha 0 so path trace/export show them transparent while the raster viewport shows them opaque (transluc_opac starts at 1.0). Option when revisited: flatten uncovered areas as alpha 1.
+D6. Mesh-nodes object index to ids? - DECIDED: DEFER (still positional; ~15 lines in nodes_mesh.c plus the save field; cheapest while the format is changing but out of UDIM scope).
+D7. Default per-tile resolution? - DECIDED: 2k per tile; show atlas size + memory estimate on import, warn past 16384 with the clamped per-tile res; resolution setting labelled '(per tile)' when >1 tile. ALL DESIGN ITEMS AND DECISIONS NOW SETTLED; next step is implementation on feat/udim-object-tile-selection (re-sync docs/udim/DECISIONS.md first).
 
 ## Reusable from archive: resolution helpers, export crop, bake crop + import helper, `_1001` naming; NOT the layer rescale; c68da65dc calloc fix becomes obsolete when the OBJ importer is rewritten.
 
