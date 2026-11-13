@@ -1104,6 +1104,8 @@ void                      slot_layer_set_objects(slot_layer_t *l, i32 *ids, i32 
 void                      slot_layer_set_tiles(slot_layer_t *l, i32 *ids, i32 count, bool all);
 void                      slot_layer_coverage_set_all(slot_layer_t *l, bool tiles, bool all);
 void                      slot_layer_coverage_toggle(slot_layer_t *l, bool tiles, i32 id);
+bool                      slot_layer_objects_differ(slot_layer_t *l, i32 *ids, i32 count, bool all);
+bool                      slot_layer_tiles_differ(slot_layer_t *l, i32 *ids, i32 count, bool all);
 void                      slot_layer_coverage_from_filter(slot_layer_t *l);
 void                      layers_coverage_add_alias(i32 from, i32 to);
 void                      nodes_brush_init();

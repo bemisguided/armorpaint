@@ -892,6 +892,10 @@ static void script_layer_set_coverage(slot_layer_t *l, bool tiles, i32 *ids, i32
 	if (slot_layer_is_mask(l) || slot_layer_is_filter(l)) {
 		l = l->parent;
 	}
+	// Scripts may set coverage every frame, only a change is an undo step
+	if (tiles ? !slot_layer_tiles_differ(l, ids, count, all) : !slot_layer_objects_differ(l, ids, count, all)) {
+		return;
+	}
 	gpu_texture_t *current;
 	bool           in_use;
 	script_gpu_begin(&current, &in_use);

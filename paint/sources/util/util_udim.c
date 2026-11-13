@@ -347,6 +347,42 @@ void slot_layer_coverage_toggle(slot_layer_t *l, bool tiles, i32 id) {
 	array_delete(ids);
 }
 
+// Whether slot_layer_set_objects / slot_layer_set_tiles with these arguments would change anything, the list compares as a set
+static bool _coverage_differs(bool cur_all, i32_array_t *cur, i32 *ids, i32 count, bool all) {
+	if (cur_all != all) {
+		return true;
+	}
+	if (ids == NULL && all) {
+		return false;
+	}
+	if (ids == NULL) {
+		count = 0;
+	}
+	for (i32 i = 0; i < count; ++i) {
+		if (i32_array_index_of(cur, ids[i]) < 0) {
+			return true;
+		}
+	}
+	for (i32 i = 0; i < cur->length; ++i) {
+		bool found = false;
+		for (i32 j = 0; j < count && !found; ++j) {
+			found = ids[j] == cur->buffer[i];
+		}
+		if (!found) {
+			return true;
+		}
+	}
+	return false;
+}
+
+bool slot_layer_objects_differ(slot_layer_t *l, i32 *ids, i32 count, bool all) {
+	return _coverage_differs(slot_layer_all_objects(l), slot_layer_objects(l), ids, count, all);
+}
+
+bool slot_layer_tiles_differ(slot_layer_t *l, i32 *ids, i32 count, bool all) {
+	return _coverage_differs(slot_layer_all_tiles(l), slot_layer_tiles(l), ids, count, all);
+}
+
 // New layers made while the list is filtered only cover the filtered object
 void slot_layer_coverage_from_filter(slot_layer_t *l) {
 	if (g_context->layer_filter_object > 0) {
