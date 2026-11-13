@@ -209,6 +209,11 @@ i32 util_mesh_udim_slot(i32 tile) {
 	return util_mesh_udim_tiles_spent ? ATLAS_MAX_SLOTS - 1 : 0;
 }
 
+// Tile id of an atlas slot, -1 when the slot has no tile
+i32 util_mesh_udim_tile_id(i32 slot) {
+	return slot >= 0 && slot < util_mesh_udim_tile_count ? util_mesh_udim_tiles[slot] : -1;
+}
+
 bool util_mesh_udim_layer(slot_layer_t *l) {
 	if (!util_mesh_udim_active() || l == NULL || l->uv_map == 1) {
 		return false;
@@ -224,13 +229,68 @@ static i32 _util_mesh_atlas_slot_for_object(mesh_object_t *o) {
 	return 0;
 }
 
+#define ATLAS_MAX_SIDE 16384
+
+// Layer textures follow the atlas, rebuilt when udim tiles come or go
+static bool util_mesh_atlas_resize_pending = false;
+
+static void _util_mesh_atlas_resize_layers(void *_) {
+	util_mesh_atlas_resize_pending = false;
+	if (g_project == NULL || g_project->_->layers == NULL || g_project->_->layers->length == 0 || g_project->_->layers->buffer[0]->texpaint == NULL) {
+		return;
+	}
+	gpu_texture_t *tex = g_project->_->layers->buffer[0]->texpaint;
+	if (tex->width != util_mesh_atlas_res_x() || tex->height != util_mesh_atlas_res_y()) {
+		layers_resize();
+	}
+}
+
 static void _util_mesh_atlas_build_slots() {
+	_util_mesh_udim_build_tiles();
+	util_mesh_atlas_stride_merged = util_mesh_udim_active() ? _util_mesh_atlas_stride_for(util_mesh_udim_tile_count) : 1;
+	if (!util_mesh_atlas_resize_pending) {
+		util_mesh_atlas_resize_pending = true;
+		sys_notify_on_next_frame(&_util_mesh_atlas_resize_layers, NULL);
+	}
+}
+
+// Rebuild tile slots without merging, for projects that are loading
+void util_mesh_atlas_update() {
 	_util_mesh_udim_build_tiles();
 	util_mesh_atlas_stride_merged = util_mesh_udim_active() ? _util_mesh_atlas_stride_for(util_mesh_udim_tile_count) : 1;
 }
 
 i32 util_mesh_atlas_stride() {
 	return util_mesh_atlas_stride_merged;
+}
+
+// Project resolution is per udim tile, the shared atlas holds stride x stride tiles
+static i32 _util_mesh_atlas_res(i32 res) {
+	i32 stride = util_mesh_udim_active() ? util_mesh_atlas_stride_merged : 1;
+	if (stride <= 1) {
+		return res;
+	}
+	if (res * stride > ATLAS_MAX_SIDE) {
+		static i32 warned_res    = 0;
+		static i32 warned_stride = 0;
+		if (warned_res != res || warned_stride != stride) {
+			warned_res    = res;
+			warned_stride = stride;
+			console_error(string_tmp("UDIM atlas %dx%d (%d tiles of %d) exceeds %d, using the project resolution for the whole atlas", res * stride,
+			                         res * stride, stride * stride, res, ATLAS_MAX_SIDE));
+		}
+		return res;
+	}
+	return res * stride;
+}
+
+// Size of layer textures and paint targets, equals the project resolution without udim
+i32 util_mesh_atlas_res_x() {
+	return _util_mesh_atlas_res(config_get_texture_res_x());
+}
+
+i32 util_mesh_atlas_res_y() {
+	return _util_mesh_atlas_res(config_get_texture_res_y());
 }
 
 i32 util_mesh_atlas_slot(object_t *object) {

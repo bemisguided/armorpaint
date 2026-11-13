@@ -983,10 +983,18 @@ void import_arm_run_project(char *path) {
 		    1);
 	}
 
+	// Saved layers are in atlas size, the project resolution is per udim tile
+	util_mesh_atlas_update();
+	if (util_mesh_atlas_stride() > 1 && l0->res % util_mesh_atlas_stride() == 0) {
+		base_res_x = (f32)(l0->res / util_mesh_atlas_stride());
+		base_res_y = base_res_x;
+		base_res   = config_get_texture_res_pos((i32)base_res_x);
+	}
+
 	context_select_paint_object(context_main_object());
 
 	gpu_texture_t *tex = g_project->_->layers->buffer[0]->texpaint;
-	if (tex->width != config_get_texture_res_x() || tex->height != config_get_texture_res_y()) {
+	if (tex->width != util_mesh_atlas_res_x() || tex->height != util_mesh_atlas_res_y()) {
 		layers_resize_targets();
 	}
 

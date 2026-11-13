@@ -5,7 +5,7 @@ buffer_t       *util_uv_dilate_bytes = NULL;
 gpu_pipeline_t *util_uv_pipe_dilate  = NULL;
 
 void util_uv_cache_uv_map() {
-	if (util_uv_uvmap != NULL && (util_uv_uvmap->width != config_get_texture_res_x() || util_uv_uvmap->height != config_get_texture_res_y())) {
+	if (util_uv_uvmap != NULL && (util_uv_uvmap->width != util_mesh_atlas_res_x() || util_uv_uvmap->height != util_mesh_atlas_res_y())) {
 		gpu_delete_texture(util_uv_uvmap);
 		util_uv_uvmap        = NULL;
 		util_uv_uvmap_cached = false;
@@ -15,8 +15,8 @@ void util_uv_cache_uv_map() {
 		return;
 	}
 
-	i32 res_x = config_get_texture_res_x();
-	i32 res_y = config_get_texture_res_y();
+	i32 res_x = util_mesh_atlas_res_x();
+	i32 res_y = util_mesh_atlas_res_y();
 	if (util_uv_uvmap == NULL) {
 		util_uv_uvmap = gpu_create_render_target(res_x, res_y, GPU_TEXTURE_FORMAT_RGBA32);
 	}
@@ -50,7 +50,7 @@ void util_uv_cache_uv_map() {
 
 void util_uv_cache_triangle_map() {
 	if (util_uv_trianglemap != NULL &&
-	    (util_uv_trianglemap->width != config_get_texture_res_x() || util_uv_trianglemap->height != config_get_texture_res_y())) {
+	    (util_uv_trianglemap->width != util_mesh_atlas_res_x() || util_uv_trianglemap->height != util_mesh_atlas_res_y())) {
 		gpu_delete_texture(util_uv_trianglemap);
 		util_uv_trianglemap        = NULL;
 		util_uv_trianglemap_cached = false;
@@ -61,7 +61,7 @@ void util_uv_cache_triangle_map() {
 	}
 
 	if (util_uv_trianglemap == NULL) {
-		util_uv_trianglemap = gpu_create_render_target(config_get_texture_res_x(), config_get_texture_res_y(), GPU_TEXTURE_FORMAT_RGBA32);
+		util_uv_trianglemap = gpu_create_render_target(util_mesh_atlas_res_x(), util_mesh_atlas_res_y(), GPU_TEXTURE_FORMAT_RGBA32);
 	}
 
 	util_uv_trianglemap_cached = true;
@@ -89,7 +89,7 @@ void util_uv_cache_triangle_map() {
 }
 
 void util_uv_cache_dilate_map() {
-	if (util_uv_dilatemap != NULL && (util_uv_dilatemap->width != config_get_texture_res_x() || util_uv_dilatemap->height != config_get_texture_res_y())) {
+	if (util_uv_dilatemap != NULL && (util_uv_dilatemap->width != util_mesh_atlas_res_x() || util_uv_dilatemap->height != util_mesh_atlas_res_y())) {
 		gpu_delete_texture(util_uv_dilatemap);
 		util_uv_dilatemap        = NULL;
 		util_uv_dilatemap_cached = false;
@@ -99,7 +99,7 @@ void util_uv_cache_dilate_map() {
 		return;
 
 	if (util_uv_dilatemap == NULL) {
-		util_uv_dilatemap = gpu_create_render_target(config_get_texture_res_x(), config_get_texture_res_y(), GPU_TEXTURE_FORMAT_R8);
+		util_uv_dilatemap = gpu_create_render_target(util_mesh_atlas_res_x(), util_mesh_atlas_res_y(), GPU_TEXTURE_FORMAT_R8);
 	}
 
 	if (util_uv_pipe_dilate == NULL) {
@@ -165,8 +165,8 @@ void util_uv_cache_uv_island_map() {
 		util_uv_dilate_bytes = gpu_get_texture_pixels(util_uv_dilatemap);
 	}
 	util_render_pick_pos_nor_tex();
-	i32          w        = 2048; // config_get_texture_res_x()
-	i32          h        = 2048; // config_get_texture_res_y()
+	i32          w        = 2048; // util_mesh_atlas_res_x()
+	i32          h        = 2048; // util_mesh_atlas_res_y()
 	i32          x        = math_floor(g_context->uvx_picked * w);
 	i32          y        = math_floor(g_context->uvy_picked * h);
 	buffer_t    *bytes    = buffer_create(w * h);

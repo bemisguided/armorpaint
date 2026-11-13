@@ -3,8 +3,8 @@
 
 // Mouse position in layer texture uv space of the 2D view, rounded to pixel edges
 static void util_select_uv_2d(f32 *u, f32 *v) {
-	f32 res_x = config_get_texture_res_x();
-	f32 res_y = config_get_texture_res_y();
+	f32 res_x = util_mesh_atlas_res_x();
+	f32 res_y = util_mesh_atlas_res_y();
 	f32 tx, ty, tw, th;
 	ui_view2d_tex_rect(res_y / res_x, &tx, &ty, &tw, &th);
 	f32 x = (mouse_x - ui_view2d_wx - tx) / tw;
@@ -40,8 +40,8 @@ static void util_select_cursor(bool in_2d, f32 mx, f32 my, f32 *x, f32 *y) {
 
 static void util_select_mask_size(i32 *w, i32 *h) {
 	if (g_context->select_2d) {
-		*w      = config_get_texture_res_x();
-		*h      = config_get_texture_res_y();
+		*w      = util_mesh_atlas_res_x();
+		*h      = util_mesh_atlas_res_y();
 		f32 max = math_max(*w, *h);
 		if (max > 4096) {
 			*w = math_max(1, math_round(*w * 4096 / max));
@@ -129,7 +129,7 @@ static f32 util_select_screen_dist(f32 x0, f32 y0, f32 x1, f32 y1) {
 	f32 sy = 1.0;
 	if (g_context->select_2d) {
 		f32 tx, ty;
-		ui_view2d_tex_rect(config_get_texture_res_y() / (float)config_get_texture_res_x(), &tx, &ty, &sx, &sy);
+		ui_view2d_tex_rect(util_mesh_atlas_res_y() / (float)util_mesh_atlas_res_x(), &tx, &ty, &sx, &sy);
 	}
 	else {
 		sx = sys_w();

@@ -127,17 +127,17 @@ static void bake_texture_node_run(ui_node_t *node, int bake_type) {
 	// Dedicated RGBA32 render target per node
 	char            *rt_name = string_tmp("bake_texture_node_%d", node->id);
 	render_target_t *rt      = any_map_get(render_path_render_targets, rt_name);
-	if (rt != NULL && rt->width != config_get_texture_res_x()) {
+	if (rt != NULL && rt->width != util_mesh_atlas_res_x()) {
 		gpu_delete_texture(rt->_image);
-		rt->width  = config_get_texture_res_x();
-		rt->height = config_get_texture_res_y();
+		rt->width  = util_mesh_atlas_res_x();
+		rt->height = util_mesh_atlas_res_y();
 		rt->_image = gpu_create_render_target(rt->width, rt->height, GPU_TEXTURE_FORMAT_RGBA32);
 	}
 	if (rt == NULL) {
 		rt         = render_target_create();
 		rt->name   = string_copy(rt_name);
-		rt->width  = config_get_texture_res_x();
-		rt->height = config_get_texture_res_y();
+		rt->width  = util_mesh_atlas_res_x();
+		rt->height = util_mesh_atlas_res_y();
 		rt->format = "RGBA32";
 		render_path_create_render_target(rt);
 	}

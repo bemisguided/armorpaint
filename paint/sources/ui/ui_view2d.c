@@ -366,9 +366,9 @@ static void ui_view2d_layer_move_update() {
 	if (_ui_view2d_moving) {
 		if (mouse_down("left")) {
 			f32 tx, ty, tw, th;
-			ui_view2d_tex_rect(config_get_texture_res_y() / (float)config_get_texture_res_x(), &tx, &ty, &tw, &th);
-			_ui_view2d_move_x += mouse_movement_x / tw * config_get_texture_res_x();
-			_ui_view2d_move_y += mouse_movement_y / th * config_get_texture_res_y();
+			ui_view2d_tex_rect(util_mesh_atlas_res_y() / (float)util_mesh_atlas_res_x(), &tx, &ty, &tw, &th);
+			_ui_view2d_move_x += mouse_movement_x / tw * util_mesh_atlas_res_x();
+			_ui_view2d_move_y += mouse_movement_y / th * util_mesh_atlas_res_y();
 			ui_view2d_hwnd->redraws = 2;
 		}
 		else {
@@ -389,8 +389,8 @@ static void ui_view2d_layer_move_offset(slot_layer_t *l, f32 tw, f32 th, f32 *ox
 	*ox = 0.0;
 	*oy = 0.0;
 	if (l == _ui_view2d_move_layer && l != NULL) {
-		*ox = math_round(_ui_view2d_move_x) / (float)config_get_texture_res_x() * tw;
-		*oy = math_round(_ui_view2d_move_y) / (float)config_get_texture_res_y() * th;
+		*ox = math_round(_ui_view2d_move_x) / (float)util_mesh_atlas_res_x() * tw;
+		*oy = math_round(_ui_view2d_move_y) / (float)util_mesh_atlas_res_y() * th;
 	}
 }
 
@@ -726,8 +726,8 @@ void ui_view2d_update(void *_) {
 
 			// Selected layer pixels
 			if (g_context->select_dragging && g_context->select_mode != SELECT_MODE_POLYGON) {
-				i32   px   = math_round((g_context->select_x2 - g_context->select_x1) * config_get_texture_res_x());
-				i32   py   = math_round((g_context->select_y2 - g_context->select_y1) * config_get_texture_res_y());
+				i32   px   = math_round((g_context->select_x2 - g_context->select_x1) * util_mesh_atlas_res_x());
+				i32   py   = math_round((g_context->select_y2 - g_context->select_y1) * util_mesh_atlas_res_y());
 				char *text = string_tmp("%d x %d", px, py);
 				draw_set_font(g_font, g_ui->font_size);
 				f32 lw = draw_string_width(g_font, g_ui->font_size, text) + 8 * UI_SCALE();

@@ -245,8 +245,8 @@ void ui_header_draw_tool_properties_import(char *path) {
 }
 
 static void ui_header_crop_layers() {
-	i32 res_x = config_get_texture_res_x();
-	i32 res_y = config_get_texture_res_y();
+	i32 res_x = util_mesh_atlas_res_x();
+	i32 res_y = util_mesh_atlas_res_y();
 	i32 x1    = math_round(g_context->select_x1 * res_x);
 	i32 y1    = math_round(g_context->select_y1 * res_y);
 	i32 x2    = math_round(g_context->select_x2 * res_x);

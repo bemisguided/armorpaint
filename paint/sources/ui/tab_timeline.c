@@ -782,8 +782,8 @@ static void tab_timeline_reload_current() {
 
 static tab_timeline_keyframe_t *tab_timeline_create_keyframe(i32 frame, i32 li) {
 	gpu_texture_format_t     fmt = tab_timeline_tex_format();
-	i32                      w   = config_get_texture_res_x();
-	i32                      h   = config_get_texture_res_y();
+	i32                      w   = util_mesh_atlas_res_x();
+	i32                      h   = util_mesh_atlas_res_y();
 	tab_timeline_keyframe_t *kf  = ALLOC_INIT(tab_timeline_keyframe_t, {.frame = frame, .layer_index = li, .tween = true});
 	kf->layer                    = li < g_project->_->layers->length ? g_project->_->layers->buffer[li] : NULL;
 	kf->texpaint                 = gpu_create_render_target(w, h, fmt);
@@ -1229,8 +1229,8 @@ void tab_timeline_export_free(project_t *raw) {
 
 static gpu_texture_t *tab_timeline_tex_from_buffer(buffer_t *buf, bool is_bgra) {
 	gpu_texture_format_t fmt               = tab_timeline_tex_format();
-	i32                  w                 = config_get_texture_res_x();
-	i32                  h                 = config_get_texture_res_y();
+	i32                  w                 = util_mesh_atlas_res_x();
+	i32                  h                 = util_mesh_atlas_res_y();
 	i32                  bytes_per_channel = base_bits == TEXTURE_BITS_BITS8 ? 1 : base_bits == TEXTURE_BITS_BITS16 ? 2 : 4;
 	buffer_t            *pixels            = lz4_decode(buf, w * h * 4 * bytes_per_channel);
 	gpu_texture_t       *tmp               = gpu_create_texture_from_bytes_raw(pixels, w, h, fmt);

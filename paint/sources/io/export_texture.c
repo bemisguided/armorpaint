@@ -25,9 +25,13 @@ static buffer_t *export_texture_pack_pixels(buffer_t *pixels, i32 count, i32 bit
 	return rgba;
 }
 
+// Size of the textures being written, the atlas or one udim tile cropped out of it
+static i32 export_texture_size_x = 0;
+static i32 export_texture_size_y = 0;
+
 static void export_texture_write_texture(char *file, buffer_t *pixels, i32 type, i32 off) {
-	i32 res_x       = config_get_texture_res_x();
-	i32 res_y       = config_get_texture_res_y();
+	i32 res_x       = export_texture_size_x;
+	i32 res_y       = export_texture_size_y;
 	i32 bits_handle = base_bits;
 	i32 bits        = bits_handle == TEXTURE_BITS_BITS8 ? 8 : bits_handle == TEXTURE_BITS_BITS16 ? 16 : 32;
 	i32 format      = 0; // RGBA
@@ -236,8 +240,8 @@ static void export_texture_set_channel(f32 value, buffer_t *to, i32 to_channel, 
 }
 
 static void export_texture_run_layers(char *path, slot_layer_t_array_t *layers, char *object_name, bool bake_material) {
-	i32 texture_size_x = config_get_texture_res_x();
-	i32 texture_size_y = config_get_texture_res_y();
+	i32 texture_size_x = util_mesh_atlas_res_x();
+	i32 texture_size_y = util_mesh_atlas_res_y();
 #if defined(IRON_ANDROID) || defined(IRON_IOS)
 	char *f = sys_title();
 #else
@@ -332,11 +336,8 @@ static void export_texture_run_layers(char *path, slot_layer_t_array_t *layers, 
 			mask = pipes_temp_mask_image;
 		}
 
-		// Shared layers of udim tiles are cropped out of the atlas, tile layers go into the atlas when exporting it whole
-		if (!bake_material && udim_slot >= 0 && util_mesh_udim_layer(l1)) {
-			l1 = layers_udim_remap(l1, l1masks != NULL ? &mask : NULL, udim_slot, true);
-		}
-		else if (!bake_material && udim_slot < 0 && layers_udim_tile_slot(l1) >= 0) {
+		// Tile layers go into the atlas, a single tile is cropped out of the flattened atlas afterwards
+		if (!bake_material && layers_udim_tile_slot(l1) >= 0) {
 			l1 = layers_udim_remap(l1, l1masks != NULL ? &mask : NULL, layers_udim_tile_slot(l1), false);
 		}
 
@@ -409,6 +410,39 @@ static void export_texture_run_layers(char *path, slot_layer_t_array_t *layers, 
 	gpu_texture_t *texpaint      = layers_expa;
 	gpu_texture_t *texpaint_nor  = layers_expb;
 	gpu_texture_t *texpaint_pack = layers_expc;
+
+	export_texture_size_x = texpaint->width;
+	export_texture_size_y = texpaint->height;
+	texture_size_x        = texpaint->width;
+	texture_size_y        = texpaint->height;
+
+	// Crop one udim tile out of the atlas at its native size, the tile cell is the project resolution
+	gpu_texture_t *tile_crops[3] = {NULL, NULL, NULL};
+	if (udim_slot >= 0 && util_mesh_atlas_stride() > 1) {
+		i32 stride = util_mesh_atlas_stride();
+		i32 tw     = texpaint->width / stride;
+		i32 th     = texpaint->height / stride;
+		i32 sx     = (udim_slot % stride) * tw;
+		i32 sy     = (udim_slot / stride) * th;
+
+		gpu_pipeline_t *pipe = texpaint->format == GPU_TEXTURE_FORMAT_RGBA32 ? pipes_copy : texpaint->format == GPU_TEXTURE_FORMAT_RGBA64 ? pipes_copy64 : pipes_copy128;
+		gpu_texture_t  *srcs[3] = {texpaint, texpaint_nor, texpaint_pack};
+		for (i32 i = 0; i < 3; ++i) {
+			tile_crops[i] = gpu_create_render_target(tw, th, srcs[i]->format);
+			draw_begin(tile_crops[i], true, 0x00000000);
+			draw_set_pipeline(pipe);
+			draw_scaled_sub_image(srcs[i], sx, sy, tw, th, 0, 0, tw, th);
+			draw_set_pipeline(NULL);
+			draw_end();
+		}
+		texpaint              = tile_crops[0];
+		texpaint_nor          = tile_crops[1];
+		texpaint_pack         = tile_crops[2];
+		export_texture_size_x = tw;
+		export_texture_size_y = th;
+		texture_size_x        = tw;
+		texture_size_y        = th;
+	}
 
 	buffer_t        *pixpaint      = NULL;
 	buffer_t        *pixpaint_nor  = NULL;
@@ -550,6 +584,12 @@ static void export_texture_run_layers(char *path, slot_layer_t_array_t *layers, 
 				}
 			}
 			export_texture_write_texture(out_path, pix, 3, 0);
+		}
+	}
+
+	for (i32 i = 0; i < 3; ++i) {
+		if (tile_crops[i] != NULL) {
+			gpu_delete_texture(tile_crops[i]);
 		}
 	}
 

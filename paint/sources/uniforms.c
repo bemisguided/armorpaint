@@ -193,7 +193,7 @@ vec2_t uniforms_ext_vec2_link(object_t *object, shader_data_t *mat, char *link) 
 		return (vec2_t){g_context->grab_start_x, g_context->grab_start_y};
 	}
 	else if (string_equals(link, "_texpaint_size")) {
-		return (vec2_t){config_get_texture_res_x(), config_get_texture_res_y()};
+		return (vec2_t){util_mesh_atlas_res_x(), util_mesh_atlas_res_y()};
 	}
 	else if (string_equals(link, "_brush_angle")) {
 		f32 brush_angle = g_context->brush_angle + g_context->brush_nodes_angle;
