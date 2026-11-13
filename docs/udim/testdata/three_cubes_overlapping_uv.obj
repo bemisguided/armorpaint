@@ -1,4 +1,4 @@
-# Three cube objects A, B, C, each with its own 0-1 UVs (UDIM tile 1001)
+# Three cube objects A, B, C, each with its own 0-1 UVs (UDIM tile 1001), all three overlap in UV space
 o A
 v -3.3000 -0.8000 0.8000
 v -1.7000 -0.8000 0.8000
