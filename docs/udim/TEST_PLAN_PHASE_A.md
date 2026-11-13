@@ -1,7 +1,7 @@
 # UDIM phase A: manual test plan
 
 Branch `feat/udim-object-tile-selection`, phase A (steps A1 persistent object ids, A2 layer coverage sets + save format "99", A3 Export > Atlases removed).
-Nothing in phase A has been run in the GUI yet. Every step below is still to be checked by hand.
+The first GUI test round fed back into the fixes of 2026-11-13 (converter, popup greying, skipped strokes, separate-UV mesh). Every step below is still to be checked by hand on the current tip.
 
 On macOS, ctrl in shortcuts means cmd. "Layer row" means a row in the **Layers** tab. Every layer and group row has a button to the right of its name, the **Objects button**. It reads `Objects: All`, an object name, `Name1, Name2`, `N objects` or `No objects`. Clicking it opens a popup with an `All` check, a separator, and one check per object. The popup stays open while you toggle.
 
@@ -10,18 +10,22 @@ On macOS, ctrl in shortcuts means cmd. "Layer row" means a row in the **Layers**
 0.1 Build: `cd paint && ../base/make`, then `cd build && xcodebuild -project ArmorPaint.xcodeproj -scheme ArmorPaint -configuration Release build`. Run `ArmorPaint.app` from the build products folder.
 
 0.2 Test files in `docs/udim/testdata/`:
-- `three_cubes.obj`: three cube objects `A`, `B`, `C` side by side, each with its own 0-1 UVs.
+- `three_cubes_separate_uv.obj`: three cube objects `A`, `B`, `C` side by side, in disjoint quadrants of tile 1001 (A top left u 0..0.5 v 0.5..1, B top right, C bottom left). Use this mesh for every restriction, paint and export test.
+- `three_cubes_overlapping_uv.obj` (was `three_cubes.obj`): the same cubes, but each uses the whole 0-1 tile, so all three overlap in UV space. Only used to show the documented overlap limit (section 17).
 - `udim_body_two_tiles.obj`: one object `Body`. The left cube's UVs are in tile 1001 (u 0..1) and the right cube's in tile 1002 (u 1..2).
 - Regenerate them with `python3 docs/udim/testdata/gen_obj.py docs/udim/testdata`. Any OBJ with several `o` objects also works for A, B and C.
 
 0.3 Old project (format "23"). Make one with an upstream build:
 - `git worktree add ../ap-main 22097dfdd`.
 - Build it the same way.
-- File > Import > Mesh... > `three_cubes.obj`, set **Split By** = `Object`, click **Import**.
-- Add 2 paint layers and paint a stroke on each.
-- In the layer row combo, set the second layer to object `B`.
-- Optional: open File > Export > Textures... > tab `Atlases` and put B in "Atlas 2".
+- File > Import > Mesh... > `three_cubes_separate_uv.obj`, set **Split By** = `Object`, click **Import**.
+- Add 2 more paint layers (3 in total) and paint a stroke across all three cubes on each.
+- In the layer row combo, set `Layer 2` to object `B`.
+- File > Export > Textures... > tab `Atlases`: set C to `Atlas 2` (A and B stay in `Atlas 1`), close the box.
+- In the layer row combo, set `Layer 3` to `Atlas 1` (listed after the objects).
+- Add a **New > Group** and drag `Layer 1` into it. Add a mask to `Layer 2`.
 - File > Save As... `v23.arm`.
+- Optional, for 13.3: a second project with `udim_body_two_tiles.obj` imported with **Split By** `UDIM Tile`, a layer set to `Body.1002` and painted, saved as `v23_udim.arm`.
 - Remove the worktree afterwards.
 
 ## 1. Non-UDIM regression (upstream behaviour unchanged)
@@ -36,7 +40,7 @@ PASS if 1.1 and 1.2 behave like upstream main.
 
 ## 2. Persistent object ids (A1)
 
-2.1 File > Import > Mesh... > `three_cubes.obj`, **Split By** `Object`, **Import**.
+2.1 File > Import > Mesh... > `three_cubes_separate_uv.obj`, **Split By** `Object`, **Import**.
 - Expected: the Meshes tab shows A, B, C.
 
 2.2 Layers tab: the default layer is `Layer 1`. Click its Objects button, untick `All`, tick `B`, then close the popup.
@@ -51,21 +55,22 @@ PASS if 1.1 and 1.2 behave like upstream main.
 2.5 Right-click the copy > **Delete**.
 - Expected: still `B`, and B keeps its paint.
 
-2.6 Layer still set to `{B}`. File > **Reimport Mesh** (or File > Import > Mesh... with Replace Existing and layers kept) of the same `three_cubes.obj`.
+2.6 Layer still set to `{B}`. File > **Reimport Mesh** (or File > Import > Mesh... with Replace Existing and layers kept) of the same `three_cubes_separate_uv.obj`.
 - Expected: the button still reads `B` and the layer still applies to cube B only. A new mesh takes over the id of the replaced object with the same name (or, when a single object is replaced, the first new mesh takes over its id).
 
 PASS if coverage follows B through reorder, sort, duplicate, delete and reimport.
 
 ## 3. Objects multi-select and All
 
-3.1 With `three_cubes.obj` loaded, add **New > Paint Layer** (`Layer 2`). Objects popup: untick `All`, tick `A` and `C`.
+3.1 With `three_cubes_separate_uv.obj` loaded, add **New > Paint Layer** (`Layer 2`). Objects popup: untick `All`, tick `A` and `C`.
 - Expected: the button reads `A, C`. A brush stroke dragged across all three cubes paints only A and C.
 
 3.2 Tick `All` again.
 - Expected: the button reads `Objects: All`, and new strokes paint all three cubes.
+- In the popup every object row (A, B, C) shows ticked and greyed out. Clicking a greyed row does nothing and adds no undo step.
 
 3.3 Untick `All` again.
-- Expected: the button reads `A, C` again (the list was kept).
+- Expected: the button reads `A, C` again (the list was kept). The rows are enabled again and show A and C ticked, B unticked.
 
 3.4 Tick `B` as well.
 - Expected: `3 objects`.
@@ -86,7 +91,24 @@ PASS if all five match.
 4.3 New **Fill Layer**, set its objects to `{B}`.
 - Expected: the fill shows only on B right away (the layer refills).
 
-PASS if paint and fill never reach uncovered objects.
+4.4 No undo step for strokes that start on an uncovered object. Layer `{A, C}` active, **Brush** tool. Note the Edit menu's Undo entry. Start a stroke on B and drag it onto A and C.
+- Expected: nothing is painted at all (the whole stroke is skipped, also where it crosses A and C), and the Undo entry is unchanged.
+
+4.5 Start a stroke on A and drag it across B onto C.
+- Expected: A and C are painted, B is not, and exactly one undo step is added.
+
+4.6 Start a stroke in the empty background and drag it onto A.
+- Expected: A is painted and one undo step is added (strokes that start off the mesh behave as before).
+
+4.7 The same check with **Eraser**, **Clone**, **Blur**, **Decal** and **Text** (start on B: nothing happens, no undo step). **Fill** is not affected: 4.1 still fills A and C when clicking B.
+
+4.8 Layer `Objects: All`: start a stroke on B.
+- Expected: it paints and adds an undo step as before.
+
+4.9 Layer `{A, C}`: open the 2D view (shift+tab, or the `2D View` button at the top of the Layers tab) and paint a stroke in it.
+- Expected: painting works as before, no stroke is skipped.
+
+PASS if paint and fill never reach uncovered objects and 4.4-4.9 match.
 
 ## 5. Group layers (decision D1)
 
@@ -95,6 +117,11 @@ PASS if paint and fill never reach uncovered objects.
 
 5.2 Group Objects popup: untick `All`, tick `C` only.
 - Expected: Layer 2 now shows only on C (intersection of {A, C} and {C}).
+- Open Layer 2's Objects popup: A and B are greyed out and unticked, hovering them shows `Excluded by the group`. C is enabled and ticked.
+- A brush stroke on Layer 2 that starts on A is skipped with no undo step (4.4 with the group intersection).
+
+5.2b Set the group back to `All`, then open Layer 2's popup.
+- Expected: nothing is greyed, and A and C are ticked again (Layer 2's own list was not changed by the greying). A group with `All` excludes nothing.
 
 5.3 Set the group to `A, B`.
 - Expected: Layer 2 shows only on A.
@@ -205,13 +232,18 @@ PASS if 12.1-12.3 hold (12.4 optional).
 ## 13. Old v23 project (converter)
 
 13.1 File > Open... `v23.arm` from 0.3.
-- Expected: it opens without a crash, and every layer reads `Objects: All` (object masks and atlas groups are dropped).
-- Paint and layers otherwise look the same, except that the layer that was limited to B now shows on all objects.
+- Expected: it opens without a crash. `Layer 1` (in the group) reads `Objects: All`, `Layer 2` reads `B`, `Layer 3` reads `A, B` (the objects of `Atlas 1`). The group reads `Objects: All`, and Layer 2's mask has no Objects button (it follows Layer 2).
+- Paint looks the same as in the upstream build: Layer 2 only on B, Layer 3 only on A and B.
 
 13.2 Save it as `v23_resaved.arm` and reopen.
-- Expected: it loads as format "99".
+- Expected: it loads as format "99" with the same Objects buttons.
 
-PASS if it opens, every layer is All, and the resave round-trips.
+13.3 Optional: File > Open... `v23_udim.arm` from 0.3.
+- Expected: no crash. Objects `Body.1001` and `Body.1002`, the layer reads `Body.1002` and its paint stays on that tile as on upstream. Tiles are not migrated (the project still has only tile 1001 and no Tiles button); name-based UDIM to tiles migration is phase B (B7).
+
+13.4 Rules (for reference): object mask 0 converts to All; a mask naming one object converts to that object; a mask naming an atlas group converts to the objects of that group; a group that can not be resolved converts to All. Masks, filters and groups convert to All, because upstream only applied a paint layer's own mask.
+
+PASS if 13.1-13.2 match (13.3 optional).
 
 ## 14. Name-based UDIM (kept working as far as practical)
 
@@ -254,6 +286,14 @@ PASS if deformation follows the set.
 - Mesh delete has no undo (deferred). Deleted objects leave layers covering nothing.
 - Selecting a layer whose painted set is unchanged reuses the merged mesh instead of rebuilding it (the merged mesh is rebuilt after any mesh, name or material change). Watch for stale geometry when painting right after a mesh edit and a layer switch.
 
+## 17. Overlapping UVs (documented limit)
+
+17.1 File > Import > Mesh... > `three_cubes_overlapping_uv.obj`, **Split By** `Object`. Layer 1 `Objects: All`, paint a stroke on A only.
+- Expected: the same paint also shows on B and C, at the same place of each cube, because all three share the same UV space. This is the limit, not a bug.
+
+17.2 New paint layer limited to `{A}`, paint a stroke on A.
+- Expected: in the viewport only A shows the new stroke. In exports and path tracing it also shows on B and C (they share the texels). Use `three_cubes_separate_uv.obj` for every other test.
+
 ## Watch for (review findings not fixed in phase A)
 
 - m7: with the Objects popup open, a shortcut (for example ctrl+z undoing "new layer" while the mouse is over the header) can leave the popup pointing at a layer that no longer exists. The next toggle would act on it. Report any crash or odd undo after using shortcuts with the popup open.
@@ -262,4 +302,4 @@ PASS if deformation follows the set.
 
 ## Result
 
-Record PASS or FAIL per section 1-15. Phase A passes when every section passes. Any crash, lost paint after save/reload, or coverage reaching an uncovered object is a FAIL.
+Record PASS or FAIL per section 1-15 and 17. Phase A passes when every section passes. Any crash, lost paint after save/reload, or coverage reaching an uncovered object is a FAIL.
