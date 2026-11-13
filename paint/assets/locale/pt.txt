@@ -42,8 +42,6 @@ Arctan2
 Arco tangente
 Matriz
 Ativo
-Atlas
-Atlas
 Atributo
 Automático
 Média
@@ -663,7 +661,6 @@ Configuração
 Shader
 Forma
 Compartilhar Link do Player
-Compartilhado
 Mostrar Visualização 2D
 Mostrar Nomes dos Ativos
 Mostrar Grade
@@ -860,6 +857,9 @@ tipo
 sem título
 x
 {shortcut} e mover mouse
+
+
+
 
 
 

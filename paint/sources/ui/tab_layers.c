@@ -638,16 +638,21 @@ void tab_layers_draw_layer_slot_full(slot_layer_t *l, i32 i) {
 			}
 		}
 
-		// Dimmed like the eye of a hidden group when the layer's objects or tiles are gone
-		bool covers_nothing = layer_covers_nothing(l);
-		i32  text_col       = g_theme->TEXT_COL;
+		// Dimmed like the eye of a hidden group when the layer's objects or tiles are gone or none are selected
+		layer_coverage_empty_t empty          = layer_coverage_empty_reason(l);
+		bool                   covers_nothing = empty != LAYER_COVERAGE_SOME;
+		i32                    text_col       = g_theme->TEXT_COL;
 		if (covers_nothing) {
 			g_theme->TEXT_COL -= 0x99000000;
 		}
 		ui_state_t state  = ui_text(l->name, UI_ALIGN_LEFT, 0x00000000);
 		g_theme->TEXT_COL = text_col;
 		if (covers_nothing && g_ui->is_hovered) {
-			ui_tooltip(tr("This layer's objects were deleted, so it covers nothing. Select objects or choose All to use it again."));
+			ui_tooltip(empty == LAYER_COVERAGE_OBJECTS_DELETED
+			               ? tr("This layer's objects were deleted, so it covers nothing. Select objects or choose All to use it again.")
+			           : empty == LAYER_COVERAGE_NO_OBJECTS
+			               ? tr("No objects are selected for this layer or its group, so it covers nothing. Select objects or choose All to use it.")
+			               : tr("No tiles are selected for this layer or its group, so it covers nothing. Select tiles or choose All to use it."));
 		}
 		if (state == UI_STATE_RELEASED) {
 			if (sys_time() - g_context->select_time < 0.2) {

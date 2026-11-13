@@ -42,8 +42,6 @@ Arctan2
 Arctangent
 Array
 Asset
-Atlas
-Atlases
 Attribute
 Auto
 Average
@@ -663,7 +661,6 @@ Setup
 Shader
 Shape
 Share Player Link
-Shared
 Show 2D View
 Show Asset Names
 Show Grid
@@ -872,3 +869,6 @@ This layer's objects were deleted, so it covers nothing. Select objects or choos
 Objects
 Tiles
 Layer covers no objects
+No objects are selected for this layer or its group, so it covers nothing. Select objects or choose All to use it.
+No tiles are selected for this layer or its group, so it covers nothing. Select tiles or choose All to use it.
+Layer's objects are hidden or use another material

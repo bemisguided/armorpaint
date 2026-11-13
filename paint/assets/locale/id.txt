@@ -42,8 +42,6 @@ Arktangen2
 Arkutangen
 Array
 Aset
-Atlas
-Atlas
 Atribut
 Otomatis
 Rata-rata
@@ -663,7 +661,6 @@ Pengaturan
 Shader
 Bentuk
 Bagikan Tautan Pemutar
-Berbagi
 Tampilkan Tampilan 2D
 Tampilkan Nama Aset
 Tampilkan Grid
@@ -860,6 +857,9 @@ jenis
 tanpa judul
 x
 {shortcut} dan gerakkan mouse
+
+
+
 
 
 

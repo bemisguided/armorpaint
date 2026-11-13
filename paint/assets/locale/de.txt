@@ -42,8 +42,6 @@ Arkustangens 2
 Arkustangens
 Array
 Asset
-Atlas
-Atlanten
 Attribut
 Automatisch
 Mittelwert
@@ -663,7 +661,6 @@ Einrichtung
 Shader
 Form
 Player-Link teilen
-Geteilt
 2D Ansicht anzeigen
 Namen der Assets anzeigen
 Gitter anzeigen
@@ -860,6 +857,9 @@ Typ
 unbenannt
 x
 {shortcut} und Maus bewegen
+
+
+
 
 
 

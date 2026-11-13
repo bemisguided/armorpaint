@@ -42,8 +42,6 @@ Arcus tangens 2
 Arcus tangens
 Szyk
 Zasób
-Atlas
-Atlasy
 Atrybut
 Automatyczny
 Średnia
@@ -663,7 +661,6 @@ Ustawienia
 Shader
 Kształt
 Udostępnij link do odtwarzacza
-Współdzielone
 Pokaż podgląd 2D
 Pokaż nazwy zasobów
 Pokaż siatkę
@@ -860,6 +857,9 @@ typ
 bez tytułu
 x
 {shortcut} i poruszaj myszą
+
+
+
 
 
 

@@ -42,8 +42,6 @@ Arktangens 2
 Arktangens
 Pole
 Asset
-Atlas
-Atlasy
 Atribut
 Automaticky
 Průměr
@@ -663,7 +661,6 @@ Nastavení
 Shader
 Tvar
 Sdílet odkaz na přehrávač
-Sdílené
 Zobrazit 2D pohled
 Zobrazit názvy assetů
 Zobrazit mřížku
@@ -860,6 +857,9 @@ typ
 bez názvu
 x
 {shortcut} a pohyb myší
+
+
+
 
 
 
