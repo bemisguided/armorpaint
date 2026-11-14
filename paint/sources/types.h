@@ -396,6 +396,7 @@ typedef struct context {
 	struct gpu_texture         *text_tool_image;
 	char                       *text_tool_text;
 	i32                         layer_filter_object; // Paint id of the filtered object, 0 = all
+	i32                         layer_filter_tile;   // UDIM id of the filtered tile, 0 = none (only one of object and tile filter is active)
 	struct object              *gizmo;
 	struct object              *gizmo_translate_x;
 	struct object              *gizmo_translate_y;

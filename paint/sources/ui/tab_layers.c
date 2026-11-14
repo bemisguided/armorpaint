@@ -412,7 +412,14 @@ static void tab_layers_tiles_items_draw(slot_layer_t *l) {
 	for (i32 i = 0; i < util_udim_count(); ++i) {
 		i32  tile     = util_udim_tile(i);
 		bool excluded = !layer_ancestors_cover_tile(l, tile);
-		changed |= tab_layers_coverage_id_check(l, l->tiles, tile, string_tmp("%d", tile), l->all_tiles, excluded);
+		char *text     = string_tmp("%d", tile);
+		if (!tab_meshes_tile_used(tile)) {
+			any_map_t *vars = any_map_create();
+			any_map_set(vars, "id", text);
+			text = vtr("{id} (unused)", vars);
+			map_free(vars);
+		}
+		changed |= tab_layers_coverage_id_check(l, l->tiles, tile, text, l->all_tiles, excluded);
 	}
 	if (changed) {
 		tab_layers_coverage_changed(l);
@@ -1095,6 +1102,9 @@ static bool tab_layers_slot_hidden(slot_layer_t *l) {
 	if (g_context->layer_filter_object > 0 && !layer_covers_object_id(l, g_context->layer_filter_object)) {
 		return true;
 	}
+	if (g_context->layer_filter_tile > 0 && !layer_covers_tile(l, g_context->layer_filter_tile)) {
+		return true;
+	}
 
 	bool is_sculpt_layer = l->texpaint_sculpt != NULL;
 	if (g_config->tools == TOOLS_SCULPT && !is_sculpt_layer && !slot_layer_is_group(l) && !slot_layer_is_mask(l)) {
@@ -1309,11 +1319,31 @@ void tab_layers_button_new(char *text) {
 	}
 }
 
+// Filter items: All, the objects (paint id), then the project tiles (-tile id)
 void tab_layers_combo_filter() {
+	if (g_context->layer_filter_tile > 0 && util_udim_slot(g_context->layer_filter_tile) < 0) {
+		tab_layers_apply_tile_filter(0); // The tile is gone from the project
+	}
 	i32_array_t    *ids = i32_array_create(0);
 	string_array_t *ar  = tab_layers_object_items(tr("All"), ids);
-	if (tab_layers_object_combo(&g_context->layer_filter_object, ar, ids, tr("Filter"), false, (ui_id_t)&g_context->layer_filter_object)) {
-		tab_layers_apply_filter(g_context->layer_filter_object);
+	if (util_udim_count() > 1) {
+		for (i32 i = 0; i < util_udim_count(); ++i) {
+			any_map_t *vars = any_map_create();
+			any_map_set(vars, "id", string_tmp("%d", util_udim_tile(i)));
+			any_array_push(ar, vtr("Tile {id}", vars));
+			map_free(vars);
+			i32_array_push(ids, -util_udim_tile(i));
+		}
+	}
+	i32 value = g_context->layer_filter_tile > 0 ? -g_context->layer_filter_tile : g_context->layer_filter_object;
+	if (tab_layers_object_combo(&value, ar, ids, tr("Filter"), false, (ui_id_t)&g_context->layer_filter_object)) {
+		if (value < 0) {
+			tab_layers_apply_tile_filter(-value);
+		}
+		else {
+			g_context->layer_filter_tile = 0;
+			tab_layers_apply_filter(value);
+		}
 	}
 }
 
@@ -1374,7 +1404,8 @@ void tab_layers_draw_edit() {
 	        tr("Custom"),
 	    },
 	    5);
-	ui_combo(&base_res, ar, tr("Resolution"), true, UI_ALIGN_LEFT, true);
+	bool udim = util_udim_count() > 1;
+	ui_combo(&base_res, ar, udim ? tr("Resolution (per tile)") : tr("Resolution"), true, UI_ALIGN_LEFT, true);
 	if (ui_item_changed()) {
 		ui_menu_show_first = true;
 		config_set_texture_res(base_res);
@@ -1401,6 +1432,23 @@ void tab_layers_draw_edit() {
 
 		if (res_changed) {
 			res_was_changed = true;
+		}
+	}
+
+	if (udim) {
+		any_map_t *vars = any_map_create();
+		any_map_set(vars, "tiles", string_tmp("%d", util_udim_count()));
+		any_map_set(vars, "atlas", string_tmp("%d", util_udim_res_x()));
+		any_map_set(vars, "mb", string_tmp("%d", (i32)(util_udim_memory_estimate() / 1048576.0 + 0.5)));
+		ui_menu_align();
+		ui_menu_label(vtr("{tiles} tiles, atlas {atlas} px, about {mb} MB", vars), NULL);
+		map_free(vars);
+		if (util_udim_clamped()) {
+			vars = any_map_create();
+			any_map_set(vars, "res", string_tmp("%d", util_udim_tile_res_x()));
+			ui_menu_align();
+			ui_menu_label(vtr("Clamped to {res} px per tile (atlas limit 16384)", vars), NULL);
+			map_free(vars);
 		}
 	}
 

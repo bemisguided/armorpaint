@@ -1415,16 +1415,69 @@ void tab_meshes_make_preview(mesh_object_t *o) {
 	g_context->ddirty = _ddirty > 0 ? _ddirty : 0;
 }
 
+// Tile ids the object has vertices on, ascending
+static i32_array_t *tab_meshes_object_tiles(mesh_object_t *o) {
+	i32_array_t *tiles = i32_array_create(0);
+	util_udim_ensure(o->data);
+	if (!util_udim_has_tiles(o->data)) {
+		i32_array_push(tiles, 1001);
+		return tiles;
+	}
+	bool *seen = calloc(util_udim_count(), sizeof(bool));
+	for (i32 i = 0; i < (i32)o->data->_->udim_tile->length; ++i) {
+		i32 slot = util_udim_slot(o->data->_->udim_tile->buffer[i] + 1001);
+		if (slot >= 0) {
+			seen[slot] = true;
+		}
+	}
+	for (i32 i = 0; i < util_udim_count(); ++i) {
+		if (seen[i]) {
+			i32_array_push(tiles, util_udim_tile(i));
+		}
+	}
+	free(seen);
+	return tiles;
+}
+
+// "1001-1002, 1011", runs of consecutive ids are joined
+static char *tab_meshes_tiles_text(i32_array_t *tiles) {
+	char *text = "";
+	for (i32 i = 0; i < tiles->length; ++i) {
+		i32 end = i;
+		while (end + 1 < tiles->length && tiles->buffer[end + 1] == tiles->buffer[end] + 1) {
+			end++;
+		}
+		char *part = end - i >= 1 ? string_tmp("%d-%d", tiles->buffer[i], tiles->buffer[end]) : string_tmp("%d", tiles->buffer[i]);
+		text       = i == 0 ? part : string_tmp("%s, %s", text, part);
+		i          = end;
+	}
+	return text;
+}
+
+// The name with the object's tiles on a second line when the project has UDIM tiles
+static char *tab_meshes_mesh_tiles_info(mesh_object_t *o, char *name) {
+	if (!util_udim_active()) {
+		return name;
+	}
+	i32_array_t *tiles = tab_meshes_object_tiles(o);
+	any_map_t   *vars  = any_map_create();
+	any_map_set(vars, "tiles", tab_meshes_tiles_text(tiles));
+	char *text = string_tmp("%s\n%s", name, vtr("Tiles: {tiles}", vars));
+	map_free(vars);
+	array_delete(tiles);
+	return text;
+}
+
 static char *tab_meshes_mesh_info(mesh_object_t *o, i32 i) {
 	i32 owner = util_mesh_data_owner(o->data);
 	if (!util_mesh_data_is_shared(o->data)) {
-		return o->base->name;
+		return tab_meshes_mesh_tiles_info(o, o->base->name);
 	}
 	if (owner == i) {
 		// Mesh data linked by other objects
-		return o->base->name;
+		return tab_meshes_mesh_tiles_info(o, o->base->name);
 	}
-	return string_tmp("%s@%s", o->base->name, g_project->_->paint_objects->buffer[owner]->base->name);
+	return tab_meshes_mesh_tiles_info(o, string_tmp("%s@%s", o->base->name, g_project->_->paint_objects->buffer[owner]->base->name));
 }
 
 void tab_meshes_draw_mesh_slot(mesh_object_t *o, i32 i) {
@@ -1676,6 +1729,114 @@ void tab_meshes_reveal_slot(mesh_object_t *o) {
 	ui_dock_redraw(TAB_AREA_SIDEBAR0);
 }
 
+// Paint objects per project tile slot and whether the tile is in use at all, refreshed when the meshes or the tile list change
+static i32          tab_meshes_tiles_version = -1;
+static i32          tab_meshes_tiles_key     = 0;
+static i32_array_t *tab_meshes_tiles_objects = NULL;
+static i32_array_t *tab_meshes_tiles_used    = NULL;
+
+static i32 tab_meshes_tiles_key_get() {
+	i32 key = g_project->_->paint_objects->length;
+	for (i32 i = 0; i < util_udim_count(); ++i) {
+		key = key * 31 + util_udim_tile(i);
+	}
+	return key;
+}
+
+static void tab_meshes_tiles_refresh() {
+	i32 key = tab_meshes_tiles_key_get();
+	if (tab_meshes_tiles_objects != NULL && tab_meshes_tiles_version == util_mesh_version && tab_meshes_tiles_key == key) {
+		return;
+	}
+	tab_meshes_tiles_version = util_mesh_version;
+	tab_meshes_tiles_key     = key;
+	array_delete(tab_meshes_tiles_objects);
+	array_delete(tab_meshes_tiles_used);
+	tab_meshes_tiles_objects = i32_array_create(util_udim_count());
+	tab_meshes_tiles_used    = i32_array_create(util_udim_count());
+	for (i32 i = 0; i < util_udim_count(); ++i) {
+		tab_meshes_tiles_objects->buffer[i] = 0;
+		tab_meshes_tiles_used->buffer[i]    = 0;
+	}
+	for (i32 i = 0; i < g_project->_->paint_objects->length; ++i) {
+		i32_array_t *tiles = tab_meshes_object_tiles(g_project->_->paint_objects->buffer[i]);
+		for (i32 j = 0; j < tiles->length; ++j) {
+			i32 slot = util_udim_slot(tiles->buffer[j]);
+			if (slot >= 0) {
+				tab_meshes_tiles_objects->buffer[slot]++;
+			}
+		}
+		array_delete(tiles);
+	}
+	// Tiles no paint object uses may still be held by meshes of mesh nodes
+	for (i32 i = 0; i < util_udim_count(); ++i) {
+		tab_meshes_tiles_used->buffer[i] = tab_meshes_tiles_objects->buffer[i] > 0 || util_udim_tile_used(util_udim_tile(i)) ? 1 : 0;
+	}
+}
+
+// Whether a mesh has vertices on the tile, cached
+bool tab_meshes_tile_used(i32 tile) {
+	tab_meshes_tiles_refresh();
+	i32 slot = util_udim_slot(tile);
+	return slot < 0 || tab_meshes_tiles_used->buffer[slot] != 0;
+}
+
+static i32 tab_meshes_tile_remove_id = 0;
+
+static void tab_meshes_tile_remove_next_frame(void *_) {
+	util_udim_tile_remove(tab_meshes_tile_remove_id);
+	tab_meshes_tiles_version = -1;
+	ui_dock_redraw(TAB_AREA_SIDEBAR0);
+}
+
+static void tab_meshes_tile_remove_box_draw() {
+	any_map_t *vars = any_map_create();
+	any_map_set(vars, "id", string_tmp("%d", tab_meshes_tile_remove_id));
+	ui_text(vtr("Remove tile {id}? Its pixels are deleted and undo history is cleared.", vars), UI_ALIGN_LEFT, 0x00000000);
+	map_free(vars);
+	ui_row2();
+	if (ui_icon_button(tr("Cancel"), ICON_CLOSE, UI_ALIGN_CENTER)) {
+		ui_box_hide();
+	}
+	if (ui_icon_button(tr("Remove"), ICON_CHECK, UI_ALIGN_CENTER)) {
+		ui_box_hide();
+		sys_notify_on_next_frame(&tab_meshes_tile_remove_next_frame, NULL);
+	}
+}
+
+// Project tiles with the paint objects using each, the per tile resolution and Remove for tiles no mesh uses
+static void tab_meshes_draw_tiles() {
+	static bool expanded = true;
+	if (!util_udim_active() || !ui_panel(&expanded, tr("Tiles"), false, false, false)) {
+		return;
+	}
+	tab_meshes_tiles_refresh();
+	for (i32 i = 0; i < util_udim_count(); ++i) {
+		i32          tile = util_udim_tile(i);
+		f32_array_t *row  = f32_array_create_from_raw_tmp(
+		    (f32[]){
+		        0.2,
+		        0.25,
+		        0.3,
+		        0.25,
+		    },
+		    4);
+		ui_row(row);
+		ui_text(string_tmp("%d", tile), UI_ALIGN_LEFT, 0x00000000);
+		ui_text(string_tmp("%d %s", tab_meshes_tiles_objects->buffer[i], tr("objects")), UI_ALIGN_LEFT, 0x00000000);
+		ui_text(string_tmp("%d x %d", util_udim_tile_res_x(), util_udim_tile_res_y()), UI_ALIGN_LEFT, 0x00000000);
+		if (tab_meshes_tiles_used->buffer[i] == 0 && util_udim_count() > 1) {
+			if (ui_button(tr("Remove"), UI_ALIGN_CENTER, "")) {
+				tab_meshes_tile_remove_id = tile;
+				ui_box_show_custom(&tab_meshes_tile_remove_box_draw, 640, 160, NULL, true, tr("Remove tile"));
+			}
+		}
+		else {
+			ui_end_element();
+		}
+	}
+}
+
 void tab_meshes_draw(i32 *htab) {
 	if (ui_tab(htab, tr("Meshes"), false, -1, false) && g_ui->_window_h > ui_statusbar_default_h * UI_SCALE()) {
 
@@ -1787,6 +1948,7 @@ void tab_meshes_draw(i32 *htab) {
 		}
 
 		ui_node_params_draw(CANVAS_TYPE_MESH, &g_config->mesh_params);
+		tab_meshes_draw_tiles();
 	}
 }
 

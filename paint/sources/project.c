@@ -156,6 +156,7 @@ void project_new(bool reset_layers) {
 
 	g_context->layer_preview_dirty = true;
 	g_context->layer_filter_object = 0;
+	g_context->layer_filter_tile   = 0;
 	g_context->texture             = NULL;
 	g_project->mesh_assets         = any_array_create_from_raw((void *[]){}, 0);
 

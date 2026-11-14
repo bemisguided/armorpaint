@@ -880,3 +880,11 @@ Auto uses tiles when the UVs span more than one tile and no triangle crosses a t
 Tile layout changed, undo history was cleared
 UDIM atlas too large: {tiles} tiles use {res} px per tile ({atlas} px atlas)
 Layer covers no tiles
+Tile {id}
+{id} (unused)
+Tiles: {tiles}
+Remove tile {id}? Its pixels are deleted and undo history is cleared.
+Remove tile
+Resolution (per tile)
+{tiles} tiles, atlas {atlas} px, about {mb} MB
+Clamped to {res} px per tile (atlas limit 16384)

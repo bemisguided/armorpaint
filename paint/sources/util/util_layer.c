@@ -648,6 +648,9 @@ void layers_update_paint_set() {
 
 void tab_layers_apply_filter(i32 filter) {
 	g_context->layer_filter_object = filter;
+	if (filter > 0) {
+		g_context->layer_filter_tile = 0;
+	}
 	for (i32 i = 0; i < g_project->_->paint_objects->length; ++i) {
 		mesh_object_t *p = g_project->_->paint_objects->buffer[i];
 		p->base->visible = filter == 0 || p->paint_id == filter;
@@ -659,6 +662,15 @@ void tab_layers_apply_filter(i32 filter) {
 	util_uv_uvmap_cached       = false;
 	g_context->ddirty          = 2;
 	render_path_raytrace_ready = false;
+}
+
+// The tile filter only hides layers that do not cover the tile, viewport visibility is not changed
+void tab_layers_apply_tile_filter(i32 tile) {
+	if (g_context->layer_filter_object != 0) {
+		tab_layers_apply_filter(0);
+	}
+	g_context->layer_filter_tile = tile;
+	g_context->ddirty            = 2;
 }
 
 void layers_new_layer_clear(slot_layer_t *l) {

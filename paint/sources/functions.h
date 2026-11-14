@@ -1364,6 +1364,7 @@ void                   ui_box_show_message(char *title, char *text, bool copyabl
 void                   ui_box_show_custom(void (*commands)(void), i32 mw, i32 mh, void (*on_hide)(void), bool draggable, char *title);
 void                   ui_box_hide();
 void                   tab_meshes_draw(i32 *htab);
+bool                      tab_meshes_tile_used(i32 tile);
 void                   tab_meshes_draw_context_menu_delete(mesh_object_t *o);
 void                   tab_meshes_reset_preview_map();
 void                   tab_meshes_accept_mesh_drop(mesh_object_t *mesh);
@@ -1397,6 +1398,7 @@ i32                    util_physics_get_shape(object_t *o);
 f32                    util_physics_get_mass(object_t *o);
 void                   util_physics_apply_stage(stage_t *stage);
 void                   tab_layers_apply_filter(i32 filter);
+void                      tab_layers_apply_tile_filter(i32 tile);
 void                   tab_layers_coverage_changed(slot_layer_t *l);
 void                   tab_layers_draw(i32 *htab);
 void                   tab_layers_remap_layer_pointers(ui_node_t_array_t *nodes, i32_imap_t *pointer_map);
