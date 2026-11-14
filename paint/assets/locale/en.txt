@@ -888,3 +888,4 @@ Remove tile
 Resolution (per tile)
 {tiles} tiles, atlas {atlas} px, about {mb} MB
 Clamped to {res} px per tile (atlas limit 16384)
+{object} shares UV space with {other} on tile {tile}. In exports and path tracing this layer also applies to {other}.
