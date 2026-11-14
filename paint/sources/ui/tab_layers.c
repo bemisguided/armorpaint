@@ -496,6 +496,14 @@ static i32 tab_layers_objects_items_count() {
 	return count;
 }
 
+// Section heading of the coverage popup, clicking it keeps the popup open
+static void tab_layers_coverage_heading(char *text) {
+	ui_menu_label(text, NULL);
+	if (g_ui->is_hovered && g_ui->input_released) {
+		ui_menu_keep_open = true;
+	}
+}
+
 // One popup for the layer's coverage: the objects, then the tiles when the project has more than one
 static void tab_layers_coverage_menu_draw() {
 	slot_layer_t *l = tab_layers_coverage_l;
@@ -503,10 +511,10 @@ static void tab_layers_coverage_menu_draw() {
 		tab_layers_objects_items_draw(l);
 		return;
 	}
-	ui_menu_label(tr("Objects"), NULL);
+	tab_layers_coverage_heading(tr("Objects"));
 	tab_layers_objects_items_draw(l);
 	ui_menu_separator();
-	ui_menu_label(tr("Tiles"), NULL);
+	tab_layers_coverage_heading(tr("Tiles"));
 	tab_layers_tiles_items_draw(l);
 }
 

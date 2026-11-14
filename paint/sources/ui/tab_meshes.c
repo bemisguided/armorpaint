@@ -1828,10 +1828,13 @@ static void tab_meshes_draw_tiles() {
 		    },
 		    4);
 		ui_row(row);
-		bool clicked = ui_text(string_tmp("%d", tile), UI_ALIGN_LEFT, 0x00000000) == UI_STATE_RELEASED;
-		bool hovered = g_ui->is_hovered;
+		g_ui->is_hovered = false; // ui_text leaves it unchanged for rows out of view
+		bool clicked     = ui_text(string_tmp("%d", tile), UI_ALIGN_LEFT, 0x00000000) == UI_STATE_RELEASED;
+		bool hovered     = g_ui->is_hovered;
+		g_ui->is_hovered = false;
 		clicked |= ui_text(string_tmp("%d %s", tab_meshes_tiles_objects->buffer[i], tr("objects")), UI_ALIGN_LEFT, 0x00000000) == UI_STATE_RELEASED;
 		hovered |= g_ui->is_hovered;
+		g_ui->is_hovered = false;
 		clicked |= ui_text(string_tmp("%d x %d", util_udim_tile_res_x(), util_udim_tile_res_y()), UI_ALIGN_LEFT, 0x00000000) == UI_STATE_RELEASED;
 		hovered |= g_ui->is_hovered;
 		if (tab_meshes_tiles_used->buffer[i] == 0 && util_udim_count() > 1) {
@@ -1856,8 +1859,15 @@ static void tab_meshes_draw_tiles() {
 void tab_meshes_draw(i32 *htab) {
 	if (ui_tab(htab, tr("Meshes"), false, -1, false) && g_ui->_window_h > ui_statusbar_default_h * UI_SCALE()) {
 
+		// Back to the objects when the project has one tile again
+		bool tiles_view = util_udim_count() > 1;
+		if (!tiles_view) {
+			tab_meshes_view = TAB_MESHES_VIEW_OBJECTS;
+		}
+		bool objects = tab_meshes_view == TAB_MESHES_VIEW_OBJECTS;
+
 		bool in_window = ui_input_in_rect(g_ui->_window_x, g_ui->_window_y, g_ui->_window_w, g_ui->_window_h);
-		if (in_window && g_ui->is_ctrl_down && g_ui->is_key_pressed && g_ui->key_code == KEY_CODE_F) {
+		if (objects && in_window && g_ui->is_ctrl_down && g_ui->is_key_pressed && g_ui->key_code == KEY_CODE_F) {
 			tab_meshes_search_show  = true;
 			tab_meshes_search_focus = true;
 			g_ui->is_key_pressed    = false;
@@ -1887,11 +1897,6 @@ void tab_meshes_draw(i32 *htab) {
 			ui_menu_draw(&tab_meshes_draw_edit, -1, -1);
 		}
 
-		// Back to the objects when the project has one tile again
-		bool tiles_view = util_udim_count() > 1;
-		if (!tiles_view) {
-			tab_meshes_view = TAB_MESHES_VIEW_OBJECTS;
-		}
 		if (tiles_view) {
 			string_array_t *views = any_array_create_from_raw_tmp(
 			    (void *[]){
@@ -1903,10 +1908,11 @@ void tab_meshes_draw(i32 *htab) {
 			ui_inline_radio(&view, views, UI_ALIGN_LEFT);
 			if (ui_item_changed() && (view == TAB_MESHES_VIEW_OBJECTS || view == TAB_MESHES_VIEW_TILES)) {
 				tab_meshes_view = view;
+				objects         = view == TAB_MESHES_VIEW_OBJECTS;
 			}
 		}
 
-		if (tab_meshes_search_show) {
+		if (objects && tab_meshes_search_show) { // The search only filters objects
 			bool search_selected = g_ui->text_selected_id == ui_widget_id(&tab_meshes_search, UI_ID_TEXT);
 			ui_text_input(&tab_meshes_search, tr("Search"), UI_ALIGN_LEFT, true, true);
 			if (g_ui->is_hovered) {
@@ -1927,15 +1933,16 @@ void tab_meshes_draw(i32 *htab) {
 		ui_end_sticky();
 		g_ui->_y += 2;
 
-		if (tab_meshes_view == TAB_MESHES_VIEW_TILES) {
+		tab_meshes_material_drop_index = -1;
+
+		if (!objects) {
+			tab_meshes_reveal_pending = NULL; // Revealing a mesh scrolls the objects view only
 			tab_meshes_draw_tiles();
 			ui_node_params_draw(CANVAS_TYPE_MESH, &g_config->mesh_params);
 			return;
 		}
 
 		tab_meshes_highlight_odd_lines();
-
-		tab_meshes_material_drop_index = -1;
 
 		tab_meshes_validate_selected();
 		if (in_window && !g_ui->is_typing && g_ui->is_ctrl_down && g_ui->is_key_pressed && g_ui->key_code == KEY_CODE_A) {
