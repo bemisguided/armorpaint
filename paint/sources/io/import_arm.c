@@ -749,6 +749,7 @@ void import_arm_run_project(char *path) {
 	bool keep_script_trust       = import_arm_keep_script_trust;
 	bool was_trusted             = project_scripts_trusted;
 	import_arm_keep_script_trust = false;
+	project_format_reset_tile_layers(); // Set again when this file is an upstream name based udim project
 	ui_header_draw_progress(0.0);
 	buffer_t *b = data_get_blob(path);
 	if (b == NULL) {
@@ -1144,6 +1145,7 @@ void import_arm_run_project(char *path) {
 			g_project->_->layers->buffer[i]->parent = g_project->_->layers->buffer[ld->parent];
 		}
 	}
+	project_format_load_tile_layers(g_project); // Upstream tile-local layers move into their atlas slot
 
 	// Layer
 	g_context->layer        = g_project->_->layers->buffer[0];

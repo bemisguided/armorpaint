@@ -1308,6 +1308,17 @@ static void _layers_udim_relayout_layer(slot_layer_t *l, i32_array_t *old_tiles,
 	}
 }
 
+// A layer whose textures hold one whole tile at the atlas size (legacy tile-local layer) moves into the slot of tile,
+// scaled to the per tile size. The rest of the atlas is cleared like a new layer, masks to white.
+void layers_udim_place_tile(slot_layer_t *l, i32 tile) {
+	i32_array_t *old_tiles = i32_array_create(0);
+	i32_array_push(old_tiles, tile);
+	_layers_udim_relayout_layer(l, old_tiles, 1);
+	array_delete(old_tiles);
+	render_path_raytrace_ready     = false;
+	g_context->layer_preview_dirty = true;
+}
+
 // The project tile list changed from old_tiles (old_stride): every layer texture is moved to the new atlas layout,
 // tiles in both lists keep their pixels, new tiles are cleared. Undo layers and paint targets are only resized, history is reset by the caller.
 void layers_udim_relayout(i32_array_t *old_tiles, i32 old_stride) {
