@@ -259,6 +259,15 @@ node_shader_context_t *make_paint_run_context(material_t *data, char *context_id
 
 	node_shader_write_vert(kong, "output.pos = float4(tpos, 0.0, 1.0);");
 
+	// Texels on tiles the layer leaves out are not painted, the tile comes from the primary uv even on uv map 1.
+	// Previews and the material bake export paint every tile.
+	if (!g_context->material_preview && !util_udim_paint_all_tiles && layer_tiles_tested(g_context->layer)) {
+		node_shader_add_out(kong, "float2 udim_uv");
+		node_shader_write_vert(kong, "output.udim_uv = input.tex;");
+		util_udim_write_slot(kong, "input.udim_uv");
+		layer_write_tile_discard(kong, g_context->layer);
+	}
+
 	if (g_context->tool == TOOL_TYPE_BLUR) {
 		node_shader_add_out(kong, "float2 blur_uv");
 		node_shader_write_vert(kong, string_tmp("output.blur_uv = %s;", tuv));

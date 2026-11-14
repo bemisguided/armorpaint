@@ -879,3 +879,4 @@ Auto uses tiles when the UVs span more than one tile and no triangle crosses a t
 {count} triangles cross UDIM tile borders and were clamped
 Tile layout changed, undo history was cleared
 UDIM atlas too large: {tiles} tiles use {res} px per tile ({atlas} px atlas)
+Layer covers no tiles

@@ -221,6 +221,7 @@ static void tab_layers_coverage_refill(slot_layer_t *l) {
 // After the coverage of l (a layer or a group) changed, l is the context layer
 void tab_layers_coverage_changed(slot_layer_t *l) {
 	make_material_parse_mesh_material();
+	make_material_parse_paint_material(false); // Tile discard
 	bool has_fill = false;
 	for (i32 i = 0; i < g_project->_->layers->length && !has_fill; ++i) {
 		has_fill = tab_layers_coverage_fill(l, i);

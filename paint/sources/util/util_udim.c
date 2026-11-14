@@ -107,8 +107,14 @@ void util_udim_set_tiles(i32_array_t *ids) {
 // A project with the single tile 1001 has tex == local and no tile data, nothing here runs for it.
 // Meshes made by tools that do not carry the tile data get it back from the atlas uvs (util_udim_ensure).
 
+// Kept strictly inside the cell, so floor(uv * stride) in shaders and _util_udim_cell give the cell back even on tile borders
 static i16 _util_udim_to_atlas(i16 local, i32 cell, i32 stride) {
-	return (i16)(local / (f32)stride + cell * (32767.0f / stride));
+	f32 step = 32767.0f / stride;
+	f32 v    = local / (f32)stride + cell * step;
+	f32 lo   = ceilf(cell * step);
+	f32 hi   = cell >= stride - 1 ? 32767.0f : ceilf((cell + 1) * step) - 1.0f;
+	v        = v < lo ? lo : v > hi ? hi : v;
+	return (i16)(v + 0.5f > hi ? hi : v + 0.5f);
 }
 
 static i16 _util_udim_from_atlas(i16 atlas, i32 cell, i32 stride) {
@@ -838,12 +844,97 @@ bool layer_covers_nothing(slot_layer_t *l) {
 	return layer_coverage_empty_reason(l) != LAYER_COVERAGE_SOME;
 }
 
-// Opens "if (...) {" around the layer for objects outside its coverage, false when nothing is written
-bool layer_write_coverage_test(node_shader_t *kong, slot_layer_t *l) {
-	// Tiles: every project tile is 1001 for now, so a tile restriction either covers it or covers nothing
-	if (!layer_objects_restricted(l)) {
+// Whether shaders test the tile for the layer: it leaves out one of several project tiles
+bool layer_tiles_tested(slot_layer_t *l) {
+	if (util_udim_count() < 2 || !layer_tiles_restricted(l)) {
 		return false;
 	}
+	for (i32 s = 0; s < util_udim_count(); ++s) {
+		if (!layer_covers_tile(l, util_udim_tile(s))) {
+			return true;
+		}
+	}
+	return false;
+}
+
+// Declares "int udim_slot" in the fragment from an atlas uv, use the primary uv: the tile is a property of the geometry
+void util_udim_write_slot(node_shader_t *kong, char *uv) {
+	node_shader_add_constant(kong, "float atlas_stride", "_atlas_stride");
+	// uv 1.0 at the atlas edge stays in the last row or column
+	node_shader_write_frag(kong, string_tmp("int udim_slot = int(min(floor(%s.x * constants.atlas_stride), constants.atlas_stride - 1.0)) + "
+	                                        "int(min(floor(%s.y * constants.atlas_stride), constants.atlas_stride - 1.0)) * int(constants.atlas_stride);",
+	                                        uv, uv));
+}
+
+// OR of the slot ranges the layer covers (covered) or leaves out (!covered, empty atlas cells included), "false" when there are none
+static void _layer_write_slot_ranges(node_shader_t *kong, slot_layer_t *l, bool covered) {
+	i32  count = util_udim_count();
+	bool first = true;
+	for (i32 s = 0; s < count; ++s) {
+		if (layer_covers_tile(l, util_udim_tile(s)) != covered) {
+			continue;
+		}
+		i32 a = s;
+		while (s + 1 < count && layer_covers_tile(l, util_udim_tile(s + 1)) == covered) {
+			++s;
+		}
+		if (!first) {
+			node_shader_write_frag(kong, " || ");
+		}
+		first = false;
+		if (a == s) {
+			node_shader_write_frag(kong, string_tmp("udim_slot == %s", i32_to_string(a)));
+		}
+		else {
+			node_shader_write_frag(kong, string_tmp("(udim_slot >= %s && ", i32_to_string(a)));
+			node_shader_write_frag(kong, string_tmp("udim_slot <= %s)", i32_to_string(s)));
+		}
+	}
+	i32 stride = util_udim_stride();
+	if (!covered && count < stride * stride) {
+		if (!first) {
+			node_shader_write_frag(kong, " || ");
+		}
+		first = false;
+		node_shader_write_frag(kong, string_tmp("udim_slot >= %s", i32_to_string(count)));
+	}
+	if (first) {
+		node_shader_write_frag(kong, "false");
+	}
+}
+
+// Discards fragments on tiles the layer leaves out, udim_slot must be declared (util_udim_write_slot) when layer_tiles_tested
+void layer_write_tile_discard(node_shader_t *kong, slot_layer_t *l) {
+	if (!layer_tiles_tested(l)) {
+		return;
+	}
+	node_shader_write_frag(kong, "if (");
+	_layer_write_slot_ranges(kong, l, false);
+	node_shader_write_frag(kong, ") { discard; }");
+}
+
+// Opens "if (...) {" around the layer for objects or tiles outside its coverage, false when nothing is written.
+// The tile part needs udim_slot (util_udim_write_slot) when layer_tiles_tested. With a single tile a tile restriction
+// either covers it (no test) or covers nothing (false, such layers are skipped before).
+bool layer_write_coverage_test(node_shader_t *kong, slot_layer_t *l) {
+	bool objects    = layer_objects_restricted(l);
+	bool tiles      = layer_tiles_tested(l);
+	bool tiles_none = !tiles && layer_tiles_restricted(l) && !layer_covers_tile(l, util_udim_tile(0)) && util_udim_count() < 2;
+	if (!objects && !tiles && !tiles_none) {
+		return false;
+	}
+	if (!objects) {
+		node_shader_write_frag(kong, "if (");
+		if (tiles) {
+			_layer_write_slot_ranges(kong, l, true);
+		}
+		else {
+			node_shader_write_frag(kong, "false");
+		}
+		node_shader_write_frag(kong, ") {");
+		return true;
+	}
+	bool both = tiles || tiles_none;
 
 	// Ranges of covered ids in the sorted live ids, gaps of deleted ids are skipped over
 	i32_array_t *live = i32_array_create(0);
@@ -856,7 +947,7 @@ bool layer_write_coverage_test(node_shader_t *kong, slot_layer_t *l) {
 	i32_array_sort(live, _util_udim_compare_i32);
 
 	node_shader_add_constant(kong, "int object_pid", "_object_pid");
-	node_shader_write_frag(kong, "if (");
+	node_shader_write_frag(kong, both ? "if ((" : "if (");
 	bool first = true;
 	for (i32 i = 0; i < live->length; ++i) {
 		if (!layer_covers_object_id(l, live->buffer[i])) {
@@ -881,6 +972,16 @@ bool layer_write_coverage_test(node_shader_t *kong, slot_layer_t *l) {
 	}
 	if (first) {
 		node_shader_write_frag(kong, "false");
+	}
+	if (both) {
+		node_shader_write_frag(kong, ") && (");
+		if (tiles) {
+			_layer_write_slot_ranges(kong, l, true);
+		}
+		else {
+			node_shader_write_frag(kong, "false");
+		}
+		node_shader_write_frag(kong, ")");
 	}
 	node_shader_write_frag(kong, ") {");
 	array_delete(live);

@@ -385,13 +385,15 @@ void layers_update_fill_layers() {
 		g_context->fill_type = FILL_TYPE_OBJECT;
 
 		if (has_fill_layer) {
-			bool first = true;
+			bool first  = true;
+			bool tested = false;
 			for (i32 i = 0; i < g_project->_->layers->length; ++i) {
 				slot_layer_t *l = g_project->_->layers->buffer[i];
 				if (slot_layer_is_layer(l) && l->fill_material == g_context->material) {
 					g_context->layer = l;
-					if (first) {
-						first = false;
+					if (first || tested || layer_tiles_tested(l)) { // The tile discard differs per layer
+						first  = false;
+						tested = layer_tiles_tested(l);
 						make_material_parse_paint_material(false);
 					}
 					layers_update_paint_set();
@@ -413,13 +415,15 @@ void layers_update_fill_layers() {
 			}
 		}
 		if (has_fill_mask) {
-			bool first = true;
+			bool first  = true;
+			bool tested = false;
 			for (i32 i = 0; i < g_project->_->layers->length; ++i) {
 				slot_layer_t *l = g_project->_->layers->buffer[i];
 				if (slot_layer_is_mask(l) && l->fill_material == g_context->material) {
 					g_context->layer = l;
-					if (first) {
-						first = false;
+					if (first || tested || layer_tiles_tested(l)) { // The tile discard differs per layer
+						first  = false;
+						tested = layer_tiles_tested(l);
 						make_material_parse_paint_material(false);
 					}
 					layers_update_paint_set();
