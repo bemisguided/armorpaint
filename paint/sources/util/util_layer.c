@@ -1357,6 +1357,175 @@ static slot_layer_t *layers_move_preview(slot_layer_t *l) {
 	return &moved;
 }
 
+// Coverage footprints: flatten and export work in texture space, where the viewport's per fragment coverage test
+// (object id and tile) becomes a mask of the texels the layer applies to. Regenerated per use, never cached.
+
+// Whether the layer applies to anything, with an optional object (paint id) and tile (udim id) filter, 0 for none
+bool layers_coverage_applies(slot_layer_t *l, i32 object_filter, i32 tile_filter) {
+	if (layer_covers_nothing(l)) {
+		return false;
+	}
+	if (object_filter > 0 && (project_object_by_id(object_filter) == NULL || !layer_covers_object_id(l, object_filter))) {
+		return false;
+	}
+	if (tile_filter > 0 && (util_udim_slot(tile_filter) < 0 || !layer_covers_tile(l, tile_filter))) {
+		return false;
+	}
+	return true;
+}
+
+static bool _layers_coverage_slot(slot_layer_t *l, i32 slot, i32 tile_filter) {
+	i32 tile = util_udim_tile(slot);
+	return layer_covers_tile(l, tile) && (tile_filter <= 0 || tile == tile_filter);
+}
+
+// Slot rect in atlas pixels, uv v = 0 is the top row
+static void _layers_coverage_slot_rect(i32 slot, i32 *x, i32 *y, i32 *w, i32 *h) {
+	i32 stride = util_udim_stride();
+	*w         = util_udim_tile_res_x();
+	*h         = util_udim_tile_res_y();
+	*x         = (slot % stride) * *w;
+	*y         = (slot / stride) * *h;
+}
+
+static void _layers_coverage_scissor(i32 slot) {
+	i32 x, y, w, h;
+	_layers_coverage_slot_rect(slot, &x, &y, &w, &h);
+	gpu_scissor(x, y, w, h);
+}
+
+// Writes the footprint of the layer's effective coverage (ancestors included) and the filters into pipes_temp_mask_image,
+// white where the layer applies. Returns false and writes nothing when no mask is needed (unrestricted layer, no filter).
+// Callers skip layers layers_coverage_applies rejects. Tile-only restrictions fill whole slots (gutter included), object
+// restrictions or an object filter draw the covered objects' uv triangles on the covered slots, dilated by the dilate radius.
+bool layers_coverage_mask(slot_layer_t *l, i32 object_filter, i32 tile_filter) {
+	// An object list holding every live object restricts nothing
+	bool objects = object_filter > 0;
+	for (i32 i = 0; i < g_project->_->paint_objects->length && !objects && layer_objects_restricted(l); ++i) {
+		objects = !layer_covers_object(l, g_project->_->paint_objects->buffer[i]);
+	}
+	i32 count   = util_udim_count();
+	i32 covered = 0;
+	for (i32 s = 0; s < count; ++s) {
+		covered += _layers_coverage_slot(l, s, tile_filter) ? 1 : 0;
+	}
+	if (!objects && covered == count) {
+		return false; // Unrestricted, or a tile list holding every project tile
+	}
+	layers_make_temp_mask_img();
+	i32 x, y, w, h;
+
+	if (!objects) {
+		draw_begin(pipes_temp_mask_image, true, 0xff000000);
+		draw_set_color(0xffffffff);
+		for (i32 s = 0; s < count; ++s) {
+			if (_layers_coverage_slot(l, s, tile_filter)) {
+				_layers_coverage_slot_rect(s, &x, &y, &w, &h);
+				draw_filled_rect(x, y, w, h);
+			}
+		}
+		draw_end();
+		return true;
+	}
+
+	// R8 scratch, also bound by name for the dilate pass. Kept between calls (flatten runs every frame in path trace mode),
+	// recreated when the atlas size changes
+	render_target_t *rt = any_map_get(render_path_render_targets, "coverage_mask");
+	if (rt != NULL && (rt->_image->width != util_udim_res_x() || rt->_image->height != util_udim_res_y())) {
+		gpu_delete_texture(rt->_image);
+		map_delete(render_path_render_targets, "coverage_mask");
+		rt = NULL;
+	}
+	if (rt == NULL) {
+		render_target_t *t = render_target_create();
+		t->name            = "coverage_mask";
+		t->width           = util_udim_res_x();
+		t->height          = util_udim_res_y();
+		t->format          = "R8";
+		rt                 = render_path_create_render_target(t);
+	}
+	bool all = covered == count;
+
+	// Uv triangles of the covered objects, clipped to the covered slots (a triangle never crosses a cell)
+	_gpu_begin(rt->_image, NULL, NULL, GPU_CLEAR_COLOR, 0x00000000, 0.0);
+	gpu_set_pipeline(util_uv_get_pipe_dilate());
+	for (i32 i = 0; i < g_project->_->paint_objects->length && covered > 0; ++i) {
+		mesh_object_t *o = g_project->_->paint_objects->buffer[i];
+		if (!layer_covers_object(l, o) || (object_filter > 0 && o->paint_id != object_filter)) {
+			continue;
+		}
+		if (o->data == NULL || o->data->_->vertex_buffer == NULL || o->data->_->index_buffer == NULL) {
+			continue;
+		}
+		gpu_set_vertex_buffer(o->data->_->vertex_buffer);
+		gpu_set_index_buffer(o->data->_->index_buffer);
+		for (i32 s = 0; s < count; ++s) {
+			if (all) {
+				gpu_draw();
+				break;
+			}
+			if (_layers_coverage_slot(l, s, tile_filter)) {
+				_layers_coverage_scissor(s);
+				gpu_draw();
+			}
+		}
+	}
+	gpu_disable_scissor();
+	gpu_end();
+
+	draw_begin(pipes_temp_mask_image, true, 0xff000000);
+	draw_set_pipeline(pipes_copy);
+	draw_image(rt->_image, 0, 0);
+	draw_set_pipeline(NULL);
+	draw_end();
+
+	// Padding like the painted texels get (render_path_paint_dilate), kept inside the covered slots
+	if (g_config->dilate_radius > 0 && covered > 0) {
+		gpu_texture_t *dilatemap = util_uv_dilatemap;
+		util_uv_dilatemap        = rt->_image; // Read by the texdilate and dilate_radius links
+		_gpu_begin(pipes_temp_mask_image, NULL, NULL, GPU_CLEAR_NONE, 0, 0.0);
+		for (i32 s = 0; s < count; ++s) {
+			if (!all && !_layers_coverage_slot(l, s, tile_filter)) {
+				continue;
+			}
+			if (!all) {
+				_layers_coverage_scissor(s);
+			}
+			render_path_bind_target("coverage_mask", "tex");
+			render_path_draw_shader_keep_target("Scene/dilate_pass/dilate_pass");
+			if (all) {
+				break;
+			}
+		}
+		gpu_disable_scissor();
+		gpu_end();
+		util_uv_dilatemap = dilatemap;
+	}
+
+	return true;
+}
+
+// Mask for merging a layer in flatten and export: its coverage footprint times its own masks (move_preview: as the
+// transform preview shows them), the empty white texture when it has neither. Writes only pipes_temp_mask_image,
+// the masks' own textures are read.
+gpu_texture_t *layers_coverage_merge_mask(slot_layer_t *l, slot_layer_t_array_t *masks, bool move_preview, i32 object_filter, i32 tile_filter) {
+	bool footprint = layers_coverage_mask(l, object_filter, tile_filter);
+	if (masks == NULL) {
+		render_target_t *empty = any_map_get(render_path_render_targets, "empty_white");
+		return footprint ? pipes_temp_mask_image : empty->_image;
+	}
+	layers_make_temp_mask_img();
+	if (!footprint) {
+		draw_begin(pipes_temp_mask_image, true, 0xffffffff);
+		draw_end();
+	}
+	slot_layer_t *target = ALLOC_INIT(slot_layer_t, {.texpaint = pipes_temp_mask_image});
+	for (i32 i = 0; i < masks->length; ++i) {
+		layers_merge_layer(target, move_preview ? layers_move_preview(masks->buffer[i]) : masks->buffer[i], false); // Multiplies
+	}
+	return pipes_temp_mask_image;
+}
+
 slot_layer_t *layers_flatten(bool height_to_normal, slot_layer_t_array_t *layers) {
 	if (layers == NULL) {
 		layers = g_project->_->layers;
@@ -1387,18 +1556,11 @@ slot_layer_t *layers_flatten(bool height_to_normal, slot_layer_t_array_t *layers
 			continue;
 		}
 
-		gpu_texture_t        *mask    = empty;
-		slot_layer_t_array_t *l1masks = slot_layer_get_masks(l1, true);
-		if (l1masks != NULL) {
-			layers_make_temp_mask_img();
-			draw_begin(pipes_temp_mask_image, GPU_CLEAR_COLOR, 0xffffffff);
-			draw_end();
-			slot_layer_t *l1 = ALLOC_INIT(slot_layer_t, {.texpaint = pipes_temp_mask_image});
-			for (i32 i = 0; i < l1masks->length; ++i) {
-				layers_merge_layer(l1, layers_move_preview(l1masks->buffer[i]), false);
-			}
-			mask = pipes_temp_mask_image;
+		if (!layers_coverage_applies(l1, 0, 0)) {
+			continue;
 		}
+
+		gpu_texture_t *mask = layers_coverage_merge_mask(l1, slot_layer_get_masks(l1, true), true, 0, 0);
 
 		l1 = layers_move_preview(l1);
 

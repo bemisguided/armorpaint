@@ -249,7 +249,9 @@ static bool export_texture_layer_covers_name(slot_layer_t *l, char *name) {
 	return false;
 }
 
-static void export_texture_run_layers(char *path, slot_layer_t_array_t *layers, char *object_name, bool bake_material) {
+// object_filter (paint id) and tile_filter (udim id) limit every layer to that object or tile, 0 for none.
+// Restricted layers are masked to their coverage footprint either way.
+static void export_texture_run_layers(char *path, slot_layer_t_array_t *layers, char *object_name, bool bake_material, i32 object_filter, i32 tile_filter) {
 	i32 texture_size_x = util_udim_res_x();
 	i32 texture_size_y = util_udim_res_y();
 #if defined(IRON_ANDROID) || defined(IRON_IOS)
@@ -309,25 +311,15 @@ static void export_texture_run_layers(char *path, slot_layer_t_array_t *layers, 
 			continue;
 		}
 
-		if (layer_covers_nothing(l1)) {
+		if (!layers_coverage_applies(l1, object_filter, tile_filter)) {
 			continue;
 		}
 		if (per_object && !string_equals(object_name, "") && !export_texture_layer_covers_name(l1, object_name)) {
 			continue;
 		}
 
-		gpu_texture_t        *mask    = empty;
-		slot_layer_t_array_t *l1masks = slot_layer_get_masks(l1, true);
-		if (l1masks != NULL && !bake_material) {
-			layers_make_temp_mask_img();
-			draw_begin(pipes_temp_mask_image, true, 0xffffffff);
-			draw_end();
-			slot_layer_t *l1 = ALLOC_INIT(slot_layer_t, {.texpaint = pipes_temp_mask_image});
-			for (i32 i = 0; i < l1masks->length; ++i) {
-				layers_merge_layer(l1, l1masks->buffer[i], false);
-			}
-			mask = pipes_temp_mask_image;
-		}
+		// The material bake exports the live layer as painted, without masks
+		gpu_texture_t *mask = bake_material ? empty : layers_coverage_merge_mask(l1, slot_layer_get_masks(l1, true), false, object_filter, tile_filter);
 
 		if (l1->paint_base || l1->paint_opac) {
 			draw_begin(layers_temp_image, false, 0); // Copy to temp
@@ -696,7 +688,7 @@ static void export_texture_run_bake_material(char *path) {
 	if (g_context->bake_create_material) {
 		export_texture_baked_files = any_array_create_from_raw((void *[]){}, 0);
 	}
-	export_texture_run_layers(path, layers, "", true);
+	export_texture_run_layers(path, layers, "", true, 0, 0);
 	if (export_texture_baked_files != NULL) {
 		export_texture_create_baked_material(source);
 		export_texture_baked_files = NULL;
@@ -719,7 +711,7 @@ void export_texture_run(char *path, bool bake_material) {
 		export_texture_run_bake_material(path);
 	}
 	else if (g_context->layers_export == EXPORT_MODE_PER_UDIM_TILE) {
-		export_texture_run_layers(path, g_project->_->layers, "", false); // The whole atlas until per tile export is rebuilt (B5)
+		export_texture_run_layers(path, g_project->_->layers, "", false, 0, 0); // The whole atlas until per tile export is rebuilt (B5)
 	}
 	else if (g_context->layers_export == EXPORT_MODE_PER_OBJECT) {
 		// Objects some object restricted layer covers, each gets its own texture set
@@ -737,11 +729,11 @@ void export_texture_run(char *path, bool bake_material) {
 		if (object_names->length > 0) {
 			for (i32 i = 0; i < object_names->length; ++i) {
 				char *name = object_names->buffer[i];
-				export_texture_run_layers(path, g_project->_->layers, name, false);
+				export_texture_run_layers(path, g_project->_->layers, name, false, 0, 0);
 			}
 		}
 		else {
-			export_texture_run_layers(path, g_project->_->layers, "", false);
+			export_texture_run_layers(path, g_project->_->layers, "", false, 0, 0);
 		}
 	}
 	else { // Visible or selected
@@ -761,7 +753,7 @@ void export_texture_run(char *path, bool bake_material) {
 		else {
 			layers = g_project->_->layers;
 		}
-		export_texture_run_layers(path, layers, "", false);
+		export_texture_run_layers(path, layers, "", false, 0, 0);
 	}
 
 #ifdef IRON_IOS

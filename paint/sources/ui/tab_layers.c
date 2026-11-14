@@ -332,9 +332,26 @@ static char *tab_layers_tiles_label(slot_layer_t *l) {
 	return string_tmp("%d %s", count, tr("tiles"));
 }
 
-// Phase B: "X shares UV space with Y on tile T..." when a covered object overlaps an uncovered one in UV space, NULL until then
+// "X shares UV space with Y on tile T..." when a covered object overlaps an uncovered one in uv space, NULL otherwise
 static char *tab_layers_objects_overlap_note(slot_layer_t *l) {
-	return NULL;
+	i32 object;
+	i32 other;
+	i32 tile;
+	if (!layer_uv_overlap(l, &object, &other, &tile)) {
+		return NULL;
+	}
+	mesh_object_t *a = project_object_by_id(object);
+	mesh_object_t *b = project_object_by_id(other);
+	if (a == NULL || b == NULL) {
+		return NULL;
+	}
+	any_map_t *vars = any_map_create();
+	any_map_set(vars, "object", a->base->name);
+	any_map_set(vars, "other", b->base->name);
+	any_map_set(vars, "tile", string_tmp("%d", tile));
+	char *note = vtr("{object} shares UV space with {other} on tile {tile}. In exports and path tracing this layer also applies to {other}.", vars);
+	map_free(vars);
+	return note;
 }
 
 // One history step per toggle, taken before the change

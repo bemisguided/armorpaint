@@ -104,6 +104,19 @@ void util_uv_cache_dilate_map() {
 		util_uv_dilatemap = gpu_create_render_target(util_udim_res_x(), util_udim_res_y(), GPU_TEXTURE_FORMAT_R8);
 	}
 
+	mesh_data_t *geom = util_uv_paint_geometry();
+	_gpu_begin(util_uv_dilatemap, NULL, NULL, GPU_CLEAR_COLOR, 0x00000000, 0.0);
+	gpu_set_pipeline(util_uv_get_pipe_dilate());
+	gpu_set_vertex_buffer(geom->_->vertex_buffer);
+	gpu_set_index_buffer(geom->_->index_buffer);
+	gpu_draw();
+	gpu_end();
+	util_uv_dilatemap_cached = true;
+	util_uv_dilate_bytes     = NULL;
+}
+
+// Draws mesh triangles at their uvs as 1.0 into an R8 target
+gpu_pipeline_t *util_uv_get_pipe_dilate() {
 	if (util_uv_pipe_dilate == NULL) {
 		util_uv_pipe_dilate                  = gpu_create_pipeline();
 		util_uv_pipe_dilate->vertex_shader   = sys_get_shader("dilate_map.vert");
@@ -119,16 +132,7 @@ void util_uv_cache_dilate_map() {
 		gpu_pipeline_compile(util_uv_pipe_dilate);
 		// dilate_tex_unpack = getConstantLocation(pipeDilate, "tex_unpack");
 	}
-
-	mesh_data_t *geom = util_uv_paint_geometry();
-	_gpu_begin(util_uv_dilatemap, NULL, NULL, GPU_CLEAR_COLOR, 0x00000000, 0.0);
-	gpu_set_pipeline(util_uv_pipe_dilate);
-	gpu_set_vertex_buffer(geom->_->vertex_buffer);
-	gpu_set_index_buffer(geom->_->index_buffer);
-	gpu_draw();
-	gpu_end();
-	util_uv_dilatemap_cached = true;
-	util_uv_dilate_bytes     = NULL;
+	return util_uv_pipe_dilate;
 }
 
 void _util_uv_check(i32 cx, i32 cy, i32 w, i32 h, i32 r, buffer_t *view, i32_array_t *coords_x, i32_array_t *coords_y) {

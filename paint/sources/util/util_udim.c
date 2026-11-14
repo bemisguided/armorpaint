@@ -1134,3 +1134,232 @@ void layers_coverage_add_alias(i32 from, i32 to) {
 		}
 	}
 }
+
+// Uv overlap between a covered and an uncovered object (DECISIONS item 5): a texture can not tell them apart, so exports
+// and path tracing apply the layer to both. A bbox test per object and slot first, then a low res raster of the slot.
+
+#define UTIL_UDIM_OVERLAP_RES 64
+
+static i32_array_t *_layer_overlap_key     = NULL;
+static i32          _layer_overlap_version = -1;
+static i32          _layer_overlap_a       = 0;
+static i32          _layer_overlap_b       = 0;
+static i32          _layer_overlap_tile    = 0;
+
+// Slot of a triangle from its atlas uv centroid, -1 on an empty atlas cell
+static i32 _util_udim_triangle_slot(i16 *tex, u32 *ind, i32 t, i32 stride) {
+	f32 u = (tex[ind[t * 3] * 2] + tex[ind[t * 3 + 1] * 2] + tex[ind[t * 3 + 2] * 2]) / 3.0f;
+	f32 v = (tex[ind[t * 3] * 2 + 1] + tex[ind[t * 3 + 1] * 2 + 1] + tex[ind[t * 3 + 2] * 2 + 1]) / 3.0f;
+	i32 s = _util_udim_cell(v, stride) * stride + _util_udim_cell(u, stride);
+	return s < util_udim_count() ? s : -1;
+}
+
+// Uv bounds (min u, min v, max u, max v, atlas short units) of each object's triangles per slot, min > max when empty
+static f32 *_util_udim_object_bounds(mesh_object_t *o, i32 count, i32 stride) {
+	f32 *b = malloc(sizeof(f32) * 4 * count);
+	for (i32 s = 0; s < count; ++s) {
+		b[s * 4]     = 32767.0f;
+		b[s * 4 + 1] = 32767.0f;
+		b[s * 4 + 2] = -1.0f;
+		b[s * 4 + 3] = -1.0f;
+	}
+	vertex_array_t *va = o->data != NULL ? mesh_data_get_vertex_array(o->data, "tex") : NULL;
+	if (va == NULL) {
+		return b;
+	}
+	i16 *tex = va->values->buffer;
+	u32 *ind = o->data->index_array->buffer;
+	i32  n   = o->data->index_array->length / 3;
+	for (i32 t = 0; t < n; ++t) {
+		i32 s = _util_udim_triangle_slot(tex, ind, t, stride);
+		if (s < 0) {
+			continue;
+		}
+		for (i32 k = 0; k < 3; ++k) {
+			f32 u        = tex[ind[t * 3 + k] * 2];
+			f32 v        = tex[ind[t * 3 + k] * 2 + 1];
+			b[s * 4]     = u < b[s * 4] ? u : b[s * 4];
+			b[s * 4 + 1] = v < b[s * 4 + 1] ? v : b[s * 4 + 1];
+			b[s * 4 + 2] = u > b[s * 4 + 2] ? u : b[s * 4 + 2];
+			b[s * 4 + 3] = v > b[s * 4 + 3] ? v : b[s * 4 + 3];
+		}
+	}
+	return b;
+}
+
+// Marks (or with test, looks for marked) raster cells whose centre is strictly inside the object's triangles on the slot.
+// Strict, so objects that only touch along an edge do not count.
+static bool _util_udim_raster_object(u8 *bits, mesh_object_t *o, i32 slot, i32 stride, bool test) {
+	vertex_array_t *va   = mesh_data_get_vertex_array(o->data, "tex");
+	i16            *tex  = va->values->buffer;
+	u32            *ind  = o->data->index_array->buffer;
+	i32             n    = o->data->index_array->length / 3;
+	f32             step = 32767.0f / stride;
+	f32             ox   = (slot % stride) * step;
+	f32             oy   = (slot / stride) * step;
+	f32             f    = UTIL_UDIM_OVERLAP_RES / step;
+	for (i32 t = 0; t < n; ++t) {
+		if (_util_udim_triangle_slot(tex, ind, t, stride) != slot) {
+			continue;
+		}
+		f32 x[3];
+		f32 y[3];
+		for (i32 k = 0; k < 3; ++k) {
+			x[k] = (tex[ind[t * 3 + k] * 2] - ox) * f;
+			y[k] = (tex[ind[t * 3 + k] * 2 + 1] - oy) * f;
+		}
+		f32 area = (x[1] - x[0]) * (y[2] - y[0]) - (x[2] - x[0]) * (y[1] - y[0]);
+		if (area == 0.0f) {
+			continue;
+		}
+		f32 sign = area > 0.0f ? 1.0f : -1.0f;
+		i32 x0   = (i32)floorf(fminf(x[0], fminf(x[1], x[2])));
+		i32 x1   = (i32)ceilf(fmaxf(x[0], fmaxf(x[1], x[2])));
+		i32 y0   = (i32)floorf(fminf(y[0], fminf(y[1], y[2])));
+		i32 y1   = (i32)ceilf(fmaxf(y[0], fmaxf(y[1], y[2])));
+		x0       = x0 < 0 ? 0 : x0;
+		y0       = y0 < 0 ? 0 : y0;
+		x1       = x1 > UTIL_UDIM_OVERLAP_RES ? UTIL_UDIM_OVERLAP_RES : x1;
+		y1       = y1 > UTIL_UDIM_OVERLAP_RES ? UTIL_UDIM_OVERLAP_RES : y1;
+		for (i32 py = y0; py < y1; ++py) {
+			for (i32 px = x0; px < x1; ++px) {
+				f32 cx = px + 0.5f;
+				f32 cy = py + 0.5f;
+				f32 e0 = ((x[1] - x[0]) * (cy - y[0]) - (y[1] - y[0]) * (cx - x[0])) * sign;
+				f32 e1 = ((x[2] - x[1]) * (cy - y[1]) - (y[2] - y[1]) * (cx - x[1])) * sign;
+				f32 e2 = ((x[0] - x[2]) * (cy - y[2]) - (y[0] - y[2]) * (cx - x[2])) * sign;
+				if (e0 <= 0.0f || e1 <= 0.0f || e2 <= 0.0f) {
+					continue;
+				}
+				u8 *c = &bits[py * UTIL_UDIM_OVERLAP_RES + px];
+				if (test && *c) {
+					return true;
+				}
+				if (!test) {
+					*c = 1;
+				}
+			}
+		}
+	}
+	return false;
+}
+
+// Covered live ids, covered tiles, live ids and the project tile list, each list prefixed with its length
+static i32_array_t *_layer_overlap_make_key(slot_layer_t *l) {
+	i32_array_t *covered = i32_array_create(0);
+	i32_array_t *live    = i32_array_create(0);
+	for (i32 i = 0; i < g_project->_->paint_objects->length; ++i) {
+		mesh_object_t *o = g_project->_->paint_objects->buffer[i];
+		i32_array_push(live, o->paint_id);
+		if (layer_covers_object(l, o)) {
+			i32_array_push(covered, o->paint_id);
+		}
+	}
+	i32_array_sort(covered, _util_udim_compare_i32);
+	i32_array_sort(live, _util_udim_compare_i32);
+	i32_array_t *key = i32_array_create(0);
+	i32_array_push(key, covered->length);
+	for (i32 i = 0; i < covered->length; ++i) {
+		i32_array_push(key, covered->buffer[i]);
+	}
+	i32_array_push(key, live->length);
+	for (i32 i = 0; i < live->length; ++i) {
+		i32_array_push(key, live->buffer[i]);
+	}
+	i32 count = util_udim_count();
+	i32_array_push(key, count);
+	for (i32 s = 0; s < count; ++s) {
+		i32_array_push(key, util_udim_tile(s));
+		i32_array_push(key, layer_covers_tile(l, util_udim_tile(s)) ? 1 : 0);
+	}
+	array_delete(covered);
+	array_delete(live);
+	return key;
+}
+
+static bool _layer_overlap_key_equals(i32_array_t *a, i32_array_t *b) {
+	if (a == NULL || b == NULL || a->length != b->length) {
+		return false;
+	}
+	for (i32 i = 0; i < a->length; ++i) {
+		if (a->buffer[i] != b->buffer[i]) {
+			return false;
+		}
+	}
+	return true;
+}
+
+static void _layer_overlap_find(slot_layer_t *l) {
+	_layer_overlap_a               = 0;
+	_layer_overlap_b               = 0;
+	_layer_overlap_tile            = 0;
+	mesh_object_t_array_t *objects = g_project->_->paint_objects;
+	i32                    count   = util_udim_count();
+	i32                    stride  = util_udim_stride();
+	f32                  **bounds  = malloc(sizeof(f32 *) * (objects->length > 0 ? objects->length : 1));
+	for (i32 i = 0; i < objects->length; ++i) {
+		bounds[i] = _util_udim_object_bounds(objects->buffer[i], count, stride);
+	}
+	u8 *bits = malloc(UTIL_UDIM_OVERLAP_RES * UTIL_UDIM_OVERLAP_RES);
+	for (i32 i = 0; i < objects->length && _layer_overlap_a == 0; ++i) {
+		mesh_object_t *a = objects->buffer[i];
+		if (a->paint_id <= 0 || !layer_covers_object(l, a)) {
+			continue;
+		}
+		for (i32 s = 0; s < count && _layer_overlap_a == 0; ++s) {
+			f32 *ba = &bounds[i][s * 4];
+			if (ba[0] > ba[2] || !layer_covers_tile(l, util_udim_tile(s))) {
+				continue;
+			}
+			bool drawn = false;
+			for (i32 j = 0; j < objects->length; ++j) {
+				mesh_object_t *b  = objects->buffer[j];
+				f32           *bb = &bounds[j][s * 4];
+				if (b->paint_id <= 0 || layer_covers_object(l, b) || bb[0] > bb[2]) {
+					continue;
+				}
+				if (ba[2] <= bb[0] || bb[2] <= ba[0] || ba[3] <= bb[1] || bb[3] <= ba[1]) {
+					continue;
+				}
+				if (!drawn) {
+					memset(bits, 0, UTIL_UDIM_OVERLAP_RES * UTIL_UDIM_OVERLAP_RES);
+					_util_udim_raster_object(bits, a, s, stride, false);
+					drawn = true;
+				}
+				if (_util_udim_raster_object(bits, b, s, stride, true)) {
+					_layer_overlap_a    = a->paint_id;
+					_layer_overlap_b    = b->paint_id;
+					_layer_overlap_tile = util_udim_tile(s);
+					break;
+				}
+			}
+		}
+	}
+	free(bits);
+	for (i32 i = 0; i < objects->length; ++i) {
+		free(bounds[i]);
+	}
+	free(bounds);
+}
+
+// First covered object that shares uv space with an uncovered live object on a tile the layer covers (paint ids, udim id).
+// Only object restricted layers, cached by coverage, live objects, util_mesh_version and the tile list.
+bool layer_uv_overlap(slot_layer_t *l, i32 *object, i32 *other, i32 *tile) {
+	if (!layer_objects_restricted(l)) {
+		return false;
+	}
+	i32_array_t *key = _layer_overlap_make_key(l);
+	if (_layer_overlap_version != util_mesh_version || !_layer_overlap_key_equals(key, _layer_overlap_key)) {
+		_layer_overlap_find(l);
+		array_delete(_layer_overlap_key);
+		_layer_overlap_key     = key;
+		_layer_overlap_version = util_mesh_version;
+	}
+	else {
+		array_delete(key);
+	}
+	*object = _layer_overlap_a;
+	*other  = _layer_overlap_b;
+	*tile   = _layer_overlap_tile;
+	return _layer_overlap_a != 0;
+}
