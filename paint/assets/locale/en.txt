@@ -859,7 +859,6 @@ x
 Objects: All
 No objects
 objects
-Tiles: All
 No tiles
 tiles
 Limit this layer to the selected objects.
