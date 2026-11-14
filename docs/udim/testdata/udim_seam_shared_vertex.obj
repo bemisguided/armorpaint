@@ -1,0 +1,18 @@
+# udim_seam_shared_vertex: object Seam, two quads sharing an edge in 3D (shared v indices 2,3). Left quad UVs in tile 1001 (u 0.02..0.98), right quad in tile 1002 (u 1.02..1.98); the shared edge uses SEPARATE vt indices per side (u=0.98 left, u=1.02 right). A variant sharing both v and vt indices across the tile border is impossible without straddling, so it is not included
+o Seam
+v -2.0000 0.0000 0.0000
+v 0.0000 0.0000 0.0000
+v 0.0000 1.0000 0.0000
+v -2.0000 1.0000 0.0000
+v 2.0000 0.0000 0.0000
+v 2.0000 1.0000 0.0000
+vt 0.0200 0.1000
+vt 0.9800 0.1000
+vt 0.9800 0.9000
+vt 0.0200 0.9000
+f 1/1 2/2 3/3 4/4
+vt 1.0200 0.1000
+vt 1.9800 0.1000
+vt 1.9800 0.9000
+vt 1.0200 0.9000
+f 2/5 5/6 6/7 3/8
