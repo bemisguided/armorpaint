@@ -12,6 +12,7 @@
 //              i32_array_values (the entry maps of metas, every field written in this order)
 // layer_data_t has the upstream layout, its object_mask is written as 0 (layer coverage is in metas).
 // project_t atlas_objects / atlas_names of upstream "23" are only read to convert atlas group object masks (Export > Atlases was removed).
+// Upstream "23" name based udim projects (objects X.1001, ...) get udim_tiles / mesh_tiles from the names, see project_format_migrate_udim_names.
 // History steps are not saved.
 // Metadata (meta_t, see util_meta.c): one list of sparse entries, one per item that has metadata. category says which list
 // the item is in, index its position there when the project was saved: layers (MC_LAYER) by their position in layer_datas,
@@ -456,9 +457,172 @@ static void project_format_convert_object_mask(any_map_t *old, project_t *projec
 	array_delete(ids);
 }
 
+// Upstream "23" name based udim projects: the udim import split a mesh into one object per tile, named X.1001, X.1002, ...
+// Upstream (22097dfdd util_mesh.c _util_mesh_udim_build_tiles / util_mesh_udim_slot) laid the atlas out from those names:
+// slots are the sorted distinct ids (at most 64, extra tiles shared slot 63), the stride is ceil(sqrt(count)) and objects
+// without a tile name were drawn in slot 0. A layer was read tile-local, a whole tile at the atlas size, when the object mask
+// it was read with (masks and filters use their parent's) was a single tile named object and the layer used uv map 0
+// (util_layer.c layers_udim_tile_slot, applied to the layer and its masks by layers_flatten). Group masks stayed in atlas space.
+// The migration turns the names into tile data. The atlas layout and the pixels of shared layers stay the same,
+// tile-local layers are moved into their slot after their textures exist (project_format_load_tile_layers).
+
+static project_t   *project_format_tile_layers_project = NULL; // Converted project the list below belongs to
+static i32_array_t *project_format_tile_layers         = NULL; // Layer index and tile id pairs of tile-local layers
+
+void project_format_reset_tile_layers() {
+	array_delete(project_format_tile_layers);
+	project_format_tile_layers         = NULL;
+	project_format_tile_layers_project = NULL;
+}
+
+// Paint object name of mesh_datas entry i as the loader names it, linked duplicates are stored as "name@source"
+static char *project_format_object_name(mesh_data_t *raw, i32 i) {
+	i32   source_index;
+	char *object_name;
+	if (i > 0 && util_mesh_link_parse(raw->name, &source_index, &object_name)) {
+		return object_name;
+	}
+	return raw->name;
+}
+
+static bool project_format_is_link(mesh_data_t *raw, i32 i) {
+	i32   source_index;
+	char *object_name;
+	return i > 0 && util_mesh_link_parse(raw->name, &source_index, &object_name);
+}
+
+static i32 project_format_vertex_count(mesh_data_t *raw) {
+	for (i32 i = 0; raw->vertex_arrays != NULL && i < raw->vertex_arrays->length; ++i) {
+		vertex_array_t *va = raw->vertex_arrays->buffer[i];
+		if (string_equals(va->attrib, "tex") && va->values != NULL) {
+			return va->values->length / 2;
+		}
+	}
+	return 0;
+}
+
+static bool project_format_ld_is_layer(layer_data_t *ld) {
+	return ld->texpaint != NULL && ld->texpaint_nor != NULL;
+}
+
+// Tile id of a layer upstream read tile-local, -1 when it was in atlas space
+static i32 project_format_tile_local(any_array_t *lds, project_t *project, i32 i) {
+	layer_data_t_array_t *layers = project->layer_datas;
+	i32                   n      = project->mesh_datas->length;
+	layer_data_t         *ld     = layers->buffer[i];
+	if (ld->texpaint == NULL) { // Group
+		return -1;
+	}
+	i32 read = i;                   // The layer or filter the textures are drawn with
+	if (ld->texpaint_nor == NULL) { // Mask, of a layer or filter, group masks stay in atlas space
+		if (ld->parent < 0 || ld->parent >= layers->length || !project_format_ld_is_layer(layers->buffer[ld->parent])) {
+			return -1;
+		}
+		read = ld->parent;
+	}
+	layer_data_t *rd = layers->buffer[read];
+	if (rd->uv_map == 1) {
+		return -1;
+	}
+	i32 owner = read; // Filters use their parent layer's object mask
+	if (rd->parent >= 0 && rd->parent < layers->length && project_format_ld_is_layer(layers->buffer[rd->parent])) {
+		owner = rd->parent;
+	}
+	if (owner >= lds->length) {
+		return -1;
+	}
+	i32 mask = armpack_map_get_i32(lds->buffer[owner], "object_mask");
+	if (mask < 1 || mask > n) {
+		return -1;
+	}
+	return util_mesh_udim_tile(project_format_object_name(project->mesh_datas->buffer[mask - 1], mask - 1));
+}
+
+static void project_format_migrate_udim_names(any_map_t *old, project_t *project) {
+	mesh_data_t_array_t *mds = project->mesh_datas;
+	if (mds == NULL || mds->length < 2) {
+		return;
+	}
+	i32_array_t *ids = i32_array_create(0);
+	for (i32 i = 0; i < mds->length; ++i) {
+		i32 id = util_mesh_udim_tile(project_format_object_name(mds->buffer[i], i));
+		if (id > 0 && i32_array_index_of(ids, id) < 0) {
+			i32_array_push(ids, id);
+		}
+	}
+	if (ids->length < 2) {
+		array_delete(ids);
+		return;
+	}
+	i32_array_sort(ids, NULL);
+	if (ids->length > 64) {
+		console_info(string("Project uses %d udim tiles, tiles past the 64th shared one atlas slot in older versions and start empty", ids->length));
+	}
+	project->udim_tiles->length = 0;
+	for (i32 i = 0; i < ids->length; ++i) {
+		i32_array_push(project->udim_tiles, ids->buffer[i]);
+	}
+
+	// Tex is already tile-local (0..1 per object). Objects without a tile name were drawn in slot 0, the first tile.
+	// Linked duplicates store no tiles, they follow their source.
+	if (project_format_saved_tiles == NULL) {
+		project_format_saved_tiles = any_array_create(0);
+	}
+	for (i32 i = 0; i < mds->length && i < project->mesh_tiles->length; ++i) {
+		i32 count = project_format_vertex_count(mds->buffer[i]);
+		if (project_format_is_link(mds->buffer[i], i) || count == 0) {
+			continue;
+		}
+		i32 id = util_mesh_udim_tile(project_format_object_name(mds->buffer[i], i));
+		if (id < 0) {
+			id = ids->buffer[0];
+		}
+		i16_array_t *tiles = i16_array_create(count);
+		for (i32 j = 0; j < count; ++j) {
+			tiles->buffer[j] = (i16)(id - 1001);
+		}
+		any_array_push(project_format_saved_tiles, tiles); // Freed with the save copies at the next save
+		project->mesh_tiles->buffer[i] = tiles;
+	}
+	array_delete(ids);
+
+	any_array_t *lds = any_map_get(old, "layer_datas");
+	for (i32 i = 0; lds != NULL && project->layer_datas != NULL && i < project->layer_datas->length; ++i) {
+		i32 tile = project_format_tile_local(lds, project, i);
+		if (tile < 0) {
+			continue;
+		}
+		if (project_format_tile_layers == NULL) {
+			project_format_tile_layers = i32_array_create(0);
+		}
+		i32_array_push(project_format_tile_layers, i);
+		i32_array_push(project_format_tile_layers, tile);
+	}
+	if (project_format_tile_layers != NULL) {
+		project_format_tile_layers_project = project;
+	}
+}
+
+// Load, after the layer textures exist and their parents are assigned, before the first flatten:
+// tile-local layers of a converted name based udim project move into the slot of their tile, scaled to the per tile size.
+void project_format_load_tile_layers(project_t *raw) {
+	if (project_format_tile_layers != NULL && raw == project_format_tile_layers_project) {
+		slot_layer_t_array_t *layers = raw->_->layers;
+		for (i32 i = 0; i + 1 < project_format_tile_layers->length; i += 2) {
+			i32 index = project_format_tile_layers->buffer[i];
+			i32 tile  = project_format_tile_layers->buffer[i + 1];
+			if (index < layers->length && util_udim_slot(tile) >= 0) {
+				layers_udim_place_tile(layers->buffer[index], tile);
+			}
+		}
+	}
+	project_format_reset_tile_layers();
+}
+
 // Upstream "23": layer object masks and atlas groups become object id sets in metas, every layer covers all tiles.
-// Name based udim tile objects (X.1001, ...) keep their objects, tile migration is phase B.
+// Name based udim projects get tile data from their object names (project_format_migrate_udim_names).
 project_t *import_arm_from_version_23(any_map_t *old) {
+	project_format_reset_tile_layers();
 	project_t *project = import_arm_from_map_to_arm(old);
 	project_format_set_defaults(project);
 	any_array_t *lds          = any_map_get(old, "layer_datas");
@@ -466,5 +630,6 @@ project_t *import_arm_from_version_23(any_map_t *old) {
 	for (i32 i = 0; lds != NULL && project->layer_datas != NULL && i < project->layer_datas->length && i < lds->length; ++i) {
 		project_format_convert_object_mask(old, project, i, object_count);
 	}
+	project_format_migrate_udim_names(old, project);
 	return project;
 }

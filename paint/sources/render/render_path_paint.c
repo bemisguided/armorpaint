@@ -134,7 +134,7 @@ void render_path_paint_draw_fullscreen_triangle() {
 	render_path_end();
 }
 
-// The merged mesh of the covered objects is painted, a udim tile-local layer paints its object
+// The merged mesh of the covered objects is painted, the paint object when there is no merged mesh
 mesh_object_t *render_path_paint_target() {
 	if (layers_paint_blocked()) {
 		return NULL;

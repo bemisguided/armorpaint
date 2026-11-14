@@ -94,6 +94,7 @@ void                   layers_merge_down();
 slot_layer_t          *layers_merge_group(slot_layer_t *l);
 void                   layers_merge_layer(slot_layer_t *l0, slot_layer_t *l1, bool use_mask);
 void                   layers_udim_relayout(i32_array_t *old_tiles, i32 old_stride);
+void                   layers_udim_place_tile(slot_layer_t *l, i32 tile);
 slot_layer_t          *layers_flatten(bool height_to_normal, slot_layer_t_array_t *layers);
 bool                   layers_coverage_applies(slot_layer_t *l, i32 object_filter, i32 tile_filter);
 bool                   layers_coverage_mask(slot_layer_t *l, i32 object_filter, i32 tile_filter);
@@ -1068,6 +1069,8 @@ void                      project_format_load_tiles(project_t *raw, i32 layer_re
 void                      project_format_load_append_tiles(project_t *project, any_array_t *mesh_datas);
 i16_array_t              *project_format_mesh_values(mesh_data_t *md, vertex_array_t *va);
 void                      project_format_set_defaults(project_t *raw);
+void                      project_format_reset_tile_layers();
+void                      project_format_load_tile_layers(project_t *raw);
 project_t                *project_format_decode(buffer_t *b);
 meta_t                   *meta_create();
 meta_t                   *meta_copy(meta_t *m);
