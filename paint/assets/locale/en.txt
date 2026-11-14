@@ -897,3 +897,4 @@ Show only the layers that cover this tile
 All objects
 All tiles
 All objects & tiles
+Not enough memory for the undo step, lower the resolution
