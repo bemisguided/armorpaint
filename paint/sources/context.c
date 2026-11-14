@@ -110,6 +110,7 @@ void context_init() {
 	g_context->particle_random              = 0.1;
 	g_context->particle_spawn_distance      = 0.0;
 	g_context->layer_filter_object          = 0;
+	g_context->layer_filter_tile            = 0;
 	g_context->gizmo_started                = false;
 	g_context->gizmo_offset                 = 0.0;
 	g_context->gizmo_drag                   = 0.0;

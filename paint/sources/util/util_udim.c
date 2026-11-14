@@ -1167,10 +1167,13 @@ bool slot_layer_tiles_differ(slot_layer_t *l, i32 *ids, i32 count, bool all) {
 	return _coverage_differs(slot_layer_all_tiles(l), slot_layer_tiles(l), ids, count, all);
 }
 
-// New layers made while the list is filtered only cover the filtered object
+// New layers made while the list is filtered only cover the filtered object or tile
 void slot_layer_coverage_from_filter(slot_layer_t *l) {
 	if (g_context->layer_filter_object > 0) {
 		slot_layer_set_objects(l, &g_context->layer_filter_object, 1, false);
+	}
+	else if (g_context->layer_filter_tile > 0 && util_udim_slot(g_context->layer_filter_tile) >= 0) {
+		slot_layer_set_tiles(l, &g_context->layer_filter_tile, 1, false);
 	}
 }
 

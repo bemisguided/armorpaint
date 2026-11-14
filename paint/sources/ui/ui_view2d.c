@@ -742,6 +742,25 @@ void ui_view2d_update(void *_) {
 			draw_set_color(0xffffffff);
 		}
 
+		// UDIM slot grid and tile ids, the atlas has stride x stride slots with 1001 at the top left
+		if (tex != NULL && util_udim_count() > 1 && (ui_view2d_type == VIEW_2D_TYPE_LAYER || ui_view2d_type == VIEW_2D_TYPE_UVMAP)) {
+			i32 stride = util_udim_stride();
+			u32 line   = (g_theme->TEXT_COL & 0x00ffffff) | 0x55000000;
+			draw_set_color(line);
+			for (i32 i = 0; i <= stride; ++i) {
+				draw_filled_rect(math_floor(tx + tw * i / (float)stride), ty, 1, th);
+				draw_filled_rect(tx, math_floor(ty + th * i / (float)stride), tw, 1);
+			}
+			draw_set_font(g_font, g_ui->font_size);
+			draw_set_color((g_theme->TEXT_COL & 0x00ffffff) | 0xaa000000);
+			for (i32 i = 0; i < util_udim_count(); ++i) {
+				f32 sx = tx + tw * (i % stride) / (float)stride;
+				f32 sy = ty + th * (i / stride) / (float)stride;
+				draw_string(string_tmp("%d", util_udim_tile(i)), sx + 4 * UI_SCALE(), sy + 2 * UI_SCALE());
+			}
+			draw_set_color(0xffffffff);
+		}
+
 		// Pixel grid
 		if (g_config->view2d_grid_show && tex != NULL) {
 			i32 cell  = g_config->view2d_grid_cell;
