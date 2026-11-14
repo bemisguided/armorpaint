@@ -771,7 +771,6 @@ Megbízik a projekt szkriptjeiben?
 Átmenet
 Csavarás
 Típus
-UDIM Csempe
 UI méretezés
 UV
 UV sziget
@@ -857,6 +856,11 @@ típus
 Névtelen
 x
 {shortcut} és egér mozgatása
+
+
+
+
+
 
 
 

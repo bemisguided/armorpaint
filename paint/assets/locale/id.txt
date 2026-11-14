@@ -771,7 +771,6 @@ Percayai skrip proyek?
 Tween
 Puntir
 Jenis
-Tile UDIM
 Skala UI
 UV
 Pulau UV
@@ -857,6 +856,11 @@ jenis
 tanpa judul
 x
 {shortcut} dan gerakkan mouse
+
+
+
+
+
 
 
 

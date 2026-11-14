@@ -36,14 +36,26 @@ void project_import_mesh_box_draw() {
 		    (void *[]){
 		        tr("Object"),
 		        tr("Material"),
-		        tr("UDIM Tile"),
 		    },
-		    3);
+		    2);
 		ui_text(tr("Split By"), UI_ALIGN_LEFT, 0);
 		ui_inline_radio((int *)&g_context->split_by, split_by_combo, UI_ALIGN_LEFT);
 		plugins_split_by = g_context->split_by;
 		if (g_ui->is_hovered) {
 			ui_tooltip(tr("Split mesh into objects"));
+		}
+
+		string_array_t *udim_combo = any_array_create_from_raw_tmp(
+		    (void *[]){
+		        tr("Auto"),
+		        tr("On"),
+		        tr("Off"),
+		    },
+		    3);
+		ui_text(tr("UDIM tiles"), UI_ALIGN_LEFT, 0);
+		ui_inline_radio((int *)&g_context->udim_import, udim_combo, UI_ALIGN_LEFT);
+		if (g_ui->is_hovered) {
+			ui_tooltip(tr("Auto uses tiles when the UVs span more than one tile and no triangle crosses a tile border"));
 		}
 	}
 
@@ -100,6 +112,8 @@ void project_import_mesh_box(char *path, bool replace_existing, bool clear_layer
 	_project_import_mesh_box_clear_layers     = clear_layers;
 	_project_import_mesh_box_keep_camera      = keep_camera;
 	_project_import_mesh_box_done             = done;
-	ui_box_show_custom(&project_import_mesh_box_draw, 400, 200, NULL, true, tr("Import Mesh"));
+
+	i32 h = (path_has_ext(path, "obj") || path_has_ext(path, "fbx")) ? 260 : 200;
+	ui_box_show_custom(&project_import_mesh_box_draw, 400, h, NULL, true, tr("Import Mesh"));
 	ui_box_click_to_hide = false; // Prevent closing when going back to window from file browser
 }

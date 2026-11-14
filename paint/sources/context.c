@@ -25,6 +25,7 @@ void context_init() {
 	g_context->format_quality               = 100.0;
 	g_context->layers_destination           = EXPORT_DESTINATION_DISK;
 	g_context->split_by                     = SPLIT_TYPE_OBJECT;
+	g_context->udim_import                  = UDIM_IMPORT_AUTO;
 	g_context->select_time                  = 0.0;
 	g_context->viewport_mode                = g_config->viewport_mode;
 	g_context->hscale_was_changed           = false;

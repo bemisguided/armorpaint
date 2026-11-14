@@ -447,6 +447,9 @@ static void json_buf_append(json_buf_t *j, const char *fmt, ...) {
 	j->len += (size_t)tl;
 }
 
+bool util_udim_has_tiles(mesh_data_t *md);
+void util_udim_vertex_uv(mesh_data_t *md, int i, float *u, float *v);
+
 void export_glb_run(char *path, any_array_t *paint_objects) {
 	int n = (int)paint_objects->length;
 
@@ -529,11 +532,16 @@ void export_glb_run(char *path, any_array_t *paint_objects) {
 			bin_len += 4;
 		}
 
-		// Texcoords (float32, VEC2)
+		// Texcoords (float32, VEC2), udim uvs from the tile-local uvs, never the runtime tex
 		tex_off[oi] = (uint32_t)bin_len;
+		bool udim   = util_udim_has_tiles(mesh);
 		for (int i = 0; i < vc; i++) {
 			float u = texa->buffer[i * 2 + 0] * inv;
 			float v = texa->buffer[i * 2 + 1] * inv;
+			if (udim) {
+				util_udim_vertex_uv(mesh, i, &u, &v);
+				v = 1.0f - v;
+			}
 			if (bin_len + 8 > bin_cap) {
 				bin_cap *= 2;
 				bin = (uint8_t *)realloc(bin, bin_cap);

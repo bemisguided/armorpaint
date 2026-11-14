@@ -19,9 +19,8 @@ typedef struct raw_mesh {
 	char             *name;
 	bool              has_next; // File contains multiple objects
 	uint64_t          pos;
-	struct any_array *udims;   // u32_array_t[] - Indices split per udim tile
-	int               udims_u; // Number of horizontal udim tiles
-	int               udims_v;
+	struct i16_array *tilea;         // Per vertex udim tile index (id - 1001), NULL = every vertex in 1001
+	struct f32_array *uva;           // obj_parse with keep_uvs: per corner uvs (udim space), texa is not written and vertices are not welded yet
 	void             *vertex_arrays; // vertex_array_t[]
 	struct u32_array *index_array;
 	struct u8_array  *blob; // Source file bytes
@@ -29,5 +28,6 @@ typedef struct raw_mesh {
 
 extern bool obj_parse_y_to_z_up;
 
-raw_mesh_t *obj_parse(buffer_t *file_bytes, char split_code, uint64_t start_pos, bool udim);
+raw_mesh_t *obj_parse(buffer_t *file_bytes, char split_code, uint64_t start_pos, bool keep_uvs);
+void        obj_weld(raw_mesh_t *part);
 void        obj_destroy(raw_mesh_t *part);

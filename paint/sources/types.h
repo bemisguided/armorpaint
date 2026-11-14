@@ -290,6 +290,7 @@ typedef struct context {
 	bool                        export_padding;
 	bool                        bake_create_material;
 	split_type_t                split_by;
+	udim_import_t               udim_import;
 	f64                         select_time;
 	viewport_mode_t             viewport_mode;
 	void                       *viewport_shader;

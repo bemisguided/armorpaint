@@ -133,6 +133,7 @@ void export_obj_run(char *path, mesh_object_t_array_t *paint_objects) {
 		i16_array_t   *texa = mesh->vertex_arrays->buffer[2]->values;
 		i32            len  = math_floor(posa->length / 4.0);
 		i32            size = len > 0 ? len : 1;
+		bool           udim = util_udim_has_tiles(mesh); // Udim uvs from the tile-local uvs, never the runtime tex
 
 		// Merge shared vertices and remap indices
 		u64 *keys   = malloc(size * sizeof(u64));
@@ -148,8 +149,14 @@ void export_obj_run(char *path, mesh_object_t_array_t *paint_objects) {
 		for (i32 j = 0; j < len; ++j)
 			keys[j] = export_obj_key(nora->buffer[j * 2], nora->buffer[j * 2 + 1], posa->buffer[j * 4 + 3]);
 		i32 ni = export_obj_dedupe(keys, len, normap, norfst);
-		for (i32 j = 0; j < len; ++j)
-			keys[j] = export_obj_key(texa->buffer[j * 2], texa->buffer[j * 2 + 1], 0);
+		for (i32 j = 0; j < len; ++j) {
+			if (udim) {
+				keys[j] = export_obj_key(mesh->_->udim_tex->buffer[j * 2], mesh->_->udim_tex->buffer[j * 2 + 1], mesh->_->udim_tile->buffer[j]);
+			}
+			else {
+				keys[j] = export_obj_key(texa->buffer[j * 2], texa->buffer[j * 2 + 1], 0);
+			}
+		}
 		i32 ti = export_obj_dedupe(keys, len, texmap, texfst);
 
 		export_obj_write_string(o, "o ");
@@ -165,7 +172,15 @@ void export_obj_run(char *path, mesh_object_t_array_t *paint_objects) {
 		}
 		for (i32 j = 0; j < ti; ++j) {
 			i32 v = texfst[j];
-			export_obj_write_vec(o, "vt ", texa->buffer[v * 2] * inv, 1.0 - texa->buffer[v * 2 + 1] * inv, 0.0, false);
+			if (udim) {
+				f32 u;
+				f32 vv;
+				util_udim_vertex_uv(mesh, v, &u, &vv);
+				export_obj_write_vec(o, "vt ", u, vv, 0.0, false);
+			}
+			else {
+				export_obj_write_vec(o, "vt ", texa->buffer[v * 2] * inv, 1.0 - texa->buffer[v * 2 + 1] * inv, 0.0, false);
+			}
 		}
 
 		u32_array_t *inda = mesh->index_array;
@@ -320,9 +335,13 @@ void export_obj_run_sculpt(char *path, mesh_object_t_array_t *paint_objects) {
 		export_obj_write_vec(o, "vn ", nx, nz, -ny, true);
 	}
 
+	bool udim = util_udim_has_tiles(mesh);
 	for (i32 i = 0; i < nv; ++i) {
 		f32 u = texa->buffer[i * 2] * inv;
 		f32 v = 1.0 - texa->buffer[i * 2 + 1] * inv;
+		if (udim) {
+			util_udim_vertex_uv(mesh, i, &u, &v);
+		}
 		export_obj_write_vec(o, "vt ", u, v, 0.0, false);
 	}
 

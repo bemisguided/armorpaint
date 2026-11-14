@@ -15,6 +15,187 @@ i32 util_udim_tile(i32 slot) {
 	return 1001;
 }
 
+// Tile extraction at import (obj, fbx). A triangle takes the tile under its uv centroid (u in 0..10, v >= 0, outside clamps),
+// its corners get uvs local to that tile. Corners outside the tile (by more than UTIL_UDIM_EPS) cross a tile border and are clamped.
+// Uvs are per corner and vertices are not shared yet, so a vertex on a tile border becomes one vertex per tile.
+
+#define UTIL_UDIM_EPS 1e-4f
+
+static i32  util_udim_scan_first     = -1;
+static bool util_udim_scan_multi     = false;
+static i32  util_udim_scan_straddles = 0;
+
+static void _util_udim_triangle_tile(f32 *uv, i32 *tu, i32 *tv) {
+	f32 cu = (uv[0] + uv[2] + uv[4]) / 3.0f;
+	f32 cv = (uv[1] + uv[3] + uv[5]) / 3.0f;
+	*tu    = !(cu >= 0.0f) ? 0 : cu >= 10.0f ? 9 : (i32)cu;
+	*tv    = !(cv >= 0.0f) ? 0 : cv >= 100.0f ? 99 : (i32)cv;
+}
+
+static bool _util_udim_triangle_straddles(f32 *uv, i32 tu, i32 tv) {
+	for (i32 k = 0; k < 3; ++k) {
+		f32 u = uv[k * 2] - tu;
+		f32 v = uv[k * 2 + 1] - tv;
+		if (!(u >= -UTIL_UDIM_EPS && u <= 1.0f + UTIL_UDIM_EPS && v >= -UTIL_UDIM_EPS && v <= 1.0f + UTIL_UDIM_EPS)) {
+			return true;
+		}
+	}
+	return false;
+}
+
+// Tiles are decided over a whole imported file: begin, scan the uvs of every mesh, end
+void util_udim_scan_begin() {
+	util_udim_scan_first     = -1;
+	util_udim_scan_multi     = false;
+	util_udim_scan_straddles = 0;
+}
+
+// uv: per corner, three corners per triangle
+void util_udim_scan(f32 *uv, i32 corners) {
+	for (i32 i = 0; uv != NULL && i + 2 < corners; i += 3) {
+		i32 tu;
+		i32 tv;
+		_util_udim_triangle_tile(uv + i * 2, &tu, &tv);
+		i32 tile = tu + tv * 10;
+		if (util_udim_scan_first < 0) {
+			util_udim_scan_first = tile;
+		}
+		else if (tile != util_udim_scan_first) {
+			util_udim_scan_multi = true;
+		}
+		if (_util_udim_triangle_straddles(uv + i * 2, tu, tv)) {
+			util_udim_scan_straddles++;
+		}
+	}
+}
+
+// Whether the scanned file is imported with tiles (UDIM tiles import option)
+bool util_udim_scan_end() {
+	udim_import_t mode  = g_context->udim_import;
+	bool          tiles = mode == UDIM_IMPORT_ON || (mode == UDIM_IMPORT_AUTO && util_udim_scan_multi && util_udim_scan_straddles == 0);
+	if (tiles && util_udim_scan_straddles > 0) {
+		any_map_t *vars = any_map_create();
+		any_map_set(vars, "count", i32_to_string(util_udim_scan_straddles));
+		console_info(vtr("{count} triangles cross UDIM tile borders and were clamped", vars));
+		map_free(vars);
+	}
+	return tiles;
+}
+
+// Writes raw->texa from per corner uvs (three corners per triangle, vertices not shared yet).
+// With tiles texa is tile-local and raw->tilea holds the tile index per vertex (NULL when every triangle is in 1001),
+// without tiles uvs above 1 wrap into 0..1 as the obj importer always did.
+void util_udim_split_raw(raw_mesh_t *raw, f32 *uv, i32 corners, bool tiles) {
+	if (uv == NULL) {
+		return;
+	}
+	i16_array_t *texa = i16_array_create(corners * 2);
+	if (!tiles) {
+		for (i32 i = 0; i < corners; ++i) {
+			float uvx = uv[i * 2];
+			if (uvx > 1.0) {
+				uvx = uvx - (int)(uvx);
+			}
+			float uvy = uv[i * 2 + 1];
+			if (uvy > 1.0) {
+				uvy = uvy - (int)(uvy);
+			}
+			texa->buffer[i * 2]     = (int)(uvx * 32767);
+			texa->buffer[i * 2 + 1] = (int)((1.0 - uvy) * 32767);
+		}
+	}
+	else {
+		i16_array_t *tilea = i16_array_create(corners);
+		bool         any   = false;
+		for (i32 i = 0; i < corners; i += 3) {
+			i32 n  = corners - i < 3 ? corners - i : 3;
+			i32 tu = 0;
+			i32 tv = 0;
+			if (n == 3) {
+				_util_udim_triangle_tile(uv + i * 2, &tu, &tv);
+			}
+			for (i32 k = i; k < i + n; ++k) {
+				f32 u                   = uv[k * 2] - tu;
+				f32 v                   = uv[k * 2 + 1] - tv;
+				u                       = u < 0.0f ? 0.0f : u > 1.0f ? 1.0f : u;
+				v                       = v < 0.0f ? 0.0f : v > 1.0f ? 1.0f : v;
+				texa->buffer[k * 2]     = (int)(u * 32767);
+				texa->buffer[k * 2 + 1] = (int)((1.0 - v) * 32767);
+				tilea->buffer[k]        = tu + tv * 10;
+			}
+			any = any || tu + tv * 10 != 0;
+		}
+		array_delete(raw->tilea);
+		raw->tilea = NULL;
+		if (any) {
+			raw->tilea = tilea;
+		}
+		else {
+			array_delete(tilea);
+		}
+	}
+	array_delete(raw->texa);
+	raw->texa = texa;
+}
+
+// Tile data of a mesh: tile-local uvs (udim_tex) and the tile index per vertex (udim_tile), both or neither
+bool util_udim_has_tiles(mesh_data_t *md) {
+	if (md == NULL || md->_ == NULL || md->_->udim_tex == NULL || md->_->udim_tile == NULL) {
+		return false;
+	}
+	vertex_array_t *tex = mesh_data_get_vertex_array(md, "tex");
+	return tex != NULL && md->_->udim_tex->length == tex->values->length && md->_->udim_tile->length * 2 == tex->values->length;
+}
+
+void util_udim_clear(mesh_data_t *md) {
+	array_delete(md->_->udim_tex);
+	array_delete(md->_->udim_tile);
+	md->_->udim_tex  = NULL;
+	md->_->udim_tile = NULL;
+}
+
+// Takes ownership of tile; tex is tile-local while the project has a single tile slot, so udim_tex is a copy of it
+void util_udim_set(mesh_data_t *md, i16_array_t *tile) {
+	util_udim_clear(md);
+	vertex_array_t *tex = mesh_data_get_vertex_array(md, "tex");
+	if (tile == NULL || tex == NULL || tile->length * 2 != tex->values->length) {
+		array_delete(tile);
+		return;
+	}
+	md->_->udim_tile = tile;
+	md->_->udim_tex  = i16_array_create_from_array(tex->values);
+}
+
+// Moves the tile data of an imported mesh into its runtime
+void util_udim_take_raw(mesh_data_t *md, raw_mesh_t *raw) {
+	if (raw->tilea != NULL) {
+		util_udim_set(md, raw->tilea);
+		raw->tilea = NULL;
+	}
+}
+
+// tex was edited in place (uv editor): tex is tile-local while the project has a single tile slot
+void util_udim_tex_changed(mesh_data_t *md) {
+	if (md->_->udim_tex == NULL) {
+		return;
+	}
+	vertex_array_t *tex = mesh_data_get_vertex_array(md, "tex");
+	if (tex != NULL && tex->values->length == md->_->udim_tex->length) {
+		memcpy(md->_->udim_tex->buffer, tex->values->buffer, tex->values->length * sizeof(i16));
+	}
+	else {
+		util_udim_clear(md);
+	}
+}
+
+// Udim uv of vertex i for mesh export (tile-local uv + tile offset, v up as in obj), the mesh must have tile data
+void util_udim_vertex_uv(mesh_data_t *md, i32 i, f32 *u, f32 *v) {
+	f32 inv  = 1 / 32767.0;
+	i32 tile = md->_->udim_tile->buffer[i];
+	*u       = md->_->udim_tex->buffer[i * 2] * inv + tile % 10;
+	*v       = 1.0 - md->_->udim_tex->buffer[i * 2 + 1] * inv + tile / 10;
+}
+
 mesh_object_t *project_object_by_id(i32 paint_id) {
 	for (i32 i = 0; paint_id > 0 && i < g_project->_->paint_objects->length; ++i) {
 		mesh_object_t *o = g_project->_->paint_objects->buffer[i];

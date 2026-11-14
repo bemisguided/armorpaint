@@ -175,18 +175,6 @@ static void next_line() {
 	}
 }
 
-static int get_tile(int i1, int i2, int i3, i32_array_t *uv_indices, int tiles_u) {
-	float u1     = uv_temp.buffer[uv_indices->buffer[i1] * 2];
-	float v1     = uv_temp.buffer[uv_indices->buffer[i1] * 2 + 1];
-	float u2     = uv_temp.buffer[uv_indices->buffer[i2] * 2];
-	float v2     = uv_temp.buffer[uv_indices->buffer[i2] * 2 + 1];
-	float u3     = uv_temp.buffer[uv_indices->buffer[i3] * 2];
-	float v3     = uv_temp.buffer[uv_indices->buffer[i3] * 2 + 1];
-	int   tile_u = (int)((u1 + u2 + u3) / 3);
-	int   tile_v = (int)((v1 + v2 + v3) / 3);
-	return tile_u + tile_v * tiles_u;
-}
-
 static bool pnpoly(float v0x, float v0y, float v1x, float v1y, float v2x, float v2y, float px, float py) {
 	// https://wrf.ecse.rpi.edu//Research/Short_Notes/pnpoly.html
 	bool c = false;
@@ -226,7 +214,8 @@ static void obj_shrink(i16_array_t *a, int length) {
 	a->buffer               = realloc(a->buffer, length * sizeof(int16_t));
 }
 
-static void obj_weld(raw_mesh_t *part) {
+// Merges vertices with equal position, normal, uv and udim tile, so vertices on a tile border stay split
+void obj_weld(raw_mesh_t *part) {
 	int n = part->vertex_count;
 	if (n == 0) {
 		return;
@@ -234,6 +223,7 @@ static void obj_weld(raw_mesh_t *part) {
 	int16_t  *pa  = part->posa->buffer;
 	int16_t  *na  = part->nora->buffer;
 	int16_t  *ta  = part->texa != NULL ? part->texa->buffer : NULL;
+	int16_t  *ga  = part->tilea != NULL ? part->tilea->buffer : NULL;
 	uint32_t *ind = part->inda->buffer;
 
 	uint32_t cap = 1;
@@ -248,12 +238,13 @@ static void obj_weld(raw_mesh_t *part) {
 		uint64_t p;
 		uint32_t q;
 		uint32_t t = 0;
+		uint16_t g = ga != NULL ? (uint16_t)ga[i] : 0;
 		memcpy(&p, pa + i * 4, 8);
 		memcpy(&q, na + i * 2, 4);
 		if (ta != NULL) {
 			memcpy(&t, ta + i * 2, 4);
 		}
-		uint64_t h = p * 0x9E3779B97F4A7C15ull ^ (((uint64_t)q << 32) | t) * 0xC2B2AE3D27D4EB4Full;
+		uint64_t h = p * 0x9E3779B97F4A7C15ull ^ (((uint64_t)q << 32) | t) * 0xC2B2AE3D27D4EB4Full ^ (uint64_t)g * 0x165667B19E3779F9ull;
 		h ^= h >> 29;
 		uint32_t s = (uint32_t)h & (cap - 1);
 		while (true) {
@@ -265,18 +256,22 @@ static void obj_weld(raw_mesh_t *part) {
 				if (ta != NULL) {
 					memmove(ta + count * 2, ta + i * 2, 4);
 				}
+				if (ga != NULL) {
+					ga[count] = ga[i];
+				}
 				remap[i] = count++;
 				break;
 			}
 			uint64_t p2;
 			uint32_t q2;
 			uint32_t t2 = 0;
+			uint16_t g2 = ga != NULL ? (uint16_t)ga[e] : 0;
 			memcpy(&p2, pa + e * 4, 8);
 			memcpy(&q2, na + e * 2, 4);
 			if (ta != NULL) {
 				memcpy(&t2, ta + e * 2, 4);
 			}
-			if (p2 == p && q2 == q && t2 == t) {
+			if (p2 == p && q2 == q && t2 == t && g2 == g) {
 				remap[i] = e;
 				break;
 			}
@@ -288,14 +283,6 @@ static void obj_weld(raw_mesh_t *part) {
 	for (int i = 0; i < part->inda->length; ++i) {
 		ind[i] = remap[ind[i]];
 	}
-	if (part->udims != NULL) {
-		for (int i = 0; i < part->udims->length; ++i) {
-			u32_array_t *a = part->udims->buffer[i];
-			for (int j = 0; j < a->length; ++j) {
-				a->buffer[j] = remap[a->buffer[j]];
-			}
-		}
-	}
 	free(remap);
 
 	part->vertex_count = count;
@@ -304,10 +291,14 @@ static void obj_weld(raw_mesh_t *part) {
 	if (ta != NULL) {
 		obj_shrink(part->texa, count * 2);
 	}
+	if (ga != NULL) {
+		obj_shrink(part->tilea, count);
+	}
 }
 
 // 'o' for object split, 'g' for groups, 'u'semtl for materials
-raw_mesh_t *obj_parse(buffer_t *file_bytes, char split_code, uint64_t start_pos, bool udim) {
+// keep_uvs: store per corner uvs in uva and leave texa and welding to the caller (texa from uva, then obj_weld)
+raw_mesh_t *obj_parse(buffer_t *file_bytes, char split_code, uint64_t start_pos, bool keep_uvs) {
 	bytes        = file_bytes->buffer;
 	bytes_length = file_bytes->length;
 
@@ -315,8 +306,6 @@ raw_mesh_t *obj_parse(buffer_t *file_bytes, char split_code, uint64_t start_pos,
 	part->scale_pos = 1.0;
 	part->scale_tex = 1.0;
 	part->pos       = start_pos;
-	part->udims_u   = 1;
-	part->udims_v   = 1;
 	part->name      = string_copy(str);
 
 	i32_array_t pos_indices = {0};
@@ -533,9 +522,7 @@ raw_mesh_t *obj_parse(buffer_t *file_bytes, char split_code, uint64_t start_pos,
 				part->pos += 5; // "u"semtl
 			}
 			skip_whitespace();
-			if (!udim) {
-				reading_object = true;
-			}
+			reading_object = true;
 			free(part->name);
 			part->name = string_copy(read_string());
 		}
@@ -625,69 +612,14 @@ raw_mesh_t *obj_parse(buffer_t *file_bytes, char split_code, uint64_t start_pos,
 		}
 	}
 
-	if (uv_indices.length > 0) {
-		if (udim) {
-			// Find number of tiles
-			int tiles_u = 1;
-			int tiles_v = 1;
-			for (int i = 0; i < (int)(uv_temp.length / 2); ++i) {
-				while (uv_temp.buffer[i * 2] > tiles_u)
-					tiles_u++;
-				while (uv_temp.buffer[i * 2 + 1] > tiles_v)
-					tiles_v++;
-			}
-
-			// Amount of indices pre tile
-			uint32_t *num = (uint32_t *)malloc(tiles_u * tiles_v * sizeof(uint32_t));
-			memset(num, 0, tiles_u * tiles_v * sizeof(uint32_t));
-			for (int i = 0; i < (int)(inda_length / 3); ++i) {
-				int tile = get_tile(part->inda->buffer[i * 3], part->inda->buffer[i * 3 + 1], part->inda->buffer[i * 3 + 2], &uv_indices, tiles_u);
-				num[tile] += 3;
-			}
-
-			// Split indices per tile
-			part->udims   = any_array_create(tiles_u * tiles_v);
-			part->udims_u = tiles_u;
-			part->udims_v = tiles_v;
-			for (int i = 0; i < tiles_u * tiles_v; ++i) {
-				part->udims->buffer[i] = u32_array_create(num[i]);
-				num[i]                 = 0;
-			}
-
-			for (int i = 0; i < (int)(inda_length / 3); ++i) {
-				int          i1        = part->inda->buffer[i * 3];
-				int          i2        = part->inda->buffer[i * 3 + 1];
-				int          i3        = part->inda->buffer[i * 3 + 2];
-				int          tile      = get_tile(i1, i2, i3, &uv_indices, tiles_u);
-				u32_array_t *a         = part->udims->buffer[tile];
-				a->buffer[num[tile]++] = i1;
-				a->buffer[num[tile]++] = i2;
-				a->buffer[num[tile]++] = i3;
-			}
-
-			// Normalize uvs to 0-1 range
-			int16_t *uvtiles = (int16_t *)malloc(uv_temp.length * sizeof(int16_t));
-			for (int i = 0; i < (int)(inda_length / 3); ++i) { // TODO: merge loops
-				int i1                                 = part->inda->buffer[i * 3];
-				int i2                                 = part->inda->buffer[i * 3 + 1];
-				int i3                                 = part->inda->buffer[i * 3 + 2];
-				int tile                               = get_tile(i1, i2, i3, &uv_indices, tiles_u);
-				int tile_u                             = tile % tiles_u;
-				int tile_v                             = (int)(tile / tiles_u);
-				uvtiles[uv_indices.buffer[i1] * 2]     = tile_u;
-				uvtiles[uv_indices.buffer[i1] * 2 + 1] = tile_v;
-				uvtiles[uv_indices.buffer[i2] * 2]     = tile_u;
-				uvtiles[uv_indices.buffer[i2] * 2 + 1] = tile_v;
-				uvtiles[uv_indices.buffer[i3] * 2]     = tile_u;
-				uvtiles[uv_indices.buffer[i3] * 2 + 1] = tile_v;
-			}
-			for (int i = 0; i < uv_temp.length; ++i) {
-				uv_temp.buffer[i] -= uvtiles[i];
-			}
-			free(uvtiles);
-			free(num);
+	if (uv_indices.length > 0 && keep_uvs) {
+		part->uva = f32_array_create(uv_indices.length * 2);
+		for (int i = 0; i < uv_indices.length; ++i) {
+			part->uva->buffer[i * 2]     = uv_temp.buffer[uv_indices.buffer[i] * 2];
+			part->uva->buffer[i * 2 + 1] = uv_temp.buffer[uv_indices.buffer[i] * 2 + 1];
 		}
-
+	}
+	else if (uv_indices.length > 0) {
 		part->texa         = calloc(sizeof(i16_array_t), 1);
 		part->texa->length = part->texa->capacity = uv_indices.length * 2;
 		part->texa->buffer                        = malloc(part->texa->capacity * sizeof(int16_t));
@@ -706,7 +638,9 @@ raw_mesh_t *obj_parse(buffer_t *file_bytes, char split_code, uint64_t start_pos,
 		}
 	}
 
-	obj_weld(part);
+	if (!keep_uvs) {
+		obj_weld(part);
+	}
 
 	bytes = NULL;
 	if (!part->has_next) {
@@ -723,13 +657,6 @@ raw_mesh_t *obj_parse(buffer_t *file_bytes, char split_code, uint64_t start_pos,
 }
 
 void obj_destroy(raw_mesh_t *part) {
-	// if (part->udims != NULL) {
-	// 	for (int i = 0; i < part->udims_u * part->udims_v; ++i) {
-	// 		free(part->udims[i]);
-	// 	}
-	// 	free(part->udims);
-	// }
-
 	free(part->posa);
 	free(part->nora);
 	free(part->texa);

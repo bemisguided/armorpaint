@@ -771,7 +771,6 @@ Důvěřovat skriptům projektu?
 Prolnutí
 Zkroutit
 Typ
-UDIM dlaždice
 Měřítko rozhraní
 UV
 UV ostrov
@@ -857,6 +856,11 @@ typ
 bez názvu
 x
 {shortcut} a pohyb myší
+
+
+
+
+
 
 
 
