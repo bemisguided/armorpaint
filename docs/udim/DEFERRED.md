@@ -17,6 +17,10 @@ Things deliberately left out of the `feat/udim-object-tile-selection` branch. Co
 - **Join UDIM tile objects.** Old name-based UDIM projects load with their objects `X.1001`, `X.1002`, ... as ordinary objects that each sit on their tile. A Meshes menu action that joins every `X.1xxx` group into one object `X` is not built; selecting the objects and using Merge Geometry does the same by hand (union rule for layer object lists, tile data kept). Also not migrated: timeline layer keyframes of tile-local layers, and group masks over tile-local layers (left in atlas space).
 - **Mesh-nodes object index** (`mesh_nodes_objects`, one paint object index per mesh-node canvas) stays positional, so deleting or reordering objects can re-point a canvas. Converting it to persistent object ids is about 15 lines in `nodes_mesh.c` plus the save field, and is cheapest while the save format is being changed.
 
+## Ideas from round 3 testing (2026-11-14, not built)
+- **Tiles view becomes a UV view.** The Meshes `Objects | Tiles` toggle could be a UV view: list UDIM tiles with their objects, or objects with their tiles. It would also work in non-UDIM projects, to see each object's UVs. It could double as navigation: click a tile to show its area in the 2D view. This is where the per-object tile information removed from the Meshes row tooltips and the Resolution line (`N tiles, atlas X px, about Y MB`) would live.
+- **Tooltip principle.** Tooltips stay static and short. They show extra text only to flag a problem (covers nothing, UV overlap). Same for the Resolution combo: no running status line, only the clamp warning.
+
 ## Reusable from `archive/custom-name-based-udim`
 - Resolution helpers and call-site swaps, and the native-size export crop (`8a18795bc`). Not its layer rescale.
 - Bake plugin tile crop and import helper (`abde6fde8`).
