@@ -51,17 +51,19 @@ bool util_udim_active() {
 	return util_udim_count() > 1 || util_udim_tile(0) != 1001;
 }
 
-// Per tile resolution, the configured one unless the atlas would pass the max side
-i32 util_udim_tile_res_x() {
-	i32 max = UTIL_UDIM_MAX_SIDE / util_udim_stride();
-	i32 res = config_get_texture_res_x();
+// A requested per tile side, lowered when the atlas (side x stride) would pass max_side
+i32 util_udim_tile_side(i32 res, i32 max_side) {
+	i32 max = max_side / util_udim_stride();
 	return res < max ? res : max;
 }
 
+// Per tile resolution, the configured one unless the atlas would pass the max side
+i32 util_udim_tile_res_x() {
+	return util_udim_tile_side(config_get_texture_res_x(), UTIL_UDIM_MAX_SIDE);
+}
+
 i32 util_udim_tile_res_y() {
-	i32 max = UTIL_UDIM_MAX_SIDE / util_udim_stride();
-	i32 res = config_get_texture_res_y();
-	return res < max ? res : max;
+	return util_udim_tile_side(config_get_texture_res_y(), UTIL_UDIM_MAX_SIDE);
 }
 
 // Atlas size, the configured resolution when the project has one slot
