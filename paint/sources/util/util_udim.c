@@ -440,8 +440,11 @@ void util_udim_relayout(i32_array_t *tiles) {
 }
 
 // Meshes just imported (tex tile-local, tile data or none for all in 1001) join the project layout.
-// fresh: the import replaced the project and cleared its layers, the list becomes exactly the imported tiles.
-void util_udim_import_meshes(any_array_t *mds, bool fresh) {
+// replace: the import replaced every mesh of the project (fresh import or Reimport Mesh), the list becomes exactly the tiles
+// the imported meshes use, so tiles of the previous meshes do not linger. Otherwise (append) the tiles are added to the list.
+// cleared: the replacing import also cleared the layers, they are resized instead of relaid out.
+void util_udim_import_meshes(any_array_t *mds, bool replace, bool cleared) {
+	bool fresh = replace && cleared;
 	i32_array_t *ids = i32_array_create(0);
 	for (i32 i = 0; i < mds->length; ++i) {
 		mesh_data_t *md = mds->buffer[i];
@@ -461,7 +464,7 @@ void util_udim_import_meshes(any_array_t *mds, bool fresh) {
 
 	// The list the import leads to, meshes without tiles need tile data unless it is the single tile 1001
 	bool active = false;
-	if (fresh) {
+	if (replace) {
 		active = ids->length > 1 || (ids->length == 1 && ids->buffer[0] != 1001);
 	}
 	else {
@@ -499,6 +502,25 @@ void util_udim_import_meshes(any_array_t *mds, bool fresh) {
 			util_udim_apply_layout(mds->buffer[i]);
 		}
 		_util_udim_warn_clamped();
+	}
+	else if (replace) {
+		// Layers kept: tiles in both lists keep their pixels, tiles only the previous meshes used are dropped
+		bool same = ids->length == util_udim_count();
+		for (i32 i = 0; i < ids->length && same; ++i) {
+			same = util_udim_slot(ids->buffer[i]) >= 0;
+		}
+		if (same) {
+			for (i32 i = 0; i < mds->length; ++i) {
+				util_udim_apply_layout(mds->buffer[i]);
+			}
+		}
+		else {
+			// Every mesh carries tile data before the relayout, else it would be derived from its tile-local uvs as if they were atlas uvs
+			for (i32 i = 0; i < mds->length; ++i) {
+				util_udim_set_default(mds->buffer[i]);
+			}
+			util_udim_relayout(ids);
+		}
 	}
 	else {
 		i32 count = util_udim_count();

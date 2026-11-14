@@ -1092,7 +1092,7 @@ bool                      util_udim_tile_used(i32 tile);
 void                      util_udim_tiles_add(i32_array_t *ids);
 void                      util_udim_tile_remove(i32 tile);
 void                      util_udim_relayout(i32_array_t *tiles);
-void                      util_udim_import_meshes(any_array_t *mds, bool fresh);
+void                      util_udim_import_meshes(any_array_t *mds, bool replace, bool cleared);
 void                      util_udim_apply_layout_loaded();
 void                      util_udim_scan_begin();
 void                      util_udim_scan(f32 *uv, i32 corners);
