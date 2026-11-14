@@ -1421,8 +1421,7 @@ void tab_layers_draw_edit() {
 	        tr("Custom"),
 	    },
 	    5);
-	bool udim = util_udim_count() > 1;
-	ui_combo(&base_res, ar, udim ? tr("Resolution (per tile)") : tr("Resolution"), true, UI_ALIGN_LEFT, true);
+	ui_combo(&base_res, ar, tr("Resolution"), true, UI_ALIGN_LEFT, true);
 	if (ui_item_changed()) {
 		ui_menu_show_first = true;
 		config_set_texture_res(base_res);
@@ -1452,7 +1451,7 @@ void tab_layers_draw_edit() {
 		}
 	}
 
-	if (udim) {
+	if (util_udim_count() > 1) {
 		any_map_t *vars = any_map_create();
 		any_map_set(vars, "tiles", string_tmp("%d", util_udim_count()));
 		any_map_set(vars, "atlas", string_tmp("%d", util_udim_res_x()));
