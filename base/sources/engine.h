@@ -91,6 +91,8 @@ typedef struct mesh_data_runtime {
 	i32                    skin_pending_frame; // Frame to pose at once back in view
 	bool                   skin_pending;
 	bool                   owns_arrays;
+	i16_array_t           *udim_tex;  // Tile-local uvs (same encoding as tex), NULL = no udim tile data
+	i16_array_t           *udim_tile; // Udim tile index per vertex (id - 1001), NULL = no udim tile data
 } mesh_data_runtime_t;
 
 typedef struct mesh_data {

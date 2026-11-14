@@ -771,7 +771,6 @@ Confiar nos scripts do projeto?
 Interpolar
 Torcer
 Tipo
-Telha UDIM
 Escala da Interface
 UV
 Ilha UV
@@ -857,6 +856,11 @@ tipo
 sem título
 x
 {shortcut} e mover mouse
+
+
+
+
+
 
 
 

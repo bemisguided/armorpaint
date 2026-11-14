@@ -771,7 +771,6 @@ Zaufać skryptom projektu?
 Interpolacja
 Skręć
 Typ
-Kafel UDIM
 Skala UI
 UV
 Wyspa UV
@@ -857,6 +856,11 @@ typ
 bez tytułu
 x
 {shortcut} i poruszaj myszą
+
+
+
+
+
 
 
 

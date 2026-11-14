@@ -771,7 +771,6 @@ Módulo truncado
 Interpolar
 Torcer
 Tipo
-Cuadro UDIM
 Escala de Interfaz
 UV
 Isla UV
@@ -857,6 +856,11 @@ tipo
 Sin título
 x
 {shortcut} y mover ratón
+
+
+
+
+
 
 
 

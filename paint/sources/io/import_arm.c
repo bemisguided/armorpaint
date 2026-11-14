@@ -982,6 +982,7 @@ void import_arm_run_project(char *path) {
 		any_array_push(g_project->_->paint_objects, object);
 	}
 	project_format_load_object_ids(g_project);
+	project_format_load_mesh_tiles(g_project);
 
 	transform_set_matrix(g_context->paint_object->base->transform, mat4_from_f32_array(g_project->mesh_transforms->buffer[0], 0));
 	for (i32 i = 1; i < g_project->mesh_datas->length; ++i) {

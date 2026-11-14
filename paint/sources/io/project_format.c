@@ -19,8 +19,11 @@
 // ignores entries of unknown categories or out of range indices. Unknown key ids are kept as they are.
 // An empty list is written as an empty array. Entry maps always list every meta_t field in order (armpack sizes an array of
 // maps from its first element), NULL arrays encode as null and i32 array values as an array of arrays.
+// Udim: udim_tiles is the project tile list, mesh_tiles[i] the tile index per vertex of paint object i (empty = none, linked
+// duplicates store none), and the "tex" vertex array of mesh_datas always holds tile-local uvs, never the runtime atlas uvs.
 
 static i16_array_t     project_format_no_tiles    = {0};  // Mesh with no tile data, every vertex is in 1001
+static any_array_t    *project_format_saved_tiles = NULL; // Copies of the tile arrays project_t.mesh_tiles points to since the last save
 static i32_array_t     project_format_no_values   = {0};  // i32 array value of a key that has none
 static meta_t_array_t *project_format_saved_metas = NULL; // List project_t.metas points to since the last save
 
@@ -150,6 +153,29 @@ void project_format_save_prep(project_t *raw) {
 	}
 	raw->next_object_id = raw->_->next_object_id;
 	project_format_reset_tiles(raw, objects->length);
+
+	// Copies, so project_t never points into runtime arrays that are freed with their mesh
+	for (i32 i = 0; project_format_saved_tiles != NULL && i < project_format_saved_tiles->length; ++i) {
+		array_delete(project_format_saved_tiles->buffer[i]);
+	}
+	array_delete(project_format_saved_tiles);
+	project_format_saved_tiles = any_array_create(0);
+	for (i32 i = 0; i < objects->length; ++i) {
+		mesh_data_t *md = objects->buffer[i]->data;
+		if (util_mesh_data_owner(md) == i && util_udim_has_tiles(md)) { // Linked duplicates store no tiles
+			i16_array_t *tiles = i16_array_create_from_array(md->_->udim_tile);
+			any_array_push(project_format_saved_tiles, tiles);
+			raw->mesh_tiles->buffer[i] = tiles;
+		}
+	}
+}
+
+// util_encode_mesh_datas: the values written for a vertex array, tile-local uvs for "tex"
+i16_array_t *project_format_mesh_values(mesh_data_t *md, vertex_array_t *va) {
+	if (string_equals(va->attrib, "tex") && util_udim_has_tiles(md)) {
+		return md->_->udim_tex;
+	}
+	return va->values;
 }
 
 static bool project_format_ids_valid(i32_array_t *ids, i32 count) {
@@ -300,6 +326,18 @@ project_t *project_format_decode(buffer_t *b) {
 		return NULL;
 	}
 	return armpack_decode(b);
+}
+
+// After the paint objects of a loaded project exist, one per mesh_datas entry; the tile list stays {1001} for now
+void project_format_load_mesh_tiles(project_t *raw) {
+	mesh_object_t_array_t *objects = raw->_->paint_objects;
+	for (i32 i = 0; raw->mesh_tiles != NULL && i < raw->mesh_tiles->length && i < objects->length; ++i) {
+		i16_array_t *tiles = raw->mesh_tiles->buffer[i];
+		if (tiles != NULL && tiles->length > 0) {
+			util_udim_set(objects->buffer[i]->data, i16_array_create_from_array(tiles)); // Ignored when the length does not match
+		}
+	}
+	raw->mesh_tiles = NULL; // Decoded arrays live in the file blob, the next save writes new ones
 }
 
 // Fields the fork adds, for projects converted from an older format

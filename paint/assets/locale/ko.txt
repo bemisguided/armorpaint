@@ -771,7 +771,6 @@ armorpaint.org 계정으로 로그인하세요.
 트윈
 비틀기
 유형
-UDIM 타일
 UI 스케일
 UV
 UV 아일랜드
@@ -857,6 +856,11 @@ sRGB
 제목 없음
 x
 {shortcut} 및 마우스 이동
+
+
+
+
+
 
 
 

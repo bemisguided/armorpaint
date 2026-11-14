@@ -1298,6 +1298,7 @@ void util_mesh_uv_unwrap(mesh_object_t_array_t *objects) {
 		md->vertex_arrays->buffer[1]->values = new_nora;
 		md->vertex_arrays->buffer[2]->values = new_texa;
 		md->index_array                      = new_inda;
+		util_udim_clear(md); // Unwrapped uvs are in 1001
 
 		mesh_data_build(md);
 		ioff += ilen;

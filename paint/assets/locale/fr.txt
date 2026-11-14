@@ -771,7 +771,6 @@ Faire confiance aux scripts du projet ?
 Interpolation
 Torsion
 Type
-Tuile UDIM
 Échelle interface
 UV
 Îlot UV
@@ -857,6 +856,11 @@ type
 sans titre
 x
 {shortcut} et déplacer la souris
+
+
+
+
+
 
 
 

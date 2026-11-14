@@ -36,8 +36,13 @@ typedef enum {
 typedef enum {
 	SPLIT_TYPE_OBJECT   = 0,
 	SPLIT_TYPE_MATERIAL = 1,
-	SPLIT_TYPE_UDIM     = 2,
 } split_type_t;
+
+typedef enum {
+	UDIM_IMPORT_AUTO = 0, // Tiles when the uvs use more than one tile and no triangle crosses a tile border
+	UDIM_IMPORT_ON   = 1,
+	UDIM_IMPORT_OFF  = 2, // Uvs above 1 wrap into 0..1
+} udim_import_t;
 
 typedef enum {
 	BAKE_AXIS_XYZ = 0,

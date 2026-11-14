@@ -978,6 +978,10 @@ vec4_t mesh_data_calculate_aabb(mesh_data_t *raw) {
 void mesh_data_delete(mesh_data_t *raw) {
 	gpu_delete_buffer(raw->_->vertex_buffer);
 	gpu_delete_buffer(raw->_->index_buffer);
+	array_delete(raw->_->udim_tex); // Always owned, also for armpack meshes
+	array_delete(raw->_->udim_tile);
+	raw->_->udim_tex  = NULL;
+	raw->_->udim_tile = NULL;
 	if (raw->_->owns_arrays) {
 		// Skip armpack meshes pointing to a decoded blob
 		for (i32 i = 0; i < raw->vertex_arrays->length; ++i) {

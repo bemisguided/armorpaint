@@ -40,7 +40,7 @@ void util_encode_mesh_datas(mesh_data_t_array_t *datas) {
 			armpack_encode_string("data");
 			armpack_encode_string(datas->buffer[i]->vertex_arrays->buffer[j]->data);
 			armpack_encode_string("values");
-			armpack_encode_array_i16(datas->buffer[i]->vertex_arrays->buffer[j]->values);
+			armpack_encode_array_i16(project_format_mesh_values(datas->buffer[i], datas->buffer[i]->vertex_arrays->buffer[j]));
 		}
 		armpack_encode_string("index_array");
 		armpack_encode_array_i32(datas->buffer[i]->index_array);

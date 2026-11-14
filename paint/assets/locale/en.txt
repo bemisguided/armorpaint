@@ -771,7 +771,6 @@ Trust project scripts?
 Tween
 Twist
 Type
-UDIM Tile
 UI Scale
 UV
 UV Island
@@ -873,3 +872,8 @@ No objects are selected for this layer or its group, so it covers nothing. Selec
 No tiles are selected for this layer or its group, so it covers nothing. Select tiles or choose All to use it.
 Layer's objects are hidden or use another material
 Excluded by the group
+On
+Off
+UDIM tiles
+Auto uses tiles when the UVs span more than one tile and no triangle crosses a tile border
+{count} triangles cross UDIM tile borders and were clamped

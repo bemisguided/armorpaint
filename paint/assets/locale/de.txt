@@ -771,7 +771,6 @@ Projektskripten vertrauen?
 Tween
 Verdrehen
 Typ
-UDIM Kachel
 Skalierung der Oberfläche
 UV
 UV Insel
@@ -857,6 +856,11 @@ Typ
 unbenannt
 x
 {shortcut} und Maus bewegen
+
+
+
+
+
 
 
 
