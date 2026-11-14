@@ -894,3 +894,5 @@ CPU bake of a {size} px atlas needs a lot of memory, consider the GPU bake or a 
 Tiles {tiles} are not used by the imported meshes and were removed with their pixels
 Show only the layers that cover this tile
 +{count} more
+{count} objects
+{count} tiles

@@ -339,14 +339,30 @@ static bool tab_layers_coverage_is_all(bool all_flag, bool list_missing, i32 lis
 	return all_flag || list_missing || (total > 0 && listed >= total);
 }
 
+static any_map_t *tab_layers_count_vars(i32 count) {
+	any_map_t *vars = any_map_create();
+	any_map_set(vars, "count", string_tmp("%d", count));
+	return vars;
+}
+
 // Label of the Applies to button in a project with more than one tile: "objects / tiles", pure so it can be tested.
-// Parts: All, No objects / No tiles, the name or id when exactly one, else the count. Both All gives just All.
+// Parts: All, No objects / No tiles, the name or id when exactly one, else "N objects" / "N tiles". Both All gives just All.
 static char *tab_layers_coverage_text(bool all_objects, i32 object_count, char *object_name, bool all_tiles, i32 tile_count, i32 tile_id) {
 	if (all_objects && all_tiles) {
 		return tr("All");
 	}
-	char *o = all_objects ? tr("All") : object_count == 0 ? tr("No objects") : object_count == 1 ? object_name : string_tmp("%d", object_count);
-	char *t = all_tiles ? tr("All") : tile_count == 0 ? tr("No tiles") : tile_count == 1 ? string_tmp("%d", tile_id) : string_tmp("%d", tile_count);
+	char *o = all_objects ? tr("All") : object_count == 0 ? tr("No objects") : object_name;
+	char *t = all_tiles ? tr("All") : tile_count == 0 ? tr("No tiles") : string_tmp("%d", tile_id);
+	if (!all_objects && object_count > 1) {
+		any_map_t *vars = tab_layers_count_vars(object_count);
+		o               = vtr("{count} objects", vars);
+		map_free(vars);
+	}
+	if (!all_tiles && tile_count > 1) {
+		any_map_t *vars = tab_layers_count_vars(tile_count);
+		t               = vtr("{count} tiles", vars);
+		map_free(vars);
+	}
 	return string_tmp("%s / %s", o, t);
 }
 
