@@ -82,6 +82,7 @@ typedef struct bake_rays_tri {
 	f32 a[9];   // Ray directions, normals averaged across hard edges when enabled
 	f32 col[9]; // Vertex colors
 	i32 object; // Index in the low poly objects
+	i32 slot;   // Udim atlas slot under the uv centre
 	f32 scale;  // Mesh scale, positions are baked unscaled like on the gpu
 } bake_rays_tri_t;
 
@@ -108,6 +109,30 @@ static u8  *bake_rays_out    = NULL; // RGBA8 result of the current map
 static u8  *bake_rays_mask   = NULL;
 static u8  *bake_rays_matid  = NULL; // Material id per texel, read from the layer
 static f32 *bake_rays_cav    = NULL; // Raw cavity per texel
+
+// Per object results: in a udim project every (object, tile) pair the low poly covers bakes its own
+// buffer of one tile in tile local uvs. bake_rays_texmap, bake_rays_mask and bake_rays_cav are shared
+// and rebuilt for the pair being worked on, bake_rays_out points at that pair's buffer in bake_rays_outs.
+// Without udim tiles there are no pairs and the single buffer covers the uv layout (pair -1).
+typedef struct bake_rays_pair {
+	i32 object; // Index in the paint objects
+	i32 slot;   // Udim atlas slot
+} bake_rays_pair_t;
+
+static bool              bake_rays_per_object = false; // Udim project, set with the pairs
+static bake_rays_pair_t *bake_rays_pairs      = NULL;
+static i32               bake_rays_pair_count = 0;
+static u64               bake_rays_pairs_key  = 0;
+static u8              **bake_rays_outs       = NULL; // RGBA8 per pair
+static i32               bake_rays_outs_count = 0;
+static i32               bake_rays_texmap_pair = -2; // Pair the texmap is built for, -1 the whole layout, -2 none
+static i32               bake_rays_bake_pair   = -1; // Pair being baked
+static i32               bake_rays_current     = 0;  // Result shown by the preview and edited by the inpaint tool
+// Texel coordinates of a low poly uv, x = uv * sx - ox: the whole layout, or one tile cut out of the atlas
+static i32 bake_rays_uv_sx = 1;
+static i32 bake_rays_uv_sy = 1;
+static i32 bake_rays_uv_ox = 0;
+static i32 bake_rays_uv_oy = 0;
 
 // Current map and its settings, fixed while the workers run
 typedef struct bake_rays_job {
@@ -439,10 +464,26 @@ static void bake_rays_free_low() {
 	bake_rays_free_bvh(&bake_rays_lpb);
 }
 
+static void bake_rays_free_outs() {
+	for (i32 i = 0; i < bake_rays_outs_count; ++i) {
+		free(bake_rays_outs[i]);
+	}
+	free(bake_rays_outs);
+	bake_rays_outs       = NULL;
+	bake_rays_outs_count = 0;
+}
+
 static void bake_rays_free_images() {
 	free(bake_rays_texmap);
-	free(bake_rays_out);
+	if (bake_rays_outs != NULL) {
+		bake_rays_free_outs(); // bake_rays_out points into them
+	}
+	else {
+		free(bake_rays_out);
+	}
 	free(bake_rays_mask);
+	bake_rays_texmap_pair = -2;
+	bake_rays_bake_pair   = -1;
 	free(bake_rays_matid);
 	free(bake_rays_cav);
 	bake_rays_cav    = NULL;
@@ -622,6 +663,91 @@ static void bake_rays_update_ray_normals() {
 static u64 bake_maps_low_key;
 static u64 bake_maps_paint_objects_key();
 
+// Udim atlas slot of a triangle, the cell under its uv centre (uvs in atlas space, 0..1)
+static i32 bake_rays_slot_of(f32 *uv, i32 stride) {
+	f32 cu  = (uv[0] + uv[2] + uv[4]) / 3.0f;
+	f32 cv  = (uv[1] + uv[3] + uv[5]) / 3.0f;
+	i32 col = bake_rays_imax(0, bake_rays_imin((i32)floorf(cu * stride), stride - 1));
+	i32 row = bake_rays_imax(0, bake_rays_imin((i32)floorf(cv * stride), stride - 1));
+	return col + row * stride;
+}
+
+static bool bake_rays_mesh_has_uvs(mesh_object_t *o) {
+	return o->data != NULL && mesh_data_get_vertex_array(o->data, "tex") != NULL && bake_rays_count_tris(o) > 0;
+}
+
+// (object, tile) pairs covered by the low poly in a udim project, ordered by object then tile,
+// from the paint objects directly so file names are known without reading the whole low poly
+static void bake_rays_update_pairs(bool force) {
+	u64 key = bake_maps_paint_objects_key();
+	if (!force && ((key == bake_rays_pairs_key && bake_rays_pairs != NULL) || bake_rays_working)) {
+		return; // Unchanged, or frozen while the workers run over them
+	}
+	free(bake_rays_pairs);
+	bake_rays_pairs      = NULL;
+	bake_rays_pair_count = 0;
+	bake_rays_pairs_key  = key;
+	bake_rays_per_object = util_udim_active();
+	if (!bake_rays_per_object) {
+		return;
+	}
+	mesh_object_t_array_t *lows   = g_project->_->paint_objects;
+	i32                    count  = util_udim_count();
+	i32                    stride = util_udim_stride();
+	u8                    *used   = calloc(count, 1);
+	bake_rays_pairs               = malloc(sizeof(bake_rays_pair_t) * bake_rays_imax(lows->length * count, 1));
+	for (i32 i = 0; i < lows->length; ++i) {
+		mesh_object_t *o = lows->buffer[i];
+		if (!bake_rays_mesh_has_uvs(o)) {
+			continue;
+		}
+		memset(used, 0, count);
+		i16_array_t *tex = mesh_data_get_vertex_array(o->data, "tex")->values;
+		u32_array_t *ind = o->data->index_array;
+		i32          n   = bake_rays_count_tris(o);
+		for (i32 t = 0; t < n; ++t) {
+			f32 uv[6];
+			for (i32 v = 0; v < 3; ++v) {
+				u32 vi        = ind->buffer[t * 3 + v];
+				uv[v * 2]     = tex->buffer[vi * 2] / 32767.0;
+				uv[v * 2 + 1] = tex->buffer[vi * 2 + 1] / 32767.0;
+			}
+			i32 slot = bake_rays_slot_of(uv, stride);
+			if (slot < count) { // Triangles in an empty atlas cell belong to no tile
+				used[slot] = 1;
+			}
+		}
+		for (i32 s = 0; s < count; ++s) {
+			if (used[s]) {
+				bake_rays_pairs[bake_rays_pair_count++] = (bake_rays_pair_t){.object = i, .slot = s};
+			}
+		}
+	}
+	free(used);
+}
+
+// Current result clamped to the pairs, -1 without udim tiles
+static i32 bake_rays_current_pair() {
+	if (bake_rays_pair_count == 0) {
+		return -1;
+	}
+	return bake_rays_current >= 0 && bake_rays_current < bake_rays_pair_count ? bake_rays_current : 0;
+}
+
+// File name of a per object result, <object>_<map>_<tile>.png
+static char *bake_rays_pair_file(i32 k, char *suffix) {
+	mesh_object_t_array_t *lows = g_project->_->paint_objects;
+	i32                    obj  = bake_rays_pairs[k].object;
+	char                  *name = obj < lows->length && lows->buffer[obj]->base->name != NULL ? lows->buffer[obj]->base->name : "";
+	name                        = name[0] != '\0' ? string("%s", name) : string("object%d", obj);
+	for (char *c = name; *c != '\0'; ++c) {
+		if (strchr("/\\:*?\"<>|", *c) != NULL) {
+			*c = '_'; // Not allowed in file names
+		}
+	}
+	return string("%s_%s_%d.png", name, suffix, util_udim_tile(bake_rays_pairs[k].slot));
+}
+
 // Low poly triangles with uvs, read from the paint objects
 static bool bake_rays_set_low() {
 	bake_rays_join();
@@ -644,7 +770,8 @@ static bool bake_rays_set_low() {
 		bake_rays_lp_min[k] = 1e30;
 		bake_rays_lp_max[k] = -1e30;
 	}
-	i32 ti = 0;
+	i32 ti     = 0;
+	i32 stride = util_udim_stride();
 	for (i32 i = 0; i < lows->length; ++i) {
 		mesh_object_t *o = lows->buffer[i];
 		if (o->data == NULL || mesh_data_get_vertex_array(o->data, "tex") == NULL) {
@@ -666,6 +793,7 @@ static bool bake_rays_set_low() {
 					tri->col[v * 3 + k] = col != NULL ? col->values->buffer[vi * 4 + k] / 32767.0 : 1.0;
 				}
 			}
+			tri->slot = bake_rays_slot_of(tri->uv, stride);
 			// Missing normals, use the face normal per corner
 			f32 e1[3], e2[3], fn[3];
 			bake_rays_v3_sub(e1, tri->p + 3, tri->p);
@@ -682,23 +810,36 @@ static bool bake_rays_set_low() {
 	}
 	bake_rays_update_ray_normals();
 	bake_maps_low_key = bake_maps_paint_objects_key();
+	bake_rays_update_pairs(true);
 	return true;
 }
 
 // Bake
 
-// Low poly triangle index of each texel, the last triangle drawn wins like on the gpu
-static void bake_rays_build_texmap() {
+static f32 bake_rays_tx(f32 u) {
+	return u * bake_rays_uv_sx - bake_rays_uv_ox;
+}
+
+static f32 bake_rays_ty(f32 v) {
+	return v * bake_rays_uv_sy - bake_rays_uv_oy;
+}
+
+// Low poly triangle index of each texel, the last triangle drawn wins like on the gpu.
+// With a pair only the triangles of that object in that tile are drawn.
+static void bake_rays_build_texmap(i32 pair) {
 	i32 w = bake_rays_w;
 	i32 h = bake_rays_h;
 	for (i32 i = 0; i < w * h; ++i) {
 		bake_rays_texmap[i] = -1;
 	}
 	for (i32 ti = 0; ti < bake_rays_lp_count; ++ti) {
+		if (pair >= 0 && (bake_rays_lp[ti].object != bake_rays_pairs[pair].object || bake_rays_lp[ti].slot != bake_rays_pairs[pair].slot)) {
+			continue;
+		}
 		f32 *uv = bake_rays_lp[ti].uv;
-		f32  x0 = uv[0] * w, y0 = uv[1] * h;
-		f32  x1 = uv[2] * w, y1 = uv[3] * h;
-		f32  x2 = uv[4] * w, y2 = uv[5] * h;
+		f32  x0 = bake_rays_tx(uv[0]), y0 = bake_rays_ty(uv[1]);
+		f32  x1 = bake_rays_tx(uv[2]), y1 = bake_rays_ty(uv[3]);
+		f32  x2 = bake_rays_tx(uv[4]), y2 = bake_rays_ty(uv[5]);
 		f32  area = (x1 - x0) * (y2 - y0) - (x2 - x0) * (y1 - y0);
 		if (fabsf(area) < 1e-8) {
 			continue;
@@ -738,10 +879,9 @@ typedef struct bake_rays_surf {
 static void bake_rays_surface_at(i32 ti, f32 px, f32 py, bool use_high, bake_rays_surf_t *s) {
 	bake_rays_tri_t *tri = &bake_rays_lp[ti];
 	f32             *uv  = tri->uv;
-	f32              w = bake_rays_w, h = bake_rays_h;
-	f32              x0 = uv[0] * w, y0 = uv[1] * h;
-	f32              x1 = uv[2] * w, y1 = uv[3] * h;
-	f32              x2 = uv[4] * w, y2 = uv[5] * h;
+	f32              x0 = bake_rays_tx(uv[0]), y0 = bake_rays_ty(uv[1]);
+	f32              x1 = bake_rays_tx(uv[2]), y1 = bake_rays_ty(uv[3]);
+	f32              x2 = bake_rays_tx(uv[4]), y2 = bake_rays_ty(uv[5]);
 	f32              area = (x1 - x0) * (y2 - y0) - (x2 - x0) * (y1 - y0);
 	f32              b0   = ((x1 - px) * (y2 - py) - (x2 - px) * (y1 - py)) / area;
 	f32              b1   = ((x2 - px) * (y0 - py) - (x0 - px) * (y2 - py)) / area;
@@ -1044,8 +1184,15 @@ static void bake_rays_texel(i32 x, i32 y) {
 		bake_rays_store_vector(o, p, 0.5);
 	}
 	else if (type == BAKE_TYPE_TEXCOORD) {
+		// Uvs of the baked image: the layout, or tile local for a per object result
 		f32 *uv = s.tri->uv;
-		bake_rays_store(o, uv[0] * s.bc[0] + uv[2] * s.bc[1] + uv[4] * s.bc[2], uv[1] * s.bc[0] + uv[3] * s.bc[1] + uv[5] * s.bc[2], 0.0);
+		f32  u  = uv[0] * s.bc[0] + uv[2] * s.bc[1] + uv[4] * s.bc[2];
+		f32  v  = uv[1] * s.bc[0] + uv[3] * s.bc[1] + uv[5] * s.bc[2];
+		if (bake_rays_bake_pair >= 0) {
+			u = bake_rays_tx(u) / bake_rays_w;
+			v = bake_rays_ty(v) / bake_rays_h;
+		}
+		bake_rays_store(o, u, v, 0.0);
 	}
 	else if (type == BAKE_TYPE_VERTEX_COLOR) {
 		f32 *c = s.tri->col;
@@ -1101,11 +1248,12 @@ static void bake_rays_read_matid() {
 	if (stride < (i32)t->width * bpp) {
 		return;
 	}
+	// The layer covers the whole uv layout (udim atlas), a per object result reads its tile out of it
 	bake_rays_matid = malloc(bake_rays_w * bake_rays_h);
 	for (i32 y = 0; y < bake_rays_h; ++y) {
 		for (i32 x = 0; x < bake_rays_w; ++x) {
-			i32 sx                               = x * t->width / bake_rays_w;
-			i32 sy                               = y * t->height / bake_rays_h;
+			i32 sx                               = (i32)((i64)(x + bake_rays_uv_ox) * t->width / bake_rays_uv_sx);
+			i32 sy                               = (i32)((i64)(y + bake_rays_uv_oy) * t->height / bake_rays_uv_sy);
 			u8 *p                                = pixels->buffer + sy * stride + sx * bpp;
 			f32 a                                = bpp == 16 ? ((f32 *)p)[3] : bpp == 8 ? bake_rays_half_to_float(((u16 *)p)[3]) : p[3] / 255.0;
 			bake_rays_matid[y * bake_rays_w + x] = bake_rays_unorm(a);
@@ -1614,7 +1762,8 @@ static minic_val_t bake_maps_set_cavity(minic_val_t *a, int n) {
 
 // Low poly geometry, uv layout and occlusion bvh, kept for the following maps and the inpaint tool
 static bool bake_rays_prepare_layout(i32 w, i32 h) {
-	if (bake_rays_texmap != NULL && bake_rays_w == w && bake_rays_h == h && bake_rays_lpb.count > 0) {
+	bool same_mode = bake_rays_per_object ? (bake_rays_outs != NULL || bake_rays_out == NULL) : (bake_rays_outs == NULL && bake_rays_out != NULL);
+	if (bake_rays_texmap != NULL && bake_rays_w == w && bake_rays_h == h && bake_rays_lpb.count > 0 && same_mode) {
 		return true;
 	}
 	bake_rays_free_images();
@@ -1636,10 +1785,119 @@ static bool bake_rays_prepare_layout(i32 w, i32 h) {
 	bake_rays_w      = w;
 	bake_rays_h      = h;
 	bake_rays_texmap = malloc(sizeof(i32) * w * h);
-	bake_rays_out    = malloc(w * h * 4);
 	bake_rays_mask   = malloc(w * h);
-	bake_rays_build_texmap();
+	if (!bake_rays_per_object) {
+		bake_rays_out = malloc((size_t)w * h * 4); // Per object results allocate theirs in bake_maps_start
+	}
+	if (bake_rays_texmap == NULL || bake_rays_mask == NULL || (!bake_rays_per_object && bake_rays_out == NULL)) {
+		bake_rays_free_images();
+		return false;
+	}
+	bake_rays_texmap_pair = -2; // Built by bake_rays_use_pair
 	return true;
+}
+
+// Works on a pair (-1 the whole layout): uv to texel transform, result buffer and texmap
+static void bake_rays_use_pair(i32 pair) {
+	if (pair < 0) {
+		bake_rays_uv_sx = bake_rays_w;
+		bake_rays_uv_sy = bake_rays_h;
+		bake_rays_uv_ox = 0;
+		bake_rays_uv_oy = 0;
+	}
+	else {
+		// Tile local = atlas uv * stride - (slot % stride, slot / stride), in texels of one tile
+		i32 stride      = util_udim_stride();
+		i32 slot        = bake_rays_pairs[pair].slot;
+		bake_rays_uv_sx = bake_rays_w * stride;
+		bake_rays_uv_sy = bake_rays_h * stride;
+		bake_rays_uv_ox = (slot % stride) * bake_rays_w;
+		bake_rays_uv_oy = (slot / stride) * bake_rays_h;
+		if (bake_rays_outs != NULL) {
+			bake_rays_out = pair < bake_rays_outs_count ? bake_rays_outs[pair] : NULL;
+		}
+	}
+	if (bake_rays_texmap != NULL && bake_rays_texmap_pair != pair) {
+		bake_rays_build_texmap(pair);
+		bake_rays_texmap_pair = pair;
+	}
+}
+
+// One buffer per pair at the tile size, kept until the images are released
+static bool bake_rays_alloc_outs() {
+	if (bake_rays_outs != NULL && bake_rays_outs_count == bake_rays_pair_count) {
+		return true;
+	}
+	if (bake_rays_outs != NULL) {
+		bake_rays_free_outs();
+	}
+	else {
+		free(bake_rays_out); // Single buffer of a layout prepared before the tiles changed
+	}
+	bake_rays_out  = NULL;
+	bake_rays_outs = calloc(bake_rays_pair_count, sizeof(u8 *));
+	if (bake_rays_outs == NULL) {
+		return false;
+	}
+	bake_rays_outs_count = bake_rays_pair_count;
+	for (i32 i = 0; i < bake_rays_outs_count; ++i) {
+		bake_rays_outs[i] = malloc((size_t)bake_rays_w * bake_rays_h * 4);
+		if (bake_rays_outs[i] == NULL) {
+			bake_rays_free_outs();
+			return false;
+		}
+	}
+	return true;
+}
+
+// Starts the workers on one buffer of the current map, pair -1 is the whole layout
+static void bake_rays_start_pair(i32 pair) {
+	bake_rays_bake_pair = pair;
+	bake_rays_use_pair(pair);
+	i32 w    = bake_rays_w;
+	i32 h    = bake_rays_h;
+	i32 type = bake_rays_job.type;
+	if (type == BAKE_TYPE_MATERIALID) {
+		bake_rays_read_matid();
+	}
+	if (type == BAKE_TYPE_CAVITY && bake_rays_cav != NULL) {
+		memset(bake_rays_cav, 0, sizeof(f32) * w * h);
+	}
+
+	// Empty texels, flat normal and mid height stay neutral
+	u8 c = type == BAKE_TYPE_HEIGHT ? 128 : 0;
+	for (i32 i = 0; i < w * h; ++i) {
+		u8 *o = bake_rays_out + i * 4;
+		o[0]  = type == BAKE_TYPE_NORMAL ? 128 : c;
+		o[1]  = type == BAKE_TYPE_NORMAL ? 128 : c;
+		o[2]  = type == BAKE_TYPE_NORMAL ? 255 : c;
+		o[3]  = 255;
+	}
+	memset(bake_rays_mask, 0, w * h);
+
+	bake_rays_next_row  = 0;
+	bake_rays_rows_done = 0;
+	bake_rays_cancelled = false;
+	bake_rays_working   = true;
+	// Leave a core for the interface
+	i32 threads            = bake_rays_imin(bake_rays_imax(iron_hardware_threads() - 1, 1), BAKE_RAYS_MAX_THREADS);
+	bake_rays_thread_count = threads;
+	for (i32 i = 0; i < threads; ++i) {
+		iron_thread_init(&bake_rays_threads[i], bake_rays_worker, NULL);
+	}
+}
+
+// Post passes of a finished buffer
+static void bake_rays_finish_buffer() {
+	if (bake_rays_job.type == BAKE_TYPE_CURVATURE) {
+		for (i32 i = 0; i < bake_rays_job.curv_smooth; ++i) {
+			bake_rays_blur();
+		}
+	}
+	if (bake_rays_job.type == BAKE_TYPE_CAVITY) {
+		bake_rays_cavity_levels();
+	}
+	bake_rays_dilate(16);
 }
 
 // bool bake_maps_start(int type, int rays, int axis, int up_axis, bool use_high, int w, int h):
@@ -1664,17 +1922,34 @@ static minic_val_t bake_maps_start(minic_val_t *a, int n) {
 		return minic_val_int(0);
 	}
 
-	// w, h are per udim tile, the bake covers the whole atlas
-	w = bake_maps_atlas_side(w);
-	h = bake_maps_atlas_side(h);
+	// w, h are per udim tile. A udim project bakes one buffer per (object, tile) pair at that size,
+	// otherwise the bake covers the whole layout.
+	if (bake_rays_lp == NULL) {
+		bake_rays_set_low();
+	}
+	else {
+		bake_rays_update_pairs(false);
+	}
+	if (!bake_rays_per_object) {
+		w = bake_maps_atlas_side(w);
+		h = bake_maps_atlas_side(h);
+	}
+	else if (bake_rays_pair_count == 0) {
+		return minic_val_int(0);
+	}
 	if (bake_rays_imax(w, h) > 8192) {
 		any_map_t *vars = any_map_create();
 		any_map_set(vars, "size", i32_to_string(bake_rays_imax(w, h)));
-		console_info(vtr("CPU bake of a {size} px atlas needs a lot of memory, consider the GPU bake or a lower resolution", vars));
+		console_info(bake_rays_per_object ? vtr("CPU bake of {size} px tiles needs a lot of memory, consider a lower resolution", vars)
+		                                  : vtr("CPU bake of a {size} px atlas needs a lot of memory, consider the GPU bake or a lower resolution", vars));
 		map_free(vars);
 	}
 
 	if (!bake_rays_prepare_layout(w, h)) {
+		return minic_val_int(0);
+	}
+	if (bake_rays_per_object && !bake_rays_alloc_outs()) {
+		console_error(vtr("Not enough memory for the CPU bake, lower the resolution", NULL));
 		return minic_val_int(0);
 	}
 
@@ -1684,39 +1959,16 @@ static minic_val_t bake_maps_start(minic_val_t *a, int n) {
 	bake_rays_job.rays     = bake_rays_imax(bake_maps_arg_i(a, n, 1), 1);
 	bake_rays_job.axis     = bake_maps_arg_i(a, n, 2);
 	bake_rays_job.up_y     = bake_maps_arg_i(a, n, 3) == BAKE_UP_AXIS_Y;
-	if (type == BAKE_TYPE_MATERIALID) {
-		bake_rays_read_matid();
-	}
 	if (type == BAKE_TYPE_CAVITY) {
 		free(bake_rays_cav);
-		bake_rays_cav = calloc(w * h, sizeof(f32));
+		bake_rays_cav = calloc((size_t)w * h, sizeof(f32));
 	}
-
-	// Empty texels, flat normal and mid height stay neutral
-	u8 c = type == BAKE_TYPE_HEIGHT ? 128 : 0;
-	for (i32 i = 0; i < w * h; ++i) {
-		u8 *o = bake_rays_out + i * 4;
-		o[0]  = type == BAKE_TYPE_NORMAL ? 128 : c;
-		o[1]  = type == BAKE_TYPE_NORMAL ? 128 : c;
-		o[2]  = type == BAKE_TYPE_NORMAL ? 255 : c;
-		o[3]  = 255;
-	}
-	memset(bake_rays_mask, 0, w * h);
 
 	if (!bake_rays_mutex_ready) {
 		iron_mutex_init(&bake_rays_mutex);
 		bake_rays_mutex_ready = true;
 	}
-	bake_rays_next_row  = 0;
-	bake_rays_rows_done = 0;
-	bake_rays_cancelled = false;
-	bake_rays_working   = true;
-	// Leave a core for the interface
-	i32 threads            = bake_rays_imin(bake_rays_imax(iron_hardware_threads() - 1, 1), BAKE_RAYS_MAX_THREADS);
-	bake_rays_thread_count = threads;
-	for (i32 i = 0; i < threads; ++i) {
-		iron_thread_init(&bake_rays_threads[i], bake_rays_worker, NULL);
-	}
+	bake_rays_start_pair(bake_rays_per_object ? 0 : -1);
 	return minic_val_int(1);
 }
 
@@ -1817,7 +2069,7 @@ static minic_val_t bake_maps_gpu_start(minic_val_t *a, int n) {
 	return minic_val_int(1);
 }
 
-// float bake_maps_progress(): 0..1 for the current map
+// float bake_maps_progress(): 0..1 for the current map, over all its per object results
 static minic_val_t bake_maps_progress(minic_val_t *a, int n) {
 	if (bake_maps_gpu_running) {
 		return minic_val_float(bake_rays_fmin(render_path_raytrace_bake_current_sample / (f32)bake_maps_gpu_samples, 1.0));
@@ -1828,10 +2080,13 @@ static minic_val_t bake_maps_progress(minic_val_t *a, int n) {
 	iron_mutex_lock(&bake_rays_mutex);
 	f32 p = bake_rays_rows_done / (f32)bake_rays_h;
 	iron_mutex_unlock(&bake_rays_mutex);
+	if (bake_rays_bake_pair >= 0 && bake_rays_outs_count > 0) {
+		p = (bake_rays_bake_pair + p) / bake_rays_outs_count;
+	}
 	return minic_val_float(p);
 }
 
-// bool bake_maps_step(): true once the current map is done, poll every update
+// bool bake_maps_step(): true once the current map is done (every per object result), poll every update
 static minic_val_t bake_maps_step(minic_val_t *a, int n) {
 	if (bake_maps_gpu_running) {
 		return minic_val_int(0);
@@ -1846,15 +2101,15 @@ static minic_val_t bake_maps_step(minic_val_t *a, int n) {
 		return minic_val_int(0);
 	}
 	bake_rays_join();
-	if (bake_rays_job.type == BAKE_TYPE_CURVATURE) {
-		for (i32 i = 0; i < bake_rays_job.curv_smooth; ++i) {
-			bake_rays_blur();
+	bake_rays_finish_buffer();
+	if (bake_rays_bake_pair >= 0) {
+		if (bake_rays_bake_pair + 1 < bake_rays_outs_count) {
+			bake_rays_start_pair(bake_rays_bake_pair + 1); // Next result of the same map, the bvhs are shared
+			return minic_val_int(0);
 		}
+		bake_rays_bake_pair = -1;
+		bake_rays_use_pair(bake_rays_current_pair()); // Back to the current result
 	}
-	if (bake_rays_job.type == BAKE_TYPE_CAVITY) {
-		bake_rays_cavity_levels();
-	}
-	bake_rays_dilate(16);
 	return minic_val_int(1);
 }
 
@@ -1898,25 +2153,17 @@ static void bake_maps_write_tiles(char *atlas_file, u8 *pixels, i32 w, i32 h) {
 	free(tile);
 }
 
-// bool bake_maps_save(char *folder, char *file_name): writes the finished map as png and adds it to the
-// project textures, or reloads the texture when it is already there. With udim tiles the png is the atlas,
-// the per tile files are written next to it.
-static minic_val_t bake_maps_save(minic_val_t *a, int n) {
-	char *folder    = bake_maps_arg_s(a, n, 0);
-	char *file_name = bake_maps_arg_s(a, n, 1);
-	if ((bake_maps_gpu_last ? bake_maps_gpu_out : bake_rays_out) == NULL || folder == NULL || file_name == NULL) {
-		return minic_val_int(0);
-	}
-	u8      *out    = bake_maps_gpu_last ? bake_maps_gpu_out : bake_rays_out;
-	i32      w      = bake_maps_gpu_last ? bake_maps_gpu_w : bake_rays_w;
-	i32      h      = bake_maps_gpu_last ? bake_maps_gpu_h : bake_rays_h;
-	char    *file   = string("%s%s%s", folder, PATH_SEP, file_name);
+// Writes RGBA8 pixels as png (and the tile crops of a gpu atlas), then adds the file to the project
+// textures or reloads the texture when it is already there
+static void bake_maps_write_file(char *file, u8 *out, i32 w, i32 h, bool tiles) {
 	buffer_t pixels = {.buffer = out, .length = w * h * 4};
 #ifdef IRON_BGRA
 	buffer_bgra_swap(&pixels); // The png writer takes the native order, the bake is RGBA
 #endif
 	iron_write_png(file, &pixels, w, h, 0);
-	bake_maps_write_tiles(file, out, w, h);
+	if (tiles) {
+		bake_maps_write_tiles(file, out, w, h);
+	}
 #ifdef IRON_BGRA
 	buffer_bgra_swap(&pixels);
 #endif
@@ -1925,10 +2172,42 @@ static minic_val_t bake_maps_save(minic_val_t *a, int n) {
 	for (i32 i = 0; i < assets->length; ++i) {
 		if (string_equals(assets->buffer[i]->file, file)) {
 			project_reimport_texture(assets->buffer[i]);
-			return minic_val_int(1);
+			return;
 		}
 	}
 	import_texture_run(file, false);
+}
+
+// bool bake_maps_save(char *folder, char *file_name, char *suffix): writes the finished map as png and adds it to
+// the project textures, or reloads the texture when it is already there. A cpu bake in a udim project writes
+// every per object result as <object>_<suffix>_<tile>.png instead of file_name. A gpu bake with udim tiles
+// writes the atlas and the per tile crops next to it.
+static minic_val_t bake_maps_save(minic_val_t *a, int n) {
+	char *folder    = bake_maps_arg_s(a, n, 0);
+	char *file_name = bake_maps_arg_s(a, n, 1);
+	char *suffix    = bake_maps_arg_s(a, n, 2);
+	if (folder == NULL) {
+		return minic_val_int(0);
+	}
+	if (!bake_maps_gpu_last && bake_rays_outs != NULL) {
+		if (suffix == NULL) {
+			return minic_val_int(0);
+		}
+		i32 count = bake_rays_imin(bake_rays_outs_count, bake_rays_pair_count);
+		for (i32 k = 0; k < count; ++k) {
+			char *file = string("%s%s%s", folder, PATH_SEP, bake_rays_pair_file(k, suffix));
+			bake_maps_write_file(file, bake_rays_outs[k], bake_rays_w, bake_rays_h, false);
+		}
+		return minic_val_int(count > 0);
+	}
+	if ((bake_maps_gpu_last ? bake_maps_gpu_out : bake_rays_out) == NULL || file_name == NULL) {
+		return minic_val_int(0);
+	}
+	u8   *out  = bake_maps_gpu_last ? bake_maps_gpu_out : bake_rays_out;
+	i32   w    = bake_maps_gpu_last ? bake_maps_gpu_w : bake_rays_w;
+	i32   h    = bake_maps_gpu_last ? bake_maps_gpu_h : bake_rays_h;
+	char *file = string("%s%s%s", folder, PATH_SEP, file_name);
+	bake_maps_write_file(file, out, w, h, bake_maps_gpu_last);
 	return minic_val_int(1);
 }
 
@@ -2023,6 +2302,9 @@ static minic_val_t bake_maps_end(minic_val_t *a, int n) {
 	bake_rays_free_images();
 	bake_rays_free_low();
 	bake_rays_free_bvh(&bake_rays_hp);
+	free(bake_rays_pairs);
+	bake_rays_pairs      = NULL;
+	bake_rays_pair_count = 0;
 	free(bake_rays_zbuf);
 	bake_rays_zbuf   = NULL;
 	bake_rays_zbuf_n = 0;
@@ -2168,10 +2450,13 @@ static void bake_rays_stamp(u8 *mask, f32 *center, f32 radius) {
 			continue;
 		}
 		f32 *uv   = tri->uv;
-		i32  minx = bake_rays_imax(0, (i32)floorf(bake_rays_fmin(uv[0], bake_rays_fmin(uv[2], uv[4])) * w));
-		i32  maxx = bake_rays_imin(w - 1, (i32)ceilf(bake_rays_fmax(uv[0], bake_rays_fmax(uv[2], uv[4])) * w));
-		i32  miny = bake_rays_imax(0, (i32)floorf(bake_rays_fmin(uv[1], bake_rays_fmin(uv[3], uv[5])) * h));
-		i32  maxy = bake_rays_imin(h - 1, (i32)ceilf(bake_rays_fmax(uv[1], bake_rays_fmax(uv[3], uv[5])) * h));
+		i32  minx = bake_rays_imax(0, (i32)floorf(bake_rays_tx(bake_rays_fmin(uv[0], bake_rays_fmin(uv[2], uv[4])))));
+		i32  maxx = bake_rays_imin(w - 1, (i32)ceilf(bake_rays_tx(bake_rays_fmax(uv[0], bake_rays_fmax(uv[2], uv[4])))));
+		i32  miny = bake_rays_imax(0, (i32)floorf(bake_rays_ty(bake_rays_fmin(uv[1], bake_rays_fmin(uv[3], uv[5])))));
+		i32  maxy = bake_rays_imin(h - 1, (i32)ceilf(bake_rays_ty(bake_rays_fmax(uv[1], bake_rays_fmax(uv[3], uv[5])))));
+		if (minx > maxx || miny > maxy) {
+			continue; // Outside the tile of the current result
+		}
 		for (i32 y = miny; y <= maxy; ++y) {
 			for (i32 x = minx; x <= maxx; ++x) {
 				i32 i = y * w + x;
@@ -2244,6 +2529,10 @@ static minic_val_t bake_maps_inpaint_begin(minic_val_t *a, int n) {
 	if (!bake_rays_prepare_layout(w, h)) {
 		return minic_val_int(0);
 	}
+	// In a udim project the map is the current per object result, one tile
+	i32 pair = bake_rays_current_pair();
+	same     = same && bake_rays_texmap_pair == pair; // -2 when the layout was rebuilt
+	bake_rays_use_pair(pair);
 	if (bake_rays_island == NULL) {
 		bake_rays_build_islands();
 	}
@@ -2286,15 +2575,20 @@ static minic_val_t bake_maps_inpaint_mask(minic_val_t *a, int n) {
 	if (!inpaint_dirty && inpaint_preview != NULL) {
 		return minic_val_ptr(inpaint_preview);
 	}
+	// The overlay is sampled with the layer uvs: a per object result is placed in its tile of the atlas
 	i32 w  = inpaint_mask != NULL ? bake_rays_w : 1;
 	i32 h  = inpaint_mask != NULL ? bake_rays_h : 1;
-	i32 pw = bake_rays_imin(w, INPAINT_PREVIEW);
-	i32 ph = bake_rays_imin(h, INPAINT_PREVIEW);
+	i32 aw = inpaint_mask != NULL ? bake_rays_uv_sx : 1;
+	i32 ah = inpaint_mask != NULL ? bake_rays_uv_sy : 1;
+	i32 ox = inpaint_mask != NULL ? bake_rays_uv_ox : 0;
+	i32 oy = inpaint_mask != NULL ? bake_rays_uv_oy : 0;
+	i32 pw = bake_rays_imin(aw, INPAINT_PREVIEW);
+	i32 ph = bake_rays_imin(ah, INPAINT_PREVIEW);
 	u8 *p  = calloc(pw * ph * 4, 1);
 	for (i32 y = 0; inpaint_mask != NULL && y < h; ++y) {
 		for (i32 x = 0; x < w; ++x) {
 			if (inpaint_mask[y * w + x]) {
-				i32 i = ((y * ph / h) * pw + x * pw / w) * 4;
+				i32 i = (((y + oy) * ph / ah) * pw + (x + ox) * pw / aw) * 4;
 				p[i]  = 255;
 			}
 		}
@@ -2643,7 +2937,9 @@ static minic_val_t bake_maps_inpaint_apply(minic_val_t *a, int n) {
 	buffer_bgra_swap(&b); // The png writer takes the native order, the decoded png is RGBA
 #endif
 	iron_write_png(path, &b, w, h, 0);
-	bake_maps_write_tiles(path, px, w, h); // Tile files follow the edited atlas
+	if (bake_rays_texmap_pair < 0) {
+		bake_maps_write_tiles(path, px, w, h); // Tile files follow an edited atlas, a per object result is one tile
+	}
 	project_reimport_texture(asset);
 	free(j.known);
 	free(j.src);
@@ -2666,6 +2962,57 @@ static minic_val_t bake_maps_inpaint_end(minic_val_t *a, int n) {
 	inpaint_preview     = NULL;
 	inpaint_dirty       = false;
 	return minic_val_int(0);
+}
+
+// Per object results of a udim project, one per (object, tile) pair the paint objects cover
+
+// int bake_maps_result_count(): number of per object results, 0 without udim tiles
+static minic_val_t bake_maps_result_count(minic_val_t *a, int n) {
+	bake_rays_update_pairs(false);
+	return minic_val_int(bake_rays_pair_count);
+}
+
+// int bake_maps_result_objects(): number of objects with per object results, 0 without udim tiles
+static minic_val_t bake_maps_result_objects(minic_val_t *a, int n) {
+	bake_rays_update_pairs(false);
+	i32 count = 0;
+	for (i32 k = 0; k < bake_rays_pair_count; ++k) {
+		count += k == 0 || bake_rays_pairs[k].object != bake_rays_pairs[k - 1].object; // Ordered by object
+	}
+	return minic_val_int(count);
+}
+
+// int bake_maps_set_result(int index): the result the preview and the inpaint tool work on, returns the result count
+static minic_val_t bake_maps_set_result(minic_val_t *a, int n) {
+	bake_rays_update_pairs(false);
+	i32 index = bake_maps_arg_i(a, n, 0);
+	index     = index >= 0 && index < bake_rays_pair_count ? index : 0;
+	if (index != bake_rays_current) {
+		bake_rays_current = index;
+		// The workers switch to it once the map is done
+		if (!bake_rays_working && bake_rays_texmap != NULL && bake_rays_pair_count > 0) {
+			bake_rays_use_pair(bake_rays_current);
+		}
+		if (inpaint_mask != NULL) {
+			free(inpaint_mask); // Painted on the previous result, bake_maps_inpaint_begin makes a new one
+			inpaint_mask     = NULL;
+			inpaint_has_mask = false;
+			inpaint_has_last = false;
+			inpaint_dirty    = true;
+		}
+	}
+	return minic_val_int(bake_rays_pair_count);
+}
+
+// char *bake_maps_result_name(char *suffix): file name of the current result for a map, <object>_<suffix>_<tile>.png,
+// empty without udim tiles
+static minic_val_t bake_maps_result_name(minic_val_t *a, int n) {
+	char *suffix = bake_maps_arg_s(a, n, 0);
+	bake_rays_update_pairs(false);
+	if (suffix == NULL || bake_rays_pair_count == 0) {
+		return minic_val_ptr("");
+	}
+	return minic_val_ptr(bake_rays_pair_file(bake_rays_current_pair(), suffix));
 }
 
 // Two column layout of the dialog, settings on the left and the preview on the right
@@ -2728,7 +3075,7 @@ void bake_maps_init() {
 	minic_register("bake_maps_progress", "f()", bake_maps_progress);
 	minic_register("bake_maps_step", "b()", bake_maps_step);
 	minic_register("bake_maps_cancel", "v()", bake_maps_cancel);
-	minic_register("bake_maps_save", "b(p,p)", bake_maps_save);
+	minic_register("bake_maps_save", "b(p,p,p)", bake_maps_save);
 	minic_register("bake_maps_preview", "p(i,i,f,f,f,b,b,b,b,b)", bake_maps_preview);
 	minic_register("bake_maps_miss_ratio", "f()", bake_maps_miss_ratio);
 	minic_register("bake_maps_end_images", "v()", bake_maps_end_images);
@@ -2742,6 +3089,10 @@ void bake_maps_init() {
 	minic_register("bake_maps_inpaint_clear", "v()", bake_maps_inpaint_clear);
 	minic_register("bake_maps_inpaint_apply", "b(p,i,b)", bake_maps_inpaint_apply);
 	minic_register("bake_maps_inpaint_end", "v()", bake_maps_inpaint_end);
+	minic_register("bake_maps_result_count", "i()", bake_maps_result_count);
+	minic_register("bake_maps_result_objects", "i()", bake_maps_result_objects);
+	minic_register("bake_maps_set_result", "i(i)", bake_maps_set_result);
+	minic_register("bake_maps_result_name", "p(p)", bake_maps_result_name);
 }
 
 #endif

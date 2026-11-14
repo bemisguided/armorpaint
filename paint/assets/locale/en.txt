@@ -898,3 +898,5 @@ All objects
 All tiles
 All objects & tiles
 Not enough memory for the undo step, lower the resolution
+CPU bake of {size} px tiles needs a lot of memory, consider a lower resolution
+Not enough memory for the CPU bake, lower the resolution

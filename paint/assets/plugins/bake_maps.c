@@ -3,7 +3,8 @@
 // Bake Mesh Maps plugin based on the work of Falkor.
 // Bakes mesh maps of the paint objects on the CPU, optionally projected from a high poly file.
 // Each map is saved as <name>_<map>.png and added to the project textures.
-// With UDIM tiles the resolution is per tile, the png is the atlas and <name>_<map>_1001.png... are written per tile.
+// With UDIM tiles the resolution is per tile. A CPU bake writes one png per object and tile, <object>_<map>_<tile>.png,
+// a GPU bake writes the atlas and <name>_<map>_1001.png... cropped from it.
 // The ray tracer runs natively on worker threads, see plugins/bake_maps/bake_maps.c.
 
 void *plugin;
@@ -178,7 +179,8 @@ void finish() {
 	running = false;
 	bake_maps_end_images();
 	console_info(string("Baked %d maps", done_count));
-	if (done_count > 0) {
+	// One image node can't hold the per object results of several objects
+	if (done_count > 0 && bake_maps_result_objects() <= 1) {
 		update_material();
 	}
 	if (!box_open) {
@@ -261,11 +263,15 @@ void run() {
 
 // Inpaint tool: paint over bake artifacts, the baked maps are repaired on release
 
-// Path of a baked map, as saved by the last bake
+// Path of a baked map, as saved by the last bake. With UDIM tiles the current per object result.
 char *map_path(int i) {
 	char *name   = string_equals(out_name, "") ? default_name() : out_name;
 	char *folder = string_equals(out_folder, "") ? default_folder() : out_folder;
 	char *sep    = string_index_of(folder, "\\") >= 0 ? "\\" : "/";
+	char *result = bake_maps_result_name(map_suffixes[i]);
+	if (!string_equals(result, "")) {
+		return string("%s%s%s", folder, sep, result);
+	}
 	return string("%s%s%s_%s.png", folder, sep, name, map_suffixes[i]);
 }
 
@@ -437,7 +443,7 @@ void on_update() {
 		return;
 	}
 	int i = queue[queue_i];
-	if (bake_maps_save(out_folder, string("%s_%s.png", out_name, map_suffixes[i]))) {
+	if (bake_maps_save(out_folder, string("%s_%s.png", out_name, map_suffixes[i]), map_suffixes[i])) {
 		done_count = done_count + 1;
 	}
 	queue_i = queue_i + 1;
