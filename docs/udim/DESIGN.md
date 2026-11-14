@@ -404,6 +404,8 @@ Every step builds and runs. Steps A* are useful without UDIM.
 
 ## 11. Manual test plan
 
+The written test plans, test meshes and the test worksheet live in the sibling armorpaint-testing repo (`plans/`, `testdata/`, `worksheet/`), not in this repo.
+
 Build after every step and load an old v23 project at A2, B1 and B7.
 
 1. **Non-UDIM regression:** default cube, paint, fill, layers, masks, export Visible, save/reload, path trace. The result must be identical to main (same export pixels).
