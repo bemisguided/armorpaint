@@ -309,8 +309,8 @@ static i32 tab_layers_label_tiles(slot_layer_t *l, i32 *first, i32 *second) {
 	return count;
 }
 
-// "No objects", one name, two names or "N objects", compact gives the count from two objects on
-static char *tab_layers_objects_part(slot_layer_t *l, bool compact) {
+// Single tile project: "No objects", one name, two names or "N objects"
+static char *tab_layers_objects_part(slot_layer_t *l) {
 	char *first;
 	char *second;
 	i32   count = tab_layers_label_objects(l, &first, &second);
@@ -320,26 +320,10 @@ static char *tab_layers_objects_part(slot_layer_t *l, bool compact) {
 	if (count == 1) {
 		return first;
 	}
-	if (count == 2 && !compact) {
+	if (count == 2) {
 		return string_tmp("%s, %s", first, second);
 	}
 	return string_tmp("%d %s", count, tr("objects"));
-}
-
-static char *tab_layers_tiles_part(slot_layer_t *l, bool compact) {
-	i32 first;
-	i32 second;
-	i32 count = tab_layers_label_tiles(l, &first, &second);
-	if (count == 0) {
-		return tr("No tiles");
-	}
-	if (count == 1) {
-		return string_tmp("%d", first);
-	}
-	if (count == 2 && !compact) {
-		return string_tmp("%d, %d", first, second);
-	}
-	return string_tmp("%d %s", count, tr("tiles"));
 }
 
 // Label of the single tile project's button, unchanged from the Objects button
@@ -347,33 +331,69 @@ static char *tab_layers_objects_label(slot_layer_t *l) {
 	if (l->all_objects) {
 		return tr("Objects: All");
 	}
-	return tab_layers_objects_part(l, false);
+	return tab_layers_objects_part(l);
 }
 
-// "All", the objects, the tiles or "objects | tiles", names give way to counts when the label does not fit the button
-static char *tab_layers_coverage_label_parts(slot_layer_t *l, bool compact) {
-	if (l->all_objects && l->all_tiles) {
-		return tr("All");
-	}
-	if (l->all_tiles) {
-		return tab_layers_objects_part(l, compact);
-	}
-	if (l->all_objects) {
-		return tab_layers_tiles_part(l, compact);
-	}
-	return string_tmp("%s | %s", tab_layers_objects_part(l, compact), tab_layers_tiles_part(l, compact));
-}
-
+// Multi tile projects: All, Select objects & tiles, one object name or Select objects, Tile id or Select tiles
 static char *tab_layers_coverage_label(slot_layer_t *l) {
 	if (util_udim_count() <= 1) {
 		return tab_layers_objects_label(l);
 	}
-	char *label = tab_layers_coverage_label_parts(l, false);
-	f32   max_w = g_ui->_w - 6.0 * UI_SCALE(); // Same fit as the truncation in ui_draw_string
-	if (draw_string_width(g_font, g_ui->font_size, label) > max_w) {
-		label = tab_layers_coverage_label_parts(l, true);
+	if (l->all_objects && l->all_tiles) {
+		return tr("All");
 	}
-	return label;
+	if (!l->all_objects && !l->all_tiles) {
+		return tr("Select objects & tiles");
+	}
+	if (!l->all_objects) {
+		char *first;
+		char *second;
+		return tab_layers_label_objects(l, &first, &second) == 1 ? first : tr("Select objects");
+	}
+	i32 first;
+	i32 second;
+	return tab_layers_label_tiles(l, &first, &second) == 1 ? string_tmp("%s %d", tr("Tile"), first) : tr("Select tiles");
+}
+
+// At most 4 names, then "+N more"
+static char *tab_layers_tip_list(string_array_t *names) {
+	char *s = "";
+	for (i32 i = 0; i < names->length && i < 4; ++i) {
+		s = string_tmp("%s%s%s", s, i > 0 ? ", " : "", names->buffer[i]);
+	}
+	if (names->length > 4) {
+		any_map_t *vars = any_map_create();
+		any_map_set(vars, "count", string_tmp("%d", names->length - 4));
+		s = string_tmp("%s %s", s, vtr("+{count} more", vars));
+		map_free(vars);
+	}
+	return s;
+}
+
+// "Objects: A, B | Tiles: 1001 +2 more", the sets the layer applies to
+static char *tab_layers_coverage_tip(slot_layer_t *l) {
+	string_array_t *objects = any_array_create(0);
+	string_array_t *tiles   = any_array_create(0);
+	for (i32 i = 0; i < g_project->_->paint_objects->length; ++i) {
+		mesh_object_t *o = g_project->_->paint_objects->buffer[i];
+		if (o->paint_id > 0 && i32_array_index_of(l->objects, o->paint_id) >= 0) {
+			any_array_push(objects, o->base->name);
+		}
+	}
+	for (i32 i = 0; i < util_udim_count(); ++i) {
+		i32 tile = util_udim_tile(i);
+		if (i32_array_index_of(l->tiles, tile) >= 0) {
+			any_array_push(tiles, string_tmp("%d", tile));
+		}
+	}
+	char *o = l->all_objects ? tr("All") : (objects->length > 0 ? tab_layers_tip_list(objects) : tr("No objects"));
+	char *t = l->all_tiles ? tr("All") : (tiles->length > 0 ? tab_layers_tip_list(tiles) : tr("No tiles"));
+	char *tip = string_tmp("%s: %s | %s: %s", tr("Objects"), o, tr("Tiles"), t);
+	array_free(objects);
+	free(objects);
+	array_free(tiles);
+	free(tiles);
+	return tip;
 }
 
 // "X shares UV space with Y on tile T..." when a covered object overlaps an uncovered one in uv space, NULL otherwise
@@ -527,10 +547,7 @@ static void tab_layers_coverage_buttons(slot_layer_t *l) {
 	}
 	else if (g_ui->is_hovered) {
 		char *note = tab_layers_objects_overlap_note(l);
-		char *tip  = tr("Limit this layer to the selected objects.");
-		if (tiles) {
-			tip = string_tmp("%s\n%s", tip, tr("Limit this layer to the selected UDIM tiles."));
-		}
+		char *tip  = tiles ? tab_layers_coverage_tip(l) : tr("Limit this layer to the selected objects.");
 		ui_tooltip(note != NULL ? string_tmp("%s\n%s", tip, note) : tip);
 	}
 }
