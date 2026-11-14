@@ -499,7 +499,7 @@ void args_run_on_next_frame(void *_) {
 			iron_log(tr("Invalid texture type"));
 		}
 
-		g_context->layers_export = EXPORT_MODE_VISIBLE;
+		g_context->layers_export = export_texture_default_mode();
 
 		// Get export preset and apply the correct one from args
 		box_export_files = file_read_directory(string("%s%sexport_presets", path_data(), PATH_SEP));

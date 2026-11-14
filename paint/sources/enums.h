@@ -116,6 +116,7 @@ typedef enum {
 	EXPORT_MODE_SELECTED      = 1,
 	EXPORT_MODE_PER_OBJECT    = 2,
 	EXPORT_MODE_PER_UDIM_TILE = 3,
+	EXPORT_MODE_PER_OBJECT_TILE = 4,
 } export_mode_t;
 
 typedef enum {

@@ -533,7 +533,7 @@ Pausar
 Stylus
 Lápiz
 Por objeto
-Por tile UDIM
+
 Perspectiva
 Fase
 Desplazamiento de fase
@@ -856,6 +856,7 @@ tipo
 Sin título
 x
 {shortcut} y mover ratón
+
 
 
 

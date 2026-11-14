@@ -533,7 +533,7 @@ Pauza
 Pióro
 Ołówek
 Na obiekt
-Na kafel UDIM
+
 Perspektywiczny
 Faza
 Przesunięcie fazy
@@ -856,6 +856,7 @@ typ
 bez tytułu
 x
 {shortcut} i poruszaj myszą
+
 
 
 

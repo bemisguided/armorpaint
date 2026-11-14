@@ -533,7 +533,7 @@ Pause
 Pen
 Pencil
 Per Object
-Per Udim Tile
+Per Tile
 Perspective
 Phase
 Phase Offset
@@ -889,3 +889,4 @@ Resolution (per tile)
 {tiles} tiles, atlas {atlas} px, about {mb} MB
 Clamped to {res} px per tile (atlas limit 16384)
 {object} shares UV space with {other} on tile {tile}. In exports and path tracing this layer also applies to {other}.
+Per Object & Tile

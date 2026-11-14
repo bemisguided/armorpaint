@@ -533,7 +533,7 @@ Szünet
 Toll
 Ceruza
 Objektumonként
-UDIM csempénként
+
 Perspektivikus
 Fázis
 Fáziseltolás
@@ -856,6 +856,7 @@ típus
 Névtelen
 x
 {shortcut} és egér mozgatása
+
 
 
 

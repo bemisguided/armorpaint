@@ -56,7 +56,7 @@ void box_export_tab_export_textures(char *title, bool bake_material) {
 		    },
 		    5);
 
-		ui_combo(&base_res, base_res_combo, tr("Resolution"), true, UI_ALIGN_LEFT, true);
+		ui_combo(&base_res, base_res_combo, util_udim_count() > 1 ? tr("Resolution (per tile)") : tr("Resolution"), true, UI_ALIGN_LEFT, true);
 		if (ui_item_changed()) {
 			config_set_texture_res(base_res);
 			layers_on_resized();
@@ -126,14 +126,20 @@ void box_export_tab_export_textures(char *title, bool bake_material) {
 
 		ui_row2();
 		g_ui->enabled                       = !bake_material;
+		// Tile modes need a project with tiles other than a lone 1001
+		bool            tiles               = util_udim_active();
 		string_array_t *layers_export_combo = any_array_create_from_raw_tmp(
 		    (void *[]){
 		        tr("Visible"),
 		        tr("Selected"),
 		        tr("Per Object"),
-		        tr("Per Udim Tile"),
+		        tr("Per Tile"),
+		        tr("Per Object & Tile"),
 		    },
-		    4);
+		    tiles ? 5 : 3);
+		if (!tiles && g_context->layers_export > EXPORT_MODE_PER_OBJECT) {
+			g_context->layers_export = EXPORT_MODE_VISIBLE;
+		}
 		ui_combo((int *)&g_context->layers_export, layers_export_combo, tr("Layers"), true, UI_ALIGN_LEFT, true);
 		g_ui->enabled = true;
 
