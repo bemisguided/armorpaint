@@ -116,7 +116,9 @@ void project_format_save_prep(project_t *raw) {
 	array_delete(project_format_saved_tiles);
 	project_format_saved_tiles = any_array_create(0);
 	for (i32 i = 0; i < objects->length; ++i) {
+		// Meshes made by tools get their tile data from the atlas uvs
 		mesh_data_t *md = objects->buffer[i]->data;
+		util_udim_ensure(md);
 		if (util_mesh_data_owner(md) == i && util_udim_has_tiles(md)) { // Linked duplicates store no tiles
 			i16_array_t *tiles = i16_array_create_from_array(md->_->udim_tile);
 			any_array_push(project_format_saved_tiles, tiles);
@@ -170,7 +172,7 @@ void project_format_load_object_ids(project_t *raw) {
 	raw->_->next_object_id = max_id;
 }
 
-// After the paint objects of a loaded project exist, one per mesh_datas entry; the tile list stays {1001} for now
+// After the paint objects of a loaded project exist, one per mesh_datas entry; tex is still tile-local (util_udim_apply_layout_loaded)
 void project_format_load_mesh_tiles(project_t *raw) {
 	mesh_object_t_array_t *objects = raw->_->paint_objects;
 	for (i32 i = 0; raw->mesh_tiles != NULL && i < raw->mesh_tiles->length && i < objects->length; ++i) {
@@ -180,6 +182,18 @@ void project_format_load_mesh_tiles(project_t *raw) {
 		}
 	}
 	raw->mesh_tiles = NULL; // Decoded arrays live in the file blob, the next save writes new ones
+}
+
+// Project append: tile data of the appended project's meshes (mesh_datas from import_arm_get_mesh_datas, linked entries point
+// to their source and store no tiles), tex is still tile-local.
+void project_format_load_append_tiles(project_t *project, any_array_t *mesh_datas) {
+	for (i32 i = 0; project->mesh_tiles != NULL && i < project->mesh_tiles->length && i < mesh_datas->length; ++i) {
+		i16_array_t *tiles = project->mesh_tiles->buffer[i];
+		mesh_data_t *md    = mesh_datas->buffer[i];
+		if (md != NULL && tiles != NULL && tiles->length > 0) {
+			util_udim_set(md, i16_array_create_from_array(tiles)); // Ignored when the length does not match
+		}
+	}
 }
 
 // Fields the fork adds, for projects converted from an older format

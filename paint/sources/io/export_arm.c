@@ -24,6 +24,7 @@ void export_arm_run_mesh(char *path, mesh_object_t_array_t *paint_objects) {
 	mesh_data_t_array_t *mesh_datas = any_array_create_from_raw((void *[]){}, 0);
 	for (i32 i = 0; i < paint_objects->length; ++i) {
 		mesh_object_t *p = paint_objects->buffer[i];
+		util_udim_ensure(p->data); // Tile-local uvs are written, the tiles themselves are not (mesh only file)
 		any_array_push(mesh_datas, export_arm_named_mesh_data(p));
 	}
 

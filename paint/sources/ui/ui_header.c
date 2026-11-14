@@ -245,6 +245,9 @@ void ui_header_draw_tool_properties_import(char *path) {
 }
 
 static void ui_header_crop_layers() {
+	if (util_udim_count() > 1) {
+		return; // The crop size would become the per tile resolution of every tile
+	}
 	i32 res_x = util_udim_res_x();
 	i32 res_y = util_udim_res_y();
 	i32 x1    = math_round(g_context->select_x1 * res_x);
@@ -677,7 +680,7 @@ void ui_header_draw_tool_properties() {
 			make_material_parse_paint_material(false);
 			ui_view2d_hwnd->redraws = 2;
 		}
-		g_ui->enabled = g_context->select_active && g_context->select_2d;
+		g_ui->enabled = g_context->select_active && g_context->select_2d && util_udim_count() < 2; // No crop with udim tiles
 		if (ui_icon_button(tr("Crop"), ICON_CROP, UI_ALIGN_CENTER)) {
 			ui_header_crop_layers();
 		}

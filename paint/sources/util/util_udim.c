@@ -101,6 +101,424 @@ void util_udim_set_tiles(i32_array_t *ids) {
 	g_project->_->udim_tiles = t;
 }
 
+// Atlas layout of the mesh uvs. The "tex" vertex array (what the gpu and every cpu reader uses) is in atlas space:
+// (slot xy + local) / stride in the short encoding, the slot being the position of the tile in the project list.
+// md->_->udim_tex keeps the tile-local uvs and md->_->udim_tile the tile index (id - 1001), files store those.
+// A project with the single tile 1001 has tex == local and no tile data, nothing here runs for it.
+// Meshes made by tools that do not carry the tile data get it back from the atlas uvs (util_udim_ensure).
+
+static i16 _util_udim_to_atlas(i16 local, i32 cell, i32 stride) {
+	return (i16)(local / (f32)stride + cell * (32767.0f / stride));
+}
+
+static i16 _util_udim_from_atlas(i16 atlas, i32 cell, i32 stride) {
+	f32 local = (atlas - cell * (32767.0f / stride)) * stride;
+	return local < 0.0f ? 0 : local > 32767.0f ? 32767 : (i16)(local + 0.5f);
+}
+
+// Atlas cell (column or row) of an atlas uv coordinate
+static i32 _util_udim_cell(f32 atlas, i32 stride) {
+	i32 c = (i32)(atlas * stride / 32767.0f);
+	return c < 0 ? 0 : c >= stride ? stride - 1 : c;
+}
+
+// tex from udim_tex and udim_tile in the current layout, the gpu buffer is left as it is
+static void _util_udim_layout_tex(mesh_data_t *md) {
+	vertex_array_t *va     = mesh_data_get_vertex_array(md, "tex");
+	i32             stride = util_udim_stride();
+	i32             n      = md->_->udim_tile->length;
+	for (i32 i = 0; i < n; ++i) {
+		i32 slot                      = util_udim_slot(1001 + md->_->udim_tile->buffer[i]);
+		slot                          = slot < 0 ? 0 : slot; // Tile missing from the list
+		va->values->buffer[i * 2]     = _util_udim_to_atlas(md->_->udim_tex->buffer[i * 2], slot % stride, stride);
+		va->values->buffer[i * 2 + 1] = _util_udim_to_atlas(md->_->udim_tex->buffer[i * 2 + 1], slot / stride, stride);
+	}
+}
+
+void util_udim_apply_layout(mesh_data_t *md) {
+	if (!util_udim_has_tiles(md)) {
+		return;
+	}
+	_util_udim_layout_tex(md);
+	if (md->_->vertex_buffer != NULL) {
+		mesh_data_build_vertices(md->_->vertex_buffer, md->vertex_arrays);
+	}
+	util_mesh_changed();
+}
+
+// Tile data from the atlas uvs in the current layout. A triangle takes the slot under its uv centroid, its vertices that slot.
+// A vertex shared by triangles of different slots (or used by none) takes the slot under its own uv instead (quantised).
+static void _util_udim_derive(mesh_data_t *md) {
+	util_udim_clear(md);
+	vertex_array_t *va = mesh_data_get_vertex_array(md, "tex");
+	if (va == NULL) {
+		return;
+	}
+	i16_array_t *uv     = va->values;
+	i32          n      = uv->length / 2;
+	i32          stride = util_udim_stride();
+	i32         *slots  = malloc((n > 0 ? n : 1) * sizeof(i32));
+	for (i32 i = 0; i < n; ++i) {
+		slots[i] = -1;
+	}
+	u32_array_t *ind = md->index_array;
+	for (i32 t = 0; ind != NULL && t + 2 < ind->length; t += 3) {
+		u32 a = ind->buffer[t];
+		u32 b = ind->buffer[t + 1];
+		u32 c = ind->buffer[t + 2];
+		if (a >= (u32)n || b >= (u32)n || c >= (u32)n) {
+			continue;
+		}
+		f32 cu   = (uv->buffer[a * 2] + uv->buffer[b * 2] + uv->buffer[c * 2]) / 3.0f;
+		f32 cv   = (uv->buffer[a * 2 + 1] + uv->buffer[b * 2 + 1] + uv->buffer[c * 2 + 1]) / 3.0f;
+		i32 slot = _util_udim_cell(cu, stride) + _util_udim_cell(cv, stride) * stride;
+		for (i32 k = 0; k < 3; ++k) {
+			u32 v    = ind->buffer[t + k];
+			slots[v] = slots[v] == -1 || slots[v] == slot ? slot : -2;
+		}
+	}
+	i16_array_t *tex  = i16_array_create(n * 2);
+	i16_array_t *tile = i16_array_create(n);
+	for (i32 i = 0; i < n; ++i) {
+		i32 slot = slots[i];
+		if (slot < 0) {
+			slot = _util_udim_cell(uv->buffer[i * 2], stride) + _util_udim_cell(uv->buffer[i * 2 + 1], stride) * stride;
+		}
+		i32 id                 = util_udim_tile(slot);
+		id                     = id < 0 ? util_udim_tile(0) : id; // Empty atlas cell
+		tex->buffer[i * 2]     = _util_udim_from_atlas(uv->buffer[i * 2], slot % stride, stride);
+		tex->buffer[i * 2 + 1] = _util_udim_from_atlas(uv->buffer[i * 2 + 1], slot / stride, stride);
+		tile->buffer[i]        = id - 1001;
+	}
+	free(slots);
+	md->_->udim_tex  = tex;
+	md->_->udim_tile = tile;
+}
+
+// Tile data for a mesh built without it (mesh tools, mesh nodes, sculpt), call before reading udim_tex or udim_tile
+void util_udim_ensure(mesh_data_t *md) {
+	if (md != NULL && util_udim_active() && !util_udim_has_tiles(md)) {
+		_util_udim_derive(md);
+	}
+}
+
+// A mesh with no tile data is in 1001, tex must still be tile-local
+void util_udim_set_default(mesh_data_t *md) {
+	vertex_array_t *va = mesh_data_get_vertex_array(md, "tex");
+	if (va == NULL || util_udim_has_tiles(md)) {
+		return;
+	}
+	i16_array_t *tile = i16_array_create(va->values->length / 2);
+	for (i32 i = 0; i < (i32)tile->length; ++i) {
+		tile->buffer[i] = 0; // Every vertex in 1001
+	}
+	util_udim_set(md, tile);
+}
+
+// Same vertices in the same order (data duplicate, sculpt repack)
+void util_udim_copy(mesh_data_t *dst, mesh_data_t *src) {
+	util_udim_clear(dst);
+	vertex_array_t *va = mesh_data_get_vertex_array(dst, "tex");
+	if (util_udim_has_tiles(src) && va != NULL && va->values->length == src->_->udim_tex->length) {
+		dst->_->udim_tex  = i16_array_create_from_array(src->_->udim_tex);
+		dst->_->udim_tile = i16_array_create_from_array(src->_->udim_tile);
+	}
+}
+
+// dst holds the vertices of objects one after the other (join), tex copied as is
+void util_udim_concat(mesh_data_t *dst, mesh_object_t_array_t *objects) {
+	util_udim_clear(dst);
+	i32 n = 0;
+	for (i32 i = 0; i < objects->length; ++i) {
+		mesh_data_t *md = objects->buffer[i]->data;
+		util_udim_ensure(md);
+		if (!util_udim_has_tiles(md)) {
+			return; // Single tile 1001 project, or derived later
+		}
+		n += md->_->udim_tile->length;
+	}
+	vertex_array_t *va = mesh_data_get_vertex_array(dst, "tex");
+	if (va == NULL || va->values->length != n * 2) {
+		return;
+	}
+	i16_array_t *tex  = i16_array_create(n * 2);
+	i16_array_t *tile = i16_array_create(n);
+	i32          off  = 0;
+	for (i32 i = 0; i < objects->length; ++i) {
+		mesh_data_t *md = objects->buffer[i]->data;
+		i32          m  = md->_->udim_tile->length;
+		memcpy(tex->buffer + off * 2, md->_->udim_tex->buffer, m * 2 * sizeof(i16));
+		memcpy(tile->buffer + off, md->_->udim_tile->buffer, m * sizeof(i16));
+		off += m;
+	}
+	dst->_->udim_tex  = tex;
+	dst->_->udim_tile = tile;
+}
+
+// Uv unwrap wrote new 0..1 uvs into tex: in a udim project they go to tile 1001, call before the mesh is built
+static bool util_udim_unwrap_missing = false;
+
+void util_udim_unwrapped(mesh_data_t *md) {
+	util_udim_clear(md);
+	if (!util_udim_active()) {
+		return;
+	}
+	util_udim_set_default(md);
+	if (!util_udim_has_tiles(md)) {
+		return;
+	}
+	if (util_udim_slot(1001) >= 0) {
+		_util_udim_layout_tex(md);
+	}
+	else {
+		util_udim_unwrap_missing = true;
+	}
+}
+
+// After the unwrapped meshes are built, adds 1001 to the list when it was missing
+void util_udim_unwrap_done() {
+	if (util_udim_unwrap_missing) {
+		util_udim_unwrap_missing = false;
+		i32_array_t *ids         = i32_array_create(0);
+		i32_array_push(ids, 1001);
+		util_udim_tiles_add(ids);
+		array_delete(ids);
+	}
+}
+
+// Mesh datas laid out in the atlas: paint objects and the original meshes mesh nodes keep, caller frees
+static any_array_t *_util_udim_meshes() {
+	any_array_t *ar = nodes_mesh_held_inputs();
+	for (i32 i = 0; i < g_project->_->paint_objects->length; ++i) {
+		mesh_data_t *md = g_project->_->paint_objects->buffer[i]->data;
+		if (md != NULL && array_index_of(ar, md) < 0) {
+			any_array_push(ar, md);
+		}
+	}
+	return ar;
+}
+
+bool util_udim_tile_used(i32 tile) {
+	any_array_t *mds  = _util_udim_meshes();
+	bool         used = false;
+	for (i32 i = 0; i < mds->length && !used; ++i) {
+		mesh_data_t *md = mds->buffer[i];
+		util_udim_ensure(md);
+		if (!util_udim_has_tiles(md)) {
+			used = tile == 1001; // Single tile 1001 project
+			continue;
+		}
+		for (i32 j = 0; j < md->_->udim_tile->length && !used; ++j) {
+			used = md->_->udim_tile->buffer[j] + 1001 == tile;
+		}
+	}
+	array_delete(mds);
+	return used;
+}
+
+// Adds tiles to the project list (union, the list never shrinks here), the layout changes when the list does
+void util_udim_tiles_add(i32_array_t *ids) {
+	i32_array_t *tiles = i32_array_create(0);
+	for (i32 i = 0; i < util_udim_count(); ++i) {
+		i32_array_push(tiles, util_udim_tile(i));
+	}
+	for (i32 i = 0; ids != NULL && i < ids->length; ++i) {
+		if (ids->buffer[i] > 1000 && i32_array_index_of(tiles, ids->buffer[i]) < 0) {
+			i32_array_push(tiles, ids->buffer[i]);
+		}
+	}
+	if (tiles->length != util_udim_count()) {
+		util_udim_relayout(tiles);
+	}
+	array_delete(tiles);
+}
+
+// Removes an unused tile from the project list (Meshes tab), its pixels are dropped
+void util_udim_tile_remove(i32 tile) {
+	if (util_udim_count() < 2 || util_udim_slot(tile) < 0 || util_udim_tile_used(tile)) {
+		return;
+	}
+	i32_array_t *tiles = i32_array_create(0);
+	for (i32 i = 0; i < util_udim_count(); ++i) {
+		if (util_udim_tile(i) != tile) {
+			i32_array_push(tiles, util_udim_tile(i));
+		}
+	}
+	util_udim_relayout(tiles);
+	array_delete(tiles);
+}
+
+static void _util_udim_warn_clamped() {
+	if (util_udim_count() < 2 || !util_udim_clamped()) {
+		return;
+	}
+	any_map_t *vars = any_map_create();
+	any_map_set(vars, "tiles", i32_to_string(util_udim_count()));
+	any_map_set(vars, "res", i32_to_string(util_udim_tile_res_x()));
+	any_map_set(vars, "atlas", i32_to_string(util_udim_res_x()));
+	console_info(vtr("UDIM atlas too large: {tiles} tiles use {res} px per tile ({atlas} px atlas)", vars));
+	map_free(vars);
+}
+
+static void _util_udim_update_fill_layers(void *_) {
+	layers_update_fill_layers();
+}
+
+// Mesh uvs, merged mesh, uv maps and materials follow a changed layout
+static void _util_udim_layout_changed(any_array_t *mds) {
+	for (i32 i = 0; i < mds->length; ++i) {
+		util_udim_apply_layout(mds->buffer[i]);
+	}
+	util_mesh_changed();
+	if (g_context->merged_object != NULL) {
+		util_mesh_remove_merged();
+	}
+	if (g_context->layer != NULL) {
+		layers_update_paint_set(); // Merges the painted objects again
+	}
+	else if (g_project->_->paint_objects->length > 1) {
+		util_mesh_merge(NULL);
+	}
+	util_uv_uvmap_cached       = false;
+	util_uv_trianglemap_cached = false;
+	util_uv_seammap_cached     = false;
+	util_uv_dilatemap_cached   = false;
+	render_path_raytrace_ready = false;
+	nodes_mesh_request_refresh();
+	make_material_parse_paint_material(false); // Materials repeat per tile only with more than one slot
+	make_material_parse_mesh_material();
+	g_context->ddirty = 2;
+}
+
+// Sets the project tile list to tiles and moves meshes and layer textures to the new layout.
+// Tiles in both lists keep their pixels, new tiles start empty, removed tiles are dropped. Undo history is cleared.
+void util_udim_relayout(i32_array_t *tiles) {
+	// Tile data of every mesh, read under the old layout
+	any_array_t *mds = _util_udim_meshes();
+	for (i32 i = 0; i < mds->length; ++i) {
+		if (!util_udim_has_tiles(mds->buffer[i])) {
+			_util_udim_derive(mds->buffer[i]);
+		}
+	}
+	i32_array_t *old_tiles  = i32_array_create(0);
+	i32          old_stride = util_udim_stride();
+	for (i32 i = 0; i < util_udim_count(); ++i) {
+		i32_array_push(old_tiles, util_udim_tile(i));
+	}
+	util_udim_set_tiles(tiles);
+
+	gpu_texture_t *current = _draw_current;
+	bool           in_use  = gpu_in_use;
+	if (in_use) {
+		draw_end();
+	}
+	layers_udim_relayout(old_tiles, old_stride);
+	if (in_use) {
+		draw_begin(current, false, 0);
+	}
+
+	_util_udim_layout_changed(mds);
+	if (!util_udim_active()) {
+		// Back to the single tile 1001, tex is local again and the tile data is dropped
+		for (i32 i = 0; i < mds->length; ++i) {
+			util_udim_clear(mds->buffer[i]);
+		}
+	}
+	array_delete(mds);
+	array_delete(old_tiles);
+
+	history_reset();
+	sys_notify_on_next_frame(&_util_udim_update_fill_layers, NULL);
+	console_info(tr("Tile layout changed, undo history was cleared"));
+	_util_udim_warn_clamped();
+}
+
+// Meshes just imported (tex tile-local, tile data or none for all in 1001) join the project layout.
+// fresh: the import replaced the project and cleared its layers, the list becomes exactly the imported tiles.
+void util_udim_import_meshes(any_array_t *mds, bool fresh) {
+	i32_array_t *ids = i32_array_create(0);
+	for (i32 i = 0; i < mds->length; ++i) {
+		mesh_data_t *md = mds->buffer[i];
+		if (!util_udim_has_tiles(md)) {
+			if (i32_array_index_of(ids, 1001) < 0) {
+				i32_array_push(ids, 1001);
+			}
+			continue;
+		}
+		for (i32 j = 0; j < md->_->udim_tile->length; ++j) {
+			i32 id = md->_->udim_tile->buffer[j] + 1001;
+			if (i32_array_index_of(ids, id) < 0) {
+				i32_array_push(ids, id);
+			}
+		}
+	}
+
+	// The list the import leads to, meshes without tiles need tile data unless it is the single tile 1001
+	bool active = false;
+	if (fresh) {
+		active = ids->length > 1 || (ids->length == 1 && ids->buffer[0] != 1001);
+	}
+	else {
+		active = util_udim_active();
+		for (i32 i = 0; i < ids->length && !active; ++i) {
+			active = ids->buffer[i] != 1001;
+		}
+	}
+	if (active) {
+		for (i32 i = 0; i < mds->length; ++i) {
+			util_udim_set_default(mds->buffer[i]);
+		}
+	}
+
+	if (fresh) {
+		util_udim_set_tiles(ids);
+		if (util_udim_count() > 1) {
+			base_res = TEXTURE_RES_RES2048; // New udim projects default to 2k per tile
+			config_set_texture_res(TEXTURE_RES_RES2048);
+		}
+		// The layers were just cleared to a single color, resizing them loses nothing
+		slot_layer_t *l0 = g_project->_->layers->length > 0 ? g_project->_->layers->buffer[0] : NULL;
+		if (l0 != NULL && l0->texpaint != NULL && (l0->texpaint->width != util_udim_res_x() || l0->texpaint->height != util_udim_res_y())) {
+			gpu_texture_t *current = _draw_current;
+			bool           in_use  = gpu_in_use;
+			if (in_use) {
+				draw_end();
+			}
+			layers_resize();
+			if (in_use) {
+				draw_begin(current, false, 0);
+			}
+		}
+		for (i32 i = 0; i < mds->length; ++i) {
+			util_udim_apply_layout(mds->buffer[i]);
+		}
+		_util_udim_warn_clamped();
+	}
+	else {
+		i32 count = util_udim_count();
+		util_udim_tiles_add(ids);
+		if (util_udim_count() == count) {
+			for (i32 i = 0; i < mds->length; ++i) { // Relayout lays out every mesh
+				util_udim_apply_layout(mds->buffer[i]);
+			}
+		}
+	}
+	array_delete(ids);
+}
+
+// Load: meshes have their saved tile data and tile-local tex, the list is already the saved one
+void util_udim_apply_layout_loaded() {
+	if (!util_udim_active()) {
+		return;
+	}
+	mesh_object_t_array_t *objects = util_mesh_get_unique_data();
+	for (i32 i = 0; i < objects->length; ++i) {
+		util_udim_set_default(objects->buffer[i]->data); // Saved without tiles, in 1001
+		util_udim_apply_layout(objects->buffer[i]->data);
+	}
+	array_delete(objects);
+}
+
 // Tile extraction at import (obj, fbx). A triangle takes the tile under its uv centroid (u in 0..10, v >= 0, outside clamps),
 // its corners get uvs local to that tile. Corners outside the tile (by more than UTIL_UDIM_EPS) cross a tile border and are clamped.
 // Uvs are per corner and vertices are not shared yet, so a vertex on a tile border becomes one vertex per tile.
@@ -240,7 +658,7 @@ void util_udim_clear(mesh_data_t *md) {
 	md->_->udim_tile = NULL;
 }
 
-// Takes ownership of tile; tex is tile-local while the project has a single tile slot, so udim_tex is a copy of it
+// Takes ownership of tile, tex must still be tile-local (imported or loaded mesh before util_udim_apply_layout)
 void util_udim_set(mesh_data_t *md, i16_array_t *tile) {
 	util_udim_clear(md);
 	vertex_array_t *tex = mesh_data_get_vertex_array(md, "tex");
@@ -260,18 +678,10 @@ void util_udim_take_raw(mesh_data_t *md, raw_mesh_t *raw) {
 	}
 }
 
-// tex was edited in place (uv editor): tex is tile-local while the project has a single tile slot
+// tex was edited in place (uv editor), the tile data is taken again from the atlas uvs
 void util_udim_tex_changed(mesh_data_t *md) {
-	if (md->_->udim_tex == NULL) {
-		return;
-	}
-	vertex_array_t *tex = mesh_data_get_vertex_array(md, "tex");
-	if (tex != NULL && tex->values->length == md->_->udim_tex->length) {
-		memcpy(md->_->udim_tex->buffer, tex->values->buffer, tex->values->length * sizeof(i16));
-	}
-	else {
-		util_udim_clear(md);
-	}
+	util_udim_clear(md);
+	util_udim_ensure(md);
 }
 
 // Udim uv of vertex i for mesh export (tile-local uv + tile offset, v up as in obj), the mesh must have tile data
@@ -395,15 +805,6 @@ static i32_array_t *_layer_stored_objects(slot_layer_t *l) {
 		return ids;
 	}
 	return NULL;
-}
-
-// The only id of the stored coverage of an object restricted layer, 0 otherwise.
-// Deleted ids count, so deleting or adding objects never changes the result.
-i32 layer_coverage_single_id(slot_layer_t *l) {
-	i32_array_t *ids = _layer_stored_objects(l);
-	i32          id  = ids != NULL && ids->length == 1 ? ids->buffer[0] : 0;
-	array_delete(ids);
-	return id;
 }
 
 // Why a layer has nothing to apply to, LAYER_COVERAGE_SOME when it covers something
@@ -620,14 +1021,10 @@ void slot_layer_coverage_from_filter(slot_layer_t *l) {
 	}
 }
 
-// Geometry of from now also lives in to (join, split), layers listing from also list to.
-// Tile-local layers of name based udim projects keep their single id, a second id would make them read their pixels as atlas.
+// Geometry of from now also lives in to (join, split), layers listing from also list to
 void layers_coverage_add_alias(i32 from, i32 to) {
 	for (i32 i = 0; g_project->_->layers != NULL && i < g_project->_->layers->length; ++i) {
 		slot_layer_t *l = g_project->_->layers->buffer[i];
-		if (layers_udim_tile_slot(l) >= 0) {
-			continue;
-		}
 		if (l->objects != NULL && i32_array_index_of(l->objects, from) >= 0 && i32_array_index_of(l->objects, to) < 0) {
 			i32_array_push(l->objects, to);
 		}

@@ -9,6 +9,19 @@ bool import_mesh_keep_timeline = false;
 bool import_mesh_append        = false;
 
 static mesh_object_t *import_mesh_appended = NULL;
+static any_array_t   *import_mesh_imported = NULL; // Mesh datas of this import, laid out in the udim atlas when it finishes
+
+static void import_mesh_imported_reset() {
+	array_delete(import_mesh_imported);
+	import_mesh_imported = any_array_create(0);
+}
+
+static void import_mesh_imported_push(mesh_data_t *md) {
+	if (import_mesh_imported == NULL) {
+		import_mesh_imported_reset();
+	}
+	any_array_push(import_mesh_imported, md);
+}
 
 // Replace import keeping layers: names and ids of the replaced objects, taken over by the new meshes
 static string_array_t *import_mesh_replaced_names = NULL;
@@ -84,6 +97,7 @@ void import_mesh_run(char *path, bool _clear_layers, bool replace_existing, bool
 	import_mesh_append             = !replace_existing;
 	import_mesh_appended           = NULL;
 	g_context->layer_filter_object = 0;
+	import_mesh_imported_reset();
 
 	if (path_has_ext(path, "obj")) {
 		import_obj_run(path, replace_existing);
@@ -155,6 +169,22 @@ void import_mesh_finish_import(void *_) {
 		mesh_data_delete(g_context->merged_object->data);
 		mesh_object_remove(g_context->merged_object);
 		g_context->merged_object = NULL;
+	}
+
+	// Udim tiles of the imported meshes: a fresh project takes exactly them, otherwise they are added to the list
+	if (import_mesh_imported != NULL) {
+		any_array_t *mds = any_array_create(0);
+		for (i32 i = 0; i < import_mesh_imported->length; ++i) {
+			mesh_data_t *md = import_mesh_imported->buffer[i];
+			if (util_mesh_data_owner(md) >= 0 && array_index_of(mds, md) < 0) { // Still a paint object mesh
+				any_array_push(mds, md);
+			}
+		}
+		if (mds->length > 0) {
+			util_udim_import_meshes(mds, !import_mesh_append && import_mesh_clear_layers);
+		}
+		array_delete(mds);
+		import_mesh_imported_reset();
 	}
 
 	context_select_paint_object(context_main_object());
@@ -303,6 +333,8 @@ void import_mesh_make_mesh(raw_mesh_t *mesh) {
 	md->_->skin_frame  = -1;
 	md->_->owns_arrays = true;
 	util_udim_take_raw(md, mesh);
+	import_mesh_imported_reset(); // Replaces every mesh
+	import_mesh_imported_push(md);
 
 	g_context->paint_object = context_main_object();
 
@@ -378,6 +410,7 @@ void import_mesh_add_mesh(raw_mesh_t *mesh) {
 	md->_->skin_frame  = -1;
 	md->_->owns_arrays = true;
 	util_udim_take_raw(md, mesh);
+	import_mesh_imported_push(md);
 
 	object_t      *parent = import_mesh_append ? NULL : g_context->paint_object->base;
 	mesh_object_t *object = scene_add_mesh_object(md, g_context->paint_object->material, parent);

@@ -126,14 +126,15 @@ void export_obj_run(char *path, mesh_object_t_array_t *paint_objects) {
 	for (i32 i = 0; i < paint_objects->length; ++i) {
 		mesh_object_t *p    = paint_objects->buffer[i];
 		mesh_data_t   *mesh = p->data;
-		f32            inv  = 1 / 32767.0;
-		f32            sc   = p->data->scale_pos * inv;
-		i16_array_t   *posa = mesh->vertex_arrays->buffer[0]->values;
-		i16_array_t   *nora = mesh->vertex_arrays->buffer[1]->values;
-		i16_array_t   *texa = mesh->vertex_arrays->buffer[2]->values;
-		i32            len  = math_floor(posa->length / 4.0);
-		i32            size = len > 0 ? len : 1;
-		bool           udim = util_udim_has_tiles(mesh); // Udim uvs from the tile-local uvs, never the runtime tex
+		util_udim_ensure(mesh);
+		f32          inv  = 1 / 32767.0;
+		f32          sc   = p->data->scale_pos * inv;
+		i16_array_t *posa = mesh->vertex_arrays->buffer[0]->values;
+		i16_array_t *nora = mesh->vertex_arrays->buffer[1]->values;
+		i16_array_t *texa = mesh->vertex_arrays->buffer[2]->values;
+		i32          len  = math_floor(posa->length / 4.0);
+		i32          size = len > 0 ? len : 1;
+		bool         udim = util_udim_has_tiles(mesh); // Udim uvs from the tile-local uvs, never the runtime tex
 
 		// Merge shared vertices and remap indices
 		u64 *keys   = malloc(size * sizeof(u64));
@@ -335,6 +336,7 @@ void export_obj_run_sculpt(char *path, mesh_object_t_array_t *paint_objects) {
 		export_obj_write_vec(o, "vn ", nx, nz, -ny, true);
 	}
 
+	util_udim_ensure(mesh);
 	bool udim = util_udim_has_tiles(mesh);
 	for (i32 i = 0; i < nv; ++i) {
 		f32 u = texa->buffer[i * 2] * inv;

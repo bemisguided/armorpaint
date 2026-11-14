@@ -1518,7 +1518,9 @@ void sculpt_init_meshes() {
 		                                            .index_array = inda,
 		                                            .scale_pos   = 1.0,
 		                                            .scale_tex   = 1.0});
-		mesh_object_set_data(object, mesh_data_create(raw));
+		mesh_data_t *repacked = mesh_data_create(raw);
+		util_udim_copy(repacked, md); // Same vertices in the same order
+		mesh_object_set_data(object, repacked);
 		util_mesh_changed();
 	}
 

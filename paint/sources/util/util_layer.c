@@ -85,7 +85,7 @@ void layers_init() {
 	                 layers_default_rough, 0.0);
 }
 
-void layers_resize() {
+void layers_resize_undo_steps() {
 	if (util_udim_res_x() >= 8192 || util_udim_res_y() >= 8192) { // Save memory for >=8k
 		g_config->undo_steps = util_udim_res_x() == 8192 ? 4 : 1;
 		while (history_undo_layers->length > g_config->undo_steps) {
@@ -93,6 +93,10 @@ void layers_resize() {
 			sys_notify_on_next_frame(&slot_layer_unload, l);
 		}
 	}
+}
+
+void layers_resize() {
+	layers_resize_undo_steps();
 	for (i32 i = 0; i < g_project->_->layers->length; ++i) {
 		slot_layer_t *l = g_project->_->layers->buffer[i];
 		slot_layer_resize_and_set_bits(l);
@@ -582,16 +586,6 @@ bool layers_paint_blocked() {
 	return layers_paint_set_empty;
 }
 
-// Tile object of a layer stored tile-local (name based udim), painted on its own instead of the merged mesh.
-// Decided from the stored ids, not the live objects, so deleting, adding, joining or splitting objects never flips how the pixels are read.
-static mesh_object_t *layers_udim_tile_object(slot_layer_t *l) {
-	if (!util_mesh_udim_active() || l == NULL || l->uv_map == 1) {
-		return NULL;
-	}
-	mesh_object_t *o = project_object_by_id(layer_coverage_single_id(l));
-	return o != NULL && util_mesh_udim_tile(o->base->name) >= 0 ? o : NULL;
-}
-
 // Geometry the uv maps are made from, see util_uv_paint_geometry
 static mesh_data_t *layers_paint_geometry() {
 	mesh_object_t *merged = g_context->merged_object;
@@ -603,19 +597,12 @@ static mesh_data_t *layers_paint_geometry() {
 
 // The merged mesh holds the visible objects the active layer covers
 void layers_update_paint_set() {
-	slot_layer_t  *l           = g_context->layer;
-	i32            filter      = g_context->layer_filter_object;
-	mesh_object_t *tile_object = layers_udim_tile_object(l);
-	mesh_data_t   *_geometry   = layers_paint_geometry();
-	layers_paint_set_empty     = false;
+	slot_layer_t *l         = g_context->layer;
+	i32           filter    = g_context->layer_filter_object;
+	mesh_data_t  *_geometry = layers_paint_geometry();
+	layers_paint_set_empty  = false;
 
-	if (tile_object != NULL && (filter == 0 || filter == tile_object->paint_id)) {
-		if (g_context->merged_object != NULL) {
-			g_context->merged_object->base->visible = false;
-		}
-		context_select_paint_object(tile_object);
-	}
-	else if (layer_covers_nothing(l)) {
+	if (layer_covers_nothing(l)) {
 		layers_paint_set_empty = true;
 	}
 	else if (!layer_is_restricted(l) && filter == 0) {
@@ -664,10 +651,7 @@ void tab_layers_apply_filter(i32 filter) {
 	if (filter == 0 && g_context->merged_object_is_subset) {
 		util_mesh_merge(NULL);
 	}
-	else if (util_mesh_udim_active()) {
-		util_mesh_merge(util_mesh_get_visible());
-	}
-	layers_update_paint_set();
+	layers_update_paint_set(); // A filter paints a subset merge of the visible covered objects
 	util_uv_uvmap_cached       = false;
 	g_context->ddirty          = 2;
 	render_path_raytrace_ready = false;
@@ -1237,11 +1221,6 @@ void layers_draw_mesh_materials() {
 	render_path_base_draw_overrides(NULL);
 }
 
-static gpu_texture_t *layers_udim_a    = NULL;
-static gpu_texture_t *layers_udim_b    = NULL;
-static gpu_texture_t *layers_udim_c    = NULL;
-static gpu_texture_t *layers_udim_mask = NULL;
-
 static gpu_texture_t *_layers_udim_target(gpu_texture_t **t, gpu_texture_t *like) {
 	if (*t != NULL && ((*t)->width != like->width || (*t)->height != like->height || (*t)->format != like->format)) {
 		gpu_delete_texture(*t);
@@ -1253,41 +1232,78 @@ static gpu_texture_t *_layers_udim_target(gpu_texture_t **t, gpu_texture_t *like
 	return *t;
 }
 
-static gpu_texture_t *_layers_udim_copy(gpu_texture_t **target, gpu_texture_t *src, i32 slot, bool to_tile) {
-	gpu_texture_t *dst    = _layers_udim_target(target, src);
-	i32            stride = util_mesh_atlas_stride();
-	f32            cx     = (slot % stride) / (f32)stride;
-	f32            cy     = (slot / stride) / (f32)stride;
-	draw_begin(dst, true, 0x00000000);
-	draw_set_pipeline(pipes_copy);
-	if (to_tile) {
-		draw_scaled_sub_image(src, cx * src->width, cy * src->height, src->width / (f32)stride, src->height / (f32)stride, 0, 0, dst->width, dst->height);
-	}
-	else {
-		draw_scaled_image(src, cx * dst->width, cy * dst->height, dst->width / (f32)stride, dst->height / (f32)stride);
+// Copies the udim tiles found in both layouts from src (old_tiles, old_stride) into their slots of dst (project layout).
+// A tile keeps its pixels 1:1, scaled only when the per tile resolution differs (atlas size clamp).
+static void _layers_udim_copy_tiles(gpu_texture_t *dst, gpu_texture_t *src, gpu_pipeline_t *pipe, i32_array_t *old_tiles, i32 old_stride) {
+	i32 stride = util_udim_stride();
+	f32 sw     = src->width / (f32)old_stride;
+	f32 sh     = src->height / (f32)old_stride;
+	f32 dw     = dst->width / (f32)stride;
+	f32 dh     = dst->height / (f32)stride;
+	draw_begin(dst, false, 0);
+	draw_set_pipeline(pipe);
+	for (i32 i = 0; i < old_tiles->length; ++i) {
+		i32 slot = util_udim_slot(old_tiles->buffer[i]);
+		if (slot < 0) {
+			continue;
+		}
+		draw_scaled_sub_image(src, (i % old_stride) * sw, (i / old_stride) * sh, sw, sh, (slot % stride) * dw, (slot / stride) * dh, dw, dh);
 	}
 	draw_set_pipeline(NULL);
 	draw_end();
+}
+
+// New atlas sized texture for the project layout, cleared to color, with the tiles of the old layout copied in
+static gpu_texture_t *_layers_udim_relayout_texture(gpu_texture_t *src, u32 color, gpu_pipeline_t *pipe, i32_array_t *old_tiles, i32 old_stride) {
+	gpu_texture_t *dst = gpu_create_render_target(util_udim_res_x(), util_udim_res_y(), src->format);
+	_gpu_begin(dst, NULL, NULL, GPU_CLEAR_COLOR, color, 0.0);
+	gpu_end();
+	_layers_udim_copy_tiles(dst, src, pipe, old_tiles, old_stride);
+	gpu_delete_texture(src);
 	return dst;
 }
 
-// Remap layer textures between the shared udim atlas and a single tile, mask is remapped in place when set
-slot_layer_t *layers_udim_remap(slot_layer_t *l, gpu_texture_t **mask, i32 slot, bool to_tile) {
-	static slot_layer_t remapped;
-	remapped               = *l;
-	remapped.texpaint      = _layers_udim_copy(&layers_udim_a, l->texpaint, slot, to_tile);
-	remapped.texpaint_nor  = _layers_udim_copy(&layers_udim_b, l->texpaint_nor, slot, to_tile);
-	remapped.texpaint_pack = _layers_udim_copy(&layers_udim_c, l->texpaint_pack, slot, to_tile);
-	if (mask != NULL) {
-		*mask = _layers_udim_copy(&layers_udim_mask, *mask, slot, to_tile);
+static void _layers_udim_relayout_layer(slot_layer_t *l, i32_array_t *old_tiles, i32 old_stride) {
+	any_map_t *rts = render_path_render_targets;
+	if (slot_layer_is_layer(l) && l->texpaint != NULL) {
+		gpu_texture_format_t format = l->texpaint->format;
+		gpu_pipeline_t      *pipe   = format == GPU_TEXTURE_FORMAT_RGBA32 ? pipes_copy : format == GPU_TEXTURE_FORMAT_RGBA64 ? pipes_copy64 : pipes_copy128;
+		// New tiles are cleared like a new layer
+		l->texpaint         = _layers_udim_relayout_texture(l->texpaint, 0x00000000, pipe, old_tiles, old_stride);
+		render_target_t *rt = any_map_get(rts, string("texpaint%s", l->ext));
+		rt->_image          = l->texpaint;
+		if (l->texpaint_nor != NULL) {
+			l->texpaint_nor         = _layers_udim_relayout_texture(l->texpaint_nor, color_from_floats(0.5, 0.5, 1.0, 0.0), pipe, old_tiles, old_stride);
+			render_target_t *rt_nor = any_map_get(rts, string("texpaint_nor%s", l->ext));
+			rt_nor->_image          = l->texpaint_nor;
+		}
+		if (l->texpaint_pack != NULL) {
+			l->texpaint_pack =
+			    _layers_udim_relayout_texture(l->texpaint_pack, color_from_floats(1.0, layers_default_rough, 0.0, 0.0), pipe, old_tiles, old_stride);
+			render_target_t *rt_pack = any_map_get(rts, string("texpaint_pack%s", l->ext));
+			rt_pack->_image          = l->texpaint_pack;
+		}
 	}
-	return &remapped;
+	else if (slot_layer_is_mask(l) && l->texpaint != NULL) {
+		// New tiles are white, the mask hides nothing there
+		l->texpaint         = _layers_udim_relayout_texture(l->texpaint, 0xffffffff, pipes_copy8, old_tiles, old_stride);
+		render_target_t *rt = any_map_get(rts, string("texpaint%s", l->ext));
+		rt->_image          = l->texpaint;
+	}
 }
 
-// Atlas slot of a layer covering exactly one udim tile object, -1 otherwise
-i32 layers_udim_tile_slot(slot_layer_t *l) {
-	mesh_object_t *o = layers_udim_tile_object(l);
-	return o != NULL ? util_mesh_udim_slot(util_mesh_udim_tile(o->base->name)) : -1;
+// The project tile list changed from old_tiles (old_stride): every layer texture is moved to the new atlas layout,
+// tiles in both lists keep their pixels, new tiles are cleared. Undo layers and paint targets are only resized, history is reset by the caller.
+void layers_udim_relayout(i32_array_t *old_tiles, i32 old_stride) {
+	layers_resize_undo_steps();
+	for (i32 i = 0; i < g_project->_->layers->length; ++i) {
+		_layers_udim_relayout_layer(g_project->_->layers->buffer[i], old_tiles, old_stride);
+	}
+	layers_resize_targets();
+
+	render_path_raytrace_ready     = false; // Rebuild baketex
+	g_context->layer_preview_dirty = true;
+	g_context->ddirty              = 2;
 }
 
 static gpu_texture_t *layers_move_a    = NULL;
@@ -1370,12 +1386,6 @@ slot_layer_t *layers_flatten(bool height_to_normal, slot_layer_t_array_t *layers
 
 		l1 = layers_move_preview(l1);
 
-		// Flattened layers are in shared atlas space
-		i32 tile_slot = layers_udim_tile_slot(l1);
-		if (tile_slot >= 0) {
-			l1 = layers_udim_remap(l1, l1masks != NULL ? &mask : NULL, tile_slot, false);
-		}
-
 		// Opacity still counts without the base color channel, the path tracer and export read the alpha as opacity
 		if (l1->paint_base || l1->paint_opac) {
 			draw_begin(layers_temp_image, false, 0); // Copy to temp
@@ -1454,10 +1464,6 @@ slot_layer_t *layers_flatten(bool height_to_normal, slot_layer_t_array_t *layers
 				}
 			}
 		}
-	}
-
-	if (util_mesh_udim_active()) {
-		layers_draw_mesh_materials();
 	}
 
 	slot_layer_t *l0 = ALLOC_INIT(slot_layer_t, {.texpaint = layers_expa, .texpaint_nor = layers_expb, .texpaint_pack = layers_expc});

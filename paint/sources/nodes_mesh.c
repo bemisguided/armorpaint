@@ -706,6 +706,18 @@ bool nodes_mesh_holds(mesh_data_t *data) {
 	return false;
 }
 
+// Original meshes kept while their objects show the node output, caller frees the array
+any_array_t *nodes_mesh_held_inputs() {
+	any_array_t *ar = any_array_create(0);
+	for (i32 i = 0; nodes_mesh_slots != NULL && i < nodes_mesh_slots->length; ++i) {
+		mesh_nodes_t *s = nodes_mesh_slots->buffer[i];
+		if (s->input != NULL && s->output != s->input && array_index_of(ar, s->input) < 0) {
+			any_array_push(ar, s->input);
+		}
+	}
+	return ar;
+}
+
 // Replaces the mesh of an object, the previous one is left to the caller
 static void nodes_mesh_set_data(mesh_object_t *o, mesh_data_t *data, bool unwrap) {
 	mesh_object_set_data(o, data);

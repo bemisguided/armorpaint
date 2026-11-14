@@ -139,14 +139,7 @@ node_shader_context_t *make_mesh_run(material_t *data, i32 layer_pass) {
 		node_shader_write_attrib_frag(kong, "float2 tex_coord1 = input.tex_coord1;");
 	}
 
-	// Shared layers of udim tiles live in atlas space
-	if (util_mesh_udim_active()) {
-		node_shader_add_out(kong, "float2 tex_coord_atlas");
-		node_shader_add_constant(kong, "float3 atlas_transform", "_atlas_transform");
-		node_shader_write_vert(kong, "output.tex_coord_atlas = input.tex * constants.atlas_transform.z + constants.atlas_transform.xy;");
-		node_shader_write_attrib_frag(kong, "float2 tex_coord_atlas = input.tex_coord_atlas;");
-	}
-	char *tex_coord_layer = util_mesh_udim_layer(g_context->layer) ? "tex_coord_atlas" : "tex_coord";
+	char *tex_coord_layer = "tex_coord"; // Mesh uvs are in atlas space, layers too
 
 	kong->frag_out = render_path_base_gbuffer_uv() ? "float4[3]" : "float4[2]";
 	kong->frag_n   = true;
@@ -302,7 +295,7 @@ node_shader_context_t *make_mesh_run(material_t *data, i32 layer_pass) {
 			slot_layer_t *l             = layers->buffer[i];
 			bool          coverage_test = layer_write_coverage_test(kong, l); // Objects the layer does not cover skip it
 
-			char *tex_coord = l->uv_map == 1 ? "tex_coord1" : util_mesh_udim_layer(l) ? "tex_coord_atlas" : "tex_coord";
+			char *tex_coord = l->uv_map == 1 ? "tex_coord1" : "tex_coord";
 			node_shader_add_texture(kong, string_tmp("texpaint%s", i32_to_string(l->id)), NULL);
 			node_shader_write_frag(kong, string_tmp("texpaint_sample = sample_lod(texpaint%s, sampler_linear, %s, 0.0);", i32_to_string(l->id), tex_coord));
 			node_shader_write_frag(kong, "texpaint_opac = texpaint_sample.a;");
