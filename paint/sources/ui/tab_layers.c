@@ -309,11 +309,6 @@ static i32 tab_layers_label_tiles(slot_layer_t *l, i32 *first, i32 *second) {
 	return count;
 }
 
-// A side counts as All when its flag is set, its list is missing (unrestricted, as the coverage code reads it) or it holds every live member
-static bool tab_layers_coverage_is_all(bool all_flag, bool list_missing, i32 listed, i32 total) {
-	return all_flag || list_missing || (total > 0 && listed >= total);
-}
-
 static any_map_t *tab_layers_count_vars(i32 count) {
 	any_map_t *vars = any_map_create();
 	any_map_set(vars, "count", string_tmp("%d", count));
@@ -364,26 +359,13 @@ static char *tab_layers_coverage_text(bool multi_tile, bool all_objects, i32 obj
 	return string_tmp("%s / %s", tab_layers_objects_text(all_objects, object_count, object_name), tab_layers_tiles_text(all_tiles, tile_count, tile_id));
 }
 
-static i32 tab_layers_live_object_count() {
-	i32 n = 0;
-	for (i32 i = 0; i < g_project->_->paint_objects->length; ++i) {
-		n += ((mesh_object_t *)g_project->_->paint_objects->buffer[i])->paint_id > 0 ? 1 : 0;
-	}
-	return n;
-}
-
+// A side reads All when its flag is set. The ticks are followed literally: a list holding every object still reads as that list.
 static bool tab_layers_objects_all(slot_layer_t *l) {
-	char *first;
-	char *second;
-	i32   listed = slot_layer_all_objects(l) ? 0 : tab_layers_label_objects(l, &first, &second);
-	return tab_layers_coverage_is_all(slot_layer_all_objects(l), false, listed, tab_layers_live_object_count());
+	return slot_layer_all_objects(l);
 }
 
 static bool tab_layers_tiles_all(slot_layer_t *l) {
-	i32 first;
-	i32 second;
-	i32 listed = slot_layer_all_tiles(l) ? 0 : tab_layers_label_tiles(l, &first, &second);
-	return tab_layers_coverage_is_all(slot_layer_all_tiles(l), false, listed, util_udim_count());
+	return slot_layer_all_tiles(l);
 }
 
 static char *tab_layers_coverage_label(slot_layer_t *l) {
