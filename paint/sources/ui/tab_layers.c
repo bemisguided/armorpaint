@@ -309,31 +309,6 @@ static i32 tab_layers_label_tiles(slot_layer_t *l, i32 *first, i32 *second) {
 	return count;
 }
 
-// Single tile project: "No objects", one name, two names or "N objects"
-static char *tab_layers_objects_part(slot_layer_t *l) {
-	char *first;
-	char *second;
-	i32   count = tab_layers_label_objects(l, &first, &second);
-	if (count == 0) {
-		return tr("No objects");
-	}
-	if (count == 1) {
-		return first;
-	}
-	if (count == 2) {
-		return string_tmp("%s, %s", first, second);
-	}
-	return string_tmp("%d %s", count, tr("objects"));
-}
-
-// Label of the single tile project's button, unchanged from the Objects button
-static char *tab_layers_objects_label(slot_layer_t *l) {
-	if (l->all_objects) {
-		return tr("Objects: All");
-	}
-	return tab_layers_objects_part(l);
-}
-
 // A side counts as All when its flag is set, its list is missing (unrestricted, as the coverage code reads it) or it holds every live member
 static bool tab_layers_coverage_is_all(bool all_flag, bool list_missing, i32 listed, i32 total) {
 	return all_flag || list_missing || (total > 0 && listed >= total);
@@ -345,25 +320,48 @@ static any_map_t *tab_layers_count_vars(i32 count) {
 	return vars;
 }
 
-// Label of the Applies to button in a project with more than one tile: "objects / tiles", pure so it can be tested.
-// Parts: All, No objects / No tiles, the name or id when exactly one, else "N objects" / "N tiles". Both All gives just All.
-static char *tab_layers_coverage_text(bool all_objects, i32 object_count, char *object_name, bool all_tiles, i32 tile_count, i32 tile_id) {
+static char *tab_layers_objects_text(bool all, i32 count, char *name) {
+	if (all) {
+		return tr("All objects");
+	}
+	if (count == 0) {
+		return tr("No objects");
+	}
+	if (count == 1) {
+		return name;
+	}
+	any_map_t *vars = tab_layers_count_vars(count);
+	char      *s    = vtr("{count} objects", vars);
+	map_free(vars);
+	return s;
+}
+
+static char *tab_layers_tiles_text(bool all, i32 count, i32 id) {
+	if (all) {
+		return tr("All tiles");
+	}
+	if (count == 0) {
+		return tr("No tiles");
+	}
+	if (count == 1) {
+		return string_tmp("%d", id);
+	}
+	any_map_t *vars = tab_layers_count_vars(count);
+	char      *s    = vtr("{count} tiles", vars);
+	map_free(vars);
+	return s;
+}
+
+// Label of the Applies to button, pure so it can be tested. More than one tile: "objects / tiles", both All gives "All objects & tiles".
+// One tile or fewer: the objects part only. Objects: All objects, No objects, the name, N objects. Tiles: All tiles, No tiles, the id, N tiles.
+static char *tab_layers_coverage_text(bool multi_tile, bool all_objects, i32 object_count, char *object_name, bool all_tiles, i32 tile_count, i32 tile_id) {
+	if (!multi_tile) {
+		return tab_layers_objects_text(all_objects, object_count, object_name);
+	}
 	if (all_objects && all_tiles) {
-		return tr("All");
+		return tr("All objects & tiles");
 	}
-	char *o = all_objects ? tr("All") : object_count == 0 ? tr("No objects") : object_name;
-	char *t = all_tiles ? tr("All") : tile_count == 0 ? tr("No tiles") : string_tmp("%d", tile_id);
-	if (!all_objects && object_count > 1) {
-		any_map_t *vars = tab_layers_count_vars(object_count);
-		o               = vtr("{count} objects", vars);
-		map_free(vars);
-	}
-	if (!all_tiles && tile_count > 1) {
-		any_map_t *vars = tab_layers_count_vars(tile_count);
-		t               = vtr("{count} tiles", vars);
-		map_free(vars);
-	}
-	return string_tmp("%s / %s", o, t);
+	return string_tmp("%s / %s", tab_layers_objects_text(all_objects, object_count, object_name), tab_layers_tiles_text(all_tiles, tile_count, tile_id));
 }
 
 static i32 tab_layers_live_object_count() {
@@ -389,18 +387,16 @@ static bool tab_layers_tiles_all(slot_layer_t *l) {
 }
 
 static char *tab_layers_coverage_label(slot_layer_t *l) {
-	if (util_udim_count() <= 1) {
-		return tab_layers_objects_label(l);
-	}
+	bool  multi   = util_udim_count() > 1;
 	char *first   = NULL;
 	char *second  = NULL;
 	i32   t_first = 0;
 	i32   t_second = 0;
 	bool  ao = tab_layers_objects_all(l);
-	bool  at = tab_layers_tiles_all(l);
+	bool  at = multi && tab_layers_tiles_all(l);
 	i32   o  = ao || l->objects == NULL ? 0 : tab_layers_label_objects(l, &first, &second);
-	i32   t  = at || l->tiles == NULL ? 0 : tab_layers_label_tiles(l, &t_first, &t_second);
-	return tab_layers_coverage_text(ao, o, first, at, t, t_first);
+	i32   t  = !multi || at || l->tiles == NULL ? 0 : tab_layers_label_tiles(l, &t_first, &t_second);
+	return tab_layers_coverage_text(multi, ao, o, first, at, t, t_first);
 }
 
 // At most 4 names, then "+N more"
@@ -420,23 +416,27 @@ static char *tab_layers_tip_list(string_array_t *names) {
 
 // "Objects / Tiles: A, B / 1001 +2 more", the sets the layer applies to
 static char *tab_layers_coverage_tip(slot_layer_t *l) {
+	bool            multi   = util_udim_count() > 1;
 	string_array_t *objects = any_array_create(0);
 	string_array_t *tiles   = any_array_create(0);
 	for (i32 i = 0; i < g_project->_->paint_objects->length; ++i) {
 		mesh_object_t *o = g_project->_->paint_objects->buffer[i];
-		if (o->paint_id > 0 && i32_array_index_of(l->objects, o->paint_id) >= 0) {
+		if (o->paint_id > 0 && l->objects != NULL && i32_array_index_of(l->objects, o->paint_id) >= 0) {
 			any_array_push(objects, o->base->name);
 		}
 	}
-	for (i32 i = 0; i < util_udim_count(); ++i) {
+	for (i32 i = 0; multi && i < util_udim_count(); ++i) {
 		i32 tile = util_udim_tile(i);
-		if (i32_array_index_of(l->tiles, tile) >= 0) {
+		if (l->tiles != NULL && i32_array_index_of(l->tiles, tile) >= 0) {
 			any_array_push(tiles, string_tmp("%d", tile));
 		}
 	}
-	char *o = tab_layers_objects_all(l) ? tr("All") : (objects->length > 0 ? tab_layers_tip_list(objects) : tr("No objects"));
-	char *t = tab_layers_tiles_all(l) ? tr("All") : (tiles->length > 0 ? tab_layers_tip_list(tiles) : tr("No tiles"));
-	char *tip = string_tmp("%s / %s: %s / %s", tr("Objects"), tr("Tiles"), o, t);
+	char *o   = tab_layers_objects_all(l) ? tr("All") : (objects->length > 0 ? tab_layers_tip_list(objects) : tr("No objects"));
+	char *tip = string_tmp("%s: %s", tr("Objects"), o);
+	if (multi) {
+		char *t = tab_layers_tiles_all(l) ? tr("All") : (tiles->length > 0 ? tab_layers_tip_list(tiles) : tr("No tiles"));
+		tip     = string_tmp("%s / %s: %s / %s", tr("Objects"), tr("Tiles"), o, t);
+	}
 	array_free(objects);
 	free(objects);
 	array_free(tiles);
@@ -588,14 +588,13 @@ static void tab_layers_coverage_menu_draw() {
 
 // Applies to button of a layer or group row, it shows the objects and with more than one tile also the tiles
 static void tab_layers_coverage_buttons(slot_layer_t *l) {
-	bool tiles = util_udim_count() > 1;
 	if (ui_button(tab_layers_coverage_label(l), UI_ALIGN_LEFT, "")) {
 		tab_layers_coverage_l = l;
 		ui_menu_draw(&tab_layers_coverage_menu_draw, -1, -1);
 	}
 	else if (g_ui->is_hovered) {
 		char *note = tab_layers_objects_overlap_note(l);
-		char *tip  = tiles ? tab_layers_coverage_tip(l) : tr("Limit this layer to the selected objects.");
+		char *tip  = tab_layers_coverage_tip(l);
 		ui_tooltip(note != NULL ? string_tmp("%s\n%s", tip, note) : tip);
 	}
 }

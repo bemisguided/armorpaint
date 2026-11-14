@@ -856,12 +856,10 @@ type
 untitled
 x
 {shortcut} and move mouse
-Objects: All
 No objects
 objects
 No tiles
 tiles
-Limit this layer to the selected objects.
 Limit this layer to the selected UDIM tiles.
 This layer's objects were deleted, so it covers nothing. Select objects or choose All to use it again.
 Objects
@@ -896,3 +894,6 @@ Show only the layers that cover this tile
 +{count} more
 {count} objects
 {count} tiles
+All objects
+All tiles
+All objects & tiles
