@@ -302,7 +302,7 @@ void ui_menubar_draw_category_items() {
 		if (ui_menu_sub_button(tr("Export"))) {
 			ui_menu_sub_begin(4);
 			if (ui_menu_button(tr("Textures..."), any_map_get(g_keymap, "file_export_textures_as"), ICON_IMAGE)) {
-				g_context->layers_export = EXPORT_MODE_VISIBLE;
+				g_context->layers_export = export_texture_default_mode();
 				box_export_tab           = 0;
 				box_export_show_textures();
 			}

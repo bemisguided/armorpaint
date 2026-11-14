@@ -533,7 +533,7 @@ Jeda
 Pena
 Pensil
 Per Objek
-Per Tile UDIM
+
 Perspektif
 Fase
 Ofset Fase
@@ -856,6 +856,7 @@ jenis
 tanpa judul
 x
 {shortcut} dan gerakkan mouse
+
 
 
 

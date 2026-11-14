@@ -533,7 +533,7 @@ Pause
 Stylo
 Crayon
 Par objet
-Par tuile UDIM
+
 Perspective
 Phase
 Décalage de phase
@@ -856,6 +856,7 @@ type
 sans titre
 x
 {shortcut} et déplacer la souris
+
 
 
 

@@ -533,7 +533,7 @@ Pausar
 Caneta
 Lápis
 Por Objeto
-Por Telha UDIM
+
 Perspectiva
 Fase
 Deslocamento de Fase
@@ -856,6 +856,7 @@ tipo
 sem título
 x
 {shortcut} e mover mouse
+
 
 
 

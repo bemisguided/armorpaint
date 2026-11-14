@@ -533,7 +533,7 @@ Pozastavit
 Pero
 Tužka
 Na objekt
-Na UDIM dlaždici
+
 Perspektiva
 Fáze
 Posun fáze
@@ -856,6 +856,7 @@ typ
 bez názvu
 x
 {shortcut} a pohyb myší
+
 
 
 

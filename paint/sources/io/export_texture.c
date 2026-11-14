@@ -25,9 +25,13 @@ static buffer_t *export_texture_pack_pixels(buffer_t *pixels, i32 count, i32 bit
 	return rgba;
 }
 
+// Size of the textures being written, the atlas or one udim tile cropped out of it
+static i32 export_texture_size_x = 0;
+static i32 export_texture_size_y = 0;
+
 static void export_texture_write_texture(char *file, buffer_t *pixels, i32 type, i32 off) {
-	i32 res_x       = util_udim_res_x();
-	i32 res_y       = util_udim_res_y();
+	i32 res_x       = export_texture_size_x;
+	i32 res_y       = export_texture_size_y;
 	i32 bits_handle = base_bits;
 	i32 bits        = bits_handle == TEXTURE_BITS_BITS8 ? 8 : bits_handle == TEXTURE_BITS_BITS16 ? 16 : 32;
 	i32 format      = 0; // RGBA
@@ -235,22 +239,9 @@ static void export_texture_set_channel(f32 value, buffer_t *to, i32 to_channel, 
 	}
 }
 
-// Layer applies to the object of that name
-static bool export_texture_layer_covers_name(slot_layer_t *l, char *name) {
-	if (!layer_objects_restricted(l)) {
-		return true;
-	}
-	for (i32 i = 0; i < g_project->_->paint_objects->length; ++i) {
-		mesh_object_t *o = g_project->_->paint_objects->buffer[i];
-		if (string_equals(o->base->name, name) && layer_covers_object(l, o)) {
-			return true;
-		}
-	}
-	return false;
-}
-
 // object_filter (paint id) and tile_filter (udim id) limit every layer to that object or tile, 0 for none.
-// Restricted layers are masked to their coverage footprint either way.
+// Restricted layers are masked to their coverage footprint either way. A tile filter also crops that tile out of the
+// flattened atlas at its native size and adds "_<tile>" after the channel name. object_name is the file name label.
 static void export_texture_run_layers(char *path, slot_layer_t_array_t *layers, char *object_name, bool bake_material, i32 object_filter, i32 tile_filter) {
 	i32 texture_size_x = util_udim_res_x();
 	i32 texture_size_y = util_udim_res_y();
@@ -273,9 +264,9 @@ static void export_texture_run_layers(char *path, slot_layer_t_array_t *layers, 
 		ext = ".png"; // Packed as rgba8 png
 	}
 
-	bool is_udim = g_context->layers_export == EXPORT_MODE_PER_UDIM_TILE;
-	if (is_udim) {
-		ext = string("%s%s", object_name, ext);
+	// Tile suffix goes after the channel, before the extension
+	if (tile_filter > 0) {
+		ext = string("_%d%s", tile_filter, ext);
 	}
 
 	layers_make_temp_img();
@@ -285,8 +276,7 @@ static void export_texture_run_layers(char *path, slot_layer_t_array_t *layers, 
 
 	// Append object name, selected layers can cover any set of objects and get none
 	bool export_selected = g_context->layers_export == EXPORT_MODE_SELECTED;
-	bool per_object      = g_context->layers_export == EXPORT_MODE_PER_OBJECT;
-	if (!is_udim && !export_selected && !string_equals(object_name, "")) {
+	if (!export_selected && !string_equals(object_name, "")) {
 		f = string("%s_%s", f, object_name);
 	}
 
@@ -311,10 +301,7 @@ static void export_texture_run_layers(char *path, slot_layer_t_array_t *layers, 
 			continue;
 		}
 
-		if (!layers_coverage_applies(l1, object_filter, tile_filter)) {
-			continue;
-		}
-		if (per_object && !string_equals(object_name, "") && !export_texture_layer_covers_name(l1, object_name)) {
+		if (!bake_material && !layers_coverage_applies(l1, object_filter, tile_filter)) {
 			continue;
 		}
 
@@ -390,6 +377,42 @@ static void export_texture_run_layers(char *path, slot_layer_t_array_t *layers, 
 	gpu_texture_t *texpaint      = layers_expa;
 	gpu_texture_t *texpaint_nor  = layers_expb;
 	gpu_texture_t *texpaint_pack = layers_expc;
+
+	export_texture_size_x = texpaint->width;
+	export_texture_size_y = texpaint->height;
+	texture_size_x        = texpaint->width;
+	texture_size_y        = texpaint->height;
+
+	// Crop one udim tile out of the atlas at its native size, the slot rect includes the gutter
+	gpu_texture_t *tile_crops[3] = {NULL, NULL, NULL};
+	i32            stride        = util_udim_stride();
+	i32            slot          = tile_filter > 0 ? util_udim_slot(tile_filter) : -1;
+	if (slot >= 0 && stride > 1) {
+		i32 tw = texpaint->width / stride;
+		i32 th = texpaint->height / stride;
+		i32 sx = (slot % stride) * tw;
+		i32 sy = (slot / stride) * th;
+
+		gpu_pipeline_t *pipe    = texpaint->format == GPU_TEXTURE_FORMAT_RGBA32   ? pipes_copy
+		                          : texpaint->format == GPU_TEXTURE_FORMAT_RGBA64 ? pipes_copy64
+		                                                                          : pipes_copy128;
+		gpu_texture_t  *srcs[3] = {texpaint, texpaint_nor, texpaint_pack};
+		for (i32 i = 0; i < 3; ++i) {
+			tile_crops[i] = gpu_create_render_target(tw, th, srcs[i]->format);
+			draw_begin(tile_crops[i], true, 0x00000000);
+			draw_set_pipeline(pipe);
+			draw_scaled_sub_image(srcs[i], sx, sy, tw, th, 0, 0, tw, th);
+			draw_set_pipeline(NULL);
+			draw_end();
+		}
+		texpaint              = tile_crops[0];
+		texpaint_nor          = tile_crops[1];
+		texpaint_pack         = tile_crops[2];
+		export_texture_size_x = tw;
+		export_texture_size_y = th;
+		texture_size_x        = tw;
+		texture_size_y        = th;
+	}
 
 	buffer_t        *pixpaint      = NULL;
 	buffer_t        *pixpaint_nor  = NULL;
@@ -531,6 +554,12 @@ static void export_texture_run_layers(char *path, slot_layer_t_array_t *layers, 
 				}
 			}
 			export_texture_write_texture(out_path, pix, 3, 0);
+		}
+	}
+
+	for (i32 i = 0; i < 3; ++i) {
+		if (tile_crops[i] != NULL) {
+			gpu_delete_texture(tile_crops[i]);
 		}
 	}
 
@@ -695,6 +724,75 @@ static void export_texture_run_bake_material(char *path) {
 	}
 }
 
+// Paint ids of the objects some object restricted layer of the list covers
+static i32_array_t *export_texture_object_ids(slot_layer_t_array_t *layers) {
+	i32_array_t *ids = i32_array_create(0);
+	for (i32 i = 0; i < g_project->_->paint_objects->length; ++i) {
+		mesh_object_t *o = g_project->_->paint_objects->buffer[i];
+		for (i32 j = 0; j < layers->length; ++j) {
+			slot_layer_t *l = layers->buffer[j];
+			if (slot_layer_is_layer(l) && layer_objects_restricted(l) && layer_covers_object(l, o)) {
+				i32_array_push(ids, o->paint_id);
+				break;
+			}
+		}
+	}
+	return ids;
+}
+
+// Whether the mesh of the object has geometry on the tile
+static bool export_texture_object_uses_tile(mesh_object_t *o, i32 tile) {
+	mesh_data_t *md = o->data;
+	util_udim_ensure(md);
+	if (!util_udim_has_tiles(md)) {
+		return tile == 1001;
+	}
+	for (i32 i = 0; i < md->_->udim_tile->length; ++i) {
+		if (md->_->udim_tile->buffer[i] + 1001 == tile) {
+			return true;
+		}
+	}
+	return false;
+}
+
+// Some layer of the list applies to the object and tile
+static bool export_texture_any_layer(slot_layer_t_array_t *layers, i32 object_filter, i32 tile_filter) {
+	for (i32 i = 0; i < layers->length; ++i) {
+		slot_layer_t *l = layers->buffer[i];
+		if (slot_layer_is_layer(l) && slot_layer_is_visible(l) && !slot_layer_has_visible_filter(l) && layers_coverage_applies(l, object_filter, tile_filter)) {
+			return true;
+		}
+	}
+	return false;
+}
+
+// One texture set per project tile a mesh uses, and per object too when objects is set
+static void export_texture_run_tiles(char *path, bool objects) {
+	slot_layer_t_array_t *layers = g_project->_->layers;
+	i32_array_t          *ids    = objects ? export_texture_object_ids(layers) : i32_array_create(0);
+	for (i32 s = 0; s < util_udim_count(); ++s) {
+		i32 tile = util_udim_tile(s);
+		if (!util_udim_tile_used(tile)) {
+			continue;
+		}
+		if (ids->length == 0) {
+			export_texture_run_layers(path, layers, "", false, 0, tile);
+			continue;
+		}
+		for (i32 i = 0; i < ids->length; ++i) {
+			mesh_object_t *o = project_object_by_id(ids->buffer[i]);
+			if (export_texture_object_uses_tile(o, tile) && export_texture_any_layer(layers, o->paint_id, tile)) {
+				export_texture_run_layers(path, layers, o->base->name, false, o->paint_id, tile);
+			}
+		}
+	}
+}
+
+// Mode the export box opens with, per tile when the project has several tiles
+export_mode_t export_texture_default_mode() {
+	return util_udim_count() > 1 ? EXPORT_MODE_PER_UDIM_TILE : EXPORT_MODE_VISIBLE;
+}
+
 void export_texture_run(char *path, bool bake_material) {
 
 	// Exporting without opening the export box
@@ -707,29 +805,24 @@ void export_texture_run(char *path, bool bake_material) {
 		box_export_parse_preset();
 	}
 
+	// Tile modes need a project with tiles other than a lone 1001
+	if (!util_udim_active() && g_context->layers_export > EXPORT_MODE_PER_OBJECT) {
+		g_context->layers_export = EXPORT_MODE_VISIBLE;
+	}
+
 	if (bake_material) {
 		export_texture_run_bake_material(path);
 	}
-	else if (g_context->layers_export == EXPORT_MODE_PER_UDIM_TILE) {
-		export_texture_run_layers(path, g_project->_->layers, "", false, 0, 0); // The whole atlas until per tile export is rebuilt (B5)
+	else if (g_context->layers_export == EXPORT_MODE_PER_UDIM_TILE || g_context->layers_export == EXPORT_MODE_PER_OBJECT_TILE) {
+		export_texture_run_tiles(path, g_context->layers_export == EXPORT_MODE_PER_OBJECT_TILE);
 	}
 	else if (g_context->layers_export == EXPORT_MODE_PER_OBJECT) {
 		// Objects some object restricted layer covers, each gets its own texture set
-		string_array_t *object_names = any_array_create_from_raw((void *[]){}, 0);
-		for (i32 i = 0; i < g_project->_->paint_objects->length; ++i) {
-			mesh_object_t *o = g_project->_->paint_objects->buffer[i];
-			for (i32 j = 0; j < g_project->_->layers->length; ++j) {
-				slot_layer_t *l = g_project->_->layers->buffer[j];
-				if (layer_objects_restricted(l) && layer_covers_object(l, o)) {
-					any_array_push(object_names, o->base->name);
-					break;
-				}
-			}
-		}
-		if (object_names->length > 0) {
-			for (i32 i = 0; i < object_names->length; ++i) {
-				char *name = object_names->buffer[i];
-				export_texture_run_layers(path, g_project->_->layers, name, false, 0, 0);
+		i32_array_t *ids = export_texture_object_ids(g_project->_->layers);
+		if (ids->length > 0) {
+			for (i32 i = 0; i < ids->length; ++i) {
+				mesh_object_t *o = project_object_by_id(ids->buffer[i]);
+				export_texture_run_layers(path, g_project->_->layers, o->base->name, false, o->paint_id, 0);
 			}
 		}
 		else {

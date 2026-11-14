@@ -1363,6 +1363,7 @@ void                   render_path_paint_bind_layers();
 void                   render_path_paint_unbind_layers();
 void                   render_path_paint_dilate(bool base, bool nor_pack);
 void                   export_texture_run(char *path, bool bake_material);
+export_mode_t             export_texture_default_mode();
 void                   ui_box_render();
 void                   ui_box_show_message(char *title, char *text, bool copyable);
 void                   ui_box_show_custom(void (*commands)(void), i32 mw, i32 mh, void (*on_hide)(void), bool draggable, char *title);

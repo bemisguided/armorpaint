@@ -78,7 +78,7 @@ void util_shortcut_global() {
 	}
 	else if (keymap_shortcut(any_map_get(g_keymap, "file_export_textures"), SHORTCUT_TYPE_STARTED)) {
 		if (string_equals(g_context->texture_export_path, "")) { // First export, ask for path
-			g_context->layers_export = EXPORT_MODE_VISIBLE;
+			g_context->layers_export = export_texture_default_mode();
 			box_export_tab           = 0;
 			box_export_show_textures();
 		}
@@ -87,7 +87,7 @@ void util_shortcut_global() {
 		}
 	}
 	else if (keymap_shortcut(any_map_get(g_keymap, "file_export_textures_as"), SHORTCUT_TYPE_STARTED)) {
-		g_context->layers_export = EXPORT_MODE_VISIBLE;
+		g_context->layers_export = export_texture_default_mode();
 		box_export_tab           = 0;
 		box_export_show_textures();
 	}
