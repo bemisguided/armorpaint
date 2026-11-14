@@ -3,6 +3,7 @@
 // Bake Mesh Maps plugin based on the work of Falkor.
 // Bakes mesh maps of the paint objects on the CPU, optionally projected from a high poly file.
 // Each map is saved as <name>_<map>.png and added to the project textures.
+// With UDIM tiles the resolution is per tile, the png is the atlas and <name>_<map>_1001.png... are written per tile.
 // The ray tracer runs natively on worker threads, see plugins/bake_maps/bake_maps.c.
 
 void *plugin;
@@ -166,6 +167,7 @@ void update_material() {
 		}
 		ui_node_t *n = script_material_create_node_at("TEX_IMAGE", x, 100 + 180 * k);
 		script_material_set_button(n, 0, assets[k]);
+		script_material_set_button(n, 2, 1); // UV: Atlas, the maps cover every udim tile
 		script_material_connect(n, 0, out, sockets[k]);
 	}
 	script_material_update();

@@ -41,8 +41,17 @@ void               console_error(char *s);
 buffer_t          *iron_load_blob(char *file);
 bool               bake_to_target(render_target_t *rt, bake_type_t bake_type, void (*done)(void *), void *data);
 gpu_texture_t     *gpu_create_render_target(i32 width, i32 height, i32 format);
-i32                config_get_texture_res_x();
-i32                config_get_texture_res_y();
+void               console_info(char *s);
+char              *vtr(char *id, any_map_t *vars);
+i32                util_udim_count();
+i32                util_udim_tile(i32 slot);
+i32                util_udim_stride();
+bool               util_udim_active();
+i32                util_udim_tile_res_x();
+i32                util_udim_tile_res_y();
+i32                util_udim_res_x();
+i32                util_udim_res_y();
+bool               util_udim_tile_used(i32 tile);
 extern bool        bake_texture_node_baking;
 extern i32         render_path_raytrace_bake_current_sample;
 unsigned char     *stbi_load_from_memory(unsigned char const *buffer, int len, int *x, int *y, int *comp, int req_comp);
@@ -1559,6 +1568,9 @@ static u64 bake_maps_paint_objects_key() {
 		key            = key * 31 + (u64)(uintptr_t)d;
 		key            = key * 31 + (d != NULL && d->index_array != NULL ? d->index_array->length : 0);
 	}
+	for (i32 i = 0; i < util_udim_count(); ++i) {
+		key = key * 31 + (u64)util_udim_tile(i); // A tile list change moves the atlas uvs
+	}
 	return key;
 }
 
@@ -1634,6 +1646,13 @@ static bool bake_rays_prepare_layout(i32 w, i32 h) {
 // starts one map on worker threads, type is a bake_type_t or 14 for cavity
 static bool bake_maps_gpu_last; // Defined with the gpu bake below
 
+// Atlas side for a per tile side, the per tile side is lowered so the atlas stays within 16384 (like util_udim_tile_res_x)
+static i32 bake_maps_atlas_side(i32 tile_side) {
+	i32 stride = util_udim_stride();
+	i32 max    = 16384 / stride;
+	return (tile_side < max ? tile_side : max) * stride;
+}
+
 static minic_val_t bake_maps_start(minic_val_t *a, int n) {
 	bake_maps_gpu_last = false;
 	i32  type          = bake_maps_arg_i(a, n, 0);
@@ -1643,6 +1662,16 @@ static minic_val_t bake_maps_start(minic_val_t *a, int n) {
 	bake_rays_join();
 	if (w <= 0 || h <= 0) {
 		return minic_val_int(0);
+	}
+
+	// w, h are per udim tile, the bake covers the whole atlas
+	w = bake_maps_atlas_side(w);
+	h = bake_maps_atlas_side(h);
+	if (bake_rays_imax(w, h) > 8192) {
+		any_map_t *vars = any_map_create();
+		any_map_set(vars, "size", i32_to_string(bake_rays_imax(w, h)));
+		console_info(vtr("CPU bake of a {size} px atlas needs a lot of memory, consider the GPU bake or a lower resolution", vars));
+		map_free(vars);
 	}
 
 	if (!bake_rays_prepare_layout(w, h)) {
@@ -1692,7 +1721,7 @@ static minic_val_t bake_maps_start(minic_val_t *a, int n) {
 }
 
 // Raytraced maps can bake on the gpu through the core bake path (Bake Texture node), from the low poly
-// at the layer resolution. step, progress, cancel and save then work on that bake.
+// at the layer (udim atlas) resolution. step, progress, cancel and save then work on that bake.
 static render_target_t *bake_maps_gpu_rt        = NULL;
 static bool             bake_maps_gpu_running   = false;
 static bool             bake_maps_gpu_cancelled = false;
@@ -1738,9 +1767,9 @@ static minic_val_t bake_maps_gpu_supported(minic_val_t *a, int n) {
 	return minic_val_int(gpu_raytrace_supported() ? 1 : 0);
 }
 
-// int bake_maps_gpu_res(): gpu maps bake at the layer resolution
+// int bake_maps_gpu_res(): gpu maps bake at the layer resolution, per udim tile
 static minic_val_t bake_maps_gpu_res(minic_val_t *a, int n) {
-	return minic_val_int(config_get_texture_res_x());
+	return minic_val_int(util_udim_tile_res_x());
 }
 
 // bool bake_maps_gpu_start(int type, int samples, float ao_strength, float ao_radius, float ao_offset):
@@ -1749,8 +1778,9 @@ static minic_val_t bake_maps_gpu_start(minic_val_t *a, int n) {
 	if (bake_texture_node_baking || bake_rays_working || !gpu_raytrace_supported()) {
 		return minic_val_int(0);
 	}
-	i32 w = config_get_texture_res_x();
-	i32 h = config_get_texture_res_y();
+	// The core bake draws the whole udim atlas at the layer size
+	i32 w = util_udim_res_x();
+	i32 h = util_udim_res_y();
 	if (bake_maps_gpu_rt == NULL) {
 		bake_maps_gpu_rt         = render_target_create();
 		bake_maps_gpu_rt->name   = "bake_maps_gpu";
@@ -1839,8 +1869,38 @@ static minic_val_t bake_maps_cancel(minic_val_t *a, int n) {
 	return minic_val_int(0);
 }
 
+// With udim tiles writes <atlas name>_<tile>.png next to the atlas file for every tile used by a mesh, cropped
+// out of the atlas pixels (any channel order) at the per tile size. The tile files are not imported.
+// A single tile 1001 project writes nothing, a single other tile is a copy of the atlas.
+static void bake_maps_write_tiles(char *atlas_file, u8 *pixels, i32 w, i32 h) {
+	i32 stride = util_udim_stride();
+	if (!util_udim_active() || w % stride != 0 || h % stride != 0) {
+		return;
+	}
+	i32   tw   = w / stride;
+	i32   th   = h / stride;
+	i32   len  = (i32)strlen(atlas_file);
+	char *base = len > 4 && strcmp(atlas_file + len - 4, ".png") == 0 ? substring(atlas_file, 0, len - 4) : atlas_file;
+	u8   *tile = malloc((size_t)tw * th * 4);
+	for (i32 slot = 0; slot < util_udim_count(); ++slot) {
+		i32 id = util_udim_tile(slot);
+		if (!util_udim_tile_used(id)) {
+			continue;
+		}
+		i32 sx = (slot % stride) * tw;
+		i32 sy = (slot / stride) * th;
+		for (i32 y = 0; y < th; ++y) {
+			memcpy(tile + (size_t)y * tw * 4, pixels + ((size_t)(sy + y) * w + sx) * 4, (size_t)tw * 4);
+		}
+		buffer_t b = {.buffer = tile, .length = tw * th * 4};
+		iron_write_png(string("%s_%d.png", base, id), &b, tw, th, 0);
+	}
+	free(tile);
+}
+
 // bool bake_maps_save(char *folder, char *file_name): writes the finished map as png and adds it to the
-// project textures, or reloads the texture when it is already there
+// project textures, or reloads the texture when it is already there. With udim tiles the png is the atlas,
+// the per tile files are written next to it.
 static minic_val_t bake_maps_save(minic_val_t *a, int n) {
 	char *folder    = bake_maps_arg_s(a, n, 0);
 	char *file_name = bake_maps_arg_s(a, n, 1);
@@ -1856,6 +1916,7 @@ static minic_val_t bake_maps_save(minic_val_t *a, int n) {
 	buffer_bgra_swap(&pixels); // The png writer takes the native order, the bake is RGBA
 #endif
 	iron_write_png(file, &pixels, w, h, 0);
+	bake_maps_write_tiles(file, out, w, h);
 #ifdef IRON_BGRA
 	buffer_bgra_swap(&pixels);
 #endif
@@ -2582,6 +2643,7 @@ static minic_val_t bake_maps_inpaint_apply(minic_val_t *a, int n) {
 	buffer_bgra_swap(&b); // The png writer takes the native order, the decoded png is RGBA
 #endif
 	iron_write_png(path, &b, w, h, 0);
+	bake_maps_write_tiles(path, px, w, h); // Tile files follow the edited atlas
 	project_reimport_texture(asset);
 	free(j.known);
 	free(j.src);

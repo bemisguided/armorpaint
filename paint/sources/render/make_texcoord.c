@@ -9,6 +9,8 @@ void make_texcoord_run(node_shader_t *kong, bool is_atlas) {
 	f32       angle      = g_context->brush_angle + g_context->brush_nodes_angle;
 	f32       uv_angle   = fill_layer ? g_context->layer->angle : angle;
 
+	parser_material_tex_coord_atlas = NULL;
+
 	char *scale = "1.0";
 	if (!is_atlas) {
 		node_shader_add_constant(kong, "float brush_scale", "_brush_scale");
@@ -147,6 +149,8 @@ void make_texcoord_run(node_shader_t *kong, bool is_atlas) {
 			// Materials repeat per udim tile, bake reads layer textures in atlas space
 			node_shader_add_constant(kong, "float atlas_stride", "_atlas_stride");
 			node_shader_write_vert(kong, string_tmp("output.tex_coord = (input.tex * constants.atlas_stride) * %s;", scale));
+			// "UV: Atlas" image nodes sample the atlas uv, written only by such nodes
+			parser_material_tex_coord_atlas = "tex_coord * (1.0 / constants.atlas_stride)";
 		}
 		else {
 			node_shader_write_vert(kong, string_tmp("output.tex_coord = input.tex * %s;", scale));
