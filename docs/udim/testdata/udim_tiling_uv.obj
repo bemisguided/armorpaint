@@ -1,31 +1,31 @@
-# udim_tiling_uv: object Floor, 2x2 quad grid plane (4 quads), UVs 0..4 across (each quad spans 2x2 UV units, crossing integer borders) meant to REPEAT a tiling texture; every quad straddles tile borders (8 straddling triangles), so Auto UDIM detection must decide Off
+# udim_tiling_uv: object Floor, 2x2 quad grid plane (4 quads), UVs 0..4 across (each quad spans 2x2 UV units, crossing integer borders) meant to REPEAT a tiling texture; every quad straddles tile borders (8 straddling triangles), so Auto UDIM detection must decide Off. The plane stands upright (OBJ xy plane, facing +z = the default camera), a flat floor would be seen edge-on by the default camera
 o Floor
-v -2.0000 0.0000 -2.0000
-v 0.0000 0.0000 -2.0000
-v 2.0000 0.0000 -2.0000
+v -2.0000 -2.0000 0.0000
+v 0.0000 -2.0000 0.0000
+v 2.0000 -2.0000 0.0000
 v -2.0000 0.0000 0.0000
 v 0.0000 0.0000 0.0000
 v 2.0000 0.0000 0.0000
-v -2.0000 0.0000 2.0000
-v 0.0000 0.0000 2.0000
-v 2.0000 0.0000 2.0000
+v -2.0000 2.0000 0.0000
+v 0.0000 2.0000 0.0000
+v 2.0000 2.0000 0.0000
 vt 0.0000 0.0000
 vt 2.0000 0.0000
 vt 2.0000 2.0000
 vt 0.0000 2.0000
-f 1/1 2/2 5/3 4/4
 vt 2.0000 0.0000
 vt 4.0000 0.0000
 vt 4.0000 2.0000
 vt 2.0000 2.0000
-f 2/5 3/6 6/7 5/8
 vt 0.0000 2.0000
 vt 2.0000 2.0000
 vt 2.0000 4.0000
 vt 0.0000 4.0000
-f 4/9 5/10 8/11 7/12
 vt 2.0000 2.0000
 vt 4.0000 2.0000
 vt 4.0000 4.0000
 vt 2.0000 4.0000
+f 1/1 2/2 5/3 4/4
+f 2/5 3/6 6/7 5/8
+f 4/9 5/10 8/11 7/12
 f 5/13 6/14 9/15 8/16
