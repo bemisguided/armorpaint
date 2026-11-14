@@ -81,7 +81,7 @@ void import_arm_run_mesh(project_t *raw) {
 		util_mesh_merge(NULL);
 		viewport_scale_to_bounds(2.0);
 	}
-	util_udim_import_meshes(imported, false); // Mesh only files have no tiles, the meshes go to 1001
+	util_udim_import_meshes(imported, false, false); // Mesh only files have no tiles, the meshes go to 1001
 	array_delete(imported);
 	if (util_udim_active()) { // The layout moved the mesh uvs after the merges above
 		util_mesh_merge(NULL);
@@ -231,7 +231,7 @@ static void import_arm_run_mesh_append_from_project(project_t *project, i32_arra
 		array_delete(imported);
 		return;
 	}
-	util_udim_import_meshes(imported, false);
+	util_udim_import_meshes(imported, false, false);
 	array_delete(imported);
 
 	if (assigned) {

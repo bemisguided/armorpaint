@@ -1233,7 +1233,7 @@ mesh_object_t *tab_meshes_append_data(mesh_data_t *md) {
 	sculpt_sync_objects();
 	any_array_t *added = any_array_create(0);
 	any_array_push(added, md);
-	util_udim_import_meshes(added, false); // New shapes have 0..1 uvs, in a udim project they go to tile 1001
+	util_udim_import_meshes(added, false, false); // New shapes have 0..1 uvs, in a udim project they go to tile 1001
 	array_delete(added);
 	util_mesh_merge(NULL);
 	return mo;

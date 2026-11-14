@@ -181,7 +181,7 @@ void import_mesh_finish_import(void *_) {
 			}
 		}
 		if (mds->length > 0) {
-			util_udim_import_meshes(mds, !import_mesh_append && import_mesh_clear_layers);
+			util_udim_import_meshes(mds, !import_mesh_append, import_mesh_clear_layers);
 		}
 		array_delete(mds);
 		import_mesh_imported_reset();
