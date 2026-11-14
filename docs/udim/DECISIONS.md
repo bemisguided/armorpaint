@@ -123,3 +123,27 @@ D7. Default per-tile resolution? - DECIDED: 2k per tile; show atlas size + memor
 - Amends the objects / tiles label above: a count of 2 or more reads `N objects` (objects part) and `N tiles` (tiles part) instead of a bare number. Names, the single tile id, `All`, `No objects`, `No tiles`, both All giving `All`, the effective-All rules, the tooltip and the single tile button are unchanged. Examples: `3 objects / 2 tiles`, `All / 2 tiles`, `Body / 2 tiles`, `3 objects / All`, `3 objects / No tiles`.
 - The matrix column Many (2) and row Many (3) of the table above therefore read: `All / 2 tiles`, `No objects / 2 tiles`, `Body / 2 tiles`, `3 objects / All`, `3 objects / 1002`, `3 objects / 2 tiles`, `3 objects / No tiles`; every other cell is as listed.
 - New strings `{count} objects` and `{count} tiles` (via `vtr`, English only; the other locales have an empty line, 898 lines each). Widest label at 13 px stays `No objects / No tiles`, 118 px (`3 objects / 2 tiles` is 99 px).
+
+## Applies to label: full words, single tile follows the same rules (2026-11-14)
+- FINAL. Supersedes every earlier label rule above (including the objects / tiles section, the units amendment, `Objects: All` and the `A, B` name lists of the single tile button). Strings: objects part `All objects`, `No objects`, the object name (exactly one live object), `N objects` (2 or more); tiles part `All tiles`, `No tiles`, the bare tile id (exactly one tile, e.g. `1002`), `N tiles` (2 or more).
+- MORE THAN ONE tile: `<objects part> / <tiles part>`; both All gives `All objects & tiles`. Columns are the tiles state.
+
+| Objects \ Tiles | All | One (1002) | Many (2) | None |
+|---|---|---|---|---|
+| All | `All objects & tiles` | `All objects / 1002` | `All objects / 2 tiles` | `All objects / No tiles` |
+| None | `No objects / All tiles` | `No objects / 1002` | `No objects / 2 tiles` | `No objects / No tiles` |
+| One (Body) | `Body / All tiles` | `Body / 1002` | `Body / 2 tiles` | `Body / No tiles` |
+| Many (3) | `3 objects / All tiles` | `3 objects / 1002` | `3 objects / 2 tiles` | `3 objects / No tiles` |
+
+- ONE TILE OR FEWER (non-UDIM, or a single tile): the objects part only.
+
+| Objects | Label |
+|---|---|
+| All | `All objects` |
+| None | `No objects` |
+| One (Body) | `Body` |
+| Many (3) | `3 objects` |
+
+- Effective All (label and tooltip): the flag is set, the list is missing (the coverage code reads it as unrestricted), or the list holds every live object (for tiles: every project tile). An empty list with the flag off is None. Deleted objects and tile ids outside the project are not counted. Own sets only, a group's restriction is not shown in the label. The dimmed covers-nothing indicator and its tooltips are unchanged.
+- Tooltip, one line, then the overlap sentence on a second line only when it applies: more than one tile `Objects / Tiles: Body, Head / 1001, 1002` (`All`, `No objects`, `No tiles`, at most 4 names or ids per part then `+N more`); one tile `Objects: Body, Head`. The generic `Limit this layer to the selected objects.` sentence is gone for single-tile projects too.
+- Strings: new `All objects`, `All tiles`, `All objects & tiles` (English only, an empty line in the other locales); removed from every locale `Objects: All` and `Limit this layer to the selected objects.` (all 14 locale files stay at 899 lines). Widest label at 13 px: `No objects / No tiles`, 118 px; `No objects / All tiles` and `All objects / No tiles` 116 px.
