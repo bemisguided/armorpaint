@@ -686,7 +686,7 @@ void tab_layers_draw_layer_slot_full(slot_layer_t *l, i32 i) {
 	f32 name_x   = icon_x + icon_h + 8 * UI_SCALE();
 	f32 arrow_w  = 24 * UI_SCALE();
 	f32 arrow_x  = uix + uiw - arrow_w;
-	f32 combo_w  = uiw * 0.30;
+	f32 combo_w  = uiw * 0.38;
 	f32 combo_x  = arrow_x - combo_w;
 	f32 name_end = has_combos ? combo_x : arrow_x;
 
