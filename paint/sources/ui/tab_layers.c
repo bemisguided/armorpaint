@@ -721,7 +721,13 @@ void tab_layers_draw_layer_slot_full(slot_layer_t *l, i32 i) {
 		bool                   covers_nothing = empty != LAYER_COVERAGE_SOME;
 		i32                    text_col       = g_theme->TEXT_COL;
 		if (covers_nothing) {
-			g_theme->TEXT_COL -= 0x99000000;
+			// Halfway to the window background, a lowered alpha is not drawn by the text renderer
+			u32 fg            = (u32)text_col;
+			u32 bg            = (u32)g_theme->WINDOW_BG_COL;
+			u32 r             = (((fg >> 16) & 0xff) + ((bg >> 16) & 0xff)) / 2;
+			u32 g             = (((fg >> 8) & 0xff) + ((bg >> 8) & 0xff)) / 2;
+			u32 b             = ((fg & 0xff) + (bg & 0xff)) / 2;
+			g_theme->TEXT_COL = (i32)(0xff000000 | (r << 16) | (g << 8) | b);
 		}
 		ui_state_t state  = ui_text(l->name, UI_ALIGN_LEFT, 0x00000000);
 		g_theme->TEXT_COL = text_col;
