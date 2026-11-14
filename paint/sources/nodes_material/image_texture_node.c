@@ -15,6 +15,11 @@ bind_tex_t *parser_material_make_texture(ui_node_t *image_node, char *tex_name) 
 	return parser_material_make_bind_tex(tex_name, filepath);
 }
 
+// "UV: Atlas": the image covers the whole udim atlas (baked maps). Button 2, missing in older projects (Default).
+static bool image_texture_node_atlas_uv(ui_node_t *node) {
+	return string_equals(node->type, "TEX_IMAGE") && node->buttons->length > 2 && node->buttons->buffer[2]->default_value->buffer[0] == 1;
+}
+
 #ifdef WITH_MIPMAPS
 static bool parser_material_alpha_to_opacity(ui_node_t *tex_node, ui_node_t *node, i32 socket, i32 depth) {
 	for (i32 i = 0; i < parser_material_links->length; ++i) {
@@ -52,6 +57,13 @@ char *parser_material_texture_store(ui_node_t *node, bind_tex_t *tex, char *tex_
 	// Image nodes pasted from a mesh canvas have no vector input
 	if (string_equals(node->type, "TEX_IMAGE") && node->inputs->length > 0 && parser_material_get_input_link(node->inputs->buffer[0]) != NULL) {
 		uv_name = string_copy(parser_material_parse_vector_input(node->inputs->buffer[0]));
+	}
+	else if (parser_material_tex_coord_atlas != NULL && !parser_material_triplanar && !parser_material_sample_keep_aspect &&
+	         image_texture_node_atlas_uv(node)) {
+		// With several udim tiles tex_coord repeats per tile, the atlas uv spans the whole image
+		char *store = parser_material_store_var_name(node);
+		parser_material_write(parser_material_kong, string_tmp("float2 %s_atlas = %s;", store, parser_material_tex_coord_atlas));
+		uv_name = string_copy(string_tmp("%s_atlas", store));
 	}
 	else {
 		uv_name = string_copy(parser_material_tex_coord);
@@ -154,6 +166,7 @@ char *image_texture_node_value(ui_node_t *node, ui_node_socket_t *socket) {
 void image_texture_node_init() {
 
 	char      *image_texture_color_space_data = string_tmp("%s\n%s\n%s\n%s", _tr("Auto"), _tr("Linear"), _tr("sRGB"), _tr("DirectX Normal Map"));
+	char      *image_texture_uv_data          = string_tmp("%s\n%s", _tr("Default"), _tr("Atlas"));
 	ui_node_t *image_texture_node_def =
 	    ALLOC_INIT(ui_node_t, {.id     = 0,
 	                           .name   = _tr("Image Texture"),
@@ -219,8 +232,17 @@ void image_texture_node_init() {
 	                                                                 .max           = 1.0,
 	                                                                 .precision     = 100,
 	                                                                 .height        = 0}),
+	                                   ALLOC_INIT(ui_node_button_t, {.name          = _tr("UV"),
+	                                                                 .type          = "ENUM",
+	                                                                 .output        = -1,
+	                                                                 .default_value = f32_array_create_x(0),
+	                                                                 .data          = u8_array_create_from_string(image_texture_uv_data),
+	                                                                 .min           = 0.0,
+	                                                                 .max           = 1.0,
+	                                                                 .precision     = 100,
+	                                                                 .height        = 0}),
 	                               },
-	                               2),
+	                               3),
 	                           .width = 0,
 	                           .flags = 0});
 

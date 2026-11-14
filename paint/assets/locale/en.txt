@@ -890,3 +890,6 @@ Resolution (per tile)
 Clamped to {res} px per tile (atlas limit 16384)
 {object} shares UV space with {other} on tile {tile}. In exports and path tracing this layer also applies to {other}.
 Per Object & Tile
+Default
+Atlas
+CPU bake of a {size} px atlas needs a lot of memory, consider the GPU bake or a lower resolution

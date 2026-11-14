@@ -716,6 +716,7 @@ node_shader_context_t *make_paint_run_context(material_t *data, char *context_id
 	parser_material_finalize(con_paint);
 	parser_material_triplanar          = false;
 	parser_material_sample_keep_aspect = false;
+	parser_material_tex_coord_atlas    = NULL;
 
 	if (!g_context->material_preview) {
 		sculpt_make_paint_run(kong);
