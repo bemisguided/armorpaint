@@ -655,9 +655,11 @@ static void export_texture_run_bake_material(char *path) {
 		render_path_paint_live_layer = slot_layer_create("_live", LAYER_SLOT_TYPE_LAYER, NULL);
 	}
 
-	tool_type_t _tool = g_context->tool;
-	g_context->tool   = TOOL_TYPE_FILL;
+	tool_type_t _tool         = g_context->tool;
+	g_context->tool           = TOOL_TYPE_FILL;
+	util_udim_paint_all_tiles = true; // The material is baked on every tile, whatever the active layer covers
 	make_material_parse_paint_material(true);
+	util_udim_paint_all_tiles    = false;
 	mesh_object_t *_paint_object = g_context->paint_object;
 	mesh_object_t *planeo        = scene_get_child(".Plane")->ext;
 	planeo->base->visible        = true;

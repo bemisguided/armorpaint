@@ -391,6 +391,7 @@ bool            util_uv_uvislandmap_cached       = false;
 bool            util_uv_seammap_cached           = false;
 bool            util_mesh_merged_stale           = false;
 i32             util_mesh_version                = 0; // See util_mesh_changed
+bool            util_udim_paint_all_tiles        = false; // Paint shaders skip the layer's tile discard (material bake export)
 i32             render_path_raytrace_frame       = 0;
 bool            render_path_raytrace_ready       = false;
 bool            render_path_raytrace_init_shader = true;

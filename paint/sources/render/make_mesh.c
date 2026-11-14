@@ -291,9 +291,17 @@ node_shader_context_t *make_mesh_run(material_t *data, i32 layer_pass) {
 			node_shader_write_frag(kong, "float transluc_opac = 1.0;");
 		}
 
+		// Tile of the fragment for tile restricted layers, from the primary uv even for layers on uv map 1
+		for (i32 i = 0; i < layers->length; ++i) {
+			if (layer_tiles_tested(layers->buffer[i])) {
+				util_udim_write_slot(kong, "tex_coord");
+				break;
+			}
+		}
+
 		for (i32 i = 0; i < layers->length; ++i) {
 			slot_layer_t *l             = layers->buffer[i];
-			bool          coverage_test = layer_write_coverage_test(kong, l); // Objects the layer does not cover skip it
+			bool          coverage_test = layer_write_coverage_test(kong, l); // Objects and tiles the layer does not cover skip it
 
 			char *tex_coord = l->uv_map == 1 ? "tex_coord1" : "tex_coord";
 			node_shader_add_texture(kong, string_tmp("texpaint%s", i32_to_string(l->id)), NULL);

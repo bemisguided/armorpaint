@@ -908,6 +908,7 @@ static void script_layer_set_coverage(slot_layer_t *l, bool tiles, i32 *ids, i32
 		slot_layer_set_objects(l, ids, count, all);
 	}
 	make_material_parse_mesh_material();
+	make_material_parse_paint_material(false); // Tile discard
 	if (l->fill_material != NULL) {
 		script_layer_refill(l);
 	}
