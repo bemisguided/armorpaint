@@ -708,7 +708,7 @@ Record any difference you see as a note, these are decided or deferred.
 - glTF and Blend import stay on the Off (wrap) behaviour, no **UDIM tiles** option for them.
 - Mesh nodes (`mesh_nodes_objects`) are positional: deleting or reordering objects can re-point a canvas.
 - Per Object semantics differ from the design table (DECISIONS B5): Per Object iterates the objects covered by an OBJECT-RESTRICTED layer, not every object covered by any layer, so a non-UDIM project with only unrestricted layers exports once without a suffix. Unrestricted layers in each Per Object file are masked to that object's footprint.
-- Raytraced lightmap bake squeezes the whole atlas into the script's resolution.
+- Raytraced lightmap bake squeezes the whole atlas into the script's resolution. NOTE (2026-11-13): changed on branch `feat/udim-lightmap-per-tile`, the resolution is per tile there, see section 17.
 - The Bake Texture node repeats its atlas target per tile.
 - The Bake Maps script `Resolution` combo does not say `(per tile)` (the script API has no UDIM query), it is per tile.
 - CPU bake memory: a 16k atlas needs about 2 GB; only a warning above an 8192 atlas, per-tile CPU bake is deferred.
@@ -738,3 +738,58 @@ Record any difference you see as a note, these are decided or deferred.
 - Appended projects' tiles (4.6 to 4.9, 12.5): objects appended without tile data must go to 1001, the existing list must stay sorted and distinct, and layers made before an append must keep their `Tiles` sets.
 - Sculpt layers in multi-tile projects across save and reopen (12.9), mesh-only .arm import into a UDIM project (12.10), footprints of meshes with vertex colours or a second UV map (12.11): all three were fixed after the final code review and never run.
 - Mixing coverage: a layer with both Objects and Tiles restrictions, groups with their own sets (D1 intersection) and the greying in both popups.
+
+## 17. Lightmap bake per tile (branch `feat/udim-lightmap-per-tile`)
+
+Only for the build of branch `feat/udim-lightmap-per-tile` (one commit on top of `91cd5b54b`). The `res` argument of `script_bake_lightmap` is now per tile: the baked file is the atlas (`res x stride`, lowered so it stays within 8192) and with UDIM tiles a `<name>_<tile>.png` crop is written for every tile the baked object covers. Single slot projects are unchanged.
+
+Setup: create an empty folder, for example `~/lm_out` (below `<lm_out>`, write the full path, the script does not expand `~`). Fresh import of `udim_2x2_multi.obj` (UDIM tiles `Auto`; tiles 1001, 1002, 1011, 1012, stride 2). Sidebar tab **Scripts**: `New`, then `Edit` and replace the text with the script below, then `Run`. For each step change only the object name, the resolution and the file name as given.
+```c
+void done() {
+	console_info("lightmap done");
+}
+
+void main() {
+	script_bake_lightmap(script_get_object("Body"), 512, 32, 2.0, "<lm_out>/body.png", done);
+}
+```
+Sizes: `sips -g pixelWidth -g pixelHeight <file>` in a terminal.
+
+- [ ] 17.1 Run the script as above (`Body`, `512`, `body.png`).
+  Expected: after a few seconds the Console shows `lightmap done`. `<lm_out>` holds `body.png` 1024 x 1024 (512 per tile x stride 2), `body_1001.png` and `body_1002.png`, each 512 x 512. No `body_1011.png` or `body_1012.png` (Body is only on 1001 and 1002).
+  Result: PASS / FAIL
+  Notes:
+- [ ] 17.2 Open `body.png`, `body_1001.png` and `body_1002.png`.
+  Expected: `body_1001.png` equals the top left quarter of `body.png`, `body_1002.png` the top right quarter. The bottom half of `body.png` is black. Each crop shows the lit islands of Body with a soft margin around them; no light from the other tile's islands appears along the crop edge that touches the other tile (no bleed across the vertical middle line of the atlas).
+  Result: PASS / FAIL
+  Notes:
+- [ ] 17.3 Run again with `Head`, `512`, `head.png`.
+  Expected: `head.png` 1024 x 1024 with light only in the bottom left quarter, and only `head_1011.png` (512 x 512, equal to that quarter). No other `head_*` file.
+  Result: PASS / FAIL
+  Notes:
+- [ ] 17.4 Run again with `Leg`, `256`, `leg.jpg` (jpg path).
+  Expected: `leg.jpg` 512 x 512 and `leg_1012.jpg` 256 x 256 (jpg, not png), equal to the bottom right quarter of `leg.jpg`.
+  Result: PASS / FAIL
+  Notes:
+- [ ] 17.5 Non power of two crop. Fresh import of `udim_12_tiles.obj` (stride 4). Run with `T1016`, `300`, `t1016.png`.
+  Expected: `t1016.png` 1200 x 1200 and only `t1016_1016.png`, 300 x 300. Tile 1016 is the 12th tile, slot 11: column 3, row 2 (the crop equals the atlas rectangle x 900..1199, y 600..899, no one pixel shift, no black line at an edge).
+  Result: PASS / FAIL
+  Notes:
+- [ ] 17.6 1002-only project. Fresh import of `udim_single_1002.obj`. Run with `Crate`, `512`, `crate.png`.
+  Expected: `crate.png` 512 x 512 (single slot, the size is the given resolution) and a `crate_1002.png` copy of the same size and pixels. No `_1001` file.
+  Result: PASS / FAIL
+  Notes:
+- [ ] 17.7 Plain single tile project (File > New, default object). Edit the script to bake the default object (its name from the Meshes tab), `512`, `plain.png`. Run the same script in the earlier build (`.../scratchpad/dd/...`, section 0.1) with `plain_old.png`.
+  Expected: `plain.png` 512 x 512 and no tile files, the same as `plain_old.png` (compare by eye; also run `cmp plain.png plain_old.png` and note whether the files are identical).
+  Result: PASS / FAIL
+  Notes:
+- [ ] 17.8 Cancel during a bake. In the 4-tile project run `Body`, `2048`, `cancel.png` with `4096` samples instead of `32`, then at once a second script `void main() { script_bake_lightmap_cancel(); }`.
+  Expected: no crash, no `lightmap done` message, the viewport keeps working; a following bake (17.1) works and writes its files.
+  Result: PASS / FAIL
+  Notes:
+- [ ] 17.9 Atlas clamp (the bake needs a few GB of memory). `udim_12_tiles.obj`, run with `T1001`, `4096`, `big.png`.
+  Expected: no crash; `big.png` 8192 x 8192 (4096 per tile lowered to 2048, x stride 4, the lightmap atlas cap is 8192) and `big_1001.png` 2048 x 2048, equal to the top left 2048 x 2048 of `big.png`.
+  Result: PASS / FAIL
+  Notes:
+
+Section result: PASS / FAIL

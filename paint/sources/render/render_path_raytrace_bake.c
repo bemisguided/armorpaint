@@ -187,7 +187,11 @@ bool render_path_raytrace_bake_commands(void (*parse_paint_material)(bool)) {
 
 typedef struct lightmap_job {
 	i32   object_uid;
-	i32   res;
+	i32   res;      // Requested side, per udim tile
+	i32   tile_res; // Per tile side used, set at bake start (res lowered so the atlas stays within LIGHTMAP_MAX_ATLAS)
+	i32   stride;   // Udim atlas stride at bake start
+	i32   atlas;    // Baked side, tile_res x stride (res with a single slot)
+	i32  *tiles;    // Tile id per atlas slot at bake start (-1 empty slot), NULL in a single tile 1001 project
 	i32   samples;
 	f32   range;
 	char *path;
@@ -211,6 +215,8 @@ static gpu_texture_t   *lightmap_env_cdf    = NULL;
 
 #define LIGHTMAP_SAMPLES_PER_DISPATCH 8 // Matches SAMPLES in raytrace_bake_light.shader
 #define LIGHTMAP_MARGIN               16
+// Udim atlas cap of the bake: a 16384 RGBA64 target is 2^31 bytes, past the int sizes of the gpu readback
+#define LIGHTMAP_MAX_ATLAS 8192
 
 static vec4_t lightmap_vertex(i16 *a, i32 i, i32 stride, i32 count) {
 	i16 *p = a + i * stride;
@@ -327,7 +333,19 @@ static void lightmap_scene_init() {
 }
 
 static void lightmap_begin(lightmap_job_t *job, mesh_object_t *object) {
-	i32  res      = job->res;
+	// With udim tiles res is per tile like the other bakes: the object uvs are in atlas space, the bake covers the atlas
+	i32 stride    = util_udim_stride();
+	job->stride   = stride;
+	job->tile_res = stride > 1 ? util_udim_tile_side(job->res, LIGHTMAP_MAX_ATLAS) : job->res;
+	job->atlas    = job->tile_res * stride;
+	if (util_udim_active()) {
+		job->tiles = malloc(sizeof(i32) * stride * stride);
+		for (i32 slot = 0; slot < stride * stride; ++slot) {
+			job->tiles[slot] = util_udim_tile(slot);
+		}
+	}
+
+	i32  res      = job->atlas;
 	f32 *pos      = calloc((size_t)res * res * 4, sizeof(f32));
 	f32 *nor      = calloc((size_t)res * res * 4, sizeof(f32));
 	lightmap_mask = calloc((size_t)res * res, 1);
@@ -374,7 +392,8 @@ static void lightmap_dispatch() {
 	lightmap_frame++;
 }
 
-static void lightmap_blur(f32 *px, u8 *m, i32 res) {
+// Neighbours are taken from the same udim tile slot (ts per tile side) only
+static void lightmap_blur(f32 *px, u8 *m, i32 res, i32 ts) {
 	f32 *tmp = malloc(sizeof(f32) * 4 * res * res);
 	for (i32 pass = 0; pass < 2; ++pass) {
 		memcpy(tmp, px, sizeof(f32) * 4 * res * res);
@@ -389,7 +408,7 @@ static void lightmap_blur(f32 *px, u8 *m, i32 res) {
 					for (i32 dx = -1; dx <= 1; ++dx) {
 						i32 sx = x + dx;
 						i32 sy = y + dy;
-						if (sx < 0 || sy < 0 || sx >= res || sy >= res || !m[sy * res + sx]) {
+						if (sx < 0 || sy < 0 || sx >= res || sy >= res || !m[sy * res + sx] || sx / ts != x / ts || sy / ts != y / ts) {
 							continue;
 						}
 						f32 *s = tmp + (sy * res + sx) * 4;
@@ -409,9 +428,43 @@ static void lightmap_blur(f32 *px, u8 *m, i32 res) {
 	free(tmp);
 }
 
+// With udim tiles writes <path>_<tile>.png (.jpg for a jpg path) next to the atlas file for every tile slot the object covers,
+// cropped at the per tile size like the Bake Maps tile files. A single tile other than 1001 gives a copy of the atlas.
+static void lightmap_write_tiles(lightmap_job_t *job, buffer_t *atlas, u8 *used) {
+	i32   res    = job->atlas;
+	i32   ts     = job->tile_res;
+	i32   stride = job->stride;
+	bool  jpg    = ends_with(job->path, ".jpg");
+	bool  png    = ends_with(job->path, ".png");
+	char *ext    = jpg ? ".jpg" : ".png"; // Other paths keep their name as the base, like the Bake Maps tile files
+	char *base   = jpg || png ? substring(job->path, 0, (i32)strlen(job->path) - 4) : job->path;
+	u8   *tile   = malloc((size_t)ts * ts * 4);
+	for (i32 slot = 0; slot < stride * stride; ++slot) {
+		i32 id = job->tiles[slot];
+		if (id < 0 || !used[slot]) {
+			continue;
+		}
+		i32 sx = (slot % stride) * ts;
+		i32 sy = (slot / stride) * ts;
+		for (i32 y = 0; y < ts; ++y) {
+			memcpy(tile + (size_t)y * ts * 4, atlas->buffer + ((size_t)(sy + y) * res + sx) * 4, (size_t)ts * 4);
+		}
+		buffer_t b    = {.buffer = tile, .length = ts * ts * 4};
+		char    *file = string("%s_%d%s", base, id, ext);
+		if (jpg) {
+			iron_write_jpg(file, &b, ts, ts, 2, 95); // RGB
+		}
+		else {
+			iron_write_png(file, &b, ts, ts, 2); // RGB
+		}
+	}
+	free(tile);
+}
+
 // Extend uv islands into the empty texels, then store (light / range)^(1/2.2)
 static void lightmap_write(lightmap_job_t *job) {
-	i32       res = job->res;
+	i32       res = job->atlas;
+	i32       ts  = job->tile_res;
 	buffer_t *b   = gpu_get_texture_pixels(lightmap_target);
 	u16      *h   = (u16 *)b->buffer;
 	f32      *px  = malloc(sizeof(f32) * 4 * res * res);
@@ -419,7 +472,19 @@ static void lightmap_write(lightmap_job_t *job) {
 		px[i] = render_path_raytrace_half_to_float(h[i]);
 	}
 	u8 *m = lightmap_mask;
-	lightmap_blur(px, m, res);
+	lightmap_blur(px, m, res, ts);
+	// Tile slots the object covers, before the margin grows the islands
+	u8 *used = NULL;
+	if (job->tiles != NULL) {
+		used = calloc((size_t)job->stride * job->stride, 1);
+		for (i32 y = 0; y < res; ++y) {
+			for (i32 x = 0; x < res; ++x) {
+				if (m[y * res + x]) {
+					used[(y / ts) * job->stride + x / ts] = 1;
+				}
+			}
+		}
+	}
 	u8 *m2 = malloc((size_t)res * res);
 	for (i32 pass = 0; pass < LIGHTMAP_MARGIN; ++pass) {
 		memcpy(m2, m, (size_t)res * res);
@@ -434,7 +499,7 @@ static void lightmap_write(lightmap_job_t *job) {
 					for (i32 dx = -1; dx <= 1; ++dx) {
 						i32 sx = x + dx;
 						i32 sy = y + dy;
-						if (sx < 0 || sy < 0 || sx >= res || sy >= res || !m[sy * res + sx]) {
+						if (sx < 0 || sy < 0 || sx >= res || sy >= res || !m[sy * res + sx] || sx / ts != x / ts || sy / ts != y / ts) {
 							continue;
 						}
 						f32 *s = px + (sy * res + sx) * 4;
@@ -477,7 +542,17 @@ static void lightmap_write(lightmap_job_t *job) {
 	else {
 		iron_write_png(job->path, out, res, res, 2); // RGB
 	}
+	if (used != NULL) {
+		lightmap_write_tiles(job, out, used);
+		free(used);
+	}
 	free(px);
+}
+
+static void lightmap_job_free(lightmap_job_t *job) {
+	free(job->path);
+	free(job->tiles);
+	free(job);
 }
 
 static void lightmap_update(void *_) {
@@ -498,8 +573,7 @@ static void lightmap_update(void *_) {
 			lightmap_begin(lightmap_job, object);
 		}
 		else {
-			free(lightmap_job->path);
-			free(lightmap_job);
+			lightmap_job_free(lightmap_job);
 			lightmap_job = NULL;
 			if (lightmap_jobs_count == 0) {
 				sys_remove_update(lightmap_update);
@@ -525,8 +599,7 @@ static void lightmap_update(void *_) {
 		if (job->done != NULL) {
 			job->done(job->done_data);
 		}
-		free(job->path);
-		free(job);
+		lightmap_job_free(job);
 	}
 
 	if (in_use) {
@@ -561,14 +634,12 @@ void render_path_raytrace_bake_lightmap_cancel(void) {
 	}
 	if (lightmap_job != NULL) {
 		lightmap_delete_textures();
-		free(lightmap_job->path);
-		free(lightmap_job);
+		lightmap_job_free(lightmap_job);
 		lightmap_job               = NULL;
 		render_path_raytrace_ready = false;
 	}
 	for (i32 i = 0; i < lightmap_jobs_count; ++i) {
-		free(lightmap_jobs[i]->path);
-		free(lightmap_jobs[i]);
+		lightmap_job_free(lightmap_jobs[i]);
 	}
 	lightmap_jobs_count = 0;
 	sys_remove_update(lightmap_update);
