@@ -103,3 +103,18 @@ D7. Default per-tile resolution? - DECIDED: 2k per tile; show atlas size + memor
 ## Simplified Applies to label and tooltip (2026-11-14)
 - Supersedes the item 2A label rules above (the `objects | tiles` form, name lists, counts and the width based `N objects | N tiles` fallback, which was removed). With more than one tile the button reads: both All gives `All`; objects and tiles both restricted gives `Select objects & tiles`; only objects restricted gives the object name when exactly one live object is selected, else `Select objects` (two or more, or none); only tiles restricted gives `Tile 1002` (`Tile ####`) when exactly one tile is selected, else `Select tiles`. With one tile the button is unchanged (`Objects: All`, names, `N objects`, `No objects`). Popup, greying, the dimmed covers-nothing indicator and its tooltips, mini mode sub menus, the layer filter and the script setters are unchanged.
 - Tooltip rule (more than one tile): one line `Objects: A, B | Tiles: 1001, 1002`, each list shows at most 4 names or ids then `+N more` (`All` for an unrestricted set, `No objects` / `No tiles` for an empty one), followed on a second line by the overlap sentence only when it applies. The generic "Limit this layer to ..." sentences are dropped there. The one tile tooltip is unchanged. New locale strings (appended, empty in the other locales): `Select objects & tiles`, `Select objects`, `Select tiles`, `+{count} more`. The old `tiles` string is now unused but left in the locales.
+
+## Applies to label: objects / tiles (2026-11-14)
+- Supersedes every earlier label rule above (item 2A, the simplified `Select objects & tiles` form and the `Tile 1002` form). With MORE THAN ONE tile the button reads `<objects part> / <tiles part>` (ASCII ` / `). Objects part: `All`, `No objects`, the object name when exactly one live object is selected, else the count (2 or more) as a bare number. Tiles part: `All`, `No tiles`, the tile id when exactly one tile is selected (`1002`), else the count as a bare number. Both parts All gives just `All`.
+- Matrix (rows objects, columns tiles; Many is shown with 3 objects and 2 tiles, the real count is used):
+
+| Objects \ Tiles | All | One (1002) | Many (2) | None |
+|---|---|---|---|---|
+| All | `All` | `All / 1002` | `All / 2` | `All / No tiles` |
+| None | `No objects / All` | `No objects / 1002` | `No objects / 2` | `No objects / No tiles` |
+| One (Body) | `Body / All` | `Body / 1002` | `Body / 2` | `Body / No tiles` |
+| Many (3) | `3 / All` | `3 / 1002` | `3 / 2` | `3 / No tiles` |
+
+- A side counts as All (label and tooltip) when its flag is set, when its list is missing (the coverage code reads a missing list as unrestricted), or when the list holds every live object (every project tile for tiles); this matches real coverage. An empty list (flag off) is None. Deleted objects and tile ids outside the project are not counted. The label shows the layer's own sets only (a group's restriction is not reflected, as before). The single tile button is unchanged.
+- Tooltip (more than one tile), one line: `Objects / Tiles: Body, Head / 1001, 1002` (at most 4 names or ids per part then `+N more`; `All`, `No objects`, `No tiles`), plus the overlap sentence on a second line when it applies. The dimmed covers-nothing indicator and its tooltips are unchanged.
+- The label is a pure function (`tab_layers_coverage_text`, `tab_layers_coverage_is_all`). Widest label at the 13 px UI font: `No objects / No tiles` 118 px. The strings `Select objects & tiles`, `Select objects` and `Select tiles` were removed from every locale (896 lines each); no new strings.
