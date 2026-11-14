@@ -327,6 +327,7 @@ Notes: ______
 2. Paint a stroke with the Brush on `Body`.
 3. File > Reimport Mesh (the Import Mesh box opens). Set **UDIM tiles** `Off` and click Import.
    - [ ] The Console shows `Tile layout changed, undo history was cleared`
+   - [ ] The Console shows `Tiles 1002, 1011, 1012 are not used by the imported meshes and were removed with their pixels`
    - [ ] There is no `Tiles` panel in the Meshes tab (no `(unused)` tile rows)
    - [ ] There is no line under the Resolution combo
    - [ ] There is no Tiles button on the layer rows
@@ -414,6 +415,19 @@ Optional: import any `.glb` or `.blend` with UVs above 1, if available.
 2. Click Import.
    - [ ] The mesh uses wrap behaviour
    - [ ] There is no `Tiles` panel
+Notes: ______
+
+### 2.26 Ensure Reimport keeps the paint when Auto moves a single tile from 1001 to 1002
+[ ] PASS  [ ] FAIL
+1. File > Import > Mesh... `udim_single_1002.obj`, **UDIM tiles** `Off`, click Import.
+2. Paint a bold stroke on `Crate`. Take a viewport screenshot (fixed camera).
+3. File > Reimport Mesh, **UDIM tiles** `Auto`, click Import.
+   - [ ] The Tiles panel lists only `1002`
+   - [ ] The stroke on `Crate` is unchanged (compare with the screenshot)
+   - [ ] The Console shows no `Tile layout changed` and no `were removed with their pixels` message
+4. File > Reimport Mesh, **UDIM tiles** `Off`, click Import.
+   - [ ] There is no `Tiles` panel
+   - [ ] The stroke on `Crate` is still unchanged
 Notes: ______
 
 ## 3. Tile list, Meshes tab and Remove

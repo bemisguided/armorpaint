@@ -509,17 +509,51 @@ void util_udim_import_meshes(any_array_t *mds, bool replace, bool cleared) {
 		for (i32 i = 0; i < ids->length && same; ++i) {
 			same = util_udim_slot(ids->buffer[i]) >= 0;
 		}
+		bool shared = false;
+		for (i32 i = 0; i < ids->length && !shared; ++i) {
+			shared = util_udim_slot(ids->buffer[i]) >= 0;
+		}
 		if (same) {
 			for (i32 i = 0; i < mds->length; ++i) {
 				util_udim_apply_layout(mds->buffer[i]);
 			}
 		}
+		else if (!shared && ids->length == util_udim_count()) {
+			// No tile in common and as many tiles (for example 1001 -> 1002 after Auto changed its decision): the tiles are
+			// renamed slot by slot, the atlas layout and every pixel stay, instead of dropping all paint
+			util_udim_set_tiles(ids);
+			for (i32 i = 0; i < mds->length; ++i) {
+				if (util_udim_active()) {
+					util_udim_set_default(mds->buffer[i]);
+				}
+				util_udim_apply_layout(mds->buffer[i]);
+			}
+			if (!util_udim_active()) {
+				for (i32 i = 0; i < mds->length; ++i) {
+					util_udim_clear(mds->buffer[i]);
+				}
+			}
+		}
 		else {
+			// Tiles only the previous meshes used are dropped with their pixels, say which
+			char dropped[512] = "";
+			for (i32 i = 0; i < util_udim_count(); ++i) {
+				i32 len = (i32)strlen(dropped);
+				if (i32_array_index_of(ids, util_udim_tile(i)) < 0 && len < (i32)sizeof(dropped) - 16) {
+					snprintf(dropped + len, sizeof(dropped) - len, "%s%d", len == 0 ? "" : ", ", util_udim_tile(i));
+				}
+			}
 			// Every mesh carries tile data before the relayout, else it would be derived from its tile-local uvs as if they were atlas uvs
 			for (i32 i = 0; i < mds->length; ++i) {
 				util_udim_set_default(mds->buffer[i]);
 			}
 			util_udim_relayout(ids);
+			if (dropped[0] != '\0') {
+				any_map_t *vars = any_map_create();
+				any_map_set(vars, "tiles", dropped);
+				console_info(vtr("Tiles {tiles} are not used by the imported meshes and were removed with their pixels", vars));
+				map_free(vars);
+			}
 		}
 	}
 	else {
