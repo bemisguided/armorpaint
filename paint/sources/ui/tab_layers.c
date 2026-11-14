@@ -334,25 +334,57 @@ static char *tab_layers_objects_label(slot_layer_t *l) {
 	return tab_layers_objects_part(l);
 }
 
-// Multi tile projects: All, Select objects & tiles, one object name or Select objects, Tile id or Select tiles
+// A side counts as All when its flag is set, its list is missing (unrestricted, as the coverage code reads it) or it holds every live member
+static bool tab_layers_coverage_is_all(bool all_flag, bool list_missing, i32 listed, i32 total) {
+	return all_flag || list_missing || (total > 0 && listed >= total);
+}
+
+// Label of the Applies to button in a project with more than one tile: "objects / tiles", pure so it can be tested.
+// Parts: All, No objects / No tiles, the name or id when exactly one, else the count. Both All gives just All.
+static char *tab_layers_coverage_text(bool all_objects, i32 object_count, char *object_name, bool all_tiles, i32 tile_count, i32 tile_id) {
+	if (all_objects && all_tiles) {
+		return tr("All");
+	}
+	char *o = all_objects ? tr("All") : object_count == 0 ? tr("No objects") : object_count == 1 ? object_name : string_tmp("%d", object_count);
+	char *t = all_tiles ? tr("All") : tile_count == 0 ? tr("No tiles") : tile_count == 1 ? string_tmp("%d", tile_id) : string_tmp("%d", tile_count);
+	return string_tmp("%s / %s", o, t);
+}
+
+static i32 tab_layers_live_object_count() {
+	i32 n = 0;
+	for (i32 i = 0; i < g_project->_->paint_objects->length; ++i) {
+		n += ((mesh_object_t *)g_project->_->paint_objects->buffer[i])->paint_id > 0 ? 1 : 0;
+	}
+	return n;
+}
+
+static bool tab_layers_objects_all(slot_layer_t *l) {
+	char *first;
+	char *second;
+	i32   listed = l->all_objects || l->objects == NULL ? 0 : tab_layers_label_objects(l, &first, &second);
+	return tab_layers_coverage_is_all(l->all_objects, l->objects == NULL, listed, tab_layers_live_object_count());
+}
+
+static bool tab_layers_tiles_all(slot_layer_t *l) {
+	i32 first;
+	i32 second;
+	i32 listed = l->all_tiles || l->tiles == NULL ? 0 : tab_layers_label_tiles(l, &first, &second);
+	return tab_layers_coverage_is_all(l->all_tiles, l->tiles == NULL, listed, util_udim_count());
+}
+
 static char *tab_layers_coverage_label(slot_layer_t *l) {
 	if (util_udim_count() <= 1) {
 		return tab_layers_objects_label(l);
 	}
-	if (l->all_objects && l->all_tiles) {
-		return tr("All");
-	}
-	if (!l->all_objects && !l->all_tiles) {
-		return tr("Select objects & tiles");
-	}
-	if (!l->all_objects) {
-		char *first;
-		char *second;
-		return tab_layers_label_objects(l, &first, &second) == 1 ? first : tr("Select objects");
-	}
-	i32 first;
-	i32 second;
-	return tab_layers_label_tiles(l, &first, &second) == 1 ? string_tmp("%s %d", tr("Tile"), first) : tr("Select tiles");
+	char *first   = NULL;
+	char *second  = NULL;
+	i32   t_first = 0;
+	i32   t_second = 0;
+	bool  ao = tab_layers_objects_all(l);
+	bool  at = tab_layers_tiles_all(l);
+	i32   o  = ao || l->objects == NULL ? 0 : tab_layers_label_objects(l, &first, &second);
+	i32   t  = at || l->tiles == NULL ? 0 : tab_layers_label_tiles(l, &t_first, &t_second);
+	return tab_layers_coverage_text(ao, o, first, at, t, t_first);
 }
 
 // At most 4 names, then "+N more"
@@ -370,7 +402,7 @@ static char *tab_layers_tip_list(string_array_t *names) {
 	return s;
 }
 
-// "Objects: A, B | Tiles: 1001 +2 more", the sets the layer applies to
+// "Objects / Tiles: A, B / 1001 +2 more", the sets the layer applies to
 static char *tab_layers_coverage_tip(slot_layer_t *l) {
 	string_array_t *objects = any_array_create(0);
 	string_array_t *tiles   = any_array_create(0);
@@ -386,9 +418,9 @@ static char *tab_layers_coverage_tip(slot_layer_t *l) {
 			any_array_push(tiles, string_tmp("%d", tile));
 		}
 	}
-	char *o = l->all_objects ? tr("All") : (objects->length > 0 ? tab_layers_tip_list(objects) : tr("No objects"));
-	char *t = l->all_tiles ? tr("All") : (tiles->length > 0 ? tab_layers_tip_list(tiles) : tr("No tiles"));
-	char *tip = string_tmp("%s: %s | %s: %s", tr("Objects"), o, tr("Tiles"), t);
+	char *o = tab_layers_objects_all(l) ? tr("All") : (objects->length > 0 ? tab_layers_tip_list(objects) : tr("No objects"));
+	char *t = tab_layers_tiles_all(l) ? tr("All") : (tiles->length > 0 ? tab_layers_tip_list(tiles) : tr("No tiles"));
+	char *tip = string_tmp("%s / %s: %s / %s", tr("Objects"), tr("Tiles"), o, t);
 	array_free(objects);
 	free(objects);
 	array_free(tiles);
