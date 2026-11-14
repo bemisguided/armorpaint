@@ -525,16 +525,9 @@ static void tab_layers_coverage_buttons(slot_layer_t *l) {
 		ui_menu_draw(&tab_layers_coverage_menu_draw, -1, -1);
 	}
 	else if (g_ui->is_hovered) {
-		// Fixed text, only a problem is added to it
-		layer_coverage_empty_t empty = layer_coverage_empty_reason(l);
-		char                  *tip   = tab_layers_coverage_tip();
-		char *issue = empty == LAYER_COVERAGE_OBJECTS_DELETED
-		                  ? tr("This layer's objects were deleted, so it covers nothing. Select objects or choose All to use it again.")
-		              : empty == LAYER_COVERAGE_NO_OBJECTS
-		                  ? tr("No objects are selected for this layer or its group, so it covers nothing. Select objects or choose All to use it.")
-		              : empty != LAYER_COVERAGE_SOME
-		                  ? tr("No tiles are selected for this layer or its group, so it covers nothing. Select tiles or choose All to use it.")
-		                  : tab_layers_objects_overlap_note(l);
+		// Fixed text, only the UV overlap problem is added to it
+		char *tip   = tab_layers_coverage_tip();
+		char *issue = tab_layers_objects_overlap_note(l);
 		ui_tooltip(issue != NULL ? string_tmp("%s\n%s", tip, issue) : tip);
 	}
 }
