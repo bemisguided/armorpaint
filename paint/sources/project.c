@@ -146,6 +146,7 @@ void project_new(bool reset_layers) {
 	}
 	g_project->stages          = NULL;
 	g_project->_->translucency = false;
+	util_udim_set_tiles(NULL); // {1001}
 	project_scripts_trusted    = true;
 
 	if (g_project->_->layers->length == 0) {
@@ -244,8 +245,8 @@ void project_new(bool reset_layers) {
 	ui_dock_redraw(TAB_AREA_SIDEBAR1);
 
 	if (reset_layers) {
-		bool res_changed = g_project->_->layers->buffer[0]->texpaint->width != config_get_texture_res_x() ||
-		                   g_project->_->layers->buffer[0]->texpaint->height != config_get_texture_res_y();
+		bool res_changed = g_project->_->layers->buffer[0]->texpaint->width != util_udim_res_x() ||
+		                   g_project->_->layers->buffer[0]->texpaint->height != util_udim_res_y();
 		while (g_project->_->layers->length > 0) {
 			slot_layer_unload(array_pop(g_project->_->layers));
 		}

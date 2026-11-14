@@ -186,7 +186,7 @@ vec2_t uniforms_ext_vec2_link(object_t *object, shader_data_t *mat, char *link) 
 		return (vec2_t){g_context->grab_start_x, g_context->grab_start_y};
 	}
 	else if (string_equals(link, "_texpaint_size")) {
-		return (vec2_t){config_get_texture_res_x(), config_get_texture_res_y()};
+		return (vec2_t){util_udim_res_x(), util_udim_res_y()};
 	}
 	else if (string_equals(link, "_brush_angle")) {
 		f32 brush_angle = g_context->brush_angle + g_context->brush_nodes_angle;
@@ -271,7 +271,7 @@ vec4_t uniforms_ext_vec4_link(object_t *object, shader_data_t *mat, char *link) 
 			return (vec4_t){0.0, 0.0, 0.0, 0.0};
 		}
 		f32 tx, ty, tw, th;
-		ui_view2d_tex_rect(config_get_texture_res_y() / (float)config_get_texture_res_x(), &tx, &ty, &tw, &th);
+		ui_view2d_tex_rect(util_udim_res_y() / (float)util_udim_res_x(), &tx, &ty, &tw, &th);
 		f32 top = ui_view2d_top();
 		return (vec4_t){(g_context->paint_vec.x * base_w() - tx) / tw, (g_context->paint_vec.y * base_h() + top - ty) / th,
 		                (g_context->last_paint_vec_x * base_w() - tx) / tw, (g_context->last_paint_vec_y * base_h() + top - ty) / th};

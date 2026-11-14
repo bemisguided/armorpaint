@@ -86,8 +86,8 @@ void layers_init() {
 }
 
 void layers_resize() {
-	if (config_get_texture_res_x() >= 8192 || config_get_texture_res_y() >= 8192) { // Save memory for >=8k
-		g_config->undo_steps = config_get_texture_res_x() == 8192 ? 4 : 1;
+	if (util_udim_res_x() >= 8192 || util_udim_res_y() >= 8192) { // Save memory for >=8k
+		g_config->undo_steps = util_udim_res_x() == 8192 ? 4 : 1;
 		while (history_undo_layers->length > g_config->undo_steps) {
 			slot_layer_t *l = array_pop(history_undo_layers);
 			sys_notify_on_next_frame(&slot_layer_unload, l);
@@ -123,16 +123,16 @@ void layers_resize_targets() {
 	render_target_t *blend0           = any_map_get(rts, "texpaint_blend0");
 	gpu_texture_t   *_texpaint_blend0 = blend0->_image;
 	gpu_delete_texture(_texpaint_blend0);
-	blend0->width  = config_get_texture_res_x();
-	blend0->height = config_get_texture_res_y();
-	blend0->_image = gpu_create_render_target(config_get_texture_res_x(), config_get_texture_res_y(), GPU_TEXTURE_FORMAT_R8);
+	blend0->width  = util_udim_res_x();
+	blend0->height = util_udim_res_y();
+	blend0->_image = gpu_create_render_target(util_udim_res_x(), util_udim_res_y(), GPU_TEXTURE_FORMAT_R8);
 
 	render_target_t *blend1           = any_map_get(rts, "texpaint_blend1");
 	gpu_texture_t   *_texpaint_blend1 = blend1->_image;
 	gpu_delete_texture(_texpaint_blend1);
-	blend1->width  = config_get_texture_res_x();
-	blend1->height = config_get_texture_res_y();
-	blend1->_image = gpu_create_render_target(config_get_texture_res_x(), config_get_texture_res_y(), GPU_TEXTURE_FORMAT_R8);
+	blend1->width  = util_udim_res_x();
+	blend1->height = util_udim_res_y();
+	blend1->_image = gpu_create_render_target(util_udim_res_x(), util_udim_res_y(), GPU_TEXTURE_FORMAT_R8);
 
 	g_context->brush_blend_dirty = true;
 
@@ -140,8 +140,8 @@ void layers_resize_targets() {
 	if (blur != NULL) {
 		gpu_texture_t *_texpaint_blur = blur->_image;
 		gpu_delete_texture(_texpaint_blur);
-		f32 size_x   = math_floor(config_get_texture_res_x() * 0.95);
-		f32 size_y   = math_floor(config_get_texture_res_y() * 0.95);
+		f32 size_x   = math_floor(util_udim_res_x() * 0.95);
+		f32 size_y   = math_floor(util_udim_res_y() * 0.95);
 		blur->width  = size_x;
 		blur->height = size_y;
 		blur->_image = gpu_create_render_target(size_x, size_y, GPU_TEXTURE_FORMAT_RGBA32);
@@ -208,7 +208,7 @@ void layers_make_temp_img() {
 
 void layers_make_temp_mask_img() {
 	if (pipes_temp_mask_image != NULL &&
-	    (pipes_temp_mask_image->width != config_get_texture_res_x() || pipes_temp_mask_image->height != config_get_texture_res_y())) {
+	    (pipes_temp_mask_image->width != util_udim_res_x() || pipes_temp_mask_image->height != util_udim_res_y())) {
 		gpu_texture_t *_temp_mask_image = pipes_temp_mask_image;
 		gpu_delete_texture(_temp_mask_image);
 		pipes_temp_mask_image = NULL;
@@ -216,7 +216,7 @@ void layers_make_temp_mask_img() {
 
 	if (pipes_temp_mask_image == NULL) {
 		// pipes_temp_mask_image = gpu_create_render_target(config_get_texture_res_x(), config_get_texture_res_y(), GPU_TEXTURE_FORMAT_R8);
-		pipes_temp_mask_image = gpu_create_render_target(config_get_texture_res_x(), config_get_texture_res_y(), GPU_TEXTURE_FORMAT_RGBA32);
+		pipes_temp_mask_image = gpu_create_render_target(util_udim_res_x(), util_udim_res_y(), GPU_TEXTURE_FORMAT_RGBA32);
 	}
 }
 

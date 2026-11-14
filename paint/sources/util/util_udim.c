@@ -6,13 +6,99 @@
 // A layer's effective coverage is its own set and every ancestor group's set (masks and filters use their parent's).
 // A level only restricts when its list exists, so zero initialized temporary layers cover everything.
 
-// Project tile list, only {1001} until tile extraction lands
+// Project tile list (g_project->_->udim_tiles): sorted, distinct, never empty, {1001} by default.
+// Slots are the positions in the list, the atlas has stride x stride slots (see util_udim_stride).
+// The configured project resolution (base_res_x/y) is per tile, layers and targets use the atlas size util_udim_res_x/y.
+
+#define UTIL_UDIM_MAX_SIDE 16384
+
+static int _util_udim_compare_i32(const void *a, const void *b) {
+	return *(i32 *)a - *(i32 *)b;
+}
+
 i32 util_udim_count() {
-	return 1;
+	i32_array_t *t = g_project->_->udim_tiles;
+	return t != NULL && t->length > 0 ? t->length : 1;
 }
 
 i32 util_udim_tile(i32 slot) {
-	return 1001;
+	i32_array_t *t = g_project->_->udim_tiles;
+	if (t == NULL || t->length == 0) {
+		return slot == 0 ? 1001 : -1;
+	}
+	return slot >= 0 && slot < t->length ? t->buffer[slot] : -1;
+}
+
+i32 util_udim_slot(i32 tile) {
+	i32_array_t *t = g_project->_->udim_tiles;
+	if (t == NULL || t->length == 0) {
+		return tile == 1001 ? 0 : -1;
+	}
+	return i32_array_index_of(t, tile);
+}
+
+// Smallest s with s * s >= count
+i32 util_udim_stride() {
+	i32 count = util_udim_count();
+	i32 s     = 1;
+	while (s * s < count) {
+		++s;
+	}
+	return s;
+}
+
+bool util_udim_active() {
+	return util_udim_count() > 1 || util_udim_tile(0) != 1001;
+}
+
+// Per tile resolution, the configured one unless the atlas would pass the max side
+i32 util_udim_tile_res_x() {
+	i32 max = UTIL_UDIM_MAX_SIDE / util_udim_stride();
+	i32 res = config_get_texture_res_x();
+	return res < max ? res : max;
+}
+
+i32 util_udim_tile_res_y() {
+	i32 max = UTIL_UDIM_MAX_SIDE / util_udim_stride();
+	i32 res = config_get_texture_res_y();
+	return res < max ? res : max;
+}
+
+// Atlas size, the configured resolution when the project has one slot
+i32 util_udim_res_x() {
+	return util_udim_tile_res_x() * util_udim_stride();
+}
+
+i32 util_udim_res_y() {
+	return util_udim_tile_res_y() * util_udim_stride();
+}
+
+// The per tile resolution was lowered to fit the atlas
+bool util_udim_clamped() {
+	return util_udim_tile_res_x() < config_get_texture_res_x() || util_udim_tile_res_y() < config_get_texture_res_y();
+}
+
+// Bytes of the layer textures (3 per layer) at the atlas size
+f64 util_udim_memory_estimate() {
+	i32 layers = g_project->_->layers != NULL && g_project->_->layers->length > 0 ? g_project->_->layers->length : 1;
+	i32 bytes  = base_bits == TEXTURE_BITS_BITS8 ? 4 : base_bits == TEXTURE_BITS_BITS16 ? 8 : 16;
+	return (f64)layers * 3.0 * (f64)util_udim_res_x() * (f64)util_udim_res_y() * (f64)bytes;
+}
+
+// Sets the project tile list (copied, sorted, distinct, NULL or empty gives {1001}), the layout is not changed
+void util_udim_set_tiles(i32_array_t *ids) {
+	i32_array_t *t = i32_array_create(0);
+	for (i32 i = 0; ids != NULL && i < ids->length; ++i) {
+		if (ids->buffer[i] > 0 && i32_array_index_of(t, ids->buffer[i]) < 0) {
+			i32_array_push(t, ids->buffer[i]);
+		}
+	}
+	if (t->length == 0) {
+		i32_array_push(t, 1001);
+	}
+	i32_array_sort(t, _util_udim_compare_i32);
+	array_delete(g_project->_->udim_tiles);
+	g_project->_->udim_tiles = t;
 }
 
 // Tile extraction at import (obj, fbx). A triangle takes the tile under its uv centroid (u in 0..10, v >= 0, outside clamps),
@@ -349,10 +435,6 @@ layer_coverage_empty_t layer_coverage_empty_reason(slot_layer_t *l) {
 // Deleted objects, empty selections or removed tiles leave nothing to apply the layer to
 bool layer_covers_nothing(slot_layer_t *l) {
 	return layer_coverage_empty_reason(l) != LAYER_COVERAGE_SOME;
-}
-
-static int _util_udim_compare_i32(const void *a, const void *b) {
-	return *(i32 *)a - *(i32 *)b;
 }
 
 // Opens "if (...) {" around the layer for objects outside its coverage, false when nothing is written

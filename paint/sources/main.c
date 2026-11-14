@@ -343,6 +343,7 @@ void _kickstart() {
 
 	g_project                     = ALLOC_INIT(project_t, {0});
 	g_project->_                  = calloc(1, sizeof(project_runtime_t));
+	util_udim_set_tiles(NULL);
 	g_project->_->filepath        = "";
 	g_project->_->assets          = any_array_create_from_raw((void *[]){}, 0);
 	g_project->mesh_assets        = any_array_create_from_raw((void *[]){}, 0);

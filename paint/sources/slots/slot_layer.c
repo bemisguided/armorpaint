@@ -14,24 +14,24 @@ void slot_layer_alloc_textures(slot_layer_t *raw) {
 	{
 		render_target_t *t = render_target_create();
 		t->name            = string("texpaint%s", ext);
-		t->width           = config_get_texture_res_x();
-		t->height          = config_get_texture_res_y();
+		t->width           = util_udim_res_x();
+		t->height          = util_udim_res_y();
 		t->format          = string_copy(format);
 		raw->texpaint      = render_path_create_render_target(t)->_image;
 	}
 	{
 		render_target_t *t = render_target_create();
 		t->name            = string("texpaint_nor%s", ext);
-		t->width           = config_get_texture_res_x();
-		t->height          = config_get_texture_res_y();
+		t->width           = util_udim_res_x();
+		t->height          = util_udim_res_y();
 		t->format          = string_copy(format);
 		raw->texpaint_nor  = render_path_create_render_target(t)->_image;
 	}
 	{
 		render_target_t *t = render_target_create();
 		t->name            = string("texpaint_pack%s", ext);
-		t->width           = config_get_texture_res_x();
-		t->height          = config_get_texture_res_y();
+		t->width           = util_udim_res_x();
+		t->height          = util_udim_res_y();
 		t->format          = string_copy(format);
 		raw->texpaint_pack = render_path_create_render_target(t)->_image;
 	}
@@ -139,8 +139,8 @@ slot_layer_t *slot_layer_create(char *ext, layer_slot_type_t type, slot_layer_t 
 		{
 			render_target_t *t = render_target_create();
 			t->name            = string("texpaint%s", ext);
-			t->width           = config_get_texture_res_x();
-			t->height          = config_get_texture_res_y();
+			t->width           = util_udim_res_x();
+			t->height          = util_udim_res_y();
 			t->format          = string_copy(format);
 			raw->texpaint      = render_path_create_render_target(t)->_image;
 		}
@@ -457,8 +457,8 @@ static void slot_layer_draw_resized(gpu_texture_t *src, i32 res_x, i32 res_y) {
 }
 
 void slot_layer_resize_and_set_bits(slot_layer_t *raw) {
-	i32        res_x = config_get_texture_res_x();
-	i32        res_y = config_get_texture_res_y();
+	i32        res_x = util_udim_res_x();
+	i32        res_y = util_udim_res_y();
 	any_map_t *rts   = render_path_render_targets;
 
 	if (slot_layer_is_layer(raw)) {
@@ -536,13 +536,13 @@ void slot_layer_resize_and_set_bits(slot_layer_t *raw) {
 	// Clear and repack the base mesh
 	if (raw->texpaint_sculpt != NULL) {
 		gpu_texture_t *_texpaint_sculpt = raw->texpaint_sculpt;
-		raw->texpaint_sculpt            = gpu_create_render_target(res_x, res_y, GPU_TEXTURE_FORMAT_RGBA128);
+		raw->texpaint_sculpt            = gpu_create_render_target(config_get_texture_res_x(), config_get_texture_res_y(), GPU_TEXTURE_FORMAT_RGBA128); // Per vertex, not atlas sized
 		sculpt_import_mesh_pack_to_texture(raw->texpaint_sculpt);
 		gpu_delete_texture(_texpaint_sculpt);
 
 		render_target_t *srt = any_map_get(rts, string("texpaint_sculpt%s", raw->ext));
-		srt->width           = res_x;
-		srt->height          = res_y;
+		srt->width           = config_get_texture_res_x();
+		srt->height          = config_get_texture_res_y();
 		srt->_image          = raw->texpaint_sculpt;
 	}
 }

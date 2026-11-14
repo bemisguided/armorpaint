@@ -290,8 +290,8 @@ static bool render_path_raytrace_override_targets(i32 count) {
 		return false;
 	}
 	char *format    = base_bits == TEXTURE_BITS_BITS8 ? "RGBA32" : base_bits == TEXTURE_BITS_BITS16 ? "RGBA64" : "RGBA128";
-	i32   width     = config_get_texture_res_x();
-	i32   height    = config_get_texture_res_y();
+	i32   width     = util_udim_res_x();
+	i32   height    = util_udim_res_y();
 	bool  recreated = false;
 	if (render_path_raytrace_override_format != NULL && (!string_equals(render_path_raytrace_override_format, format) ||
 	                                                     render_path_raytrace_override_width != width || render_path_raytrace_override_height != height)) {

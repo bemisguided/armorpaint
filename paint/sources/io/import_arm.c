@@ -162,6 +162,7 @@ static i32 import_arm_mesh_material_index(project_t *project, i32 mesh_i) {
 }
 
 static void import_arm_run_mesh_append_from_project(project_t *project, i32_array_t *selected, i32_array_t *src_to_dest_mat) {
+	// TODO(B2b): the appended project's udim_tiles are ignored, the runtime list stays as it is; union them and relayout there
 	if (project->mesh_datas == NULL || project->mesh_datas->length == 0) {
 		return;
 	}
@@ -831,9 +832,7 @@ void import_arm_run_project(char *path) {
 		import_arm_check_scripts(project, true);
 	}
 	layer_data_t *l0                     = g_project->layer_datas->buffer[0];
-	base_res                             = config_get_texture_res_pos(l0->res);
-	base_res_x                           = (f32)l0->res;
-	base_res_y                           = (f32)l0->res;
+	project_format_load_tiles(g_project, l0->res); // Sets base_res, base_res_x/y to the per tile resolution
 	texture_bits_t bits_pos              = l0->bpp == 8 ? TEXTURE_BITS_BITS8 : l0->bpp == 16 ? TEXTURE_BITS_BITS16 : TEXTURE_BITS_BITS32;
 	base_bits                            = bits_pos;
 	i32                  bytes_per_pixel = math_floor(l0->bpp / 8.0);
@@ -1003,7 +1002,7 @@ void import_arm_run_project(char *path) {
 	context_select_paint_object(context_main_object());
 
 	gpu_texture_t *tex = g_project->_->layers->buffer[0]->texpaint;
-	if (tex->width != config_get_texture_res_x() || tex->height != config_get_texture_res_y()) {
+	if (tex->width != util_udim_res_x() || tex->height != util_udim_res_y()) {
 		layers_resize_targets();
 	}
 

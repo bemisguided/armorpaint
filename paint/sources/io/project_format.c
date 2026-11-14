@@ -198,6 +198,21 @@ void project_format_set_defaults(project_t *raw) {
 	}
 	raw->next_object_id = mesh_count;
 	project_format_reset_tiles(raw, mesh_count);
+	raw->udim_tiles->length = 0; // Converted projects have a single tile, not the one of the project that is open now
+	i32_array_push(raw->udim_tiles, 1001);
+}
+
+// Load, before the layer textures are created. The runtime list is the saved one ({1001} when missing),
+// the project resolution becomes the per tile one: saved layers have the atlas size, which is the same for a single tile.
+void project_format_load_tiles(project_t *raw, i32 layer_res) {
+	util_udim_set_tiles(raw->udim_tiles);
+	i32 res = layer_res / util_udim_stride();
+	if (res * util_udim_stride() != layer_res) {
+		console_info(string("Layer size %d is not a multiple of the udim atlas stride %d, using %d per tile", layer_res, util_udim_stride(), res));
+	}
+	base_res_x = (f32)res;
+	base_res_y = (f32)res;
+	base_res   = config_get_texture_res_pos(res);
 }
 
 // Upstream "23" object masks (layer_data_t.object_mask of the old format):
