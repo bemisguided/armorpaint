@@ -430,7 +430,12 @@ void *io_fbx_parse(char *buf, size_t size) {
 	if (active_base_scene == NULL) {
 		ufbx_load_opts opts = {.generate_missing_normals = true};
 		active_base_scene = active_eval_scene = ufbx_load_memory(buf, size, &opts, NULL);
-		active_tex1                           = true;
+		if (active_base_scene == NULL) {
+			return NULL; // Unreadable file, import_mesh_run reports it
+		}
+		scale_pos    = 1.0; // Packing scale of this file, not of earlier imports
+		current_node = 0;
+		active_tex1  = true;
 		for (size_t i = 0; i < active_eval_scene->nodes.count; ++i) {
 			ufbx_node *n = active_eval_scene->nodes.data[i];
 			if (valid_mesh(n) && n->mesh->uv_sets.count < 2) {
