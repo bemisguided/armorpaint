@@ -170,8 +170,8 @@ void make_material_bake_node_preview(ui_node_t *node, ui_node_canvas_t *group, u
 	if (string_equals(node->type, "BLUR")) {
 		char *id     = make_material_node_preview_id(node, parents);
 		i32   passes = blur_node_seamless_passes(node);
-		i32   res_x  = math_floor(config_get_texture_res_x() / 4.0);
-		i32   res_y  = math_floor(config_get_texture_res_y() / 4.0);
+		i32   res_x  = math_floor(util_udim_res_x() / 4.0);
+		i32   res_y  = math_floor(util_udim_res_y() / 4.0);
 		// Seamless blur renders the input to _src, then diffuses it into the sampled texture
 		gpu_texture_t *image = make_material_node_preview_target(passes > 0 ? string_tmp("%s_src", id) : id, res_x, res_y, GPU_TEXTURE_FORMAT_RGBA32);
 
@@ -190,8 +190,8 @@ void make_material_bake_node_preview(ui_node_t *node, ui_node_canvas_t *group, u
 		char          *id    = make_material_node_preview_id(node, parents);
 		gpu_texture_t *image = any_map_get(g_context->node_previews, id);
 		any_array_push(g_context->node_previews_used, id);
-		i32 res_x = math_floor(config_get_texture_res_x());
-		i32 res_y = math_floor(config_get_texture_res_y());
+		i32 res_x = math_floor(util_udim_res_x());
+		i32 res_y = math_floor(util_udim_res_y());
 		if (image == NULL || image->width != res_x || image->height != res_y) {
 			if (image != NULL) {
 				gpu_delete_texture(image);

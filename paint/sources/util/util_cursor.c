@@ -2,7 +2,7 @@
 #include "../global.h"
 
 static f32 util_cursor_radius_2d(f32 radius) {
-	return context_is_pixel_snap() ? radius * 100.0 / config_get_texture_res_x() : radius / 15.0 * 2.0;
+	return context_is_pixel_snap() ? radius * 100.0 / util_udim_res_x() : radius / 15.0 * 2.0;
 }
 
 void util_cursor_draw_2d(f32 cx, f32 cy, f32 radius, i32 color) {

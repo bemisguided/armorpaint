@@ -26,8 +26,8 @@ static buffer_t *export_texture_pack_pixels(buffer_t *pixels, i32 count, i32 bit
 }
 
 static void export_texture_write_texture(char *file, buffer_t *pixels, i32 type, i32 off) {
-	i32 res_x       = config_get_texture_res_x();
-	i32 res_y       = config_get_texture_res_y();
+	i32 res_x       = util_udim_res_x();
+	i32 res_y       = util_udim_res_y();
 	i32 bits_handle = base_bits;
 	i32 bits        = bits_handle == TEXTURE_BITS_BITS8 ? 8 : bits_handle == TEXTURE_BITS_BITS16 ? 16 : 32;
 	i32 format      = 0; // RGBA
@@ -251,8 +251,8 @@ static bool export_texture_layer_covers_name(slot_layer_t *l, char *name, bool s
 }
 
 static void export_texture_run_layers(char *path, slot_layer_t_array_t *layers, char *object_name, bool bake_material) {
-	i32 texture_size_x = config_get_texture_res_x();
-	i32 texture_size_y = config_get_texture_res_y();
+	i32 texture_size_x = util_udim_res_x();
+	i32 texture_size_y = util_udim_res_y();
 #if defined(IRON_ANDROID) || defined(IRON_IOS)
 	char *f = sys_title();
 #else

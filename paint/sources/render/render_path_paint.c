@@ -47,16 +47,16 @@ void render_path_paint_init() {
 	{
 		render_target_t *t = render_target_create();
 		t->name            = "texpaint_blend0";
-		t->width           = config_get_texture_res_x();
-		t->height          = config_get_texture_res_y();
+		t->width           = util_udim_res_x();
+		t->height          = util_udim_res_y();
 		t->format          = "R8";
 		render_path_create_render_target(t);
 	}
 	{
 		render_target_t *t = render_target_create();
 		t->name            = "texpaint_blend1";
-		t->width           = config_get_texture_res_x();
-		t->height          = config_get_texture_res_y();
+		t->width           = util_udim_res_x();
+		t->height          = util_udim_res_y();
 		t->format          = "R8";
 		render_path_create_render_target(t);
 	}
@@ -250,7 +250,7 @@ void render_path_paint_commands_particle(i32 tid, char *texpaint, bool is_mask) 
 
 static void render_path_paint_ref_target(char *name, char *format) {
 	render_target_t *rt = any_map_get(render_path_render_targets, name);
-	if (rt != NULL && (rt->width != config_get_texture_res_x() || rt->height != config_get_texture_res_y() || !string_equals(rt->format, format))) {
+	if (rt != NULL && (rt->width != util_udim_res_x() || rt->height != util_udim_res_y() || !string_equals(rt->format, format))) {
 		gpu_delete_texture(rt->_image);
 		map_delete(render_path_render_targets, name);
 		rt = NULL;
@@ -258,8 +258,8 @@ static void render_path_paint_ref_target(char *name, char *format) {
 	if (rt == NULL) {
 		render_target_t *t = render_target_create();
 		t->name            = name;
-		t->width           = config_get_texture_res_x();
-		t->height          = config_get_texture_res_y();
+		t->width           = util_udim_res_x();
+		t->height          = util_udim_res_y();
 		t->format          = format;
 		render_path_create_render_target(t);
 	}
@@ -683,8 +683,8 @@ void render_path_paint_commands_paint(bool dilation) {
 			if (any_map_get(render_path_render_targets, "texpaint_blur") == NULL) {
 				render_target_t *t = render_target_create();
 				t->name            = "texpaint_blur";
-				t->width           = math_floor(config_get_texture_res_x() * 0.95);
-				t->height          = math_floor(config_get_texture_res_y() * 0.95);
+				t->width           = math_floor(util_udim_res_x() * 0.95);
+				t->height          = math_floor(util_udim_res_y() * 0.95);
 				t->format          = "RGBA32";
 				render_path_create_render_target(t);
 			}
@@ -1318,7 +1318,7 @@ void render_path_paint_set_plane_mesh() {
 	g_context->saved_camera       = cam->base->transform->local;
 	render_path_paint_saved_ortho = cam->data->ortho;
 	transform_set_matrix(cam->base->transform, mat4_translate(mat4_identity(), 0, 0, 1));
-	f32 ratio = config_get_texture_res_y() / (float)config_get_texture_res_x();
+	f32 ratio = util_udim_res_y() / (float)util_udim_res_x();
 	f32 tx, ty, tw, th;
 	ui_view2d_tex_rect(ratio, &tx, &ty, &tw, &th);
 	f32                 s     = ui_view2d_world_scale();

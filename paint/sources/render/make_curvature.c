@@ -601,8 +601,8 @@ static f32 make_curvature_input(ui_node_t *node, i32 socket, ui_node_canvas_t *c
 
 void make_curvature_bake(ui_node_t *node, ui_node_canvas_t *group, ui_node_t_array_t *parents, char *id) {
 	ui_node_canvas_t *canvas   = group != NULL ? group : g_context->material->canvas;
-	i32               res_x    = math_floor(config_get_texture_res_x());
-	i32               res_y    = math_floor(config_get_texture_res_y());
+	i32               res_x    = math_floor(util_udim_res_x());
+	i32               res_y    = math_floor(util_udim_res_y());
 	f32               strength = make_curvature_input(node, 0, canvas, parents, parents->length);
 	f32               radius   = make_curvature_input(node, 1, canvas, parents, parents->length);
 	f32               offset   = make_curvature_input(node, 2, canvas, parents, parents->length);
