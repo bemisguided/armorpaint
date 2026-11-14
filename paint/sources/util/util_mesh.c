@@ -139,23 +139,7 @@ bool util_mesh_link_parse(char *name, i32 *source_index, char **object_name) {
 	return true;
 }
 
-#define ATLAS_MAX_STRIDE 8
-#define ATLAS_MAX_SLOTS  (ATLAS_MAX_STRIDE * ATLAS_MAX_STRIDE)
-
-static i32 _util_mesh_atlas_stride_for(i32 count) {
-	i32 stride = 1;
-	while (stride * stride < count && stride < ATLAS_MAX_STRIDE) {
-		stride++;
-	}
-	return stride;
-}
-
-static i32  util_mesh_atlas_stride_merged = 1;
-static i32  util_mesh_udim_tiles[ATLAS_MAX_SLOTS]; // Sorted tile ids, one atlas slot per tile
-static i32  util_mesh_udim_tile_count  = 0;
-static bool util_mesh_udim_tiles_spent = false;
-
-// Tile id from the ".1001" name suffix given by udim import, -1 if none
+// Tile id from the ".1001" name suffix of upstream name based udim objects, -1 if none (legacy migration only)
 i32 util_mesh_udim_tile(char *name) {
 	if (name == NULL) {
 		return -1;
@@ -172,82 +156,6 @@ i32 util_mesh_udim_tile(char *name) {
 		id = id * 10 + (name[i] - '0');
 	}
 	return id > 1000 ? id : -1;
-}
-
-static void _util_mesh_udim_build_tiles() {
-	mesh_object_t_array_t *paint_objects = g_project->_->paint_objects;
-	util_mesh_udim_tile_count            = 0;
-	util_mesh_udim_tiles_spent           = false;
-	for (i32 i = 0; i < paint_objects->length; ++i) {
-		i32 id = util_mesh_udim_tile(paint_objects->buffer[i]->base->name);
-		if (id < 0) {
-			continue;
-		}
-		i32 pos = 0;
-		while (pos < util_mesh_udim_tile_count && util_mesh_udim_tiles[pos] < id) {
-			pos++;
-		}
-		if (pos < util_mesh_udim_tile_count && util_mesh_udim_tiles[pos] == id) {
-			continue;
-		}
-		if (util_mesh_udim_tile_count == ATLAS_MAX_SLOTS) {
-			util_mesh_udim_tiles_spent = true;
-			continue;
-		}
-		for (i32 j = util_mesh_udim_tile_count; j > pos; --j) {
-			util_mesh_udim_tiles[j] = util_mesh_udim_tiles[j - 1];
-		}
-		util_mesh_udim_tiles[pos] = id;
-		util_mesh_udim_tile_count++;
-	}
-}
-
-// Shared layers of a mesh split by udim tile keep every tile in its own atlas slot
-bool util_mesh_udim_active() {
-	return util_mesh_udim_tile_count > 1;
-}
-
-i32 util_mesh_udim_slot(i32 tile) {
-	for (i32 i = 0; i < util_mesh_udim_tile_count; ++i) {
-		if (util_mesh_udim_tiles[i] == tile) {
-			return i;
-		}
-	}
-	return util_mesh_udim_tiles_spent ? ATLAS_MAX_SLOTS - 1 : 0;
-}
-
-// Layers covering exactly one tile object are stored tile-local, every other layer in the atlas
-bool util_mesh_udim_layer(slot_layer_t *l) {
-	if (!util_mesh_udim_active() || l == NULL || l->uv_map == 1) {
-		return false;
-	}
-	return layers_udim_tile_slot(l) < 0;
-}
-
-static i32 _util_mesh_atlas_slot_for_object(mesh_object_t *o) {
-	if (util_mesh_udim_active()) {
-		return util_mesh_udim_slot(util_mesh_udim_tile(o->base->name));
-	}
-	return 0;
-}
-
-static void _util_mesh_atlas_build_slots() {
-	_util_mesh_udim_build_tiles();
-	util_mesh_atlas_stride_merged = util_mesh_udim_active() ? _util_mesh_atlas_stride_for(util_mesh_udim_tile_count) : 1;
-}
-
-i32 util_mesh_atlas_stride() {
-	return util_mesh_atlas_stride_merged;
-}
-
-i32 util_mesh_atlas_slot(object_t *object) {
-	mesh_object_t_array_t *paint_objects = g_project->_->paint_objects;
-	for (i32 i = 0; i < paint_objects->length; ++i) {
-		if (paint_objects->buffer[i]->base == object) {
-			return _util_mesh_atlas_slot_for_object(paint_objects->buffer[i]);
-		}
-	}
-	return -1; // Merged object or 2d plane, uvs already in atlas space
 }
 
 void util_mesh_delete_data_uncache(void *data) {
@@ -301,6 +209,7 @@ mesh_data_t *util_mesh_data_duplicate(mesh_data_t *source) {
 	md->_->owns_arrays = true;
 	md->_->skin_blob   = source->_->skin_blob;
 	md->_->skin_frame  = -1;
+	util_udim_copy(md, source);
 	return md;
 }
 
@@ -389,9 +298,6 @@ static mesh_data_t *util_mesh_build_merged_data(mesh_object_t_array_t *paint_obj
 	i32          coli   = vatex1 != NULL ? 4 : 3;
 	u32_array_t *ia     = u32_array_create(ilen);
 
-	_util_mesh_atlas_build_slots();
-	i32 atlas_stride = util_mesh_atlas_stride_merged;
-
 	// Pos, nor
 	f32 max_scale = util_mesh_pack_merged_positions(paint_objects, parent, va0, va1);
 
@@ -401,14 +307,9 @@ static mesh_data_t *util_mesh_build_merged_data(mesh_object_t_array_t *paint_obj
 		vertex_array_t_array_t *vas = paint_objects->buffer[i]->data->vertex_arrays;
 		u32_array_t            *ias = paint_objects->buffer[i]->data->index_array;
 
-		// Tex
-		i32 slot      = _util_mesh_atlas_slot_for_object(paint_objects->buffer[i]);
-		f32 tile_step = 32767.0f / atlas_stride;
-		f32 tile_x    = atlas_stride > 1 ? (slot % atlas_stride) * tile_step : 0.0f;
-		f32 tile_y    = atlas_stride > 1 ? (slot / atlas_stride) * tile_step : 0.0f;
-		for (i32 j = 0; j < vas->buffer[2]->values->length / 2; ++j) {
-			va2->buffer[j * 2 + voff * 2]     = vas->buffer[2]->values->buffer[j * 2] / (float)atlas_stride + tile_x;
-			va2->buffer[j * 2 + 1 + voff * 2] = vas->buffer[2]->values->buffer[j * 2 + 1] / (float)atlas_stride + tile_y;
+		// Tex, already in atlas space
+		for (i32 j = 0; j < vas->buffer[2]->values->length; ++j) {
+			va2->buffer[j + voff * 2] = vas->buffer[2]->values->buffer[j];
 		}
 		// Tex1
 		if (vatex1 != NULL) {
@@ -786,6 +687,7 @@ static void util_mesh_join_geometry(mesh_object_t_array_t *objects) {
 
 	mesh_data_t *md    = mesh_data_create(raw);
 	md->_->owns_arrays = true;
+	util_udim_concat(md, objects); // Same vertex order as the merged build
 	sys_notify_on_next_frame(&util_mesh_delete_data_uncache, main_object->data);
 	mesh_object_set_data(main_object, md);
 	util_mesh_changed();
@@ -1298,7 +1200,7 @@ void util_mesh_uv_unwrap(mesh_object_t_array_t *objects) {
 		md->vertex_arrays->buffer[1]->values = new_nora;
 		md->vertex_arrays->buffer[2]->values = new_texa;
 		md->index_array                      = new_inda;
-		util_udim_clear(md); // Unwrapped uvs are in 1001
+		util_udim_unwrapped(md); // Unwrapped uvs are in 1001
 
 		mesh_data_build(md);
 		ioff += ilen;
@@ -1315,6 +1217,7 @@ void util_mesh_uv_unwrap(mesh_object_t_array_t *objects) {
 
 	util_mesh_merge(NULL);
 	util_uv_uvmap_cached = false;
+	util_udim_unwrap_done();
 }
 
 static i32 *_cc_he_vlo;
@@ -3017,6 +2920,23 @@ void util_mesh_split(mesh_object_t *o) {
 		i32 c                                     = island[_util_mesh_bevel_find(uf, v)];
 		raws[c]->index_array->buffer[icount[c]++] = remap[v];
 	}
+	// Udim tile data follows its vertices into the parts
+	bool          udim  = util_udim_has_tiles(g);
+	i16_array_t **utex  = udim ? malloc(count * sizeof(i16_array_t *)) : NULL;
+	i16_array_t **utile = udim ? malloc(count * sizeof(i16_array_t *)) : NULL;
+	for (i32 c = 0; udim && c < count; ++c) {
+		utex[c]  = i16_array_create(vcount[c] * 2);
+		utile[c] = i16_array_create(vcount[c]);
+	}
+	for (i32 v = 0; udim && v < num_verts; ++v) {
+		if (remap[v] < 0) {
+			continue;
+		}
+		i32 c                             = island[_util_mesh_bevel_find(uf, v)];
+		utex[c]->buffer[remap[v] * 2]     = g->_->udim_tex->buffer[v * 2];
+		utex[c]->buffer[remap[v] * 2 + 1] = g->_->udim_tex->buffer[v * 2 + 1];
+		utile[c]->buffer[remap[v]]        = g->_->udim_tile->buffer[v];
+	}
 	free(uf);
 	free(island);
 	free(remap);
@@ -3030,6 +2950,10 @@ void util_mesh_split(mesh_object_t *o) {
 	mesh_data_t *md    = mesh_data_create(raws[0]);
 	md->_->owns_arrays = true;
 	md->_->skin_frame  = -1;
+	if (udim) {
+		md->_->udim_tex  = utex[0];
+		md->_->udim_tile = utile[0];
+	}
 	mesh_object_set_data(o, md);
 	util_mesh_changed();
 	if (!shared) {
@@ -3049,6 +2973,10 @@ void util_mesh_split(mesh_object_t *o) {
 		md                 = mesh_data_create(raws[c]);
 		md->_->owns_arrays = true;
 		md->_->skin_frame  = -1;
+		if (udim) {
+			md->_->udim_tex  = utex[c];
+			md->_->udim_tile = utile[c];
+		}
 
 		mesh_object_t *p = scene_add_mesh_object(md, o->material, o->base->parent);
 		p->base->name    = string_copy(name);
@@ -3067,6 +2995,8 @@ void util_mesh_split(mesh_object_t *o) {
 		}
 	}
 	free(raws);
+	free(utex);
+	free(utile);
 
 	if (mat_index >= 0) {
 		g_project->mesh_materials = i32_array_create(0);
@@ -3119,7 +3049,7 @@ void util_mesh_rename(mesh_object_t *o, char *name) {
 	name = string_copy(name);
 	tab_stages_rename_object(o->base->name, name);
 	o->base->name = name;
-	util_mesh_changed(); // Udim tile objects take their atlas slot from the name
+	util_mesh_changed();
 	// Mesh data shared by linked duplicates is named after the object holding it
 	if (o->data != NULL && util_mesh_data_owner(o->data) == array_index_of(g_project->_->paint_objects, o)) {
 		o->data->name = string_copy(name);

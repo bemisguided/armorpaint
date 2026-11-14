@@ -59,8 +59,10 @@ static mesh_data_t_array_t *import_arm_get_mesh_datas(project_t *project, string
 void import_arm_run_mesh(project_t *raw) {
 	g_project->_->paint_objects  = any_array_create_from_raw((void *[]){}, 0);
 	g_project->_->next_object_id = 0;
+	any_array_t *imported        = any_array_create(0);
 	for (i32 i = 0; i < raw->mesh_datas->length; ++i) {
 		mesh_data_t   *md     = mesh_data_create(raw->mesh_datas->buffer[i]);
+		any_array_push(imported, md);
 		mesh_object_t *object = NULL;
 		if (i == 0) {
 			mesh_object_set_data(g_context->paint_object, md);
@@ -79,6 +81,8 @@ void import_arm_run_mesh(project_t *raw) {
 		util_mesh_merge(NULL);
 		viewport_scale_to_bounds(2.0);
 	}
+	util_udim_import_meshes(imported, false); // Mesh only files have no tiles, the meshes go to 1001
+	array_delete(imported);
 	sys_notify_on_next_frame(&import_arm_run_mesh_on_next_frame, NULL);
 	history_reset();
 }
@@ -162,13 +166,14 @@ static i32 import_arm_mesh_material_index(project_t *project, i32 mesh_i) {
 }
 
 static void import_arm_run_mesh_append_from_project(project_t *project, i32_array_t *selected, i32_array_t *src_to_dest_mat) {
-	// TODO(B2b): the appended project's udim_tiles are ignored, the runtime list stays as it is; union them and relayout there
 	if (project->mesh_datas == NULL || project->mesh_datas->length == 0) {
 		return;
 	}
 
 	string_array_t      *mesh_names = string_array_create(0);
 	mesh_data_t_array_t *mesh_datas = import_arm_get_mesh_datas(project, mesh_names);
+	project_format_load_append_tiles(project, (any_array_t *)mesh_datas);
+	any_array_t *imported = any_array_create(0); // Appended mesh datas, their tiles join the project list
 
 	i32            appended = 0;
 	bool           assigned = false;
@@ -183,6 +188,9 @@ static void import_arm_run_mesh_append_from_project(project_t *project, i32_arra
 		mesh_data_t   *md     = mesh_datas->buffer[i];
 		mesh_object_t *object = scene_add_mesh_object(md, g_context->paint_object->material, NULL);
 		object->base->name    = mesh_names->buffer[i];
+		if (array_index_of(imported, md) < 0) {
+			any_array_push(imported, md);
+		}
 
 		if (project->mesh_transforms != NULL && i < project->mesh_transforms->length) {
 			transform_set_matrix(object->base->transform, import_arm_mesh_world_matrix(project, i));
@@ -213,8 +221,11 @@ static void import_arm_run_mesh_append_from_project(project_t *project, i32_arra
 	}
 
 	if (appended == 0) {
+		array_delete(imported);
 		return;
 	}
+	util_udim_import_meshes(imported, false);
+	array_delete(imported);
 
 	if (assigned) {
 		g_project->mesh_materials = i32_array_create(0);
@@ -982,6 +993,7 @@ void import_arm_run_project(char *path) {
 	}
 	project_format_load_object_ids(g_project);
 	project_format_load_mesh_tiles(g_project);
+	util_udim_apply_layout_loaded(); // Saved uvs are tile-local, the list and per tile resolution are set above
 
 	transform_set_matrix(g_context->paint_object->base->transform, mat4_from_f32_array(g_project->mesh_transforms->buffer[0], 0));
 	for (i32 i = 1; i < g_project->mesh_datas->length; ++i) {

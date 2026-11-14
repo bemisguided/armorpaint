@@ -235,15 +235,14 @@ static void export_texture_set_channel(f32 value, buffer_t *to, i32 to_channel, 
 	}
 }
 
-// Layer applies to the object of that name, or to an object ending in that udim tile suffix
-static bool export_texture_layer_covers_name(slot_layer_t *l, char *name, bool suffix) {
+// Layer applies to the object of that name
+static bool export_texture_layer_covers_name(slot_layer_t *l, char *name) {
 	if (!layer_objects_restricted(l)) {
 		return true;
 	}
 	for (i32 i = 0; i < g_project->_->paint_objects->length; ++i) {
-		mesh_object_t *o     = g_project->_->paint_objects->buffer[i];
-		bool           match = suffix ? ends_with(o->base->name, name) : string_equals(o->base->name, name);
-		if (match && layer_covers_object(l, o)) {
+		mesh_object_t *o = g_project->_->paint_objects->buffer[i];
+		if (string_equals(o->base->name, name) && layer_covers_object(l, o)) {
 			return true;
 		}
 	}
@@ -289,18 +288,6 @@ static void export_texture_run_layers(char *path, slot_layer_t_array_t *layers, 
 		f = string("%s_%s", f, object_name);
 	}
 
-	// Export a single udim tile when the target is one
-	i32 udim_slot = -1;
-	if (util_mesh_udim_active()) {
-		i32 udim_tile = util_mesh_udim_tile(object_name);
-		if (udim_tile >= 0) {
-			udim_slot = util_mesh_udim_slot(udim_tile);
-		}
-		else if (export_selected) {
-			udim_slot = layers_udim_tile_slot(layers->buffer[0]);
-		}
-	}
-
 	// Clear export layer
 	_gpu_begin(layers_expa, NULL, NULL, GPU_CLEAR_COLOR, color_from_floats(0.0, 0.0, 0.0, 0.0), 0.0);
 	gpu_end();
@@ -325,7 +312,7 @@ static void export_texture_run_layers(char *path, slot_layer_t_array_t *layers, 
 		if (layer_covers_nothing(l1)) {
 			continue;
 		}
-		if ((is_udim || per_object) && !string_equals(object_name, "") && !export_texture_layer_covers_name(l1, object_name, is_udim)) {
+		if (per_object && !string_equals(object_name, "") && !export_texture_layer_covers_name(l1, object_name)) {
 			continue;
 		}
 
@@ -340,14 +327,6 @@ static void export_texture_run_layers(char *path, slot_layer_t_array_t *layers, 
 				layers_merge_layer(l1, l1masks->buffer[i], false);
 			}
 			mask = pipes_temp_mask_image;
-		}
-
-		// Shared layers of udim tiles are cropped out of the atlas, tile layers go into the atlas when exporting it whole
-		if (!bake_material && udim_slot >= 0 && util_mesh_udim_layer(l1)) {
-			l1 = layers_udim_remap(l1, l1masks != NULL ? &mask : NULL, udim_slot, true);
-		}
-		else if (!bake_material && udim_slot < 0 && layers_udim_tile_slot(l1) >= 0) {
-			l1 = layers_udim_remap(l1, l1masks != NULL ? &mask : NULL, layers_udim_tile_slot(l1), false);
 		}
 
 		if (l1->paint_base || l1->paint_opac) {
@@ -738,26 +717,7 @@ void export_texture_run(char *path, bool bake_material) {
 		export_texture_run_bake_material(path);
 	}
 	else if (g_context->layers_export == EXPORT_MODE_PER_UDIM_TILE) {
-		string_array_t *udim_tiles = any_array_create_from_raw((void *[]){}, 0);
-		for (i32 i = 0; i < g_project->_->paint_objects->length; ++i) {
-			char *name = g_project->_->paint_objects->buffer[i]->base->name;
-			if (util_mesh_udim_tile(name) < 0) { // tile.1001
-				continue;
-			}
-			char *udim_tile = substring(name, string_length(name) - 5, string_length(name));
-			if (string_array_index_of(udim_tiles, udim_tile) == -1) {
-				any_array_push(udim_tiles, udim_tile);
-			}
-		}
-		if (udim_tiles->length > 0) {
-			for (i32 i = 0; i < udim_tiles->length; ++i) {
-				char *udim_tile = udim_tiles->buffer[i];
-				export_texture_run_layers(path, g_project->_->layers, udim_tile, false);
-			}
-		}
-		else {
-			export_texture_run_layers(path, g_project->_->layers, "", false);
-		}
+		export_texture_run_layers(path, g_project->_->layers, "", false); // The whole atlas until per tile export is rebuilt (B5)
 	}
 	else if (g_context->layers_export == EXPORT_MODE_PER_OBJECT) {
 		// Objects some object restricted layer covers, each gets its own texture set
