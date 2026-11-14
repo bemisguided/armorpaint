@@ -579,10 +579,12 @@ void util_udim_scan(f32 *uv, i32 corners) {
 	}
 }
 
-// Whether the scanned file is imported with tiles (UDIM tiles import option)
+// Whether the scanned file is imported with tiles (UDIM tiles import option).
+// Auto: the uvs use a tile other than 1001 (several tiles, or one tile such as 1002) and no triangle crosses a tile border.
 bool util_udim_scan_end() {
-	udim_import_t mode  = g_context->udim_import;
-	bool          tiles = mode == UDIM_IMPORT_ON || (mode == UDIM_IMPORT_AUTO && util_udim_scan_multi && util_udim_scan_straddles == 0);
+	udim_import_t mode     = g_context->udim_import;
+	bool          not_1001 = util_udim_scan_multi || util_udim_scan_first > 0;
+	bool          tiles    = mode == UDIM_IMPORT_ON || (mode == UDIM_IMPORT_AUTO && not_1001 && util_udim_scan_straddles == 0);
 	if (tiles && util_udim_scan_straddles > 0) {
 		any_map_t *vars = any_map_create();
 		any_map_set(vars, "count", i32_to_string(util_udim_scan_straddles));

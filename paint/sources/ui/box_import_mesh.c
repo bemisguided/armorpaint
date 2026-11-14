@@ -55,7 +55,7 @@ void project_import_mesh_box_draw() {
 		ui_text(tr("UDIM tiles"), UI_ALIGN_LEFT, 0);
 		ui_inline_radio((int *)&g_context->udim_import, udim_combo, UI_ALIGN_LEFT);
 		if (g_ui->is_hovered) {
-			ui_tooltip(tr("Auto uses tiles when the UVs span more than one tile and no triangle crosses a tile border"));
+			ui_tooltip(tr("Auto uses tiles when the UVs use a tile other than 1001 and no triangle crosses a tile border"));
 		}
 	}
 
