@@ -581,6 +581,19 @@ Section result: PASS / FAIL
   Result: PASS / FAIL
   Notes:
 
+- [ ] 12.9 Sculpt in a multi-tile project (review fix). `udim_2x2_multi.obj` fresh import (2048 per tile, atlas 4096). Layers tab: add a sculpt layer, sculpt a visible bump on `Body` in tile 1001 and on `Head`. Save `sc.arm`, close, reopen.
+  Expected: both bumps are back exactly as sculpted, no scrambled spikes or flattened areas. Sculpt again after reopening: works without jumps.
+  Result: PASS / FAIL
+  Notes:
+- [ ] 12.10 Mesh-only .arm into a 4-tile project, then paint right away (review fix). With `udim_2x2_multi.obj` open, File > Import > Mesh... a mesh-only `.arm` (exported earlier with File > Export > Mesh, format `.arm`, of the default cube). Without switching layers, paint a stroke on the imported cube and on `Head`.
+  Expected: the cube lands in tile 1001 (2D view slot 1001); strokes appear under the cursor on both objects, never in another slot.
+  Result: PASS / FAIL
+  Notes:
+- [ ] 12.11 Footprint with vertex colours (review fix). Import an OBJ that has vertex colours (or a mesh with a second UV map) with `UDIM tiles` `Off`, restrict a layer to one of its objects with the Objects button, enable path tracing (viewport mode `Path Traced`) and export `Visible`.
+  Expected: the layer shows only on that object in the path traced view and in the exported files, same footprint as the raster viewport (no garbage shapes, no missing areas).
+  Result: PASS / FAIL
+  Notes:
+
 Section result: PASS / FAIL
 
 ## 13. B7 migration of the old name-based UDIM project
@@ -700,6 +713,9 @@ Record any difference you see as a note, these are decided or deferred.
 - The Bake Maps script `Resolution` combo does not say `(per tile)` (the script API has no UDIM query), it is per tile.
 - CPU bake memory: a 16k atlas needs about 2 GB; only a warning above an 8192 atlas, per-tile CPU bake is deferred.
 - Tile files of removed tiles are not deleted from the bake folder.
+- The atlas clamp is not remembered: a project saved while clamped (for example 9 tiles at 8192 -> 5461 per tile) reopens with 5461 as its configured per-tile resolution; removing tiles afterwards keeps 5461. A sculpt layer saved while the atlas was clamped may not load correctly.
+- An image node with `UV` `Atlas` used in a fill layer follows that layer's UV scale and angle (scale 1 and angle 0 show the baked map correctly).
+- Tools other than the UV editor that change UVs in place (if any) may leave stale tile-local UVs for save; report any UV change that reverts after save and reopen.
 - Crop is blocked with more than one tile.
 - Beyond about 64 tiles at 2k or 16 at 4k the single atlas stops being practical (tile streaming deferred); the atlas side is capped at 16384.
 - Mesh delete has no undo; "Join UDIM tile objects" is not built (use Merge Geometry); timeline keyframes of migrated tile-local layers and group masks over them are not migrated.
@@ -720,4 +736,5 @@ Record any difference you see as a note, these are decided or deferred.
 - Bake tile crops with non-divisible sizes (11.8, 4.4 in a 9-tile project with the bake): atlas = per tile x stride, 16383 vs 16384, tile files must have the per-tile size and the atlas the image node uses must match.
 - Sculpt seam coverage (6.10, 6.11): any vertex on a covered tile counts, so seam vertices must move together without cracks.
 - Appended projects' tiles (4.6 to 4.9, 12.5): objects appended without tile data must go to 1001, the existing list must stay sorted and distinct, and layers made before an append must keep their `Tiles` sets.
+- Sculpt layers in multi-tile projects across save and reopen (12.9), mesh-only .arm import into a UDIM project (12.10), footprints of meshes with vertex colours or a second UV map (12.11): all three were fixed after the final code review and never run.
 - Mixing coverage: a layer with both Objects and Tiles restrictions, groups with their own sets (D1 intersection) and the greying in both popups.
