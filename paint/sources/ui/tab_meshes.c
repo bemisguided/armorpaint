@@ -1439,45 +1439,16 @@ static i32_array_t *tab_meshes_object_tiles(mesh_object_t *o) {
 	return tiles;
 }
 
-// "1001-1002, 1011", runs of consecutive ids are joined
-static char *tab_meshes_tiles_text(i32_array_t *tiles) {
-	char *text = "";
-	for (i32 i = 0; i < tiles->length; ++i) {
-		i32 end = i;
-		while (end + 1 < tiles->length && tiles->buffer[end + 1] == tiles->buffer[end] + 1) {
-			end++;
-		}
-		char *part = end - i >= 1 ? string_tmp("%d-%d", tiles->buffer[i], tiles->buffer[end]) : string_tmp("%d", tiles->buffer[i]);
-		text       = i == 0 ? part : string_tmp("%s, %s", text, part);
-		i          = end;
-	}
-	return text;
-}
-
-// The name with the object's tiles on a second line when the project has UDIM tiles
-static char *tab_meshes_mesh_tiles_info(mesh_object_t *o, char *name) {
-	if (!util_udim_active()) {
-		return name;
-	}
-	i32_array_t *tiles = tab_meshes_object_tiles(o);
-	any_map_t   *vars  = any_map_create();
-	any_map_set(vars, "tiles", tab_meshes_tiles_text(tiles));
-	char *text = string_tmp("%s\n%s", name, vtr("Tiles: {tiles}", vars));
-	map_free(vars);
-	array_delete(tiles);
-	return text;
-}
-
 static char *tab_meshes_mesh_info(mesh_object_t *o, i32 i) {
 	i32 owner = util_mesh_data_owner(o->data);
 	if (!util_mesh_data_is_shared(o->data)) {
-		return tab_meshes_mesh_tiles_info(o, o->base->name);
+		return o->base->name;
 	}
 	if (owner == i) {
 		// Mesh data linked by other objects
-		return tab_meshes_mesh_tiles_info(o, o->base->name);
+		return o->base->name;
 	}
-	return tab_meshes_mesh_tiles_info(o, string_tmp("%s@%s", o->base->name, g_project->_->paint_objects->buffer[owner]->base->name));
+	return string_tmp("%s@%s", o->base->name, g_project->_->paint_objects->buffer[owner]->base->name);
 }
 
 void tab_meshes_draw_mesh_slot(mesh_object_t *o, i32 i) {

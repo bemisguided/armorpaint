@@ -381,49 +381,9 @@ static char *tab_layers_coverage_label(slot_layer_t *l) {
 	return tab_layers_coverage_text(multi, ao, o, first, at, t, t_first);
 }
 
-// At most 4 names, then "+N more"
-static char *tab_layers_tip_list(string_array_t *names) {
-	char *s = "";
-	for (i32 i = 0; i < names->length && i < 4; ++i) {
-		s = string_tmp("%s%s%s", s, i > 0 ? ", " : "", names->buffer[i]);
-	}
-	if (names->length > 4) {
-		any_map_t *vars = any_map_create();
-		any_map_set(vars, "count", string_tmp("%d", names->length - 4));
-		s = string_tmp("%s %s", s, vtr("+{count} more", vars));
-		map_free(vars);
-	}
-	return s;
-}
-
-// "Objects / Tiles: A, B / 1001 +2 more", the sets the layer applies to
-static char *tab_layers_coverage_tip(slot_layer_t *l) {
-	bool            multi   = util_udim_count() > 1;
-	string_array_t *objects = any_array_create(0);
-	string_array_t *tiles   = any_array_create(0);
-	for (i32 i = 0; i < g_project->_->paint_objects->length; ++i) {
-		mesh_object_t *o = g_project->_->paint_objects->buffer[i];
-		if (o->paint_id > 0 && i32_array_index_of(slot_layer_objects(l), o->paint_id) >= 0) {
-			any_array_push(objects, o->base->name);
-		}
-	}
-	for (i32 i = 0; multi && i < util_udim_count(); ++i) {
-		i32 tile = util_udim_tile(i);
-		if (i32_array_index_of(slot_layer_tiles(l), tile) >= 0) {
-			any_array_push(tiles, string_tmp("%d", tile));
-		}
-	}
-	char *o   = tab_layers_objects_all(l) ? tr("All") : (objects->length > 0 ? tab_layers_tip_list(objects) : tr("No objects"));
-	char *tip = string_tmp("%s: %s", tr("Objects"), o);
-	if (multi) {
-		char *t = tab_layers_tiles_all(l) ? tr("All") : (tiles->length > 0 ? tab_layers_tip_list(tiles) : tr("No tiles"));
-		tip     = string_tmp("%s / %s: %s / %s", tr("Objects"), tr("Tiles"), o, t);
-	}
-	array_free(objects);
-	free(objects);
-	array_free(tiles);
-	free(tiles);
-	return tip;
+// Fixed text for the Applies to button, issues are appended by the caller
+static char *tab_layers_coverage_tip() {
+	return util_udim_count() > 1 ? tr("Objects and tiles this layer applies to") : tr("Objects this layer applies to");
 }
 
 // "X shares UV space with Y on tile T..." when a covered object overlaps an uncovered one in uv space, NULL otherwise
@@ -565,9 +525,17 @@ static void tab_layers_coverage_buttons(slot_layer_t *l) {
 		ui_menu_draw(&tab_layers_coverage_menu_draw, -1, -1);
 	}
 	else if (g_ui->is_hovered) {
-		char *note = tab_layers_objects_overlap_note(l);
-		char *tip  = tab_layers_coverage_tip(l);
-		ui_tooltip(note != NULL ? string_tmp("%s\n%s", tip, note) : tip);
+		// Fixed text, only a problem is added to it
+		layer_coverage_empty_t empty = layer_coverage_empty_reason(l);
+		char                  *tip   = tab_layers_coverage_tip();
+		char *issue = empty == LAYER_COVERAGE_OBJECTS_DELETED
+		                  ? tr("This layer's objects were deleted, so it covers nothing. Select objects or choose All to use it again.")
+		              : empty == LAYER_COVERAGE_NO_OBJECTS
+		                  ? tr("No objects are selected for this layer or its group, so it covers nothing. Select objects or choose All to use it.")
+		              : empty != LAYER_COVERAGE_SOME
+		                  ? tr("No tiles are selected for this layer or its group, so it covers nothing. Select tiles or choose All to use it.")
+		                  : tab_layers_objects_overlap_note(l);
+		ui_tooltip(issue != NULL ? string_tmp("%s\n%s", tip, issue) : tip);
 	}
 }
 
@@ -764,13 +732,6 @@ void tab_layers_draw_layer_slot_full(slot_layer_t *l, i32 i) {
 		}
 		ui_state_t state  = ui_text(l->name, UI_ALIGN_LEFT, 0x00000000);
 		g_theme->TEXT_COL = text_col;
-		if (covers_nothing && g_ui->is_hovered) {
-			ui_tooltip(empty == LAYER_COVERAGE_OBJECTS_DELETED
-			               ? tr("This layer's objects were deleted, so it covers nothing. Select objects or choose All to use it again.")
-			           : empty == LAYER_COVERAGE_NO_OBJECTS
-			               ? tr("No objects are selected for this layer or its group, so it covers nothing. Select objects or choose All to use it.")
-			               : tr("No tiles are selected for this layer or its group, so it covers nothing. Select tiles or choose All to use it."));
-		}
 		if (state == UI_STATE_RELEASED) {
 			if (sys_time() - g_context->select_time < 0.2) {
 				tab_layers_layer_name_edit = l->id;
@@ -1530,13 +1491,7 @@ void tab_layers_draw_edit() {
 	}
 
 	if (util_udim_count() > 1) {
-		any_map_t *vars = any_map_create();
-		any_map_set(vars, "tiles", string_tmp("%d", util_udim_count()));
-		any_map_set(vars, "atlas", string_tmp("%d", util_udim_res_x()));
-		any_map_set(vars, "mb", string_tmp("%d", (i32)(util_udim_memory_estimate() / 1048576.0 + 0.5)));
-		ui_menu_align();
-		ui_menu_label(vtr("{tiles} tiles, atlas {atlas} px, about {mb} MB", vars), NULL);
-		map_free(vars);
+		any_map_t *vars;
 		if (util_udim_clamped()) {
 			vars = any_map_create();
 			any_map_set(vars, "res", string_tmp("%d", util_udim_tile_res_x()));

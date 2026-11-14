@@ -879,10 +879,10 @@ UDIM atlas too large: {tiles} tiles use {res} px per tile ({atlas} px atlas)
 Layer covers no tiles
 Tile {id}
 {id} (unused)
-Tiles: {tiles}
+Objects and tiles this layer applies to
 Remove tile {id}? Its pixels are deleted and undo history is cleared.
 Remove tile
-{tiles} tiles, atlas {atlas} px, about {mb} MB
+Objects this layer applies to
 Clamped to {res} px per tile (atlas limit 16384)
 {object} shares UV space with {other} on tile {tile}. In exports and path tracing this layer also applies to {other}.
 Per Object & Tile
