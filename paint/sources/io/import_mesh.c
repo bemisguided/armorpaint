@@ -171,7 +171,7 @@ void import_mesh_finish_import(void *_) {
 		g_context->merged_object = NULL;
 	}
 
-	// Udim tiles of the imported meshes: a fresh project takes exactly them, otherwise they are added to the list
+	// Udim tiles of the imported meshes: an import that replaced the meshes takes exactly them, an append adds them to the list
 	if (import_mesh_imported != NULL) {
 		any_array_t *mds = any_array_create(0);
 		for (i32 i = 0; i < import_mesh_imported->length; ++i) {
@@ -185,6 +185,12 @@ void import_mesh_finish_import(void *_) {
 		}
 		array_delete(mds);
 		import_mesh_imported_reset();
+		// A relayout merges the objects right away, before they are sorted and parented to the new root below
+		if (g_context->merged_object != NULL) {
+			mesh_data_delete(g_context->merged_object->data);
+			mesh_object_remove(g_context->merged_object);
+			g_context->merged_object = NULL;
+		}
 	}
 
 	context_select_paint_object(context_main_object());
