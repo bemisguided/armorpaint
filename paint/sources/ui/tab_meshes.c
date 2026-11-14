@@ -1804,16 +1804,22 @@ static void tab_meshes_tile_remove_box_draw() {
 	}
 }
 
-// Project tiles with the paint objects using each, the per tile resolution and Remove for tiles no mesh uses
+// Objects or Tiles view, the toggle only shows with more than one tile, kept for the session
+static i32 tab_meshes_view = 0;
+#define TAB_MESHES_VIEW_OBJECTS 0
+#define TAB_MESHES_VIEW_TILES   1
+
+// Project tiles with the paint objects using each, the per tile resolution and Remove for tiles no mesh uses.
+// Clicking a row filters the layers to the tile, clicking the filtered row again clears the filter.
 static void tab_meshes_draw_tiles() {
-	static bool expanded = true;
-	if (!util_udim_active() || !ui_panel(&expanded, tr("Tiles"), false, false, false)) {
-		return;
-	}
 	tab_meshes_tiles_refresh();
 	for (i32 i = 0; i < util_udim_count(); ++i) {
-		i32          tile = util_udim_tile(i);
-		f32_array_t *row  = f32_array_create_from_raw_tmp(
+		i32  tile     = util_udim_tile(i);
+		bool filtered = g_context->layer_filter_tile == tile;
+		if (filtered) {
+			ui_fill(0, 1, g_ui->_w / (float)UI_SCALE() - 2, UI_ELEMENT_H() / (float)UI_SCALE(), g_theme->HIGHLIGHT_COL);
+		}
+		f32_array_t *row = f32_array_create_from_raw_tmp(
 		    (f32[]){
 		        0.2,
 		        0.25,
@@ -1822,9 +1828,12 @@ static void tab_meshes_draw_tiles() {
 		    },
 		    4);
 		ui_row(row);
-		ui_text(string_tmp("%d", tile), UI_ALIGN_LEFT, 0x00000000);
-		ui_text(string_tmp("%d %s", tab_meshes_tiles_objects->buffer[i], tr("objects")), UI_ALIGN_LEFT, 0x00000000);
-		ui_text(string_tmp("%d x %d", util_udim_tile_res_x(), util_udim_tile_res_y()), UI_ALIGN_LEFT, 0x00000000);
+		bool clicked = ui_text(string_tmp("%d", tile), UI_ALIGN_LEFT, 0x00000000) == UI_STATE_RELEASED;
+		bool hovered = g_ui->is_hovered;
+		clicked |= ui_text(string_tmp("%d %s", tab_meshes_tiles_objects->buffer[i], tr("objects")), UI_ALIGN_LEFT, 0x00000000) == UI_STATE_RELEASED;
+		hovered |= g_ui->is_hovered;
+		clicked |= ui_text(string_tmp("%d x %d", util_udim_tile_res_x(), util_udim_tile_res_y()), UI_ALIGN_LEFT, 0x00000000) == UI_STATE_RELEASED;
+		hovered |= g_ui->is_hovered;
 		if (tab_meshes_tiles_used->buffer[i] == 0 && util_udim_count() > 1) {
 			if (ui_button(tr("Remove"), UI_ALIGN_CENTER, "")) {
 				tab_meshes_tile_remove_id = tile;
@@ -1833,6 +1842,13 @@ static void tab_meshes_draw_tiles() {
 		}
 		else {
 			ui_end_element();
+		}
+		if (hovered) {
+			ui_tooltip(tr("Show only the layers that cover this tile"));
+		}
+		if (clicked) {
+			tab_layers_apply_tile_filter(filtered ? 0 : tile);
+			ui_dock_redraw(-1); // The layers tab may be docked anywhere
 		}
 	}
 }
@@ -1871,6 +1887,25 @@ void tab_meshes_draw(i32 *htab) {
 			ui_menu_draw(&tab_meshes_draw_edit, -1, -1);
 		}
 
+		// Back to the objects when the project has one tile again
+		bool tiles_view = util_udim_count() > 1;
+		if (!tiles_view) {
+			tab_meshes_view = TAB_MESHES_VIEW_OBJECTS;
+		}
+		if (tiles_view) {
+			string_array_t *views = any_array_create_from_raw_tmp(
+			    (void *[]){
+			        tr("Objects"),
+			        tr("Tiles"),
+			    },
+			    2);
+			i32 view = tab_meshes_view;
+			ui_inline_radio(&view, views, UI_ALIGN_LEFT);
+			if (ui_item_changed() && (view == TAB_MESHES_VIEW_OBJECTS || view == TAB_MESHES_VIEW_TILES)) {
+				tab_meshes_view = view;
+			}
+		}
+
 		if (tab_meshes_search_show) {
 			bool search_selected = g_ui->text_selected_id == ui_widget_id(&tab_meshes_search, UI_ID_TEXT);
 			ui_text_input(&tab_meshes_search, tr("Search"), UI_ALIGN_LEFT, true, true);
@@ -1891,6 +1926,12 @@ void tab_meshes_draw(i32 *htab) {
 
 		ui_end_sticky();
 		g_ui->_y += 2;
+
+		if (tab_meshes_view == TAB_MESHES_VIEW_TILES) {
+			tab_meshes_draw_tiles();
+			ui_node_params_draw(CANVAS_TYPE_MESH, &g_config->mesh_params);
+			return;
+		}
 
 		tab_meshes_highlight_odd_lines();
 
@@ -1948,7 +1989,6 @@ void tab_meshes_draw(i32 *htab) {
 		}
 
 		ui_node_params_draw(CANVAS_TYPE_MESH, &g_config->mesh_params);
-		tab_meshes_draw_tiles();
 	}
 }
 
