@@ -17,16 +17,20 @@ class Obj:
         self.lines = list(header); self.nv = 0; self.nt = 0
     def add(self, name, pos, faces):
         """faces: list of lists of (pos_index, (u,v)); each corner gets its own vt unless a vt index is given as 3rd item."""
+        # All v, then all vt, then all f of the object, as Blender writes them. The OBJ importer starts a new object
+        # at a "v"/"vt" line that follows faces, so interleaving vt and f would split one object into one per face.
         self.lines.append(f"o {name}")
         for p in pos: self.lines.append("v %.4f %.4f %.4f" % p)
         vb = self.nv
+        fl = []
         for f in faces:
             refs = []
             for pi, uv in f:
                 self.nt += 1
                 self.lines.append("vt %.4f %.4f" % uv)
                 refs.append(f"{vb+pi+1}/{self.nt}")
-            self.lines.append("f " + " ".join(refs))
+            fl.append("f " + " ".join(refs))
+        self.lines.extend(fl)
         self.nv += len(pos)
     def cube(self, name, c, size, rects):
         pos = [(c[0]+x*size, c[1]+y*size, c[2]+z*size) for x,y,z in CORNERS]
@@ -72,8 +76,9 @@ o.save(f"{d}/udim_straddle.obj")
 
 # 3. tiling
 o = Obj(["# udim_tiling_uv: object Floor, 2x2 quad grid plane (4 quads), UVs 0..4 across (each quad spans 2x2 UV units, crossing integer borders) meant to REPEAT a tiling texture; "
-         "every quad straddles tile borders (8 straddling triangles), so Auto UDIM detection must decide Off"])
-pos = [(x*2.0-2,0,z*2.0-2) for z in range(3) for x in range(3)]
+         "every quad straddles tile borders (8 straddling triangles), so Auto UDIM detection must decide Off. "
+         "The plane stands upright (OBJ xy plane, facing +z = the default camera), a flat floor would be seen edge-on by the default camera"])
+pos = [(x*2.0-2,y*2.0-2,0) for y in range(3) for x in range(3)]
 faces = []
 for r in range(2):
     for c in range(2):

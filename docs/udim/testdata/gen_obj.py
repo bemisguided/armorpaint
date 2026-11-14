@@ -4,23 +4,30 @@ faces = [  # vertex index quads (ccw from outside)
     (0,1,2,3), (5,4,7,6), (4,0,3,7), (1,5,6,2), (3,2,6,7), (4,5,1,0)]
 corners = [(-1,-1,1),(1,-1,1),(1,1,1),(-1,1,1),(-1,-1,-1),(1,-1,-1),(1,1,-1),(-1,1,-1)]
 # region: (u offset, v offset, size), the cube's faces fill that square of UV space
-def cube(out, name, off, region, state, group=True):
+# Lines of one cube as (v, vt, f) lists. An object writes all its v, then all vt, then all f (as Blender does):
+# the OBJ importer starts a new object at a "v"/"vt" line that follows faces.
+def cube_lines(off, region, state):
     vbase, tbase = state
     ru, rv, rs = region
-    if group: out.append(f"o {name}")
+    vs, vts, fs = [], [], []
     for (x,y,z) in corners:
-        out.append(f"v {x*0.8+off[0]:.4f} {y*0.8+off[1]:.4f} {z*0.8+off[2]:.4f}")
+        vs.append(f"v {x*0.8+off[0]:.4f} {y*0.8+off[1]:.4f} {z*0.8+off[2]:.4f}")
     for fi in range(6):
         cu, cv = fi % 3, fi // 3
         m = 0.02
         u0, v0 = ru + (cu/3 + m)*rs, rv + (cv/2 + m)*rs
         u1, v1 = ru + ((cu+1)/3 - m)*rs, rv + ((cv+1)/2 - m)*rs
         for (u,v) in [(u0,v0),(u1,v0),(u1,v1),(u0,v1)]:
-            out.append(f"vt {u:.4f} {v:.4f}")
+            vts.append(f"vt {u:.4f} {v:.4f}")
     for fi,(a,b,c,d) in enumerate(faces):
         t = tbase + fi*4
-        out.append("f " + " ".join(f"{vbase+i+1}/{t+k+1}" for k,i in enumerate((a,b,c,d))))
+        fs.append("f " + " ".join(f"{vbase+i+1}/{t+k+1}" for k,i in enumerate((a,b,c,d))))
     state[0] += 8; state[1] += 24
+    return vs, vts, fs
+
+def cube(out, name, off, region, state):
+    vs, vts, fs = cube_lines(off, region, state)
+    out.append(f"o {name}"); out.extend(vs); out.extend(vts); out.extend(fs)
 
 def write(path, header, parts):
     out = [header]; st = [0,0]
@@ -36,5 +43,6 @@ write(f"{d}/three_cubes_separate_uv.obj", "# Three cube objects A, B, C in disjo
       [("A",(-2.5,0,0),(0,0.5,0.5)), ("B",(0,0,0),(0.5,0.5,0.5)), ("C",(2.5,0,0),(0,0,0.5))])
 # One object whose first cube is in tile 1001 and second cube in tile 1002
 out = ["# One object Body: left cube UVs in tile 1001 (u 0..1), right cube UVs in tile 1002 (u 1..2)", "o Body"]; st=[0,0]
-cube(out, "Body", (-1.25,0,0), (0,0,1), st, group=False); cube(out, "Body", (1.25,0,0), (1,0,1), st, group=False)
+l = cube_lines((-1.25,0,0), (0,0,1), st); r = cube_lines((1.25,0,0), (1,0,1), st)
+for k in range(3): out.extend(l[k] + r[k])
 open(f"{d}/udim_body_two_tiles.obj","w").write("\n".join(out)+"\n")
