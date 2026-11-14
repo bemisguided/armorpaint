@@ -28,6 +28,7 @@ Console messages show in the **Console** tab (and briefly in the status bar).
 | 14 | Undo / redo across tile edits | PASS / FAIL |
 | 15 | Mesh export | PASS / FAIL |
 | 16 | Known limits (expected, not failures) | n/a |
+| 17 | Bake Texture node per tile (branch `feat/udim-bake-node-per-tile`) | PASS / FAIL |
 
 Phase B passes when sections 1 to 15 all pass. Any crash, lost paint after relayout/save/reload, paint on an uncovered tile or object, or an export tile that does not match the viewport is a FAIL.
 
@@ -709,7 +710,7 @@ Record any difference you see as a note, these are decided or deferred.
 - Mesh nodes (`mesh_nodes_objects`) are positional: deleting or reordering objects can re-point a canvas.
 - Per Object semantics differ from the design table (DECISIONS B5): Per Object iterates the objects covered by an OBJECT-RESTRICTED layer, not every object covered by any layer, so a non-UDIM project with only unrestricted layers exports once without a suffix. Unrestricted layers in each Per Object file are masked to that object's footprint.
 - Raytraced lightmap bake squeezes the whole atlas into the script's resolution.
-- The Bake Texture node repeats its atlas target per tile.
+- The Bake Texture node repeats its atlas target per tile. (Fixed on branch `feat/udim-bake-node-per-tile`, see section 17.)
 - The Bake Maps script `Resolution` combo does not say `(per tile)` (the script API has no UDIM query), it is per tile.
 - CPU bake memory: a 16k atlas needs about 2 GB; only a warning above an 8192 atlas, per-tile CPU bake is deferred.
 - Tile files of removed tiles are not deleted from the bake folder.
@@ -738,3 +739,74 @@ Record any difference you see as a note, these are decided or deferred.
 - Appended projects' tiles (4.6 to 4.9, 12.5): objects appended without tile data must go to 1001, the existing list must stay sorted and distinct, and layers made before an append must keep their `Tiles` sets.
 - Sculpt layers in multi-tile projects across save and reopen (12.9), mesh-only .arm import into a UDIM project (12.10), footprints of meshes with vertex colours or a second UV map (12.11): all three were fixed after the final code review and never run.
 - Mixing coverage: a layer with both Objects and Tiles restrictions, groups with their own sets (D1 intersection) and the greying in both popups.
+
+## 17. Bake Texture node per tile (branch `feat/udim-bake-node-per-tile`)
+
+Added 2026-11-13 for the fix of the B6 open question "the Bake Texture node repeats its atlas target per tile" (DECISIONS.md, last section). Before the fix each tile showed a full shrunken copy of the whole bake; now each tile shows only the bake of its own geometry.
+
+How to build the node graph (used by every step below):
+1. Materials tab: click the material thumbnail of the default material (`Material`) to select it, then click `Nodes` (the node editor opens).
+2. In the node editor menubar click `Texture`, pick `Bake Texture`. A node `Bake Texture` appears with a `Bake` combo, a `Bake` button (play icon) and a `Color` output.
+3. Drag from the node's `Color` output to the `Base Color` input of the `Material Output` node (replace the existing link).
+4. In the node's `Bake` combo pick the bake type named by the step, then click the `Bake` button. While it bakes the button is a percentage slider; wait until the button comes back (one frame for non-raytraced types).
+5. Layers tab: `New` > `Fill Layer`. The fill layer uses the selected material.
+To compare with the old behaviour, run the same steps in the build of `feat/udim-object-tile-selection` (tip `91cd5b54b`).
+
+Setup: `udim_2x2_multi.obj` fresh import (**UDIM tiles** `Auto`), Layers tab Edit menu Resolution `2048` per tile (atlas 4096, tiles 1001, 1002, 1011, 1012).
+
+- [ ] 17.1 Build the node graph, `Bake` = `TexCoord`, bake, add the fill layer. Look at the 2D view (layer type) of the fill layer and at the node preview of the `Bake Texture` node (the node's thumbnail, it shows the raw atlas target).
+  Expected: the 2D view of the layer equals the node preview: the UV islands of all objects are drawn once each, in their own tile slot, coloured by their atlas UV: red and green change as ONE smooth gradient over the whole 2x2 grid (red along x, green along y), with no jump back to the same colours at each slot border. No slot contains a shrunken copy of the whole 2x2 grid. (Old build: every slot shows the full grid shrunk into it.)
+  Result: PASS / FAIL
+  Notes:
+- [ ] 17.2 Same graph, viewport (Lit) front view.
+  Expected: each object shows the colours of its own islands in 17.1, so objects on different tiles have clearly different colour ranges (`Head` on 1011, `Arm`/`Leg` on 1012 and `Prop` on 1001 do not look alike); `Body`'s 1001 faces and 1002 faces have different colours. No object shows patches of other objects' islands.
+  Result: PASS / FAIL
+  Notes:
+- [ ] 17.3 Change `Bake` to `Position`, bake again (the fill layer updates by itself; if it does not, select another layer and back).
+  Expected: each object is coloured by its own world position (objects further along x look different from each other, `Body` at x=-4.5 differs from `Leg` at x=4.5). The 2D view slot of each tile holds only the islands of the objects on that tile. No tile repeats the whole atlas.
+  Result: PASS / FAIL
+  Notes:
+- [ ] 17.4 Change `Bake` to `Curvature`, bake again.
+  Expected: edge highlights follow the real edges of each cube on all four tiles (no edge lines crossing faces, which is what a repeated atlas looks like).
+  Result: PASS / FAIL
+  Notes:
+- [ ] 17.5 Raytraced type (only if the `Occlusion` entry exists in the `Bake` combo): `Bake` = `Occlusion`, `Samples` `64`, bake, wait for 100%.
+  Expected: AO darkening sits on each object where expected on all four tiles, the 2D view slot of each tile holds only its own islands, no repeats.
+  Result: PASS / FAIL
+  Notes:
+- [ ] 17.6 Bake with a tile-restricted layer selected. Back to `Bake` = `TexCoord`. Select the default paint layer `Layer 1`, set its Tiles button to `1001` only. With `Layer 1` still selected, click `Bake` on the node. Then select the fill layer.
+  Expected: the fill layer (Tiles `All`) shows the bake on all four tiles, as in 17.1 (the bake is not limited to the tiles of the layer that was selected while baking). `Layer 1` keeps its own content (the bake does not paint into it). Painting on `Layer 1` afterwards still stays on 1001 only.
+  Result: PASS / FAIL
+  Notes:
+- [ ] 17.7 Fill layer restricted to tiles: set the fill layer's Tiles button to `1002, 1012`.
+  Expected: only `Body`'s 1002 faces and `Arm`/`Leg` show the bake, each with its own part (same colours as in 17.1 on those tiles); 1001 and 1011 show the layers below.
+  Result: PASS / FAIL
+  Notes:
+- [ ] 17.8 Export: File > Export > Textures..., `Per Tile`, export.
+  Expected: each `<name>_base_<tile>.png` (2048 x 2048) equals the matching slot of the 2D view of 17.1 (only that tile's islands, no shrunken full grid).
+  Result: PASS / FAIL
+  Notes:
+- [ ] 17.9 Save as `bn.arm`, close, reopen. Click `Bake` on the node again (the bake target is not saved) and look at the fill layer.
+  Expected: as in 17.1 after the bake. Before re-baking, the node gives black (as before this fix).
+  Result: PASS / FAIL
+  Notes:
+- [ ] 17.10 1002-only project: `udim_single_1002.obj` fresh import, build the graph with `TexCoord`, bake, add the fill layer.
+  Expected: the bake fills the whole layer once (single slot, atlas = tile), `Crate` shows its UV gradient with no repeats. Same as before the fix.
+  Result: PASS / FAIL
+  Notes:
+- [ ] 17.11 Non-UDIM regression: default cube (File > New), build the graph with `TexCoord`, bake, add the fill layer; then `Curvature`.
+  Expected: identical to the old build (the cube's UV gradient once over its layout; curvature on the edges). Also right-click the fill layer row and set the `UV Scale` slider to `2`: the bake repeats twice, as before.
+  Result: PASS / FAIL
+  Notes:
+- [ ] 17.12 Material preview and viewport with the Bake Texture node in a multi-tile project (4-tile setup, `TexCoord` baked).
+  Expected: the material thumbnail in the Materials tab shows the atlas wrapped on the preview ball (unchanged, previews sample raw UVs); no shader error in the Console after any of the steps above.
+  Result: PASS / FAIL
+  Notes:
+- [ ] 17.13 Material bake export with the node (4-tile setup, `TexCoord` baked). Materials tab: right-click the material thumbnail, `Bake`, export to an empty folder.
+  Expected: the exported base color map shows the bake atlas once (same picture as the node preview of 17.1), not one shrunken copy per tile slot. Record the file names and sizes.
+  Result: PASS / FAIL
+  Notes:
+
+Known limit: like `UV: Atlas` image nodes, the Bake Texture node in a fill layer follows that layer's `UV Scale` and angle; with a scale other than 1 or an angle the atlas is scaled/rotated and wraps across tiles (scale 1 and angle 0 are correct). The bake itself also uses the selected layer's (or the header's) UV scale and angle, so bake with scale 1 and angle 0.
+
+Section result: PASS / FAIL
