@@ -83,6 +83,13 @@ void import_arm_run_mesh(project_t *raw) {
 	}
 	util_udim_import_meshes(imported, false); // Mesh only files have no tiles, the meshes go to 1001
 	array_delete(imported);
+	if (util_udim_active()) { // The layout moved the mesh uvs after the merges above
+		util_mesh_merge(NULL);
+		util_uv_uvmap_cached       = false;
+		util_uv_trianglemap_cached = false;
+		util_uv_seammap_cached     = false;
+		util_uv_dilatemap_cached   = false;
+	}
 	sys_notify_on_next_frame(&import_arm_run_mesh_on_next_frame, NULL);
 	history_reset();
 }
@@ -1078,13 +1085,15 @@ void import_arm_run_project(char *path) {
 				if (ld->texpaint_sculpt != NULL) {
 					render_target_t *t = render_target_create();
 					t->name            = string("texpaint_sculpt%s", l->ext);
-					t->width           = ld->res;
-					t->height          = ld->res;
+					// Sculpt textures are per vertex at the per tile resolution, not atlas sized like the layer textures
+					i32 sculpt_res     = config_get_texture_res_x();
+					t->width           = sculpt_res;
+					t->height          = sculpt_res;
 					t->format          = "RGBA128";
 					l->texpaint_sculpt = render_path_create_render_target(t)->_image;
 
 					gpu_texture_t *_texpaint_sculpt =
-					    import_arm_texture_from_lz4(ld->texpaint_sculpt, ld->res, ld->res * ld->res * 4 * 4, GPU_TEXTURE_FORMAT_RGBA128, NULL);
+					    import_arm_texture_from_lz4(ld->texpaint_sculpt, sculpt_res, sculpt_res * sculpt_res * 4 * 4, GPU_TEXTURE_FORMAT_RGBA128, NULL);
 					draw_begin(l->texpaint_sculpt, false, 0);
 					draw_set_pipeline(pipes_copy128);
 					draw_image(_texpaint_sculpt, 0, 0);

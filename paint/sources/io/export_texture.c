@@ -769,7 +769,10 @@ static bool export_texture_any_layer(slot_layer_t_array_t *layers, i32 object_fi
 // One texture set per project tile a mesh uses, and per object too when objects is set
 static void export_texture_run_tiles(char *path, bool objects) {
 	slot_layer_t_array_t *layers = g_project->_->layers;
-	i32_array_t          *ids    = objects ? export_texture_object_ids(layers) : i32_array_create(0);
+	i32_array_t          *ids    = i32_array_create(0); // Per Object & Tile: every object on the tile
+	for (i32 i = 0; objects && i < g_project->_->paint_objects->length; ++i) {
+		i32_array_push(ids, g_project->_->paint_objects->buffer[i]->paint_id);
+	}
 	for (i32 s = 0; s < util_udim_count(); ++s) {
 		i32 tile = util_udim_tile(s);
 		if (!util_udim_tile_used(tile)) {

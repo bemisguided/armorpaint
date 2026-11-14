@@ -1302,7 +1302,7 @@ static void _layers_udim_relayout_layer(slot_layer_t *l, i32_array_t *old_tiles,
 	}
 	else if (slot_layer_is_mask(l) && l->texpaint != NULL) {
 		// New tiles are white, the mask hides nothing there
-		l->texpaint         = _layers_udim_relayout_texture(l->texpaint, 0xffffffff, pipes_copy8, old_tiles, old_stride);
+		l->texpaint         = _layers_udim_relayout_texture(l->texpaint, 0xffffffff, pipes_copy, old_tiles, old_stride); // Masks are RGBA32
 		render_target_t *rt = any_map_get(rts, string("texpaint%s", l->ext));
 		rt->_image          = l->texpaint;
 	}
@@ -1409,6 +1409,32 @@ static void _layers_coverage_scissor(i32 slot) {
 // white where the layer applies. Returns false and writes nothing when no mask is needed (unrestricted layer, no filter).
 // Callers skip layers layers_coverage_applies rejects. Tile-only restrictions fill whole slots (gutter included), object
 // restrictions or an object filter draw the covered objects' uv triangles on the covered slots, dilated by the dilate radius.
+
+// Dilate map pipeline with the input layout of the mesh's own vertex buffer (meshes with col or tex1 have a larger stride)
+static gpu_pipeline_t *_layers_coverage_pipes[4] = {NULL, NULL, NULL, NULL};
+static gpu_pipeline_t *_layers_coverage_pipe(mesh_data_t *md) {
+	bool tex1 = mesh_data_get_vertex_array(md, "tex1") != NULL;
+	bool col  = mesh_data_get_vertex_array(md, "col") != NULL;
+	if (!tex1 && !col) {
+		return util_uv_get_pipe_dilate();
+	}
+	i32 key = (tex1 ? 1 : 0) + (col ? 2 : 0);
+	if (_layers_coverage_pipes[key] == NULL) {
+		gpu_pipeline_t *pipe       = gpu_create_pipeline();
+		pipe->vertex_shader        = sys_get_shader("dilate_map.vert");
+		pipe->fragment_shader      = sys_get_shader("dilate_map.frag");
+		gpu_vertex_structure_t *vs = ALLOC_INIT(gpu_vertex_structure_t, {0});
+		*vs                        = mesh_data_get_vertex_struct(md->vertex_arrays);
+		pipe->input_layout         = vs;
+		pipe->depth_write          = false;
+		pipe->depth_mode           = GPU_COMPARE_MODE_ALWAYS;
+		pipe->color_attachment[0]  = GPU_TEXTURE_FORMAT_R8;
+		gpu_pipeline_compile(pipe);
+		_layers_coverage_pipes[key] = pipe;
+	}
+	return _layers_coverage_pipes[key];
+}
+
 bool layers_coverage_mask(slot_layer_t *l, i32 object_filter, i32 tile_filter) {
 	// An object list holding every live object restricts nothing
 	bool objects = object_filter > 0;
@@ -1459,7 +1485,6 @@ bool layers_coverage_mask(slot_layer_t *l, i32 object_filter, i32 tile_filter) {
 
 	// Uv triangles of the covered objects, clipped to the covered slots (a triangle never crosses a cell)
 	_gpu_begin(rt->_image, NULL, NULL, GPU_CLEAR_COLOR, 0x00000000, 0.0);
-	gpu_set_pipeline(util_uv_get_pipe_dilate());
 	for (i32 i = 0; i < g_project->_->paint_objects->length && covered > 0; ++i) {
 		mesh_object_t *o = g_project->_->paint_objects->buffer[i];
 		if (!layer_covers_object(l, o) || (object_filter > 0 && o->paint_id != object_filter)) {
@@ -1468,6 +1493,7 @@ bool layers_coverage_mask(slot_layer_t *l, i32 object_filter, i32 tile_filter) {
 		if (o->data == NULL || o->data->_->vertex_buffer == NULL || o->data->_->index_buffer == NULL) {
 			continue;
 		}
+		gpu_set_pipeline(_layers_coverage_pipe(o->data));
 		gpu_set_vertex_buffer(o->data->_->vertex_buffer);
 		gpu_set_index_buffer(o->data->_->index_buffer);
 		for (i32 s = 0; s < count; ++s) {
