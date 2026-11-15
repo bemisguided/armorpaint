@@ -218,7 +218,7 @@ static void gpo_dispatch() {
 	gpu_raytrace_set_textures(gpo_pos_tex, gpo_nor_tex, gpo_pos_tex, sobol, sobol, data_get_texture("bnoise_scramble.k"),
 	                          data_get_texture("bnoise_rank.k"), sobol); // The environment is not sampled by these maps
 	// The layout of render_path_raytrace_bake_commands. The scene is in world units, Radius and Offset are scaled from
-	// the mesh units of the cpu bake. The shaders ignore the strength, gpo_readback applies it.
+	// the mesh units of the cpu bake. The occlusion shader applies the strength.
 	memset(gpo_constants, 0, sizeof(gpo_constants));
 	f32 scale        = gpo_world_scale();
 	gpo_constants[0] = gpo_sample;
@@ -234,7 +234,6 @@ static void gpo_dispatch() {
 }
 
 // Half float target into the pair's RGBA8 buffer, then dilated like a cpu result.
-// Occlusion gets the AO Strength here like on the cpu (bake_rays_texel), the shader leaves it out.
 static void gpo_readback(i32 pair) {
 	buffer_t *pixels = gpu_get_texture_pixels(gpo_target);
 	u8       *out    = bake_maps_gpo_result(pair);
@@ -246,10 +245,6 @@ static void gpo_readback(i32 pair) {
 		for (i32 c = 0; c < 3; ++c) {
 			f32 v          = render_path_raytrace_half_to_float(hp[i * 4 + c]);
 			v              = v < 0.0f ? 0.0f : v > 1.0f ? 1.0f : v;
-			if (gpo_type == BAKE_TYPE_OCCLUSION) {
-				v = 1.0f - (1.0f - v) * gpo_ao[0];
-				v = v < 0.0f ? 0.0f : v > 1.0f ? 1.0f : v;
-			}
 			out[i * 4 + c] = (u8)(v * 255.0f + 0.5f);
 		}
 		out[i * 4 + 3] = 255;
