@@ -1282,6 +1282,32 @@ i32 script_asset_index(char *search) {
 	return -1;
 }
 
+// Asset metadata by category (meta_category_t) and index: the position in the matching tray / project array
+// (fonts include the default font at 0, meshes are the paint objects). Out of range indices are ignored.
+void script_meta_set_i32(i32 category, i32 index, i32 key, i32 value) {
+	meta_set_i32(meta_get(category, index), key, value);
+}
+
+i32 script_meta_get_i32(i32 category, i32 index, i32 key, i32 def) {
+	return meta_get_i32(meta_peek(category, index), key, def);
+}
+
+void script_meta_add_tag(i32 category, i32 index, char *tag) {
+	meta_add_tag(meta_get(category, index), tag);
+}
+
+i32 script_meta_has_tag(i32 category, i32 index, char *tag) {
+	return meta_has_tag(meta_peek(category, index), tag);
+}
+
+i32 script_asset_count(i32 category) {
+	return meta_count(category);
+}
+
+char *script_asset_name(i32 category, i32 index) {
+	return meta_item_name(category, index);
+}
+
 void script_import_asset(char *path, bool hdr_as_envmap) {
 	if (path == NULL || !iron_file_exists(path)) {
 		return;
