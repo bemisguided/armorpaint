@@ -626,12 +626,7 @@ void draw_settings() {
 		if (device == 0 && gpu_available()) {
 			ui_slider(&gpu_samples, "Samples", 1, 128, true, 1, true, UI_ALIGN_RIGHT, true);
 			gpu_samples = floor(gpu_samples);
-			if (bake_maps_udim()) {
-				ui_text("64 rays per sample, per object and tile at the Resolution", UI_ALIGN_LEFT, 0);
-			}
-			else {
-				ui_text(string("64 rays per sample, at the layer resolution (%d)", bake_maps_gpu_res()), UI_ALIGN_LEFT, 0);
-			}
+			ui_text(string("64 rays per sample, at the layer resolution (%d)", bake_maps_gpu_res()), UI_ALIGN_LEFT, 0);
 		}
 		else {
 			ui_slider(&rays, "Rays", 4, 512, true, 1, true, UI_ALIGN_RIGHT, true);
