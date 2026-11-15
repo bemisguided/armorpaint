@@ -910,3 +910,10 @@ The GPU bake could not prepare the meshes, baking on the CPU
 Tags
 Tags...
 Tag
+Ambient Occlusion
+Bake Properties
+Bake Properties...
+Bake Type
+Encoding
+Any
+Unknown ({n})
