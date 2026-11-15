@@ -900,3 +900,9 @@ All objects & tiles
 Not enough memory for the undo step, lower the resolution
 CPU bake of {size} px tiles needs a lot of memory, consider a lower resolution
 Not enough memory for the CPU bake, lower the resolution
+The GPU bake needs ray tracing, baking on the CPU
+Another GPU bake is running, baking on the CPU
+The GPU bake takes up to {count} objects, baking on the CPU
+Not enough memory for the GPU bake, baking on the CPU
+The meshes changed during the GPU bake, baking on the CPU
+Another GPU bake started, baking on the CPU

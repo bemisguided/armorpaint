@@ -2075,6 +2075,13 @@ static minic_val_t bake_maps_gpu_start(minic_val_t *a, int n) {
 // per (object, tile) pair, into the per object result buffers of the cpu bake. The accessors below let it use the
 // pairs, the texmap and the results without the cpu bake state leaving this file.
 
+bool bake_gpu_object_running();
+bool bake_gpu_object_poll();
+f32  bake_gpu_object_progress();
+void bake_gpu_object_cancel();
+bool bake_gpu_object_failed();
+bool bake_gpu_object_begin(i32 type, i32 samples, f32 ao_strength, f32 ao_radius, f32 ao_offset, i32 w, i32 h);
+
 // Another bake of this plugin runs
 bool bake_maps_gpo_busy() {
 	return bake_rays_working || bake_maps_gpu_running;
@@ -2163,6 +2170,9 @@ void bake_maps_gpo_drop_low() {
 
 // float bake_maps_progress(): 0..1 for the current map, over all its per object results
 static minic_val_t bake_maps_progress(minic_val_t *a, int n) {
+	if (bake_gpu_object_running()) {
+		return minic_val_float(bake_gpu_object_progress());
+	}
 	if (bake_maps_gpu_running) {
 		return minic_val_float(bake_rays_fmin(render_path_raytrace_bake_current_sample / (f32)bake_maps_gpu_samples, 1.0));
 	}
@@ -2180,6 +2190,9 @@ static minic_val_t bake_maps_progress(minic_val_t *a, int n) {
 
 // bool bake_maps_step(): true once the current map is done (every per object result), poll every update
 static minic_val_t bake_maps_step(minic_val_t *a, int n) {
+	if (bake_gpu_object_running()) {
+		return minic_val_int(bake_gpu_object_poll() ? 1 : 0);
+	}
 	if (bake_maps_gpu_running) {
 		return minic_val_int(0);
 	}
@@ -2207,6 +2220,7 @@ static minic_val_t bake_maps_step(minic_val_t *a, int n) {
 
 // void bake_maps_cancel()
 static minic_val_t bake_maps_cancel(minic_val_t *a, int n) {
+	bake_gpu_object_cancel(); // Frees and restores now, the script stops polling
 	if (bake_maps_gpu_running) {
 		bake_maps_gpu_cancelled = true;
 		g_context->pdirty       = 0; // The core bake finishes on the next update
@@ -2387,6 +2401,7 @@ static minic_val_t bake_maps_miss_ratio(minic_val_t *a, int n) {
 
 // void bake_maps_end_images(): releases the baked images, geometry stays cached for the preview
 static minic_val_t bake_maps_end_images(minic_val_t *a, int n) {
+	bake_gpu_object_cancel(); // It writes into the images
 	bake_rays_join();
 	bake_rays_free_images();
 	bake_rays_free_bvh(&bake_rays_lpb);
@@ -2395,6 +2410,7 @@ static minic_val_t bake_maps_end_images(minic_val_t *a, int n) {
 
 // void bake_maps_end(): releases everything, the high poly can take gigabytes
 static minic_val_t bake_maps_end(minic_val_t *a, int n) {
+	bake_gpu_object_cancel();
 	free(bake_maps_gpu_out);
 	bake_maps_gpu_out   = NULL;
 	bake_maps_gpu_w     = 0;

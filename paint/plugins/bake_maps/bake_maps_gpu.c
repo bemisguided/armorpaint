@@ -240,4 +240,181 @@ static void gpo_release_raytrace() {
 	render_path_raytrace_init_shader = true;
 }
 
+// Frees everything and hands the shared state back, on finish, failure and cancel
+static void gpo_stop() {
+	gpu_execute_and_wait(); // Dispatches may still use the textures
+	gpo_free_pair_textures();
+	free(gpo_pos);
+	free(gpo_nor);
+	gpo_pos = NULL;
+	gpo_nor = NULL;
+	gpo_release_raytrace();
+	if (gpo_viewport) {
+		gpo_viewport = false;
+		if (g_context->viewport_mode == VIEWPORT_MODE_LIT) {
+			context_set_viewport_mode(gpo_viewport_mode);
+		}
+		g_context->ddirty = 2;
+	}
+	gpo_running = false;
+	bake_maps_gpo_done();
+}
+
+static void gpo_fail(char *message) {
+	console_error(message);
+	gpo_failed = true;
+	gpo_stop();
+}
+
+bool bake_gpu_object_running() {
+	return gpo_running;
+}
+
+// Whether the last bake stopped before its results were done, reported once
+bool bake_gpu_object_failed() {
+	bool failed = gpo_failed;
+	gpo_failed  = false;
+	return failed;
+}
+
+f32 bake_gpu_object_progress() {
+	if (!gpo_running || gpo_pairs == 0) {
+		return 1.0;
+	}
+	f32 p = gpo_samples > 0 ? gpo_sample / (f32)gpo_samples : 1.0f;
+	p     = p > 1.0f ? 1.0f : p;
+	return (gpo_pair + p) / gpo_pairs;
+}
+
+// Starts one map, false (with the reason in the console) when it can not start and the cpu should bake it
+bool bake_gpu_object_begin(i32 type, i32 samples, f32 ao_strength, f32 ao_radius, f32 ao_offset, i32 w, i32 h) {
+	gpo_failed = false;
+	if (gpo_running || (type != BAKE_TYPE_OCCLUSION && type != BAKE_TYPE_BENT_NORMAL && type != BAKE_TYPE_THICKNESS)) {
+		return false;
+	}
+	if (!gpu_raytrace_supported()) {
+		console_info(vtr("The GPU bake needs ray tracing, baking on the CPU", NULL));
+		return false;
+	}
+	// One raytrace pipeline and scene exist, shared with the viewport and the core bakes
+	if (bake_texture_node_baking || render_path_raytrace_bake_lightmap_busy() || bake_maps_gpo_busy()) {
+		console_info(vtr("Another GPU bake is running, baking on the CPU", NULL));
+		return false;
+	}
+	if (gpo_object_count() > GPU_RAYTRACE_MAX_OBJECTS) {
+		any_map_t *vars = any_map_create();
+		any_map_set(vars, "count", i32_to_string(GPU_RAYTRACE_MAX_OBJECTS));
+		console_info(vtr("The GPU bake takes up to {count} objects, baking on the CPU", vars));
+		map_free(vars);
+		return false;
+	}
+	buffer_t *shader = data_get_blob(gpo_shader_name(type));
+	if (shader == NULL || !bake_maps_gpo_prepare(w, h)) {
+		return false; // The cpu bake reports what is missing
+	}
+	gpo_pos = malloc(sizeof(f32) * 4 * (size_t)w * h);
+	gpo_nor = malloc(sizeof(f32) * 4 * (size_t)w * h);
+	if (gpo_pos == NULL || gpo_nor == NULL) {
+		free(gpo_pos);
+		free(gpo_nor);
+		gpo_pos = NULL;
+		gpo_nor = NULL;
+		console_info(vtr("Not enough memory for the GPU bake, baking on the CPU", NULL));
+		return false;
+	}
+
+	gpo_type     = type;
+	gpo_samples  = samples > 0 ? samples : 1;
+	gpo_ao[0]    = ao_strength;
+	gpo_ao[1]    = ao_radius;
+	gpo_ao[2]    = ao_offset;
+	gpo_w        = w;
+	gpo_h        = h;
+	gpo_pair     = 0;
+	gpo_pairs    = bake_maps_gpo_pair_count();
+	gpo_sample   = 0;
+	gpo_state    = GPO_INIT;
+	gpo_key      = bake_maps_gpo_key();
+	gpo_running  = true;
+	gpo_viewport = false;
+	// The viewport path tracer would dispatch with this pipeline and scene
+	if (g_context->viewport_mode == VIEWPORT_MODE_PATH_TRACE) {
+		gpo_viewport      = true;
+		gpo_viewport_mode = g_context->viewport_mode;
+		context_set_viewport_mode(VIEWPORT_MODE_LIT);
+	}
+
+	gpo_draw_pause();
+	gpo_release_raytrace(); // From here on the pipeline and scene are this bake's
+	_gpu_raytrace_init(shader);
+	gpo_build_scene();
+	gpo_draw_resume();
+	return true;
+}
+
+// Advances the bake, true once the map is done, failed or cancelled
+bool bake_gpu_object_poll() {
+	if (!gpo_running) {
+		return true;
+	}
+	// A mesh change frees the buffers in the scene, another bake replaces the pipeline
+	if (bake_maps_gpo_key() != gpo_key) {
+		gpo_draw_pause();
+		gpo_fail(vtr("The meshes changed during the GPU bake, baking on the CPU", NULL));
+		bake_maps_gpo_drop_low();
+		gpo_draw_resume();
+		return true;
+	}
+	if (bake_texture_node_baking || render_path_raytrace_bake_lightmap_busy()) {
+		gpo_draw_pause();
+		gpo_fail(vtr("Another GPU bake started, baking on the CPU", NULL));
+		gpo_draw_resume();
+		return true;
+	}
+
+	gpo_draw_pause();
+	bool done = false;
+	if (gpo_state == GPO_INIT) {
+		if (!gpo_upload_pair(gpo_pair)) {
+			gpo_fail(vtr("Not enough memory for the GPU bake, baking on the CPU", NULL));
+			done = true;
+		}
+		else {
+			gpo_sample = 0;
+			gpo_state  = GPO_DISPATCH;
+		}
+	}
+	else if (gpo_state == GPO_DISPATCH) {
+		for (i32 i = 0; i < GPO_DISPATCHES_PER_POLL && gpo_sample < gpo_samples; ++i) {
+			gpo_dispatch();
+		}
+		if (gpo_sample >= gpo_samples) {
+			gpo_state = GPO_READBACK;
+		}
+	}
+	else {
+		gpo_readback(gpo_pair);
+		gpo_free_pair_textures();
+		gpo_pair++;
+		gpo_sample = 0;
+		gpo_state  = GPO_INIT;
+		if (gpo_pair >= gpo_pairs) {
+			gpo_stop();
+			done = true;
+		}
+	}
+	gpo_draw_resume();
+	return done;
+}
+
+// Stops a running bake now, the script stops polling after a cancel
+void bake_gpu_object_cancel() {
+	if (!gpo_running) {
+		return;
+	}
+	gpo_draw_pause();
+	gpo_stop();
+	gpo_draw_resume();
+}
+
 #endif
