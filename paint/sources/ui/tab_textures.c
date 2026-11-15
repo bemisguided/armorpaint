@@ -185,6 +185,9 @@ void tab_textures_draw_context_menu() {
 	else if (ui_menu_button(tr("Open in 3D View"), "", ICON_NONE)) {
 		util_stencil_view_image_open(_tab_textures_draw_asset, 0.5, 0.5);
 	}
+	if (ui_menu_button(tr("Bake Properties..."), "", ICON_NONE)) {
+		ui_asset_props_show(_tab_textures_draw_i);
+	}
 }
 
 bool tab_textures_nodes_use_texture(ui_node_t_array_t *nodes, i32 index) {
