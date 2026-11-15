@@ -37,7 +37,6 @@ gpu_texture_t    *gpu_create_texture_from_bytes_raw(buffer_t *data, i32 width, i
 gpu_texture_t    *gpu_create_render_target(i32 width, i32 height, i32 format);
 void              gpu_delete_texture(gpu_texture_t *texture);
 buffer_t         *gpu_get_texture_pixels(gpu_texture_t *image);
-void              console_info(char *s);
 void              console_error(char *s);
 char             *vtr(char *id, any_map_t *vars);
 
@@ -294,28 +293,28 @@ bool bake_gpu_object_begin(i32 type, i32 samples, f32 ao_strength, f32 ao_radius
 		return false;
 	}
 	if (!gpu_raytrace_supported()) {
-		console_info(vtr("The GPU bake needs ray tracing, baking on the CPU", NULL));
+		console_error(vtr("The GPU bake needs ray tracing, baking on the CPU", NULL));
 		return false;
 	}
 	// One raytrace pipeline and scene exist, shared with the viewport and the core bakes
 	if (bake_texture_node_baking || render_path_raytrace_bake_lightmap_busy() || bake_maps_gpo_busy()) {
-		console_info(vtr("Another GPU bake is running, baking on the CPU", NULL));
+		console_error(vtr("Another GPU bake is running, baking on the CPU", NULL));
 		return false;
 	}
 	if (gpo_object_count() > GPU_RAYTRACE_MAX_OBJECTS) {
 		any_map_t *vars = any_map_create();
 		any_map_set(vars, "count", i32_to_string(GPU_RAYTRACE_MAX_OBJECTS));
-		console_info(vtr("The GPU bake takes up to {count} objects, baking on the CPU", vars));
+		console_error(vtr("The GPU bake takes up to {count} objects, baking on the CPU", vars));
 		map_free(vars);
 		return false;
 	}
 	buffer_t *shader = data_get_blob(gpo_shader_name(type));
 	if (shader == NULL) {
-		console_info(vtr("The GPU bake shader is missing, baking on the CPU", NULL));
+		console_error(vtr("The GPU bake shader is missing, baking on the CPU", NULL));
 		return false;
 	}
 	if (!bake_maps_gpo_prepare(w, h)) {
-		console_info(vtr("The GPU bake could not prepare the meshes, baking on the CPU", NULL));
+		console_error(vtr("The GPU bake could not prepare the meshes, baking on the CPU", NULL));
 		return false;
 	}
 	gpo_pos = malloc(sizeof(f32) * 4 * (size_t)w * h);
@@ -325,7 +324,7 @@ bool bake_gpu_object_begin(i32 type, i32 samples, f32 ao_strength, f32 ao_radius
 		free(gpo_nor);
 		gpo_pos = NULL;
 		gpo_nor = NULL;
-		console_info(vtr("Not enough memory for the GPU bake, baking on the CPU", NULL));
+		console_error(vtr("Not enough memory for the GPU bake, baking on the CPU", NULL));
 		return false;
 	}
 
