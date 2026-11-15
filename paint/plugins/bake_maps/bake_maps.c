@@ -2080,7 +2080,7 @@ bool bake_gpu_object_poll();
 f32  bake_gpu_object_progress();
 void bake_gpu_object_cancel();
 bool bake_gpu_object_failed();
-bool bake_gpu_object_begin(i32 type, i32 samples, f32 ao_strength, f32 ao_radius, f32 ao_offset, i32 w, i32 h);
+bool bake_gpu_object_begin(i32 type, i32 samples, f32 ao_strength, f32 ao_radius, f32 ao_offset, i32 up_axis, i32 w, i32 h);
 
 // Another bake of this plugin runs
 bool bake_maps_gpo_busy() {
@@ -2168,12 +2168,13 @@ void bake_maps_gpo_drop_low() {
 	bake_rays_free_low();
 }
 
-// bool bake_maps_gpu_object_start(int type, int samples, float ao_strength, float ao_radius, float ao_offset, int w, int h):
+// bool bake_maps_gpu_object_start(int type, int samples, float ao_strength, float ao_radius, float ao_offset, int up_axis, int w, int h):
 // starts occlusion, bent normal or thickness of a udim project on the gpu, one result per (object, tile) at w x h.
 // False when it can not start, the script then bakes the map on the cpu.
 static minic_val_t bake_maps_gpu_object_start(minic_val_t *a, int n) {
 	bool ok = bake_gpu_object_begin(bake_maps_arg_i(a, n, 0), bake_rays_imax(bake_maps_arg_i(a, n, 1), 1), bake_maps_arg_f(a, n, 2),
-	                                bake_maps_arg_f(a, n, 3), bake_maps_arg_f(a, n, 4), bake_maps_arg_i(a, n, 5), bake_maps_arg_i(a, n, 6));
+	                                bake_maps_arg_f(a, n, 3), bake_maps_arg_f(a, n, 4), bake_maps_arg_i(a, n, 5), bake_maps_arg_i(a, n, 6),
+	                                bake_maps_arg_i(a, n, 7));
 	return minic_val_int(ok ? 1 : 0);
 }
 
@@ -2278,17 +2279,14 @@ static void bake_maps_write_tiles(char *atlas_file, u8 *pixels, i32 w, i32 h) {
 	free(tile);
 }
 
-// Writes RGBA8 pixels as png (and the tile crops of a gpu atlas), then adds the file to the project
+// Writes RGBA8 pixels as png, then adds the file to the project
 // textures or reloads the texture when it is already there
-static void bake_maps_write_file(char *file, u8 *out, i32 w, i32 h, bool tiles) {
+static void bake_maps_write_file(char *file, u8 *out, i32 w, i32 h) {
 	buffer_t pixels = {.buffer = out, .length = w * h * 4};
 #ifdef IRON_BGRA
 	buffer_bgra_swap(&pixels); // The png writer takes the native order, the bake is RGBA
 #endif
 	iron_write_png(file, &pixels, w, h, 0);
-	if (tiles) {
-		bake_maps_write_tiles(file, out, w, h);
-	}
 #ifdef IRON_BGRA
 	buffer_bgra_swap(&pixels);
 #endif
@@ -2316,8 +2314,7 @@ static minic_val_t bake_maps_last_per_object(minic_val_t *a, int n) {
 
 // bool bake_maps_save(char *folder, char *file_name, char *suffix): writes the finished map as png and adds it to
 // the project textures, or reloads the texture when it is already there. A bake in a udim project writes
-// every per object result as <object>_<suffix>_<tile>.png instead of file_name. A gpu bake with udim tiles
-// writes the atlas and the per tile crops next to it.
+// every per object result as <object>_<suffix>_<tile>.png instead of file_name.
 static minic_val_t bake_maps_save(minic_val_t *a, int n) {
 	char *folder    = bake_maps_arg_s(a, n, 0);
 	char *file_name = bake_maps_arg_s(a, n, 1);
@@ -2332,7 +2329,7 @@ static minic_val_t bake_maps_save(minic_val_t *a, int n) {
 		i32 count = bake_rays_imin(bake_rays_outs_count, bake_rays_pair_count);
 		for (i32 k = 0; k < count; ++k) {
 			char *file = string("%s%s%s", folder, PATH_SEP, bake_rays_pair_file(k, suffix));
-			bake_maps_write_file(file, bake_rays_outs[k], bake_rays_w, bake_rays_h, false);
+			bake_maps_write_file(file, bake_rays_outs[k], bake_rays_w, bake_rays_h);
 		}
 		return minic_val_int(count > 0);
 	}
@@ -2343,7 +2340,7 @@ static minic_val_t bake_maps_save(minic_val_t *a, int n) {
 	i32   w    = bake_maps_gpu_last ? bake_maps_gpu_w : bake_rays_w;
 	i32   h    = bake_maps_gpu_last ? bake_maps_gpu_h : bake_rays_h;
 	char *file = string("%s%s%s", folder, PATH_SEP, file_name);
-	bake_maps_write_file(file, out, w, h, bake_maps_gpu_last);
+	bake_maps_write_file(file, out, w, h);
 	return minic_val_int(1);
 }
 
@@ -3273,7 +3270,7 @@ void bake_maps_init() {
 	minic_register("bake_maps_gpu_supported", "b()", bake_maps_gpu_supported);
 	minic_register("bake_maps_gpu_res", "i()", bake_maps_gpu_res);
 	minic_register("bake_maps_gpu_start", "b(i,i,f,f,f)", bake_maps_gpu_start);
-	minic_register("bake_maps_gpu_object_start", "b(i,i,f,f,f,i,i)", bake_maps_gpu_object_start);
+	minic_register("bake_maps_gpu_object_start", "b(i,i,f,f,f,i,i,i)", bake_maps_gpu_object_start);
 	minic_register("bake_maps_gpu_object_failed", "b()", bake_maps_gpu_object_failed);
 	minic_register("bake_maps_udim", "b()", bake_maps_udim);
 	minic_register("bake_maps_progress", "f()", bake_maps_progress);

@@ -222,7 +222,7 @@ bool start_map(int type) {
 	if (!bake_maps_udim()) {
 		return bake_maps_gpu_start(type, gpu_samples, ao_strength, ao_radius, ao_offset);
 	}
-	if (bake_maps_gpu_object_start(type, gpu_samples, ao_strength, ao_radius, ao_offset, bake_res, bake_res)) {
+	if (bake_maps_gpu_object_start(type, gpu_samples, ao_strength, ao_radius, ao_offset, up_axis, bake_res, bake_res)) {
 		return true;
 	}
 	return start_cpu(type);

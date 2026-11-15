@@ -906,3 +906,5 @@ The GPU bake takes up to {count} objects, baking on the CPU
 Not enough memory for the GPU bake, baking on the CPU
 The meshes changed during the GPU bake, baking on the CPU
 Another GPU bake started, baking on the CPU
+The GPU bake shader is missing, baking on the CPU
+The GPU bake could not prepare the meshes, baking on the CPU

@@ -68,6 +68,7 @@ static gpo_state_t     gpo_state;
 static i32             gpo_type;
 static i32             gpo_samples;
 static f32             gpo_ao[3];
+static i32             gpo_up_axis; // 0 Z, 1 Y
 static i32             gpo_w;
 static i32             gpo_h;
 static i32             gpo_pair;
@@ -207,7 +208,7 @@ static void gpo_dispatch() {
 	gpo_constants[2] = gpo_ao[1];
 	gpo_constants[3] = gpo_ao[2];
 	gpo_constants[4] = scene_world != NULL ? scene_world->strength : 1.0f;
-	gpo_constants[5] = g_context->bake_up_axis;
+	gpo_constants[5] = gpo_up_axis; // The Up Axis of the Bake Maps window
 	gpo_constants[6] = g_context->envmap_angle;
 	buffer_t b       = {.buffer = (u8 *)gpo_constants, .length = sizeof(gpo_constants)};
 	_gpu_raytrace_dispatch_rays(gpo_target, &b);
@@ -287,7 +288,7 @@ f32 bake_gpu_object_progress() {
 }
 
 // Starts one map, false (with the reason in the console) when it can not start and the cpu should bake it
-bool bake_gpu_object_begin(i32 type, i32 samples, f32 ao_strength, f32 ao_radius, f32 ao_offset, i32 w, i32 h) {
+bool bake_gpu_object_begin(i32 type, i32 samples, f32 ao_strength, f32 ao_radius, f32 ao_offset, i32 up_axis, i32 w, i32 h) {
 	gpo_failed = false;
 	if (gpo_running || (type != BAKE_TYPE_OCCLUSION && type != BAKE_TYPE_BENT_NORMAL && type != BAKE_TYPE_THICKNESS)) {
 		return false;
@@ -309,8 +310,13 @@ bool bake_gpu_object_begin(i32 type, i32 samples, f32 ao_strength, f32 ao_radius
 		return false;
 	}
 	buffer_t *shader = data_get_blob(gpo_shader_name(type));
-	if (shader == NULL || !bake_maps_gpo_prepare(w, h)) {
-		return false; // The cpu bake reports what is missing
+	if (shader == NULL) {
+		console_info(vtr("The GPU bake shader is missing, baking on the CPU", NULL));
+		return false;
+	}
+	if (!bake_maps_gpo_prepare(w, h)) {
+		console_info(vtr("The GPU bake could not prepare the meshes, baking on the CPU", NULL));
+		return false;
 	}
 	gpo_pos = malloc(sizeof(f32) * 4 * (size_t)w * h);
 	gpo_nor = malloc(sizeof(f32) * 4 * (size_t)w * h);
@@ -330,6 +336,7 @@ bool bake_gpu_object_begin(i32 type, i32 samples, f32 ao_strength, f32 ao_radius
 	gpo_ao[2]    = ao_offset;
 	gpo_w        = w;
 	gpo_h        = h;
+	gpo_up_axis  = up_axis;
 	gpo_pair     = 0;
 	gpo_pairs    = bake_maps_gpo_pair_count();
 	gpo_sample   = 0;
