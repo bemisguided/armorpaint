@@ -2071,6 +2071,96 @@ static minic_val_t bake_maps_gpu_start(minic_val_t *a, int n) {
 	return minic_val_int(1);
 }
 
+// Gpu per object bake (bake_maps_gpu.c): occlusion, bent normal and thickness of a udim project traced on the gpu
+// per (object, tile) pair, into the per object result buffers of the cpu bake. The accessors below let it use the
+// pairs, the texmap and the results without the cpu bake state leaving this file.
+
+// Another bake of this plugin runs
+bool bake_maps_gpo_busy() {
+	return bake_rays_working || bake_maps_gpu_running;
+}
+
+u64 bake_maps_gpo_key() {
+	return bake_maps_paint_objects_key();
+}
+
+// Low poly, pairs, texmap and one result buffer per pair at w x h, like the cpu per object bake. False when the
+// project has no udim tiles, nothing to bake or not enough memory.
+bool bake_maps_gpo_prepare(i32 w, i32 h) {
+	if (w <= 0 || h <= 0) {
+		return false;
+	}
+	if (bake_rays_lp == NULL) {
+		bake_rays_set_low();
+	}
+	else {
+		bake_rays_update_pairs(false);
+	}
+	if (!bake_rays_per_object || bake_rays_pair_count == 0) {
+		return false;
+	}
+	if (!bake_rays_prepare_layout(w, h) || !bake_rays_alloc_outs()) {
+		return false;
+	}
+	bake_maps_gpu_last  = false;
+	bake_rays_bake_pair = -1;
+	return true;
+}
+
+i32 bake_maps_gpo_pair_count() {
+	return bake_rays_imin(bake_rays_pair_count, bake_rays_outs_count);
+}
+
+// Texmap of a pair (low poly triangle per texel, -1 empty) in tile local texels
+i32 *bake_maps_gpo_use_pair(i32 pair) {
+	bake_rays_use_pair(pair);
+	return bake_rays_texmap;
+}
+
+// Low poly surface at texel (px, py) of the pair in use: position (scaled, object space) and normal, returns the object index
+i32 bake_maps_gpo_surface(i32 ti, f32 px, f32 py, f32 *p, f32 *nor) {
+	bake_rays_surf_t s;
+	bake_rays_surface_at(ti, px, py, false, &s);
+	memcpy(p, s.p, sizeof(f32) * 3);
+	memcpy(nor, s.n, sizeof(f32) * 3);
+	return s.tri->object;
+}
+
+// RGBA8 result buffer of a pair
+u8 *bake_maps_gpo_result(i32 pair) {
+	return pair >= 0 && pair < bake_rays_outs_count ? bake_rays_outs[pair] : NULL;
+}
+
+// Covered texels from the pair's texmap, dilated into the empty ones like a cpu result, opaque alpha
+void bake_maps_gpo_finish_result(i32 pair) {
+	bake_rays_use_pair(pair);
+	if (bake_rays_out == NULL || bake_rays_texmap == NULL || bake_rays_mask == NULL) {
+		return;
+	}
+	i32 count = bake_rays_w * bake_rays_h;
+	for (i32 i = 0; i < count; ++i) {
+		bake_rays_mask[i] = bake_rays_texmap[i] >= 0;
+	}
+	bake_rays_dilate(16);
+	for (i32 i = 0; i < count; ++i) {
+		bake_rays_out[i * 4 + 3] = 255;
+	}
+}
+
+// All pairs baked (or the bake stopped): back to the result the preview and the inpaint tool show
+void bake_maps_gpo_done() {
+	bake_rays_bake_pair = -1;
+	if (bake_rays_texmap != NULL && bake_rays_pair_count > 0) {
+		bake_rays_use_pair(bake_rays_current_pair());
+	}
+}
+
+// The paint objects changed under the bake, the low poly is read again by the next bake
+void bake_maps_gpo_drop_low() {
+	bake_rays_free_images();
+	bake_rays_free_low();
+}
+
 // float bake_maps_progress(): 0..1 for the current map, over all its per object results
 static minic_val_t bake_maps_progress(minic_val_t *a, int n) {
 	if (bake_maps_gpu_running) {
