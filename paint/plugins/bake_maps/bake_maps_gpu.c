@@ -194,18 +194,37 @@ static bool gpo_upload_pair(i32 pair) {
 	return gpo_pos_tex != NULL && gpo_nor_tex != NULL && gpo_target != NULL;
 }
 
+// World units per mesh unit, the cpu measures Radius and Offset in mesh units (scale_pos applied, no object transform).
+// From the world matrix gpo_fill_pair uses, the geometric mean of its axis scales keeps a non uniform scale from favouring an axis.
+// The first paint object with geometry decides: imported objects share the scale of the main object (viewport_scale_to_bounds),
+// a single value keeps the ray range the same for every object like the single range of the cpu bake.
+static f32 gpo_world_scale(void) {
+	for (i32 i = 0; i < g_project->_->paint_objects->length; ++i) {
+		mesh_object_t *o = g_project->_->paint_objects->buffer[i];
+		if (o->data == NULL || o->data->_->vertex_buffer == NULL || o->data->_->index_buffer == NULL) {
+			continue;
+		}
+		vec4_t s = mat4_get_scale(o->base->transform->world);
+		f32    g = cbrtf(s.x * s.y * s.z);
+		return g > 0.0f && isfinite(g) ? g : 1.0f;
+	}
+	return 1.0f;
+}
+
 // One sample (64 rays, 4 on metal) of every covered texel, the shaders average the samples in the target
 static void gpo_dispatch() {
 	// Set before every dispatch, the textures are shared with the viewport and the core bake
 	gpu_texture_t *sobol = data_get_texture("bnoise_sobol.k");
 	gpu_raytrace_set_textures(gpo_pos_tex, gpo_nor_tex, gpo_pos_tex, sobol, sobol, data_get_texture("bnoise_scramble.k"),
 	                          data_get_texture("bnoise_rank.k"), sobol); // The environment is not sampled by these maps
-	// Same constants as render_path_raytrace_bake_commands
+	// The layout of render_path_raytrace_bake_commands. The scene is in world units, Radius and Offset are scaled from
+	// the mesh units of the cpu bake. The shaders ignore the strength, gpo_readback applies it.
 	memset(gpo_constants, 0, sizeof(gpo_constants));
+	f32 scale        = gpo_world_scale();
 	gpo_constants[0] = gpo_sample;
 	gpo_constants[1] = gpo_ao[0];
-	gpo_constants[2] = gpo_ao[1];
-	gpo_constants[3] = gpo_ao[2];
+	gpo_constants[2] = gpo_ao[1] * scale;
+	gpo_constants[3] = gpo_ao[2] * scale;
 	gpo_constants[4] = scene_world != NULL ? scene_world->strength : 1.0f;
 	gpo_constants[5] = gpo_up_axis; // The Up Axis of the Bake Maps window
 	gpo_constants[6] = g_context->envmap_angle;
@@ -214,7 +233,8 @@ static void gpo_dispatch() {
 	gpo_sample++;
 }
 
-// Half float target into the pair's RGBA8 buffer, then dilated like a cpu result
+// Half float target into the pair's RGBA8 buffer, then dilated like a cpu result.
+// Occlusion gets the AO Strength here like on the cpu (bake_rays_texel), the shader leaves it out.
 static void gpo_readback(i32 pair) {
 	buffer_t *pixels = gpu_get_texture_pixels(gpo_target);
 	u8       *out    = bake_maps_gpo_result(pair);
@@ -226,6 +246,10 @@ static void gpo_readback(i32 pair) {
 		for (i32 c = 0; c < 3; ++c) {
 			f32 v          = render_path_raytrace_half_to_float(hp[i * 4 + c]);
 			v              = v < 0.0f ? 0.0f : v > 1.0f ? 1.0f : v;
+			if (gpo_type == BAKE_TYPE_OCCLUSION) {
+				v = 1.0f - (1.0f - v) * gpo_ao[0];
+				v = v < 0.0f ? 0.0f : v > 1.0f ? 1.0f : v;
+			}
 			out[i * 4 + c] = (u8)(v * 255.0f + 0.5f);
 		}
 		out[i * 4 + 3] = 255;
