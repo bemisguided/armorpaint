@@ -1767,21 +1767,23 @@ static bool bake_rays_prepare_layout(i32 w, i32 h) {
 		return true;
 	}
 	bake_rays_free_images();
-	bake_rays_free_bvh(&bake_rays_lpb);
 	if (bake_rays_lp == NULL && !bake_rays_set_low()) {
 		return false;
 	}
 	bake_maps_update_dist();
-	bake_rays_lpb.count = bake_rays_lp_count;
-	bake_rays_lpb.pos   = malloc(sizeof(f32) * 9 * bake_rays_lp_count);
-	bake_rays_lpb.nor   = malloc(sizeof(f32) * 9 * bake_rays_lp_count);
-	bake_rays_lpb.index = malloc(sizeof(i32) * bake_rays_lp_count);
-	for (i32 i = 0; i < bake_rays_lp_count; ++i) {
-		memcpy(bake_rays_lpb.pos + i * 9, bake_rays_lp[i].p, sizeof(f32) * 9);
-		memcpy(bake_rays_lpb.nor + i * 9, bake_rays_lp[i].n, sizeof(f32) * 9);
-		bake_rays_lpb.index[i] = i;
+	// The bvh only depends on the low poly (released with it), inpaint switches between layout sizes
+	if (bake_rays_lpb.count == 0) {
+		bake_rays_lpb.count = bake_rays_lp_count;
+		bake_rays_lpb.pos   = malloc(sizeof(f32) * 9 * bake_rays_lp_count);
+		bake_rays_lpb.nor   = malloc(sizeof(f32) * 9 * bake_rays_lp_count);
+		bake_rays_lpb.index = malloc(sizeof(i32) * bake_rays_lp_count);
+		for (i32 i = 0; i < bake_rays_lp_count; ++i) {
+			memcpy(bake_rays_lpb.pos + i * 9, bake_rays_lp[i].p, sizeof(f32) * 9);
+			memcpy(bake_rays_lpb.nor + i * 9, bake_rays_lp[i].n, sizeof(f32) * 9);
+			bake_rays_lpb.index[i] = i;
+		}
+		bake_rays_build_bvh(&bake_rays_lpb);
 	}
-	bake_rays_build_bvh(&bake_rays_lpb);
 	bake_rays_w      = w;
 	bake_rays_h      = h;
 	bake_rays_texmap = malloc(sizeof(i32) * w * h);
@@ -2178,6 +2180,17 @@ static void bake_maps_write_file(char *file, u8 *out, i32 w, i32 h, bool tiles) 
 	import_texture_run(file, false);
 }
 
+// The finished map was baked per object (cpu bake in a udim project), save writes its results
+static bool bake_maps_finished_per_object() {
+	return !bake_maps_gpu_last && bake_rays_outs != NULL;
+}
+
+// bool bake_maps_last_per_object(): the finished map was baked per object, its files are <object>_<map>_<tile>.png.
+// Otherwise it is one image of the whole layout (gpu maps: the udim atlas, with the tile crops next to it).
+static minic_val_t bake_maps_last_per_object(minic_val_t *a, int n) {
+	return minic_val_int(bake_maps_finished_per_object() ? 1 : 0);
+}
+
 // bool bake_maps_save(char *folder, char *file_name, char *suffix): writes the finished map as png and adds it to
 // the project textures, or reloads the texture when it is already there. A cpu bake in a udim project writes
 // every per object result as <object>_<suffix>_<tile>.png instead of file_name. A gpu bake with udim tiles
@@ -2189,7 +2202,7 @@ static minic_val_t bake_maps_save(minic_val_t *a, int n) {
 	if (folder == NULL) {
 		return minic_val_int(0);
 	}
-	if (!bake_maps_gpu_last && bake_rays_outs != NULL) {
+	if (bake_maps_finished_per_object()) {
 		if (suffix == NULL) {
 			return minic_val_int(0);
 		}
@@ -2323,8 +2336,16 @@ static minic_val_t bake_maps_end(minic_val_t *a, int n) {
 #define INPAINT_PATCH     4 // Patch half size, 9x9 patches
 #define INPAINT_PREVIEW   1024
 
-static u8            *inpaint_mask     = NULL; // At the bake layout resolution
-static bool           inpaint_has_mask = false;
+static u8            *inpaint_mask      = NULL; // At the layout resolution of the map being repaired
+static i32            inpaint_mask_w    = 0;
+static i32            inpaint_mask_h    = 0;
+static i32            inpaint_mask_pair = -2; // Pair of the layout the mask is in, -1 the whole layout
+// Stamps of the stroke (center xyz, radius), replayed into the mask when a map of another layout is repaired:
+// per object results (one tile) and gpu atlas maps can be repaired by the same stroke
+static f32           *inpaint_stamps      = NULL;
+static i32            inpaint_stamp_count = 0;
+static i32            inpaint_stamp_cap   = 0;
+static bool           inpaint_has_mask    = false;
 static bool           inpaint_has_last = false;
 static f32            inpaint_last[3];
 static bool           inpaint_dirty       = false;
@@ -2506,9 +2527,7 @@ static f32 inpaint_radius() {
 	return sx > 0.0 ? world / sx : world;
 }
 
-// bool bake_maps_inpaint_begin(char *path): uv layout at the resolution of the baked map, false without uvs
-static minic_val_t bake_maps_inpaint_begin(minic_val_t *a, int n) {
-	char    *path  = bake_maps_arg_s(a, n, 0);
+static asset_t *inpaint_find_asset(char *path) {
 	asset_t *asset = NULL;
 	for (i32 i = 0; path != NULL && i < g_project->_->assets->length; ++i) {
 		asset_t *as = g_project->_->assets->buffer[i];
@@ -2516,32 +2535,69 @@ static minic_val_t bake_maps_inpaint_begin(minic_val_t *a, int n) {
 			asset = as;
 		}
 	}
-	if (asset == NULL || bake_rays_working) {
-		return minic_val_int(0);
-	}
-	i32 w = asset->image->width;
-	i32 h = asset->image->height;
+	return asset;
+}
+
+// Uv layout of a map w x h: the current per object result (one tile) or the whole layout (cpu map without udim
+// tiles, gpu atlas). The mask follows the layout, the stamps of the stroke are replayed into it when it changes.
+static bool inpaint_layout(i32 w, i32 h, bool per_object) {
 	if (bake_rays_lp != NULL && bake_maps_low_key != bake_maps_paint_objects_key()) {
 		bake_rays_free_images();
 		bake_rays_free_low(); // Paint objects changed
+		free(inpaint_mask);
+		inpaint_mask      = NULL;
+		inpaint_mask_pair = -2;
 	}
-	bool same = bake_rays_texmap != NULL && bake_rays_w == w && bake_rays_h == h;
 	if (!bake_rays_prepare_layout(w, h)) {
-		return minic_val_int(0);
+		return false;
 	}
-	// In a udim project the map is the current per object result, one tile
-	i32 pair = bake_rays_current_pair();
-	same     = same && bake_rays_texmap_pair == pair; // -2 when the layout was rebuilt
+	i32 pair = per_object ? bake_rays_current_pair() : -1;
+	if (per_object && pair < 0) {
+		return false;
+	}
 	bake_rays_use_pair(pair);
 	if (bake_rays_island == NULL) {
 		bake_rays_build_islands();
 	}
-	if (!same || inpaint_mask == NULL) {
+	if (inpaint_mask == NULL || inpaint_mask_w != w || inpaint_mask_h != h || inpaint_mask_pair != pair) {
 		free(inpaint_mask);
-		inpaint_mask     = calloc(w * h, 1);
-		inpaint_has_mask = false;
+		inpaint_mask      = calloc((size_t)w * h, 1);
+		inpaint_mask_w    = w;
+		inpaint_mask_h    = h;
+		inpaint_mask_pair = pair;
+		for (i32 i = 0; i < inpaint_stamp_count; ++i) {
+			bake_rays_stamp(inpaint_mask, inpaint_stamps + i * 4, inpaint_stamps[i * 4 + 3]);
+		}
+		inpaint_dirty = true;
 	}
-	return minic_val_int(1);
+	return true;
+}
+
+static void inpaint_stamp(f32 *center, f32 radius) {
+	if (inpaint_stamp_count == inpaint_stamp_cap) {
+		i32  cap = inpaint_stamp_cap > 0 ? inpaint_stamp_cap * 2 : 256;
+		f32 *s   = realloc(inpaint_stamps, sizeof(f32) * 4 * cap);
+		if (s == NULL) {
+			return;
+		}
+		inpaint_stamps    = s;
+		inpaint_stamp_cap = cap;
+	}
+	f32 *s = inpaint_stamps + inpaint_stamp_count * 4;
+	memcpy(s, center, sizeof(f32) * 3);
+	s[3] = radius;
+	inpaint_stamp_count++;
+	bake_rays_stamp(inpaint_mask, center, radius);
+}
+
+// bool bake_maps_inpaint_begin(char *path, bool per_object): uv layout at the resolution of the baked map, false
+// without uvs. per_object: the map was baked per object (udim project, cpu), it is the current result
+static minic_val_t bake_maps_inpaint_begin(minic_val_t *a, int n) {
+	asset_t *asset = inpaint_find_asset(bake_maps_arg_s(a, n, 0));
+	if (asset == NULL || bake_rays_working) {
+		return minic_val_int(0);
+	}
+	return minic_val_int(inpaint_layout(asset->image->width, asset->image->height, bake_maps_arg_i(a, n, 1) != 0) ? 1 : 0);
 }
 
 // void bake_maps_inpaint_stroke(): stamps the mask from the last mouse hit to the current one
@@ -2559,10 +2615,10 @@ static minic_val_t bake_maps_inpaint_stroke(minic_val_t *a, int n) {
 		for (i32 s = 1; s <= steps; ++s) {
 			f32 t    = s / (f32)(steps + 1);
 			f32 c[3] = {inpaint_last[0] + d[0] * t, inpaint_last[1] + d[1] * t, inpaint_last[2] + d[2] * t};
-			bake_rays_stamp(inpaint_mask, c, r);
+			inpaint_stamp(c, r);
 		}
 	}
-	bake_rays_stamp(inpaint_mask, hit, r);
+	inpaint_stamp(hit, r);
 	memcpy(inpaint_last, hit, sizeof(f32) * 3);
 	inpaint_has_last = true;
 	inpaint_has_mask = true;
@@ -2576,16 +2632,19 @@ static minic_val_t bake_maps_inpaint_mask(minic_val_t *a, int n) {
 		return minic_val_ptr(inpaint_preview);
 	}
 	// The overlay is sampled with the layer uvs: a per object result is placed in its tile of the atlas
-	i32 w  = inpaint_mask != NULL ? bake_rays_w : 1;
-	i32 h  = inpaint_mask != NULL ? bake_rays_h : 1;
-	i32 aw = inpaint_mask != NULL ? bake_rays_uv_sx : 1;
-	i32 ah = inpaint_mask != NULL ? bake_rays_uv_sy : 1;
-	i32 ox = inpaint_mask != NULL ? bake_rays_uv_ox : 0;
-	i32 oy = inpaint_mask != NULL ? bake_rays_uv_oy : 0;
-	i32 pw = bake_rays_imin(aw, INPAINT_PREVIEW);
-	i32 ph = bake_rays_imin(ah, INPAINT_PREVIEW);
-	u8 *p  = calloc(pw * ph * 4, 1);
-	for (i32 y = 0; inpaint_mask != NULL && y < h; ++y) {
+	bool has    = inpaint_mask != NULL;
+	i32  w      = has ? inpaint_mask_w : 1;
+	i32  h      = has ? inpaint_mask_h : 1;
+	i32  stride = has && inpaint_mask_pair >= 0 && inpaint_mask_pair < bake_rays_pair_count ? util_udim_stride() : 1;
+	i32  slot   = stride > 1 ? bake_rays_pairs[inpaint_mask_pair].slot : 0;
+	i32  aw     = w * stride;
+	i32  ah     = h * stride;
+	i32  ox     = (slot % stride) * w;
+	i32  oy     = (slot / stride) * h;
+	i32  pw     = bake_rays_imin(aw, INPAINT_PREVIEW);
+	i32  ph     = bake_rays_imin(ah, INPAINT_PREVIEW);
+	u8  *p      = calloc(pw * ph * 4, 1);
+	for (i32 y = 0; has && y < h; ++y) {
 		for (i32 x = 0; x < w; ++x) {
 			if (inpaint_mask[y * w + x]) {
 				i32 i = (((y + oy) * ph / ah) * pw + (x + ox) * pw / aw) * 4;
@@ -2611,11 +2670,12 @@ static minic_val_t bake_maps_inpaint_mask(minic_val_t *a, int n) {
 // void bake_maps_inpaint_clear(): clears the mask, the next stroke starts a new line
 static minic_val_t bake_maps_inpaint_clear(minic_val_t *a, int n) {
 	if (inpaint_mask != NULL) {
-		memset(inpaint_mask, 0, bake_rays_w * bake_rays_h);
+		memset(inpaint_mask, 0, (size_t)inpaint_mask_w * inpaint_mask_h);
 	}
-	inpaint_has_mask = false;
-	inpaint_has_last = false;
-	inpaint_dirty    = true;
+	inpaint_stamp_count = 0;
+	inpaint_has_mask    = false;
+	inpaint_has_last    = false;
+	inpaint_dirty       = true;
 	return minic_val_int(0);
 }
 
@@ -2864,13 +2924,16 @@ static void inpaint_normalize(inpaint_job_t *j, i32 *todo, i32 count) {
 	}
 }
 
-// bool bake_maps_inpaint_apply(char *path, int mode, bool vector): rebuilds the masked texels of the png
-// and reloads its texture, mode 0 copies patches, 1 smooths, vector keeps normals unit length
+// bool bake_maps_inpaint_apply(char *path, int mode, bool vector, bool per_object): rebuilds the masked texels of
+// the png and reloads its texture, mode 0 copies patches, 1 smooths, vector keeps normals unit length. per_object:
+// the map is the current per object result (cpu bake in a udim project), otherwise it covers the whole layout.
+// Nothing is written when the stroke covers no texel of the map.
 static minic_val_t bake_maps_inpaint_apply(minic_val_t *a, int n) {
-	char *path   = bake_maps_arg_s(a, n, 0);
-	i32   mode   = bake_maps_arg_i(a, n, 1);
-	bool  vector = bake_maps_arg_i(a, n, 2) != 0;
-	if (path == NULL || inpaint_mask == NULL || !inpaint_has_mask || bake_rays_texmap == NULL || bake_rays_island == NULL) {
+	char *path       = bake_maps_arg_s(a, n, 0);
+	i32   mode       = bake_maps_arg_i(a, n, 1);
+	bool  vector     = bake_maps_arg_i(a, n, 2) != 0;
+	bool  per_object = bake_maps_arg_i(a, n, 3) != 0;
+	if (path == NULL || inpaint_mask == NULL || !inpaint_has_mask || bake_rays_working) {
 		return minic_val_int(0);
 	}
 	asset_t *asset = NULL;
@@ -2884,17 +2947,18 @@ static minic_val_t bake_maps_inpaint_apply(minic_val_t *a, int n) {
 	if (asset == NULL || blob == NULL) {
 		return minic_val_int(0);
 	}
-	i32 w = bake_rays_w, h = bake_rays_h;
 	i32 iw, ih, comp;
 	u8 *px = stbi_load_from_memory(blob->buffer, blob->length, &iw, &ih, &comp, 4);
 	free(blob->buffer);
 	free(blob);
-	if (px == NULL || iw != w || ih != h) {
+	// The maps of one stroke can be in different layouts (per object result, gpu atlas), the mask follows the map
+	if (px == NULL || !inpaint_layout(iw, ih, per_object) || bake_rays_texmap == NULL || bake_rays_island == NULL) {
 		if (px != NULL) {
 			stbi_image_free(px);
 		}
 		return minic_val_int(0);
 	}
+	i32 w = iw, h = ih;
 
 	i32  count = 0;
 	i32  minx = w, miny = h, maxx = 0, maxy = 0;
@@ -2908,6 +2972,11 @@ static minic_val_t bake_maps_inpaint_apply(minic_val_t *a, int n) {
 			miny = bake_rays_imin(miny, i / w);
 			maxy = bake_rays_imax(maxy, i / w);
 		}
+	}
+	if (count == 0) {
+		free(isl); // The stroke missed this map, it is left as it is
+		stbi_image_free(px);
+		return minic_val_int(0);
 	}
 	i32 *todo = malloc(sizeof(i32) * bake_rays_imax(count, 1));
 	for (i32 i = 0, k = 0; i < w * h; ++i) {
@@ -2952,9 +3021,14 @@ static minic_val_t bake_maps_inpaint_apply(minic_val_t *a, int n) {
 // void bake_maps_inpaint_end(): releases the mask and its preview, the bake data stays until bake_maps_end
 static minic_val_t bake_maps_inpaint_end(minic_val_t *a, int n) {
 	free(inpaint_mask);
-	inpaint_mask     = NULL;
-	inpaint_has_mask = false;
-	inpaint_has_last = false;
+	inpaint_mask      = NULL;
+	inpaint_mask_pair = -2;
+	free(inpaint_stamps);
+	inpaint_stamps      = NULL;
+	inpaint_stamp_count = 0;
+	inpaint_stamp_cap   = 0;
+	inpaint_has_mask    = false;
+	inpaint_has_last    = false;
 	if (inpaint_preview_old != NULL) {
 		gpu_delete_texture(inpaint_preview_old);
 	}
@@ -2995,7 +3069,9 @@ static minic_val_t bake_maps_set_result(minic_val_t *a, int n) {
 		}
 		if (inpaint_mask != NULL) {
 			free(inpaint_mask); // Painted on the previous result, bake_maps_inpaint_begin makes a new one
-			inpaint_mask     = NULL;
+			inpaint_mask        = NULL;
+			inpaint_mask_pair   = -2;
+			inpaint_stamp_count = 0;
 			inpaint_has_mask = false;
 			inpaint_has_last = false;
 			inpaint_dirty    = true;
@@ -3076,6 +3152,7 @@ void bake_maps_init() {
 	minic_register("bake_maps_step", "b()", bake_maps_step);
 	minic_register("bake_maps_cancel", "v()", bake_maps_cancel);
 	minic_register("bake_maps_save", "b(p,p,p)", bake_maps_save);
+	minic_register("bake_maps_last_per_object", "b()", bake_maps_last_per_object);
 	minic_register("bake_maps_preview", "p(i,i,f,f,f,b,b,b,b,b)", bake_maps_preview);
 	minic_register("bake_maps_miss_ratio", "f()", bake_maps_miss_ratio);
 	minic_register("bake_maps_end_images", "v()", bake_maps_end_images);
@@ -3083,11 +3160,11 @@ void bake_maps_init() {
 	minic_register("bake_maps_ui_column", "v(i)", bake_maps_ui_column);
 	minic_register("bake_maps_ui_section", "v(p)", bake_maps_ui_section);
 	minic_register("bake_maps_ui_enabled", "v(b)", bake_maps_ui_enabled);
-	minic_register("bake_maps_inpaint_begin", "b(p)", bake_maps_inpaint_begin);
+	minic_register("bake_maps_inpaint_begin", "b(p,b)", bake_maps_inpaint_begin);
 	minic_register("bake_maps_inpaint_stroke", "v()", bake_maps_inpaint_stroke);
 	minic_register("bake_maps_inpaint_mask", "p()", bake_maps_inpaint_mask);
 	minic_register("bake_maps_inpaint_clear", "v()", bake_maps_inpaint_clear);
-	minic_register("bake_maps_inpaint_apply", "b(p,i,b)", bake_maps_inpaint_apply);
+	minic_register("bake_maps_inpaint_apply", "b(p,i,b,b)", bake_maps_inpaint_apply);
 	minic_register("bake_maps_inpaint_end", "v()", bake_maps_inpaint_end);
 	minic_register("bake_maps_result_count", "i()", bake_maps_result_count);
 	minic_register("bake_maps_result_objects", "i()", bake_maps_result_objects);
