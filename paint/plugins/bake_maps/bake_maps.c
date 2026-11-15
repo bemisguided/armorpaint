@@ -2168,6 +2168,25 @@ void bake_maps_gpo_drop_low() {
 	bake_rays_free_low();
 }
 
+// bool bake_maps_gpu_object_start(int type, int samples, float ao_strength, float ao_radius, float ao_offset, int w, int h):
+// starts occlusion, bent normal or thickness of a udim project on the gpu, one result per (object, tile) at w x h.
+// False when it can not start, the script then bakes the map on the cpu.
+static minic_val_t bake_maps_gpu_object_start(minic_val_t *a, int n) {
+	bool ok = bake_gpu_object_begin(bake_maps_arg_i(a, n, 0), bake_rays_imax(bake_maps_arg_i(a, n, 1), 1), bake_maps_arg_f(a, n, 2),
+	                                bake_maps_arg_f(a, n, 3), bake_maps_arg_f(a, n, 4), bake_maps_arg_i(a, n, 5), bake_maps_arg_i(a, n, 6));
+	return minic_val_int(ok ? 1 : 0);
+}
+
+// bool bake_maps_gpu_object_failed(): the last gpu per object bake stopped before its results were done, reported once
+static minic_val_t bake_maps_gpu_object_failed(minic_val_t *a, int n) {
+	return minic_val_int(bake_gpu_object_failed() ? 1 : 0);
+}
+
+// bool bake_maps_udim(): the project has udim tiles, maps bake per object and tile
+static minic_val_t bake_maps_udim(minic_val_t *a, int n) {
+	return minic_val_int(util_udim_active() ? 1 : 0);
+}
+
 // float bake_maps_progress(): 0..1 for the current map, over all its per object results
 static minic_val_t bake_maps_progress(minic_val_t *a, int n) {
 	if (bake_gpu_object_running()) {
@@ -2284,19 +2303,19 @@ static void bake_maps_write_file(char *file, u8 *out, i32 w, i32 h, bool tiles) 
 	import_texture_run(file, false);
 }
 
-// The finished map was baked per object (cpu bake in a udim project), save writes its results
+// The finished map was baked per object (cpu or gpu per object bake in a udim project), save writes its results
 static bool bake_maps_finished_per_object() {
 	return !bake_maps_gpu_last && bake_rays_outs != NULL;
 }
 
 // bool bake_maps_last_per_object(): the finished map was baked per object, its files are <object>_<map>_<tile>.png.
-// Otherwise it is one image of the whole layout (gpu maps: the udim atlas, with the tile crops next to it).
+// Otherwise it is one image of the whole layout (gpu maps without udim tiles: the core bake).
 static minic_val_t bake_maps_last_per_object(minic_val_t *a, int n) {
 	return minic_val_int(bake_maps_finished_per_object() ? 1 : 0);
 }
 
 // bool bake_maps_save(char *folder, char *file_name, char *suffix): writes the finished map as png and adds it to
-// the project textures, or reloads the texture when it is already there. A cpu bake in a udim project writes
+// the project textures, or reloads the texture when it is already there. A bake in a udim project writes
 // every per object result as <object>_<suffix>_<tile>.png instead of file_name. A gpu bake with udim tiles
 // writes the atlas and the per tile crops next to it.
 static minic_val_t bake_maps_save(minic_val_t *a, int n) {
@@ -3032,7 +3051,7 @@ static void inpaint_normalize(inpaint_job_t *j, i32 *todo, i32 count) {
 
 // bool bake_maps_inpaint_apply(char *path, int mode, bool vector, bool per_object): rebuilds the masked texels of
 // the png and reloads its texture, mode 0 copies patches, 1 smooths, vector keeps normals unit length. per_object:
-// the map is the current per object result (cpu bake in a udim project), otherwise it covers the whole layout.
+// the map is the current per object result (udim project), otherwise it covers the whole layout.
 // Nothing is written when the stroke covers no texel of the map.
 static minic_val_t bake_maps_inpaint_apply(minic_val_t *a, int n) {
 	char *path       = bake_maps_arg_s(a, n, 0);
@@ -3254,6 +3273,9 @@ void bake_maps_init() {
 	minic_register("bake_maps_gpu_supported", "b()", bake_maps_gpu_supported);
 	minic_register("bake_maps_gpu_res", "i()", bake_maps_gpu_res);
 	minic_register("bake_maps_gpu_start", "b(i,i,f,f,f)", bake_maps_gpu_start);
+	minic_register("bake_maps_gpu_object_start", "b(i,i,f,f,f,i,i)", bake_maps_gpu_object_start);
+	minic_register("bake_maps_gpu_object_failed", "b()", bake_maps_gpu_object_failed);
+	minic_register("bake_maps_udim", "b()", bake_maps_udim);
 	minic_register("bake_maps_progress", "f()", bake_maps_progress);
 	minic_register("bake_maps_step", "b()", bake_maps_step);
 	minic_register("bake_maps_cancel", "v()", bake_maps_cancel);

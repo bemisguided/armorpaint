@@ -3,8 +3,9 @@
 // Bake Mesh Maps plugin based on the work of Falkor.
 // Bakes mesh maps of the paint objects on the CPU, optionally projected from a high poly file.
 // Each map is saved as <name>_<map>.png and added to the project textures.
-// With UDIM tiles the resolution is per tile. A CPU bake writes one png per object and tile, <object>_<map>_<tile>.png,
-// a GPU bake writes the atlas and <name>_<map>_1001.png... cropped from it.
+// With UDIM tiles the resolution is per tile and every map writes one png per object and tile, <object>_<map>_<tile>.png,
+// GPU maps too (plugins/bake_maps/bake_maps_gpu.c), on the CPU when the GPU bake can't start.
+// Without UDIM tiles a GPU map is baked by the core bake into one image of the layout.
 // The ray tracer runs natively on worker threads, see plugins/bake_maps/bake_maps.c.
 
 void *plugin;
@@ -209,16 +210,28 @@ bool use_gpu(int type) {
 	return device == 0 && gpu_available() && (type == 10 || type == 12 || type == 13);
 }
 
+bool start_cpu(int type) {
+	return bake_maps_start(type, rays, axis, up_axis, use_high, bake_res, bake_res);
+}
+
+// GPU maps of a UDIM project bake per object and tile, on the CPU when the GPU bake can't start
+bool start_map(int type) {
+	if (!use_gpu(type)) {
+		return start_cpu(type);
+	}
+	if (!bake_maps_udim()) {
+		return bake_maps_gpu_start(type, gpu_samples, ao_strength, ao_radius, ao_offset);
+	}
+	if (bake_maps_gpu_object_start(type, gpu_samples, ao_strength, ao_radius, ao_offset, bake_res, bake_res)) {
+		return true;
+	}
+	return start_cpu(type);
+}
+
 void start_next() {
 	while (queue_i < queue_len) {
-		int  type = map_types[queue[queue_i]];
-		bool started;
-		if (use_gpu(type)) {
-			started = bake_maps_gpu_start(type, gpu_samples, ao_strength, ao_radius, ao_offset);
-		}
-		else {
-			started = bake_maps_start(type, rays, axis, up_axis, use_high, bake_res, bake_res);
-		}
+		int  type    = map_types[queue[queue_i]];
+		bool started = start_map(type);
 		if (started) {
 			return;
 		}
@@ -287,7 +300,7 @@ char *map_atlas_path(int i) {
 	return map_folder_path(string("%s_%s.png", name, map_suffixes[i]));
 }
 
-// The map was baked per object (CPU bake with UDIM tiles), its files are <object>_<map>_<tile>.png.
+// The map was baked per object (UDIM project, CPU or GPU), its files are <object>_<map>_<tile>.png.
 // Maps not baked in this session follow the files in the project textures.
 bool map_per_object(int i) {
 	if (map_route[i] != 0) {
@@ -479,8 +492,17 @@ void on_update() {
 	if (!bake_maps_step()) {
 		return;
 	}
-	int  i          = queue[queue_i];
-	bool per_object = bake_maps_last_per_object(); // CPU maps of a UDIM project, GPU maps stay atlas images
+	int i = queue[queue_i];
+	if (bake_maps_gpu_object_failed()) {
+		// The GPU per object bake stopped, the same map bakes on the CPU
+		if (!start_cpu(map_types[i])) {
+			console_error("Unable to bake, check that the mesh has a UV map");
+			queue_i = queue_len;
+			finish();
+		}
+		return;
+	}
+	bool per_object = bake_maps_last_per_object(); // CPU and GPU maps of a UDIM project, GPU maps without UDIM stay atlas images
 	if (bake_maps_save(out_folder, string("%s_%s.png", out_name, map_suffixes[i]), map_suffixes[i])) {
 		done_count   = done_count + 1;
 		map_route[i] = per_object ? 2 : 1;
@@ -604,7 +626,12 @@ void draw_settings() {
 		if (device == 0 && gpu_available()) {
 			ui_slider(&gpu_samples, "Samples", 1, 128, true, 1, true, UI_ALIGN_RIGHT, true);
 			gpu_samples = floor(gpu_samples);
-			ui_text(string("64 rays per sample, at the layer resolution (%d)", bake_maps_gpu_res()), UI_ALIGN_LEFT, 0);
+			if (bake_maps_udim()) {
+				ui_text("64 rays per sample, per object and tile at the Resolution", UI_ALIGN_LEFT, 0);
+			}
+			else {
+				ui_text(string("64 rays per sample, at the layer resolution (%d)", bake_maps_gpu_res()), UI_ALIGN_LEFT, 0);
+			}
 		}
 		else {
 			ui_slider(&rays, "Rays", 4, 512, true, 1, true, UI_ALIGN_RIGHT, true);
