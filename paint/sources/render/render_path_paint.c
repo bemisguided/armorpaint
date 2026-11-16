@@ -1024,7 +1024,8 @@ bool render_path_paint_paint_enabled() {
 	return !fill_layer && !group_layer && !g_context->foreground_event && !self_in_material;
 }
 
-// Strokes of these tools on an object restricted paint layer are skipped, with no undo step, when they start on an uncovered object.
+// Strokes of these tools on an object or tile restricted paint layer are skipped, with no undo step, when they start on an uncovered object
+// or an object with no covered tile (the tile under the cursor is not picked).
 // Fills keep their own rules (object fill paints every covered object, mesh fill only a covered picked one), sculpt layers are not checked.
 void render_path_paint_stroke_start() {
 	tool_type_t t = g_context->tool;
@@ -1032,7 +1033,7 @@ void render_path_paint_stroke_start() {
 	    t == TOOL_TYPE_BRUSH || t == TOOL_TYPE_ERASER || t == TOOL_TYPE_DECAL || t == TOOL_TYPE_TEXT || t == TOOL_TYPE_CLONE || t == TOOL_TYPE_BLUR;
 	render_path_paint_stroke_skipped = false;
 	render_path_paint_cover_pick     = history_push_undo && stroke_tool && !g_context->paint2d && g_context->layer->texpaint_sculpt == NULL &&
-	                                   !slot_layer_is_path(g_context->layer) && layer_objects_restricted(g_context->layer);
+	                                   !slot_layer_is_path(g_context->layer) && layer_is_restricted(g_context->layer);
 }
 
 void render_path_paint_stroke_end() {
@@ -1052,7 +1053,7 @@ static bool render_path_paint_stroke_start_covered() {
 	g_context->pdirty         = _pdirty;
 	make_material_parse_paint_material(false);
 	render_path_base_draw_gbuffer();
-	return o == NULL || layer_covers_object(g_context->layer, o);
+	return o == NULL || layer_covers_object_on_tile(g_context->layer, o);
 }
 
 void render_path_paint_begin() {
