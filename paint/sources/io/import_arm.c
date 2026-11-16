@@ -1330,6 +1330,7 @@ void import_arm_run_project(char *path) {
 	base_update_tools();
 	ui_dock_redraw(TAB_AREA_SIDEBAR0);
 	ui_dock_redraw(TAB_AREA_SIDEBAR1);
+	ui_dock_redraw(TAB_AREA_STATUS); // Textures, Fonts and Sounds trays
 	g_context->ddirty = 4;
 	data_delete_blob(path);
 }
