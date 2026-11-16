@@ -101,6 +101,7 @@ Capturar fondo
 Capturar salida
 Capturar captura de pantalla
 Capturar vídeo
+
 Techo
 Tamaño de celda en píxeles
 Centro

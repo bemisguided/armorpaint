@@ -101,6 +101,7 @@ Capturer l'arrière-plan
 Capturer sortie
 Capturer capture d'écran
 Capturer une vidéo
+
 Plafond
 Taille de cellule en pixels
 Centre

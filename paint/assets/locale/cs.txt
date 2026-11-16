@@ -101,6 +101,7 @@ Zachytit pozadí
 Zachytit výstup
 Zachytit snímek obrazovky
 Zachytit video
+
 Zaokrouhlit nahoru
 Velikost buňky v pixelech
 Střed

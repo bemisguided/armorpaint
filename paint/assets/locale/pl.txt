@@ -101,6 +101,7 @@ Przechwyć tło
 Przechwyć wyjście
 Przechwyć zrzut ekranu
 Przechwyć wideo
+
 Zaokrąglij w górę
 Rozmiar komórki w pikselach
 Środek
