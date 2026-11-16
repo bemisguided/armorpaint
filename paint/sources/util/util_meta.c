@@ -352,8 +352,8 @@ static meta_t **meta_slot(i32 category, i32 index, bool create) {
 	switch (category) {
 	case MC_TEXTURE:
 		return &g_project->_->assets->buffer[index]->meta;
-	case MC_FONT:
-		return &g_project->_->fonts->buffer[index]->meta;
+	case MC_FONT: // The built-in default font (index 0) is not saved, so it takes no metadata
+		return index > 0 ? &g_project->_->fonts->buffer[index]->meta : NULL;
 	case MC_SOUND:
 		return &g_project->_->sounds->buffer[index]->meta;
 	case MC_MESH:
