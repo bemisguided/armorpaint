@@ -53,7 +53,9 @@ static void ui_asset_props_draw() {
 			meta_clear_bake(m);
 		}
 		else {
-			meta_set_bake(m, new_btp, asset_bake_default_encoding(new_btp), obj, tile);
+			// A type change refills the encoding only, Object and Tile are left as they are for every type
+			meta_set_i32(m, META_BAKE_TYPE, new_btp);
+			meta_set_i32(m, META_ENCODING, asset_bake_default_encoding(new_btp));
 		}
 		return;
 	}
