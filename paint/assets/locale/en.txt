@@ -917,3 +917,4 @@ Any
 Unknown ({n})
 Cavity
 Texture Slot
+Several covered objects share UV space.

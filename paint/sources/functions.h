@@ -1163,6 +1163,7 @@ mesh_object_t_array_t    *layer_coverage_objects(slot_layer_t *l);
 layer_coverage_empty_t    layer_coverage_empty_reason(slot_layer_t *l);
 bool                      layer_covers_nothing(slot_layer_t *l);
 bool                      layer_uv_overlap(slot_layer_t *l, i32 *object, i32 *other, i32 *tile);
+bool                      util_uv_overlap_covered(slot_layer_t *l);
 bool                      layer_write_coverage_test(node_shader_t *kong, slot_layer_t *l);
 bool                      layer_tiles_tested(slot_layer_t *l);
 void                      util_udim_write_slot(node_shader_t *kong, char *uv);
