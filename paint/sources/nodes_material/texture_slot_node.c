@@ -31,7 +31,7 @@ static void texture_slot_node_button(i32 node_id) {
 		sel = count;
 	}
 	ui_set_next_id((ui_id_t)&values->buffer[0]);
-	ui_combo(&sel, labels, tr("Bake Type"), true, UI_ALIGN_LEFT, true);
+	ui_combo(&sel, labels, tr("Bake Type"), false, UI_ALIGN_LEFT, true);
 	values->buffer[0] = sel < count ? asset_bake_type_at(sel) : btp;
 
 	node->buttons->buffer[0]->height = 1.5;
