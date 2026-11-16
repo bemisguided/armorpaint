@@ -168,6 +168,9 @@ void tab_textures_draw_context_menu() {
 			g_context->ddirty         = 2;
 		}
 	}
+	if (ui_menu_button(tr("Tags..."), "", ICON_NONE)) {
+		ui_asset_tags_show(MC_TEXTURE, _tab_textures_draw_i);
+	}
 	if (ui_menu_button(tr("Delete"), "delete", ICON_DELETE)) {
 		tab_textures_delete_texture(_tab_textures_draw_asset);
 	}
@@ -368,6 +371,7 @@ void tab_textures_draw(i32 *htab) {
 		if (!string_equals(tab_textures_search, "") && (ui_button(tr("X"), UI_ALIGN_CENTER, "") || g_ui->is_escape_down)) {
 			tab_textures_search = "";
 		}
+		ui_asset_tags_filter(MC_TEXTURE);
 
 		ui_end_sticky();
 
@@ -382,10 +386,11 @@ void tab_textures_draw(i32 *htab) {
 				return;
 			}
 
-			// Indices of the assets passing the search filter
+			// Indices of the assets passing the search and tag filters
 			i32_array_t *filtered = i32_array_create_from_raw((i32[]){}, 0);
 			for (i32 i = 0; i < g_project->_->assets->length; ++i) {
-				if (string_equals(search, "") || string_index_of(to_lower_case(g_project->_->assets->buffer[i]->name), search) >= 0) {
+				if (ui_asset_tags_visible(MC_TEXTURE, i) &&
+				    (string_equals(search, "") || string_index_of(to_lower_case(g_project->_->assets->buffer[i]->name), search) >= 0)) {
 					i32_array_push(filtered, i);
 				}
 			}
@@ -438,7 +443,7 @@ void tab_textures_draw(i32 *htab) {
 					ui_state_t _state = ui_sub_image(img, 0xffffffff, slotw, 0, 0, sw, sw);
 
 					// Reordering
-					if (_state == UI_STATE_HOVERED && base_drag_asset != NULL && string_equals(search, "")) {
+					if (_state == UI_STATE_HOVERED && base_drag_asset != NULL && string_equals(search, "") && !ui_asset_tags_active(MC_TEXTURE)) {
 						tab_textures_drag_pos = (mouse_x > uix + g_ui->_window_x + imgw_val / 2.0) ? i + 1 : i;
 						drag_pos_set          = true;
 					}
