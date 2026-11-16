@@ -231,6 +231,8 @@ static void base_draw_console_lines() {
 }
 
 void base_update(void *_) {
+	texture_slot_update();
+
 	if (g_project->_->translucency && any_map_get(render_path_render_targets, "main_paint") == NULL) {
 		render_path_base_init_paint_depth();
 	}
