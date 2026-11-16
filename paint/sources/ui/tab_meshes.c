@@ -48,10 +48,6 @@ static bool tab_meshes_slot_hidden(mesh_object_t *o) {
 		return true;
 	}
 
-	if (ui_asset_tags_active(MC_MESH) && !ui_asset_tags_visible(MC_MESH, array_index_of(g_project->_->paint_objects, o))) {
-		return true;
-	}
-
 	if (!tab_meshes_search_show || string_equals(tab_meshes_search, "")) {
 		return false;
 	}
@@ -966,10 +962,6 @@ void tab_meshes_draw_context_menu() {
 		util_uv_seammap_cached     = false;
 		util_uv_dilatemap_cached   = false;
 		g_context->ddirty          = 2;
-		return;
-	}
-	if (ui_menu_button(tr("Tags..."), "", ICON_NONE)) {
-		ui_asset_tags_show(MC_MESH, i);
 		return;
 	}
 	if (ui_menu_button(tr("Edit Script"), "", ICON_EDIT)) {
@@ -1892,15 +1884,6 @@ void tab_meshes_draw(i32 *htab) {
 		}
 
 		bool search_cell = objects && tab_meshes_search_show; // The search only filters objects
-		bool tags_cell   = objects && ui_asset_tags_any(MC_MESH); // Tags only filter objects
-		if (search_cell || tags_cell) {
-			f32_array_t *search_row = f32_array_create(0);
-			f32_array_push(search_row, search_cell && tags_cell ? -200 : 1.0);
-			if (search_cell && tags_cell) {
-				f32_array_push(search_row, -150);
-			}
-			ui_row(search_row);
-		}
 
 		if (search_cell) {
 			bool search_selected = g_ui->text_selected_id == ui_widget_id(&tab_meshes_search, UI_ID_TEXT);
@@ -1918,10 +1901,6 @@ void tab_meshes_draw(i32 *htab) {
 				tab_meshes_search_show = false;
 				tab_meshes_search      = "";
 			}
-		}
-
-		if (objects) { // Called also without tags, it resets a stale selection
-			ui_asset_tags_filter(MC_MESH);
 		}
 
 		ui_end_sticky();
