@@ -1891,7 +1891,18 @@ void tab_meshes_draw(i32 *htab) {
 			}
 		}
 
-		if (objects && tab_meshes_search_show) { // The search only filters objects
+		bool search_cell = objects && tab_meshes_search_show; // The search only filters objects
+		bool tags_cell   = objects && ui_asset_tags_any(MC_MESH); // Tags only filter objects
+		if (search_cell || tags_cell) {
+			f32_array_t *search_row = f32_array_create(0);
+			f32_array_push(search_row, search_cell && tags_cell ? -200 : 1.0);
+			if (search_cell && tags_cell) {
+				f32_array_push(search_row, -150);
+			}
+			ui_row(search_row);
+		}
+
+		if (search_cell) {
 			bool search_selected = g_ui->text_selected_id == ui_widget_id(&tab_meshes_search, UI_ID_TEXT);
 			ui_text_input(&tab_meshes_search, tr("Search"), UI_ALIGN_LEFT, true, true);
 			if (g_ui->is_hovered) {
@@ -1909,7 +1920,7 @@ void tab_meshes_draw(i32 *htab) {
 			}
 		}
 
-		if (objects) { // Tags only filter objects
+		if (objects) { // Called also without tags, it resets a stale selection
 			ui_asset_tags_filter(MC_MESH);
 		}
 

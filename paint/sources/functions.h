@@ -1414,6 +1414,7 @@ void                   ui_box_show_message(char *title, char *text, bool copyabl
 void                   ui_box_show_custom(void (*commands)(void), i32 mw, i32 mh, void (*on_hide)(void), bool draggable, char *title);
 void                   ui_box_hide();
 void                   ui_asset_tags_show(i32 category, i32 index);
+bool                   ui_asset_tags_any(i32 category);
 bool                   ui_asset_tags_filter(i32 category);
 bool                   ui_asset_tags_active(i32 category);
 bool                   ui_asset_tags_visible(i32 category, i32 index);

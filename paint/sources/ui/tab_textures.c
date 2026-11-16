@@ -329,23 +329,17 @@ void tab_textures_draw(i32 *htab) {
 
 		ui_begin_sticky();
 
-		f32_array_t *row = string_equals(tab_textures_search, "") ? f32_array_create_from_raw(
-		                                                                (f32[]){
-		                                                                    -100,
-		                                                                    -100,
-		                                                                    -100,
-		                                                                    -200,
-		                                                                },
-		                                                                4)
-		                                                          : f32_array_create_from_raw(
-		                                                                (f32[]){
-		                                                                    -100,
-		                                                                    -100,
-		                                                                    -100,
-		                                                                    -200,
-		                                                                    -40,
-		                                                                },
-		                                                                5);
+		f32_array_t *row = f32_array_create(0);
+		f32_array_push(row, -100);
+		f32_array_push(row, -100);
+		f32_array_push(row, -100);
+		f32_array_push(row, -200); // Search
+		if (ui_asset_tags_any(MC_TEXTURE)) {
+			f32_array_push(row, -150); // Tags filter
+		}
+		if (!string_equals(tab_textures_search, "")) {
+			f32_array_push(row, -40); // Clear search
+		}
 		ui_row(row);
 
 		if (ui_icon_button(tr("Import"), ICON_IMPORT, UI_ALIGN_CENTER)) {
@@ -368,10 +362,10 @@ void tab_textures_draw(i32 *htab) {
 		if (g_ui->is_ctrl_down && g_ui->is_key_pressed && g_ui->key_code == KEY_CODE_F) {
 			ui_start_text_edit(&tab_textures_search, UI_ALIGN_LEFT);
 		}
+		ui_asset_tags_filter(MC_TEXTURE);
 		if (!string_equals(tab_textures_search, "") && (ui_button(tr("X"), UI_ALIGN_CENTER, "") || g_ui->is_escape_down)) {
 			tab_textures_search = "";
 		}
-		ui_asset_tags_filter(MC_TEXTURE);
 
 		ui_end_sticky();
 
