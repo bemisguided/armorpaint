@@ -915,3 +915,4 @@ Bake Type
 Encoding
 Any
 Unknown ({n})
+Cavity

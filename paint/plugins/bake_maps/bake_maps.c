@@ -37,6 +37,9 @@ void               gpu_delete_texture(gpu_texture_t *texture);
 buffer_t          *gpu_get_texture_pixels(gpu_texture_t *image);
 void               import_texture_run(char *path, bool hdr_as_envmap);
 void               project_reimport_texture(asset_t *asset);
+meta_t            *meta_get(i32 category, i32 index);
+void               meta_set_bake(meta_t *m, i32 btp, i32 enc, i32 object_paint_id, i32 tile);
+i32                asset_bake_default_encoding(i32 btp);
 void               console_error(char *s);
 buffer_t          *iron_load_blob(char *file);
 bool               bake_to_target(render_target_t *rt, bake_type_t bake_type, void (*done)(void *), void *data);
@@ -1905,6 +1908,7 @@ static void bake_rays_finish_buffer() {
 // bool bake_maps_start(int type, int rays, int axis, int up_axis, bool use_high, int w, int h):
 // starts one map on worker threads, type is a bake_type_t or 14 for cavity
 static bool bake_maps_gpu_last; // Defined with the gpu bake below
+static i32  bake_maps_last_type = BAKE_TYPE_INIT; // Bake type of the map started last (cpu, gpu or gpu per object), bake_type_t or BAKE_TYPE_CAVITY
 
 // Atlas side for a per tile side, the per tile side is lowered so the atlas stays within 16384 (like util_udim_tile_res_x)
 static i32 bake_maps_atlas_side(i32 tile_side) {
@@ -1970,6 +1974,7 @@ static minic_val_t bake_maps_start(minic_val_t *a, int n) {
 		iron_mutex_init(&bake_rays_mutex);
 		bake_rays_mutex_ready = true;
 	}
+	bake_maps_last_type = type;
 	bake_rays_start_pair(bake_rays_per_object ? 0 : -1);
 	return minic_val_int(1);
 }
@@ -2068,6 +2073,7 @@ static minic_val_t bake_maps_gpu_start(minic_val_t *a, int n) {
 		bake_maps_gpu_restore();
 		return minic_val_int(0);
 	}
+	bake_maps_last_type = bake_maps_arg_i(a, n, 0);
 	return minic_val_int(1);
 }
 
@@ -2175,6 +2181,9 @@ static minic_val_t bake_maps_gpu_object_start(minic_val_t *a, int n) {
 	bool ok = bake_gpu_object_begin(bake_maps_arg_i(a, n, 0), bake_rays_imax(bake_maps_arg_i(a, n, 1), 1), bake_maps_arg_f(a, n, 2),
 	                                bake_maps_arg_f(a, n, 3), bake_maps_arg_f(a, n, 4), bake_maps_arg_i(a, n, 5), bake_maps_arg_i(a, n, 6),
 	                                bake_maps_arg_i(a, n, 7));
+	if (ok) {
+		bake_maps_last_type = bake_maps_arg_i(a, n, 0);
+	}
 	return minic_val_int(ok ? 1 : 0);
 }
 
@@ -2279,9 +2288,46 @@ static void bake_maps_write_tiles(char *atlas_file, u8 *pixels, i32 w, i32 h) {
 	free(tile);
 }
 
-// Writes RGBA8 pixels as png, then adds the file to the project
-// textures or reloads the texture when it is already there
-static void bake_maps_write_file(char *file, u8 *out, i32 w, i32 h) {
+// Persistent bake type (bake_type_persistent_t) of a plugin bake type (bake_type_t or BAKE_TYPE_CAVITY), BTP_NONE when unknown
+static i32 bake_maps_btp(i32 type) {
+	switch (type) {
+	case BAKE_TYPE_OCCLUSION:
+		return BTP_AO;
+	case BAKE_TYPE_CURVATURE:
+		return BTP_CURVATURE;
+	case BAKE_TYPE_NORMAL:
+		return BTP_NORMAL;
+	case BAKE_TYPE_NORMAL_OBJECT:
+		return BTP_NORMAL_OBJECT;
+	case BAKE_TYPE_HEIGHT:
+		return BTP_HEIGHT;
+	case BAKE_TYPE_DERIVATIVE:
+		return BTP_DERIVATIVE;
+	case BAKE_TYPE_POSITION:
+		return BTP_POSITION;
+	case BAKE_TYPE_TEXCOORD:
+		return BTP_TEXCOORD;
+	case BAKE_TYPE_MATERIALID:
+		return BTP_MATERIAL_ID;
+	case BAKE_TYPE_OBJECTID:
+		return BTP_OBJECT_ID;
+	case BAKE_TYPE_VERTEX_COLOR:
+		return BTP_VERTEX_COLOR;
+	case BAKE_TYPE_LIGHTMAP:
+		return BTP_LIGHTMAP;
+	case BAKE_TYPE_BENT_NORMAL:
+		return BTP_BENT_NORMAL;
+	case BAKE_TYPE_THICKNESS:
+		return BTP_THICKNESS;
+	case BAKE_TYPE_CAVITY:
+		return BTP_CAVITY;
+	}
+	return BTP_NONE;
+}
+
+// Writes RGBA8 pixels as png, then adds the file to the project textures or reloads the texture when it is already there.
+// The texture gets the bake properties of the finished map: bake type, encoding, object (paint_id) and tile, -1 = any.
+static void bake_maps_write_file(char *file, u8 *out, i32 w, i32 h, i32 object_paint_id, i32 tile) {
 	buffer_t pixels = {.buffer = out, .length = w * h * 4};
 #ifdef IRON_BGRA
 	buffer_bgra_swap(&pixels); // The png writer takes the native order, the bake is RGBA
@@ -2292,13 +2338,27 @@ static void bake_maps_write_file(char *file, u8 *out, i32 w, i32 h) {
 #endif
 
 	asset_t_array_t *assets = g_project->_->assets;
+	bool             found  = false;
+	for (i32 i = 0; i < assets->length && !found; ++i) {
+		if (string_equals(assets->buffer[i]->file, file)) {
+			found = true;
+			project_reimport_texture(assets->buffer[i]); // Keeps the metadata (tags), the bake keys are overwritten below
+		}
+	}
+	if (!found) {
+		import_texture_run(file, false);
+	}
+
+	i32 btp = bake_maps_btp(bake_maps_last_type);
+	if (btp == BTP_NONE) {
+		return;
+	}
 	for (i32 i = 0; i < assets->length; ++i) {
 		if (string_equals(assets->buffer[i]->file, file)) {
-			project_reimport_texture(assets->buffer[i]);
+			meta_set_bake(meta_get(MC_TEXTURE, i), btp, asset_bake_default_encoding(btp), object_paint_id, tile);
 			return;
 		}
 	}
-	import_texture_run(file, false);
 }
 
 // The finished map was baked per object (cpu or gpu per object bake in a udim project), save writes its results
@@ -2329,7 +2389,10 @@ static minic_val_t bake_maps_save(minic_val_t *a, int n) {
 		i32 count = bake_rays_imin(bake_rays_outs_count, bake_rays_pair_count);
 		for (i32 k = 0; k < count; ++k) {
 			char *file = string("%s%s%s", folder, PATH_SEP, bake_rays_pair_file(k, suffix));
-			bake_maps_write_file(file, bake_rays_outs[k], bake_rays_w, bake_rays_h);
+			mesh_object_t_array_t *lows = g_project->_->paint_objects;
+			i32                    obj  = bake_rays_pairs[k].object; // Index in the paint objects, like in the file name
+			i32                    id   = obj >= 0 && obj < lows->length && lows->buffer[obj]->paint_id > 0 ? lows->buffer[obj]->paint_id : -1;
+			bake_maps_write_file(file, bake_rays_outs[k], bake_rays_w, bake_rays_h, id, util_udim_tile(bake_rays_pairs[k].slot));
 		}
 		return minic_val_int(count > 0);
 	}
@@ -2340,7 +2403,7 @@ static minic_val_t bake_maps_save(minic_val_t *a, int n) {
 	i32   w    = bake_maps_gpu_last ? bake_maps_gpu_w : bake_rays_w;
 	i32   h    = bake_maps_gpu_last ? bake_maps_gpu_h : bake_rays_h;
 	char *file = string("%s%s%s", folder, PATH_SEP, file_name);
-	bake_maps_write_file(file, out, w, h);
+	bake_maps_write_file(file, out, w, h, -1, -1); // One image of the whole layout: any object, any tile
 	return minic_val_int(1);
 }
 

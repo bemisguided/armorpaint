@@ -436,7 +436,7 @@ char *meta_item_name(i32 category, i32 index) {
 
 // Built-in bake types in display order (after None)
 static i32 asset_bake_types[] = {BTP_AO,       BTP_CURVATURE,  BTP_THICKNESS, BTP_HEIGHT,      BTP_NORMAL,    BTP_NORMAL_OBJECT, BTP_BENT_NORMAL,
-                                 BTP_DERIVATIVE, BTP_POSITION, BTP_TEXCOORD,  BTP_MATERIAL_ID, BTP_OBJECT_ID, BTP_VERTEX_COLOR,  BTP_LIGHTMAP};
+                                 BTP_DERIVATIVE, BTP_POSITION, BTP_TEXCOORD,  BTP_MATERIAL_ID, BTP_OBJECT_ID, BTP_VERTEX_COLOR,  BTP_LIGHTMAP,  BTP_CAVITY};
 
 i32 asset_bake_type_count() {
 	return sizeof(asset_bake_types) / sizeof(asset_bake_types[0]);
@@ -453,6 +453,7 @@ i32 asset_bake_default_encoding(i32 btp) {
 	case BTP_AO:
 	case BTP_CURVATURE:
 	case BTP_THICKNESS:
+	case BTP_CAVITY:
 	case BTP_HEIGHT:
 	case BTP_DERIVATIVE:
 	case BTP_POSITION:
@@ -511,6 +512,8 @@ char *asset_bake_type_label(i32 btp) {
 		return tr("Bent Normal");
 	case BTP_THICKNESS:
 		return tr("Thickness");
+	case BTP_CAVITY:
+		return tr("Cavity");
 	}
 	return asset_unknown_label(btp);
 }

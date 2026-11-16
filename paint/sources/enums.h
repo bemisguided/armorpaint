@@ -664,6 +664,7 @@ typedef enum {
 	BTP_LIGHTMAP      = 12,
 	BTP_BENT_NORMAL   = 13,
 	BTP_THICKNESS     = 14,
+	BTP_CAVITY        = 15, // Bake Maps plugin cavity (cpu only)
 } bake_type_persistent_t;
 
 typedef enum {
