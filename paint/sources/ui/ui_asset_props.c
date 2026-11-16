@@ -78,7 +78,7 @@ static void ui_asset_props_draw() {
 	i32_array_push(ids, -1);
 	for (i32 i = 0; i < g_project->_->paint_objects->length; ++i) {
 		mesh_object_t *o = g_project->_->paint_objects->buffer[i];
-		if (o->paint_id > 0) {
+		if (o->paint_id > 0 && o->data->index_array->length > 0) { // Like the layer object combo, no empty group objects (Root)
 			any_array_push(ar, o->base->name);
 			i32_array_push(ids, o->paint_id);
 		}
