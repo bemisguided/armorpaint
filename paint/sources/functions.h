@@ -1151,6 +1151,7 @@ bool                      layer_objects_restricted(slot_layer_t *l);
 bool                      layer_is_restricted(slot_layer_t *l);
 mesh_object_t_array_t    *layer_coverage_objects(slot_layer_t *l);
 layer_coverage_empty_t    layer_coverage_empty_reason(slot_layer_t *l);
+bool                      layer_covers_object_on_tile(slot_layer_t *l, mesh_object_t *o);
 bool                      layer_covers_nothing(slot_layer_t *l);
 bool                      layer_uv_overlap(slot_layer_t *l, i32 *object, i32 *other, i32 *tile);
 bool                      layer_write_coverage_test(node_shader_t *kong, slot_layer_t *l);

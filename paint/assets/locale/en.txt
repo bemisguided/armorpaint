@@ -877,6 +877,7 @@ Auto uses tiles when the UVs use a tile other than 1001 and no triangle crosses 
 Tile layout changed, undo history was cleared
 UDIM atlas too large: {tiles} tiles use {res} px per tile ({atlas} px atlas)
 Layer covers no tiles
+Layer's objects are not on its tiles
 Tile {id}
 {id} (unused)
 Objects and tiles this layer applies to

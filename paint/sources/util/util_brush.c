@@ -60,7 +60,8 @@ void util_brush_update() {
 					history_push_undo = g_context->tool < TOOL_TYPE_PLUGIN; // Plugin tools do not paint layers
 					if (history_push_undo && layers_paint_blocked()) {
 						layer_coverage_empty_t empty = layer_coverage_empty_reason(g_context->layer);
-						console_info(empty == LAYER_COVERAGE_NO_TILES ? tr("Layer covers no tiles")
+						console_info(empty == LAYER_COVERAGE_NO_OBJECT_TILE ? tr("Layer's objects are not on its tiles")
+						             : empty == LAYER_COVERAGE_NO_TILES ? tr("Layer covers no tiles")
 						             : empty != LAYER_COVERAGE_SOME   ? tr("Layer covers no objects")
 						                                              : tr("Layer's objects are hidden or use another material"));
 					}

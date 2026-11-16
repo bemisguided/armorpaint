@@ -610,6 +610,7 @@ typedef enum {
 	LAYER_COVERAGE_OBJECTS_DELETED, // Every object of the stored list was deleted
 	LAYER_COVERAGE_NO_OBJECTS,      // The list (or its intersection with a group's) is empty
 	LAYER_COVERAGE_NO_TILES,
+	LAYER_COVERAGE_NO_OBJECT_TILE, // Objects and tiles are both selected but no covered object lies on a covered tile
 } layer_coverage_empty_t;
 
 // Kinds of items that carry metadata (meta_t.category), saved in project files: explicit numbers, never renumber or reuse.
