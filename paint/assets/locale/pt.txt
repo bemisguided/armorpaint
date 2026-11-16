@@ -54,6 +54,7 @@ Costas
 Cozinhar
 Cozinhar Material
 Cozinhar Textura
+
 Cozinhar para Texturas
 Faixas
 Base
@@ -737,6 +738,7 @@ Textura de Texto
 Texto para Imagem
 Textura
 Coordenada de Textura
+
 Textura importada:
 Textura...
 Texturas

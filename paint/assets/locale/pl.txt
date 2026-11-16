@@ -54,6 +54,7 @@ Tył
 Wypalanie
 Wypalanie materiału...
 Wypalanie tekstury
+
 Wypal do tekstur
 Pasma
 Podstawowy
@@ -737,6 +738,7 @@ Tekstura tekstu
 Tekst do obrazu
 Tekstura
 Współrzędne tekstury
+
 Tekstura zaimportowana:
 Tekstura...
 Tekstury

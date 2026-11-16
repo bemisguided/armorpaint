@@ -54,6 +54,7 @@ Trasera
 Hornear
 Hornear material...
 Hornear textura
+
 Hornear a texturas
 Bandas
 Base
@@ -737,6 +738,7 @@ Textura de texto
 Texto a imagen
 Textura
 Coordenada de textura
+
 Textura importada:
 Textura...
 Texturas

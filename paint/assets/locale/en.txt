@@ -54,6 +54,7 @@ Back
 Bake
 Bake Material...
 Bake Texture
+Bake Type
 Bake to Textures
 Bands
 Base
@@ -737,6 +738,7 @@ Text Texture
 Text to Image
 Texture
 Texture Coordinate
+Texture Slot
 Texture imported:
 Texture...
 Textures

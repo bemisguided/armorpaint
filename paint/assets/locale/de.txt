@@ -54,6 +54,7 @@ Hinten
 Baken
 Material baken...
 Textur baken
+
 Auf Textur backen
 Bänder
 Basis
@@ -737,6 +738,7 @@ Text Textur
 Text zu Bild
 Textur
 Texturkoordinate
+
 Textur importiert:
 Textur...
 Texturen

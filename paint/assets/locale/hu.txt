@@ -54,6 +54,7 @@ Hátul
 Sütés (Bake)
 Anyag sütése...
 Textúra sütése
+
 Sütés textúrákra
 Sávok
 Alap
@@ -737,6 +738,7 @@ Szöveg textúra
 Szövegből Kép
 Textúra
 Textúra koordináta
+
 Textúra importálva:
 Textúra...
 Textúrák
