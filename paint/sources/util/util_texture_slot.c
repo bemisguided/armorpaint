@@ -5,7 +5,9 @@
 // A fill layer is one draw of the merged mesh with the atlas uv as position, so the (object, tile) pair is not known when
 // the texture is bound. Until the draw is split per pair, the textures of one bake type are composed into one internal
 // render target of the project atlas layout (one slot per udim tile, a project without tiles has the single slot 1001).
-// Slot images are added with additive blending: per object images are black outside their uv islands, islands are disjoint.
+// Per object images are not black outside their islands (bake padding fills the tile), so each one is drawn only inside the
+// uv islands of its object on the slot (mask of layers_object_slot_mask, dilated like painted texels), replacing what is there.
+// Object "any" images cover the whole slot and are drawn first.
 // Per (object, tile) the exact image wins over an object or tile "any" one (META_OBJECT / META_TILE absent).
 // Built from an update (never inside a draw) when the signature of the matching textures, the tile list or the size changes.
 
@@ -21,6 +23,8 @@ static texture_slot_entry_t texture_slot_entries[TEXTURE_SLOT_MAX];
 static i32                  texture_slot_count       = 0;
 static bool                 texture_slot_pending     = false; // Atlas changed, fill layers and previews still show the old one
 static gpu_pipeline_t      *texture_slot_pipe        = NULL;
+static gpu_texture_t       *texture_slot_tmp_a       = NULL; // Image placed on its slot
+static gpu_texture_t       *texture_slot_tmp_b       = NULL; // Same times the island mask
 static gpu_texture_t       *texture_slot_flat_normal = NULL;
 
 static texture_slot_entry_t *texture_slot_entry(i32 btp, bool create) {
@@ -88,11 +92,20 @@ static u64 texture_slot_signature(i32 btp) {
 	}
 	h = texture_slot_hash(h, util_udim_res_x());
 	h = texture_slot_hash(h, util_udim_res_y());
+	// The island masks depend on the meshes and the dilate radius
+	h = texture_slot_hash(h, util_mesh_version);
+	h = texture_slot_hash(h, g_config->dilate_radius);
+	for (i32 i = 0; i < g_project->_->paint_objects->length; ++i) {
+		mesh_object_t *o = g_project->_->paint_objects->buffer[i];
+		h                = texture_slot_hash(h, o->paint_id);
+		h                = texture_slot_hash_ptr(h, o->data != NULL ? (void *)o->data->_->vertex_buffer : NULL);
+		h                = texture_slot_hash_ptr(h, o->data != NULL ? (void *)o->data->_->index_buffer : NULL);
+	}
 	return h != 0 ? h : 1;
 }
 
 // Textures drawn into a tile: tile exact wins over tile any per object, the first of equal ones is used,
-// object any textures are dropped when the tile has per object ones (a texture can not tell the islands apart)
+// object any textures stay (drawn first, per object ones go on top inside their islands)
 static i32_array_t *texture_slot_select(i32 btp, i32 tile) {
 	i32_array_t *cand = i32_array_create(0);
 	for (i32 i = 0; i < g_project->_->assets->length; ++i) {
@@ -106,7 +119,6 @@ static i32_array_t *texture_slot_select(i32 btp, i32 tile) {
 		}
 	}
 	i32_array_t *keep = i32_array_create(0);
-	bool         per_object = false;
 	for (i32 k = 0; k < cand->length; ++k) {
 		meta_t       *mk   = g_project->_->assets->buffer[cand->buffer[k]]->meta;
 		i32           ok   = meta_get_i32(mk, META_OBJECT, -1);
@@ -125,24 +137,14 @@ static i32_array_t *texture_slot_select(i32 btp, i32 tile) {
 		}
 		if (!drop) {
 			i32_array_push(keep, cand->buffer[k]);
-			per_object = per_object || ok != -1;
-		}
-	}
-	i32_array_t *out = i32_array_create(0);
-	for (i32 k = 0; k < keep->length; ++k) {
-		meta_t *m = g_project->_->assets->buffer[keep->buffer[k]]->meta;
-		if (!per_object || meta_get_i32(m, META_OBJECT, -1) != -1) {
-			i32_array_push(out, keep->buffer[k]);
 		}
 	}
 	array_free(cand);
 	free(cand);
-	array_free(keep);
-	free(keep);
-	return out;
+	return keep;
 }
 
-// Copy pipeline of the layer copy shaders with additive blending
+// Copy pipeline of the layer copy shaders with alpha blending (the island mask is in the alpha of the source)
 static gpu_pipeline_t *texture_slot_get_pipe() {
 	if (texture_slot_pipe == NULL) {
 		gpu_pipeline_t *p = gpu_create_pipeline();
@@ -153,17 +155,25 @@ static gpu_pipeline_t *texture_slot_get_pipe() {
 		gpu_vertex_structure_add(vs, "tex", GPU_VERTEX_DATA_F32_2X);
 		gpu_vertex_structure_add(vs, "col", GPU_VERTEX_DATA_F32_4X);
 		p->input_layout            = vs;
-		p->blend_source            = GPU_BLEND_ONE;
-		p->blend_destination       = GPU_BLEND_ONE;
+		p->blend_source            = GPU_BLEND_SOURCE_ALPHA;
+		p->blend_destination       = GPU_BLEND_INV_SOURCE_ALPHA;
 		p->alpha_blend_source      = GPU_BLEND_ONE;
-		p->alpha_blend_destination = GPU_BLEND_ONE;
+		p->alpha_blend_destination = GPU_BLEND_INV_SOURCE_ALPHA;
 		gpu_pipeline_compile(p);
 		texture_slot_pipe = p;
 	}
 	return texture_slot_pipe;
 }
 
-// Draws every slot of the atlas, black where nothing is drawn
+static gpu_texture_t *texture_slot_scratch(gpu_texture_t *t, i32 w, i32 h) {
+	if (t != NULL && (t->width != w || t->height != h)) {
+		gpu_delete_texture(t);
+		t = NULL;
+	}
+	return t != NULL ? t : gpu_create_render_target(w, h, GPU_TEXTURE_FORMAT_RGBA32);
+}
+
+// Draws every slot of the atlas, black where nothing is drawn (flat normal for the Normal encoding)
 static void texture_slot_build(texture_slot_entry_t *e) {
 	i32 w = util_udim_res_x();
 	i32 h = util_udim_res_y();
@@ -177,19 +187,73 @@ static void texture_slot_build(texture_slot_entry_t *e) {
 	i32 stride = util_udim_stride();
 	i32 tw     = util_udim_tile_res_x();
 	i32 th     = util_udim_tile_res_y();
-	draw_begin(e->atlas, true, 0xff000000);
-	draw_set_pipeline(texture_slot_get_pipe());
-	for (i32 s = 0; s < util_udim_count(); ++s) {
-		i32_array_t *sel = texture_slot_select(e->btp, util_udim_tile(s));
-		for (i32 k = 0; k < sel->length; ++k) {
-			asset_t *a = g_project->_->assets->buffer[sel->buffer[k]];
-			draw_scaled_image(a->image, (s % stride) * tw, (s / stride) * th, tw, th);
+	u32 clear  = asset_bake_default_encoding(e->btp) == AE_NORMAL ? 0xff8080ff : 0xff000000;
+	i32 count  = util_udim_count();
+
+	i32_array_t **sels = (i32_array_t **)malloc(sizeof(i32_array_t *) * (count > 0 ? count : 1));
+
+	// Object any images over the whole slot
+	draw_begin(e->atlas, true, clear);
+	draw_set_color(0xffffffff);
+	draw_set_pipeline(pipes_copy);
+	for (i32 s = 0; s < count; ++s) {
+		sels[s] = texture_slot_select(e->btp, util_udim_tile(s));
+		for (i32 k = 0; k < sels[s]->length; ++k) {
+			asset_t *a = g_project->_->assets->buffer[sels[s]->buffer[k]];
+			if (meta_get_i32(a->meta, META_OBJECT, -1) == -1) {
+				draw_scaled_image(a->image, (s % stride) * tw, (s / stride) * th, tw, th);
+			}
 		}
-		array_free(sel);
-		free(sel);
 	}
 	draw_set_pipeline(NULL);
 	draw_end();
+
+	// Per object images inside the islands of their object on the slot
+	for (i32 s = 0; s < count; ++s) {
+		for (i32 k = 0; k < sels[s]->length; ++k) {
+			asset_t *a      = g_project->_->assets->buffer[sels[s]->buffer[k]];
+			i32      object = meta_get_i32(a->meta, META_OBJECT, -1);
+			if (object == -1) {
+				continue;
+			}
+			mesh_object_t *o = project_object_by_id(object);
+			if (o == NULL || !layers_object_slot_mask(o, s)) {
+				continue; // Object no longer exists
+			}
+			texture_slot_tmp_a = texture_slot_scratch(texture_slot_tmp_a, w, h);
+			texture_slot_tmp_b = texture_slot_scratch(texture_slot_tmp_b, w, h);
+
+			draw_begin(texture_slot_tmp_a, true, 0x00000000);
+			draw_set_color(0xffffffff);
+			draw_set_pipeline(pipes_copy);
+			draw_scaled_image(a->image, (s % stride) * tw, (s / stride) * th, tw, th);
+			draw_set_pipeline(NULL);
+			draw_end();
+
+			// Alpha of the image times the mask (in pipes_temp_mask_image)
+			_gpu_begin(texture_slot_tmp_b, NULL, NULL, GPU_CLEAR_COLOR, 0x00000000, 0.0);
+			gpu_set_pipeline(pipes_apply_mask);
+			gpu_set_texture(pipes_tex0_mask, texture_slot_tmp_a);
+			gpu_set_texture(pipes_texa_mask, pipes_temp_mask_image);
+			gpu_set_float(pipes_opac_apply_mask, 1.0);
+			gpu_set_vertex_buffer(const_data_screen_aligned_vb);
+			gpu_set_index_buffer(const_data_screen_aligned_ib);
+			gpu_draw();
+			gpu_end();
+
+			draw_begin(e->atlas, false, 0);
+			draw_set_color(0xffffffff);
+			draw_set_pipeline(texture_slot_get_pipe());
+			draw_image(texture_slot_tmp_b, 0, 0);
+			draw_set_pipeline(NULL);
+			draw_end();
+		}
+	}
+	for (i32 s = 0; s < count; ++s) {
+		array_free(sels[s]);
+		free(sels[s]);
+	}
+	free(sels);
 }
 
 static void texture_slot_invalidate() {

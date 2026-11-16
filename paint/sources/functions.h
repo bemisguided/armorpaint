@@ -100,6 +100,7 @@ void                   layers_udim_place_tile(slot_layer_t *l, i32 tile);
 slot_layer_t          *layers_flatten(bool height_to_normal, slot_layer_t_array_t *layers);
 bool                   layers_coverage_applies(slot_layer_t *l, i32 object_filter, i32 tile_filter);
 bool                   layers_coverage_mask(slot_layer_t *l, i32 object_filter, i32 tile_filter);
+bool                   layers_object_slot_mask(mesh_object_t *o, i32 slot);
 gpu_texture_t         *layers_coverage_merge_mask(slot_layer_t *l, slot_layer_t_array_t *masks, bool move_preview, i32 object_filter, i32 tile_filter);
 void                   layers_draw_mesh_materials();
 void                   layers_on_resized();
