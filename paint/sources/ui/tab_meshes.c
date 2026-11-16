@@ -48,6 +48,10 @@ static bool tab_meshes_slot_hidden(mesh_object_t *o) {
 		return true;
 	}
 
+	if (ui_asset_tags_active(MC_MESH) && !ui_asset_tags_visible(MC_MESH, array_index_of(g_project->_->paint_objects, o))) {
+		return true;
+	}
+
 	if (!tab_meshes_search_show || string_equals(tab_meshes_search, "")) {
 		return false;
 	}
@@ -962,6 +966,10 @@ void tab_meshes_draw_context_menu() {
 		util_uv_seammap_cached     = false;
 		util_uv_dilatemap_cached   = false;
 		g_context->ddirty          = 2;
+		return;
+	}
+	if (ui_menu_button(tr("Tags..."), "", ICON_NONE)) {
+		ui_asset_tags_show(MC_MESH, i);
 		return;
 	}
 	if (ui_menu_button(tr("Edit Script"), "", ICON_EDIT)) {
@@ -1899,6 +1907,10 @@ void tab_meshes_draw(i32 *htab) {
 				tab_meshes_search_show = false;
 				tab_meshes_search      = "";
 			}
+		}
+
+		if (objects) { // Tags only filter objects
+			ui_asset_tags_filter(MC_MESH);
 		}
 
 		ui_end_sticky();
