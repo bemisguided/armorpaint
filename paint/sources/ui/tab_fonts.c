@@ -51,21 +51,16 @@ void tab_fonts_draw(i32 *htab) {
 
 		ui_begin_sticky();
 
-		f32_array_t *row = string_equals(tab_fonts_search, "") ? f32_array_create_from_raw(
-		                                                             (f32[]){
-		                                                                 -100,
-		                                                                 -100,
-		                                                                 -200,
-		                                                             },
-		                                                             3)
-		                                                       : f32_array_create_from_raw(
-		                                                             (f32[]){
-		                                                                 -100,
-		                                                                 -100,
-		                                                                 -200,
-		                                                                 -40,
-		                                                             },
-		                                                             4);
+		f32_array_t *row = f32_array_create(0);
+		f32_array_push(row, -100);
+		f32_array_push(row, -100);
+		f32_array_push(row, -200); // Search
+		if (ui_asset_tags_any(MC_FONT)) {
+			f32_array_push(row, -150); // Tags filter
+		}
+		if (!string_equals(tab_fonts_search, "")) {
+			f32_array_push(row, -40); // Clear search
+		}
 		ui_row(row);
 
 		if (ui_icon_button(tr("Import"), ICON_IMPORT, UI_ALIGN_CENTER)) {
@@ -83,10 +78,10 @@ void tab_fonts_draw(i32 *htab) {
 		if (g_ui->is_ctrl_down && g_ui->is_key_pressed && g_ui->key_code == KEY_CODE_F) {
 			ui_start_text_edit(&tab_fonts_search, UI_ALIGN_LEFT);
 		}
+		ui_asset_tags_filter(MC_FONT);
 		if (!string_equals(tab_fonts_search, "") && (ui_button(tr("X"), UI_ALIGN_CENTER, "") || g_ui->is_escape_down)) {
 			tab_fonts_search = "";
 		}
-		ui_asset_tags_filter(MC_FONT);
 
 		ui_end_sticky();
 		ui_separator(3, false);

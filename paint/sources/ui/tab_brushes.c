@@ -94,13 +94,13 @@ void tab_brushes_draw(i32 *htab) {
 		}
 
 		ui_begin_sticky();
-		f32_array_t *row = f32_array_create_from_raw_tmp(
-		    (f32[]){
-		        -64,
-		        -64,
-		        -64,
-		    },
-		    3);
+		f32_array_t *row = f32_array_create(0);
+		for (i32 i = 0; i < 3; ++i) {
+			f32_array_push(row, -64);
+		}
+		if (ui_asset_tags_any(MC_BRUSH)) {
+			f32_array_push(row, -150); // Tags filter
+		}
 		ui_row(row);
 		if (ui_icon_button(tr("New"), ICON_PLUS, UI_ALIGN_CENTER)) {
 			g_context->brush = slot_brush_create(NULL);

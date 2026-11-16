@@ -88,8 +88,16 @@ void ui_asset_tags_show(i32 category, i32 index) {
 	ui_box_show_custom(&ui_asset_tags_box_draw, 400, 300, NULL, true, tr("Tags"));
 }
 
-// Draws the tag filter combo of a category in a row of its own, only when a tag is in use there (otherwise draws nothing).
-// Call it every frame before ui_asset_tags_visible. Returns true when the combo was drawn
+// True when any tag is in use in the category, so the tray gives the filter combo a cell in its row
+bool ui_asset_tags_any(i32 category) {
+	string_array_t *tags = ui_asset_tags_in_use(category);
+	bool            any  = tags->length > 0;
+	array_delete(tags);
+	return any;
+}
+
+// Draws the tag filter combo of a category as one cell of the tray row, only when a tag is in use there (otherwise draws nothing).
+// The row must have a cell for it when ui_asset_tags_any is true. Call it every frame before ui_asset_tags_visible. Returns true when the combo was drawn
 bool ui_asset_tags_filter(i32 category) {
 	string_array_t *tags = ui_asset_tags_in_use(category);
 	char          **sel  = &ui_asset_tags_selected[category];
@@ -109,7 +117,6 @@ bool ui_asset_tags_filter(i32 category) {
 		array_delete(tags);
 		return false;
 	}
-	ui_row(f32_array_create_from_raw_tmp((f32[]){1.0}, 1));
 	string_array_t *texts = string_array_create(0);
 	string_array_push(texts, tr("All"));
 	for (i32 i = 0; i < tags->length; ++i) {
