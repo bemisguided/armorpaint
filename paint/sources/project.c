@@ -117,6 +117,7 @@ void project_cleanup() {
 	}
 
 	util_physics_clear();
+	meta_mesh_reset();
 }
 
 void project_new_on_next_frame(void *_) {

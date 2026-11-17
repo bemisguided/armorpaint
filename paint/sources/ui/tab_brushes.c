@@ -42,6 +42,7 @@ void tab_brushes_draw_duplicate(void *_) {
 	ui_node_canvas_t *cloned = util_clone_canvas(g_project->_->brushes->buffer[i]->canvas);
 	cloned->name             = string_copy(slot_brush_unique_name(cloned, cloned->name));
 	g_context->brush->canvas = cloned;
+	g_context->brush->meta   = g_project->_->brushes->buffer[i]->meta != NULL ? meta_copy(g_project->_->brushes->buffer[i]->meta) : NULL;
 	context_set_brush(g_context->brush);
 	util_render_make_brush_preview();
 	history_duplicate_brush();

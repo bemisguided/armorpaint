@@ -612,17 +612,63 @@ typedef enum {
 	LAYER_COVERAGE_NO_TILES,
 } layer_coverage_empty_t;
 
-// Kinds of items that carry metadata (meta_t.category), saved in project files: explicit numbers, never renumber or reuse
+// Kinds of items that carry metadata (meta_t.category), saved in project files: explicit numbers, never renumber or reuse.
+// The asset categories follow the project arrays (assets, fonts, sounds, meshes, materials, brushes), see util_meta.c
 typedef enum {
-	MC_LAYER = 0,
+	MC_LAYER    = 0,
+	MC_TEXTURE  = 1,
+	MC_FONT     = 2,
+	MC_SOUND    = 3,
+	MC_MESH     = 4,
+	MC_MATERIAL = 5,
+	MC_BRUSH    = 6,
+	MC_COUNT    = 7,
 } meta_category_t;
 
 // Keys of meta_t, saved in project files: explicit numbers, never renumber or reuse. Unknown ids are kept as they are.
 // Layer coverage (util_udim.c): all objects (bool, absent = true), objects (i32 array of paint ids, absent = empty),
 // all tiles (bool, absent = true), tiles (i32 array of udim tile ids, absent = empty).
+// Asset bake keys, all i32: bake type (bake_type_persistent_t), encoding (asset_encoding_t), object (mesh paint_id), tile (udim id, absent = any).
 typedef enum {
 	META_ALL_OBJECTS = 0,
 	META_OBJECTS     = 1,
 	META_ALL_TILES   = 2,
 	META_TILES       = 3,
+	META_BAKE_TYPE   = 4,
+	META_ENCODING    = 5,
+	META_OBJECT      = 6,
+	META_TILE        = 7,
 } meta_key_t;
+
+typedef enum {
+	AE_NONE   = 0,
+	AE_COLOR  = 1,
+	AE_LINEAR = 2,
+	AE_NORMAL = 3,
+} asset_encoding_t;
+
+// Bake types as saved in project files: append-only, explicit numbers, NOT the order of bake_type_t (that one is the UI order).
+typedef enum {
+	BTP_NONE          = 0,
+	BTP_AO            = 1,
+	BTP_CURVATURE     = 2,
+	BTP_NORMAL        = 3,
+	BTP_NORMAL_OBJECT = 4,
+	BTP_HEIGHT        = 5,
+	BTP_DERIVATIVE    = 6,
+	BTP_POSITION      = 7,
+	BTP_TEXCOORD      = 8,
+	BTP_MATERIAL_ID   = 9,
+	BTP_OBJECT_ID     = 10,
+	BTP_VERTEX_COLOR  = 11,
+	BTP_LIGHTMAP      = 12,
+	BTP_BENT_NORMAL   = 13,
+	BTP_THICKNESS     = 14,
+} bake_type_persistent_t;
+
+typedef enum {
+	MT_BOOL      = 0,
+	MT_I32       = 1,
+	MT_F32       = 2,
+	MT_I32_ARRAY = 3,
+} meta_type_t;

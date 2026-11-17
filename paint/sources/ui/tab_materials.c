@@ -37,6 +37,7 @@ void tab_materials_draw_slots_duplicate(void *_) {
 	ui_node_canvas_t *cloned    = util_clone_canvas(g_project->_->materials->buffer[i]->canvas);
 	cloned->name                = string_copy(slot_material_unique_name(cloned, cloned->name));
 	g_context->material->canvas = cloned;
+	g_context->material->meta   = g_project->_->materials->buffer[i]->meta != NULL ? meta_copy(g_project->_->materials->buffer[i]->meta) : NULL;
 	tab_materials_update_material();
 	history_duplicate_material();
 }
