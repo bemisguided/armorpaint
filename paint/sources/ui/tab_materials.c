@@ -179,8 +179,8 @@ void tab_materials_draw_slots_menu() {
 		sys_notify_on_next_frame(&tab_materials_draw_slots_duplicate, NULL);
 	}
 
-	if (ui_menu_button(tr("Tags..."), "", ICON_NONE)) {
-		ui_asset_tags_show(MC_MATERIAL, i);
+	if (ui_menu_button(tr("Details..."), "", ICON_EDIT)) {
+		ui_asset_details_show(MC_MATERIAL, i);
 	}
 
 	if (g_project->_->materials->length > 1 && ui_menu_button(tr("Delete"), "delete", ICON_DELETE)) {

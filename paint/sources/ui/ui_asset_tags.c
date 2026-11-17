@@ -2,11 +2,8 @@
 #include "../global.h"
 
 // Tags of assets (meta_t tags), shared by the Textures, Materials, Brushes, Fonts, Sounds and Meshes trays:
-// the "Tags..." panel of an item and the tag filter combo of a tray.
+// the tag filter combo of a tray. The tags of an item are edited in the Details dialog (ui_asset_details.c).
 
-static i32   ui_asset_tags_box_category = 0;
-static i32   ui_asset_tags_box_index    = 0;
-static char *ui_asset_tags_input        = "";
 static char *ui_asset_tags_selected[MC_COUNT]; // Selected filter tag per category, NULL = All
 
 // Sorted unique (case-insensitive, first spelling) tags in use in a category
@@ -31,61 +28,6 @@ static string_array_t *ui_asset_tags_in_use(i32 category) {
 	}
 	array_delete(lower);
 	return tags;
-}
-
-static void ui_asset_tags_box_draw() {
-	meta_t *m = meta_peek(ui_asset_tags_box_category, ui_asset_tags_box_index);
-	ui_text(meta_item_name(ui_asset_tags_box_category, ui_asset_tags_box_index), UI_ALIGN_LEFT, 0x00000000);
-
-	i32 remove = -1;
-	for (i32 i = 0; m != NULL && m->tags != NULL && i < m->tags->length; ++i) {
-		f32_array_t *row = f32_array_create_from_raw_tmp(
-		    (f32[]){
-		        7 / 8.0,
-		        1 / 8.0,
-		    },
-		    2);
-		ui_row(row);
-		ui_text(m->tags->buffer[i], UI_ALIGN_LEFT, 0x00000000);
-		if (ui_button(tr("X"), UI_ALIGN_CENTER, "")) {
-			remove = i;
-		}
-	}
-	if (remove >= 0) {
-		meta_remove_tag(m, string_copy(m->tags->buffer[remove]));
-		base_redraw_ui();
-	}
-
-	f32_array_t *row = f32_array_create_from_raw_tmp(
-	    (f32[]){
-	        2 / 3.0,
-	        1 / 3.0,
-	    },
-	    2);
-	ui_row(row);
-	ui_text_input(&ui_asset_tags_input, tr("Tag"), UI_ALIGN_LEFT, true, false);
-	if (ui_icon_button(tr("Add"), ICON_PLUS, UI_ALIGN_CENTER) || g_ui->is_return_down) {
-		if (!string_equals(ui_asset_tags_input, "")) {
-			meta_add_tag(meta_get(ui_asset_tags_box_category, ui_asset_tags_box_index), ui_asset_tags_input);
-			ui_asset_tags_input = "";
-			base_redraw_ui();
-		}
-	}
-
-	if (ui_icon_button(tr("OK"), ICON_CHECK, UI_ALIGN_CENTER)) {
-		ui_box_hide();
-	}
-}
-
-// Opens the tags panel of an item of a category (meta_category_t)
-void ui_asset_tags_show(i32 category, i32 index) {
-	if (index < 0 || index >= meta_count(category)) {
-		return;
-	}
-	ui_asset_tags_box_category = category;
-	ui_asset_tags_box_index    = index;
-	ui_asset_tags_input        = "";
-	ui_box_show_custom(&ui_asset_tags_box_draw, 400, 300, NULL, true, tr("Tags"));
 }
 
 // True when any tag is in use in the category, so the tray gives the filter combo a cell in its row

@@ -70,8 +70,8 @@ void tab_brushes_draw_context_menu() {
 		sys_notify_on_next_frame(&tab_brushes_draw_duplicate, NULL);
 	}
 
-	if (ui_menu_button(tr("Tags..."), "", ICON_NONE)) {
-		ui_asset_tags_show(MC_BRUSH, i);
+	if (ui_menu_button(tr("Details..."), "", ICON_EDIT)) {
+		ui_asset_details_show(MC_BRUSH, i);
 	}
 
 	if (g_project->_->brushes->length > 1 && ui_menu_button(tr("Delete"), "delete", ICON_DELETE)) {

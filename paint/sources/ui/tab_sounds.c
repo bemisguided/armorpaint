@@ -62,8 +62,8 @@ void tab_sounds_draw_context_menu_draw() {
 		ui_files_filename        = string_copy(_tab_sounds_export_sound->name);
 		ui_files_show(substring(tab_sounds_ext(_tab_sounds_export_sound), 1, 4), true, false, &tab_sounds_export);
 	}
-	if (ui_menu_button(tr("Tags..."), "", ICON_NONE)) {
-		ui_asset_tags_show(MC_SOUND, i);
+	if (ui_menu_button(tr("Details..."), "", ICON_EDIT)) {
+		ui_asset_details_show(MC_SOUND, i);
 	}
 	if (ui_menu_button(tr("Delete"), "delete", ICON_DELETE)) {
 		tab_sounds_delete_sound(g_project->_->sounds->buffer[i]);

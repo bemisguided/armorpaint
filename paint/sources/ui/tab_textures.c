@@ -168,8 +168,8 @@ void tab_textures_draw_context_menu() {
 			g_context->ddirty         = 2;
 		}
 	}
-	if (ui_menu_button(tr("Tags..."), "", ICON_NONE)) {
-		ui_asset_tags_show(MC_TEXTURE, _tab_textures_draw_i);
+	if (ui_menu_button(tr("Details..."), "", ICON_EDIT)) {
+		ui_asset_details_show(MC_TEXTURE, _tab_textures_draw_i);
 	}
 	if (ui_menu_button(tr("Delete"), "delete", ICON_DELETE)) {
 		tab_textures_delete_texture(_tab_textures_draw_asset);
@@ -187,9 +187,6 @@ void tab_textures_draw_context_menu() {
 	}
 	else if (ui_menu_button(tr("Open in 3D View"), "", ICON_NONE)) {
 		util_stencil_view_image_open(_tab_textures_draw_asset, 0.5, 0.5);
-	}
-	if (ui_menu_button(tr("Bake Properties..."), "", ICON_NONE)) {
-		ui_asset_props_show(_tab_textures_draw_i);
 	}
 }
 
