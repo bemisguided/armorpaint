@@ -7,3 +7,4 @@
 #include "functions.h"
 #include "globals.h"
 #include "types.h"
+#include "util/flood_fill_label.h"
