@@ -91,7 +91,7 @@ project_t *import_arm_decode_project(buffer_t *b) {
 	if (import_arm_is_old(b)) {
 		return import_arm_from_old(b);
 	}
-	return armpack_decode(b);
+	return project_format_decode(b);
 }
 
 static bool import_arm_is_selected(i32_array_t *selected, i32 i) {
@@ -752,14 +752,14 @@ void import_arm_run_project(char *path) {
 	}
 	else if (import_arm_is_old(b)) {
 		project = import_arm_from_old(b);
-		if (project == NULL) { // Unknown version
-			console_error(string("Unsupported project version in %s.", path));
-			data_delete_blob(path);
-			return;
-		}
 	}
 	else {
-		project = armpack_decode(b);
+		project = project_format_decode(b);
+	}
+	if (project == NULL) { // Unknown version, or a fork file of an earlier build
+		console_error(string("Unsupported project version in %s.", path));
+		data_delete_blob(path);
+		return;
 	}
 
 	if (project->version != NULL && project->layer_datas == NULL) {
@@ -1301,7 +1301,7 @@ void import_arm_run_material(char *path) {
 		project = import_arm_from_old(b);
 	}
 	else {
-		project = armpack_decode(b);
+		project = project_format_decode(b);
 	}
 
 	if (project == NULL) { // Unknown version
@@ -1318,7 +1318,12 @@ void import_arm_run_material(char *path) {
 
 void import_arm_run_brush(char *path) {
 	buffer_t  *b       = data_get_blob(path);
-	project_t *project = armpack_decode(b);
+	project_t *project = import_arm_is_old(b) ? import_arm_from_old(b) : project_format_decode(b); // Old layouts end before the fork fields
+	if (project == NULL) { // Unknown version, or a fork file of an earlier build
+		console_error(string("Unsupported project version in %s.", path));
+		data_delete_blob(path);
+		return;
+	}
 	if (project->version == NULL) {
 		data_delete_blob(path);
 		return;
