@@ -14,6 +14,7 @@ static i32     ui_asset_details_ids[4];
 static i32     ui_asset_details_last_btp = BTP_NONE; // Last bake type chosen in this session, BTP_NONE = none yet
 static i32     ui_asset_details_obj      = -1;       // Object and Tile are kept while the dialog is open so a type change never clears them
 static i32     ui_asset_details_tile     = -1;
+static meta_t *ui_asset_details_combo_prev = NULL; // Metadata from before the first change made through the open combo, see ui_asset_details_combo_commit
 
 // Combo over ids, an id that is not in the list is appended as `Unknown (n)` so it is shown and kept. Returns true and sets value when changed.
 static bool ui_asset_details_combo(i32 *value, string_array_t *ar, i32_array_t *ids, char *label, char *(*label_of)(i32), i32 id_slot) {
@@ -25,7 +26,7 @@ static bool ui_asset_details_combo(i32 *value, string_array_t *ar, i32_array_t *
 	}
 	ui_set_next_id((ui_id_t)&ui_asset_details_ids[id_slot]);
 	ui_combo(&pos, ar, label, true, UI_ALIGN_LEFT, true);
-	bool changed = ui_item_changed();
+	bool changed = ui_item_changed() && ids->buffer[pos] != *value; // Escape hands back the old value
 	if (changed) {
 		*value = ids->buffer[pos];
 	}
@@ -44,6 +45,37 @@ static meta_t *ui_asset_details_snapshot() {
 // One undo step for a tag or bake edit, prev is the snapshot from before it
 static void ui_asset_details_push_edit(meta_t *prev) {
 	history_edit_meta(ui_asset_details_category, ui_asset_details_index, prev);
+}
+
+// A combo with a search bar hands over a value for each typed letter or arrow key while it is open, and the old value again on Escape.
+// The values apply at once so the dialog shows them, the undo step waits until the combo closes (ui_asset_details_combo_commit).
+static void ui_asset_details_combo_edit() {
+	if (ui_asset_details_combo_prev == NULL) {
+		ui_asset_details_combo_prev = ui_asset_details_snapshot();
+	}
+}
+
+// Once no combo is open: one undo step when the bake keys differ from those before the combo edit, none when they came back to them
+static void ui_asset_details_combo_commit() {
+	if (ui_asset_details_combo_prev == NULL || g_ui->combo_selected_id != 0) {
+		return;
+	}
+	meta_t *prev                = ui_asset_details_combo_prev;
+	meta_t *m                   = meta_peek(MC_TEXTURE, ui_asset_details_index);
+	ui_asset_details_combo_prev = NULL;
+	i32  keys[]                 = {META_BAKE_TYPE, META_ENCODING, META_OBJECT, META_TILE};
+	bool same                   = true;
+	for (i32 i = 0; i < 4; ++i) {
+		same = same && meta_get_i32(prev, keys[i], -1) == meta_get_i32(m, keys[i], -1);
+	}
+	if (same) {
+		return;
+	}
+	i32 btp = meta_get_i32(m, META_BAKE_TYPE, BTP_NONE);
+	if (btp != meta_get_i32(prev, META_BAKE_TYPE, BTP_NONE)) {
+		ui_asset_details_last_btp = btp;
+	}
+	ui_asset_details_push_edit(prev);
 }
 
 static bool ui_asset_details_has_name() {
@@ -171,10 +203,8 @@ static void ui_asset_details_draw_bake() {
 	i32 new_btp = btp;
 	if (ui_asset_details_combo(&new_btp, ar, ids, tr("Type"), &asset_bake_type_label, 0)) {
 		// A type change refills the encoding only, Object and Tile come from the dialog so a changing type (typed search) never loses them
-		ui_asset_details_last_btp = new_btp;
-		meta_t *prev              = ui_asset_details_snapshot();
+		ui_asset_details_combo_edit();
 		meta_set_bake(meta_get(MC_TEXTURE, ui_asset_details_index), new_btp, asset_bake_default_encoding(new_btp), ui_asset_details_obj, ui_asset_details_tile);
-		ui_asset_details_push_edit(prev);
 		return;
 	}
 
@@ -224,9 +254,8 @@ static void ui_asset_details_draw_bake() {
 	}
 
 	if (changed) {
-		meta_t *prev = ui_asset_details_snapshot();
+		ui_asset_details_combo_edit();
 		meta_set_bake(meta_get(MC_TEXTURE, ui_asset_details_index), btp, new_enc, new_obj, new_tile);
-		ui_asset_details_push_edit(prev);
 	}
 }
 
@@ -253,6 +282,7 @@ static i32 ui_asset_details_height() {
 static void ui_asset_details_box_draw() {
 	i32 count = meta_count(ui_asset_details_category);
 	if (ui_asset_details_index < 0 || ui_asset_details_index >= count) {
+		ui_asset_details_combo_prev = NULL;
 		ui_box_hide();
 		return;
 	}
@@ -263,6 +293,7 @@ static void ui_asset_details_box_draw() {
 	ui_asset_details_draw_tags();
 	if (ui_asset_details_category == MC_TEXTURE) {
 		ui_asset_details_draw_bake();
+		ui_asset_details_combo_commit();
 	}
 	ui_end_element();
 	if (ui_icon_button(tr("OK"), ICON_CHECK, UI_ALIGN_CENTER)) {
@@ -270,21 +301,27 @@ static void ui_asset_details_box_draw() {
 	}
 }
 
+// A combo closed with Enter is committed in the next draw, unless the dialog closes first (Escape or a click outside)
+static void ui_asset_details_on_hide() {
+	ui_asset_details_combo_commit();
+}
+
 // Opens the details dialog of an item of a category (meta_category_t)
 void ui_asset_details_show(i32 category, i32 index) {
 	if (index < 0 || index >= meta_count(category)) {
 		return;
 	}
-	ui_asset_details_category = category;
-	ui_asset_details_index    = index;
-	ui_asset_details_input    = "";
-	ui_asset_details_name     = "";
-	ui_asset_details_obj      = -1;
-	ui_asset_details_tile     = -1;
+	ui_asset_details_category   = category;
+	ui_asset_details_index      = index;
+	ui_asset_details_combo_prev = NULL;
+	ui_asset_details_input      = "";
+	ui_asset_details_name       = "";
+	ui_asset_details_obj        = -1;
+	ui_asset_details_tile       = -1;
 	if (category == MC_TEXTURE) {
 		meta_t *m             = meta_peek(MC_TEXTURE, index);
 		ui_asset_details_obj  = meta_get_i32(m, META_OBJECT, -1);
 		ui_asset_details_tile = meta_get_i32(m, META_TILE, -1);
 	}
-	ui_box_show_custom(&ui_asset_details_box_draw, 400, ui_asset_details_height(), NULL, true, tr("Details"));
+	ui_box_show_custom(&ui_asset_details_box_draw, 400, ui_asset_details_height(), &ui_asset_details_on_hide, true, tr("Details"));
 }
