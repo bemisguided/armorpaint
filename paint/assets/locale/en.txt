@@ -884,7 +884,6 @@ Remove tile {id}? Its pixels are deleted and undo history is cleared.
 Remove tile
 Objects this layer applies to
 Clamped to {res} px per tile (atlas limit 16384)
-{object} shares UV space with {other} on tile {tile}. In exports and path tracing this layer also applies to {other}.
 Per Object & Tile
 Default
 Atlas
