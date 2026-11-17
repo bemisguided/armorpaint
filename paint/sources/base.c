@@ -500,6 +500,21 @@ void base_update(void *_) {
 		base_drag_rect == NULL ? draw_scaled_image(img, mouse_x + base_drag_off_x, mouse_y + base_drag_off_y + inv, size, h - inv * 2)
 		                       : draw_scaled_sub_image(img, base_drag_rect->x, base_drag_rect->y, base_drag_rect->w, base_drag_rect->h,
 		                                               mouse_x + base_drag_off_x, mouse_y + base_drag_off_y + inv, size, h - inv * 2);
+
+		// Number of dragged items
+		i32 count = asset_selection_drag_count();
+		if (count > 1) {
+			char *text = i32_to_string(count);
+			draw_set_font(g_font, math_floor(UI_FONT_SIZE()));
+			f32 badge_w = draw_string_width(draw_font, draw_font_size, text) + 8 * scale_factor;
+			f32 badge_h = draw_font_height(draw_font, draw_font_size);
+			f32 badge_x = mouse_x + base_drag_off_x + size - badge_w;
+			f32 badge_y = mouse_y + base_drag_off_y;
+			draw_set_color(g_theme->HIGHLIGHT_COL);
+			draw_filled_rect(badge_x, badge_y, badge_w, badge_h);
+			draw_set_color(g_theme->TEXT_COL);
+			draw_string(text, badge_x + 4 * scale_factor, badge_y);
+		}
 		draw_set_color(0xffffffff);
 		draw_end();
 	}
