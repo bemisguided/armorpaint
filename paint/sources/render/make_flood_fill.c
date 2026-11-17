@@ -30,6 +30,12 @@ static ui_node_t *make_flood_fill_force_node  = NULL; // Bake button, baked on t
 
 static void make_flood_fill_update(void *_);
 
+static void make_flood_fill_redraw_nodes() {
+	if (ui_nodes_hwnd != NULL) {
+		ui_nodes_hwnd->redraws = 2;
+	}
+}
+
 static make_flood_fill_state_t *make_flood_fill_get_state(char *id) {
 	if (make_flood_fill_states == NULL) {
 		make_flood_fill_states = any_map_create();
@@ -50,7 +56,7 @@ static void make_flood_fill_clear_pending(make_flood_fill_state_t *s) {
 
 static void make_flood_fill_schedule() {
 	make_flood_fill_last_change = sys_time();
-	ui_nodes_hwnd->redraws      = 2; // Baking state of the node
+	make_flood_fill_redraw_nodes(); // Baking state of the node
 	if (!make_flood_fill_scheduled) {
 		make_flood_fill_scheduled = true;
 		sys_notify_on_update(make_flood_fill_update, NULL);
@@ -205,9 +211,11 @@ static void make_flood_fill_refresh(slot_material_t *m, ui_node_t *node) {
 		g_context->material = _material;
 		make_material_parse_paint_material(false);
 	}
-	ui_nodes_hwnd->redraws  = 2;
-	ui_view2d_hwnd->redraws = 2;
-	g_context->ddirty       = 2;
+	make_flood_fill_redraw_nodes();
+	if (ui_view2d_hwnd != NULL) {
+		ui_view2d_hwnd->redraws = 2;
+	}
+	g_context->ddirty = 2;
 }
 
 // Captures the Flood Fill nodes of the current material flagged needs_capture, and force_node (kept pending even when unchanged)
@@ -355,7 +363,7 @@ static void make_flood_fill_update(void *_) {
 	make_flood_fill_scheduled  = false;
 	make_flood_fill_force_node = NULL;
 	make_flood_fill_run(force_node);
-	ui_nodes_hwnd->redraws = 2;
+	make_flood_fill_redraw_nodes();
 }
 
 // Node preview traversal hook (make_material_bake_node_preview), linked = refresh during a paint stroke
