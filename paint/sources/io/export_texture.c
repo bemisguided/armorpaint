@@ -235,6 +235,17 @@ static void export_texture_set_channel(f32 value, buffer_t *to, i32 to_channel, 
 	}
 }
 
+// Object name as a file name part, characters a file system refuses become "_"
+static char *export_texture_file_label(char *name) {
+	char *r = string_copy(name);
+	for (char *c = r; *c != '\0'; ++c) {
+		if (strchr("/\\:*?\"<>|", *c) != NULL || (unsigned char)*c < 32) {
+			*c = '_';
+		}
+	}
+	return r;
+}
+
 static void export_texture_run_layers(char *path, slot_layer_t_array_t *layers, char *object_name, bool bake_material) {
 	i32 texture_size_x = config_get_texture_res_x();
 	i32 texture_size_y = config_get_texture_res_y();
@@ -270,10 +281,10 @@ static void export_texture_run_layers(char *path, slot_layer_t_array_t *layers, 
 	// Append object mask name
 	bool export_selected = g_context->layers_export == EXPORT_MODE_SELECTED;
 	if (export_selected && slot_layer_get_object_mask(layers->buffer[0]) > 0) {
-		f = string("%s_%s", f, g_project->_->paint_objects->buffer[slot_layer_get_object_mask(layers->buffer[0]) - 1]->base->name);
+		f = string("%s_%s", f, export_texture_file_label(g_project->_->paint_objects->buffer[slot_layer_get_object_mask(layers->buffer[0]) - 1]->base->name));
 	}
 	if (!is_udim && !export_selected && !string_equals(object_name, "")) {
-		f = string("%s_%s", f, object_name);
+		f = string("%s_%s", f, export_texture_file_label(object_name));
 	}
 
 	// Export a single udim tile when the target is one
