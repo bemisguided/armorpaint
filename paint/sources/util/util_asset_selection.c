@@ -149,6 +149,16 @@ any_array_t *asset_selection_drag_items(asset_tray_t tray, void *item, bool tray
 	return result;
 }
 
+// Tray indices of the items moved by a drag of this item, in selection order
+i32_array_t *asset_selection_drag_indices(asset_tray_t tray, void *item) {
+	any_array_t *moving  = asset_selection_drag_items(tray, item, false);
+	i32_array_t *indices = i32_array_create_from_raw((i32[]){}, 0);
+	for (i32 i = 0; i < moving->length; ++i) {
+		i32_array_push(indices, array_index_of(asset_selection_tray_items(tray), moving->buffer[i]));
+	}
+	return indices;
+}
+
 static void asset_selection_add_range(asset_tray_t tray, void *from, void *to, i32_array_t *visible) {
 	any_array_t *items = asset_selection_tray_items(tray);
 	i32          count = visible != NULL ? visible->length : items->length;
@@ -387,11 +397,14 @@ u32 asset_selection_highlight_color() {
 	return (g_theme->HIGHLIGHT_COL & 0x00ffffff) | 0x80000000;
 }
 
-// dir/name.ext, or dir/name.001.ext and up when the file exists
-char *asset_selection_unique_path(char *dir, char *name, char *ext) {
+// dir/name.ext, or dir/name.001.ext and up when the file exists or is in taken; the result is added to taken
+char *asset_selection_unique_path(char *dir, char *name, char *ext, string_array_t *taken) {
 	char *path = string("%s%s%s.%s", dir, PATH_SEP, name, ext);
-	for (i32 i = 1; iron_file_exists(path); ++i) {
+	for (i32 i = 1; iron_file_exists(path) || (taken != NULL && string_array_index_of(taken, path) >= 0); ++i) {
 		path = string("%s%s%s.%03d.%s", dir, PATH_SEP, name, i, ext);
+	}
+	if (taken != NULL) {
+		string_array_push(taken, path);
 	}
 	return path;
 }
