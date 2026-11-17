@@ -1034,7 +1034,7 @@ bool render_path_paint_paint_enabled() {
 	return !fill_layer && !group_layer && !g_context->foreground_event && !self_in_material;
 }
 
-// Strokes of these tools on an object restricted paint layer are skipped, with no undo step, when they start on an uncovered object.
+// Strokes of these tools on an object or tile restricted paint layer are skipped, with no undo step, when they start on an uncovered object or tile.
 // Fills keep their own rules (object fill paints every covered object, mesh fill only a covered picked one), sculpt layers are not checked.
 void render_path_paint_stroke_start() {
 	tool_type_t t = g_context->tool;
@@ -1042,7 +1042,8 @@ void render_path_paint_stroke_start() {
 	    t == TOOL_TYPE_BRUSH || t == TOOL_TYPE_ERASER || t == TOOL_TYPE_DECAL || t == TOOL_TYPE_TEXT || t == TOOL_TYPE_CLONE || t == TOOL_TYPE_BLUR;
 	render_path_paint_stroke_skipped = false;
 	render_path_paint_cover_pick     = history_push_undo && stroke_tool && !g_context->paint2d && g_context->layer->texpaint_sculpt == NULL &&
-	                                   !slot_layer_is_path(g_context->layer) && layer_objects_restricted(g_context->layer);
+	                                   !slot_layer_is_path(g_context->layer) &&
+	                                   (layer_objects_restricted(g_context->layer) || layer_tiles_tested(g_context->layer));
 }
 
 void render_path_paint_stroke_end() {
@@ -1050,7 +1051,7 @@ void render_path_paint_stroke_end() {
 	render_path_paint_cover_pick     = false;
 }
 
-// Object under the cursor, a miss (no object) counts as covered so strokes starting off the mesh behave as before
+// Object and tile under the cursor, a miss (no object) counts as covered so strokes starting off the mesh behave as before
 static bool render_path_paint_stroke_start_covered() {
 	i32         _pdirty       = g_context->pdirty;
 	tool_type_t _tool         = g_context->tool;
@@ -1062,7 +1063,18 @@ static bool render_path_paint_stroke_start_covered() {
 	g_context->pdirty         = _pdirty;
 	make_material_parse_paint_material(false);
 	render_path_base_draw_gbuffer();
-	return o == NULL || layer_covers_object(g_context->layer, o);
+	bool covered = o == NULL || layer_covers_object(g_context->layer, o);
+	if (covered && o != NULL && layer_tiles_tested(g_context->layer)) {
+		// A multi-tile object can be covered on some of its tiles only, the atlas uv under the cursor gives the tile
+		util_render_pick_pos_nor_tex(); // Reads the gbuffer drawn above
+		g_context->pdirty = _pdirty;
+		i32 stride        = util_udim_stride();
+		i32 col           = (i32)math_floor(math_max(0.0, math_min(g_context->uvx_picked * stride, stride - 1)));
+		i32 row           = (i32)math_floor(math_max(0.0, math_min(g_context->uvy_picked * stride, stride - 1)));
+		i32 tile          = util_udim_tile(col + row * stride);
+		covered           = tile < 0 || layer_covers_tile(g_context->layer, tile);
+	}
+	return covered;
 }
 
 void render_path_paint_begin() {
