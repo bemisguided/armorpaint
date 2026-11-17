@@ -868,7 +868,6 @@ Layer covers no objects
 No objects are selected for this layer or its group, so it covers nothing. Select objects or choose All to use it.
 No tiles are selected for this layer or its group, so it covers nothing. Select tiles or choose All to use it.
 Layer's objects are hidden or use another material
-Excluded by the group
 On
 Off
 UDIM tiles
