@@ -134,6 +134,7 @@ void project_new_resize_layers(void *_) {
 }
 
 void project_new(bool reset_layers) {
+	asset_selection_clear();
 	if (g_context->paint_object != NULL) {
 		project_cleanup();
 		g_project->_->filepath = "";

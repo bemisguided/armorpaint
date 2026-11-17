@@ -277,6 +277,7 @@ void base_update(void *_) {
 	if (has_drag && (mouse_movement_x != 0 || mouse_movement_y != 0)) {
 		base_is_dragging = true;
 	}
+	asset_selection_update();
 	if (mouse_released("left") && has_drag) {
 		if (base_drag_asset != NULL) {
 
