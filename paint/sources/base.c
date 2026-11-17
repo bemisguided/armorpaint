@@ -62,25 +62,35 @@ void base_save_and_quit_callback(bool save) {
 	}
 }
 
-void base_material_dropped_export(char *path) {
-	export_arm_run_material(path);
+static any_array_t *_base_dropped_materials;
+static char        *_base_dropped_folder;
+
+void base_material_dropped_export(void *_) {
+	for (i32 i = 0; i < _base_dropped_materials->length; ++i) {
+		slot_material_t *m = _base_dropped_materials->buffer[i];
+		export_arm_material(m, asset_selection_unique_path(_base_dropped_folder, m->canvas->name, "arm", NULL));
+	}
 	tab_browser_refresh = true;
 }
 
 void base_material_dropped() {
-	// Material drag and dropped onto viewport or layers tab
+	// Material drag and dropped onto viewport or layers tab, the selection holding it when there is one
+	any_array_t *materials = asset_selection_drag_items(ASSET_TRAY_MATERIALS, base_drag_material, false);
 	if (context_in_3d_view()) {
 		uv_type_t uv_type   = keyboard_down("control") ? UV_TYPE_PROJECT : UV_TYPE_UVMAP;
 		mat4_t    decal_mat = uv_type == UV_TYPE_PROJECT ? util_render_get_decal_mat() : mat4_nan();
-		layers_create_fill_layer(uv_type, decal_mat, -1);
+		layers_create_fill_layers(materials, uv_type, decal_mat, -1);
 	}
 	if (context_in_layers() && tab_layers_can_drop_new_layer(g_context->drag_dest)) {
 		uv_type_t uv_type   = keyboard_down("control") ? UV_TYPE_PROJECT : UV_TYPE_UVMAP;
 		mat4_t    decal_mat = uv_type == UV_TYPE_PROJECT ? util_render_get_decal_mat() : mat4_nan();
-		layers_create_fill_layer(uv_type, decal_mat, g_context->drag_dest);
+		layers_create_fill_layers(materials, uv_type, decal_mat, g_context->drag_dest);
 	}
 	else if (context_in_nodes()) {
-		ui_nodes_accept_material_drop(array_index_of(g_project->_->materials, base_drag_material));
+		i32_array_t *indices = asset_selection_drag_indices(ASSET_TRAY_MATERIALS, base_drag_material);
+		if (indices->length > 0) {
+			ui_nodes_accept_material_drops(indices);
+		}
 	}
 	else if (context_in_materials()) {
 		tab_materials_accept_material_drop(base_drag_material);
@@ -89,13 +99,10 @@ void base_material_dropped() {
 		tab_meshes_accept_material_drop(base_drag_material);
 	}
 	else if (context_in_browser() && iron_is_directory(tab_browser_path)) {
-		// Export material into the browser directory
-		char *name = base_drag_material->canvas->name;
-		char *path = string("%s%s%s.arm", tab_browser_path, PATH_SEP, name);
-		for (i32 i = 1; iron_file_exists(path); ++i) {
-			path = string("%s%s%s.%03d.arm", tab_browser_path, PATH_SEP, name, i);
-		}
-		sys_notify_on_next_frame(&base_material_dropped_export, path);
+		// Export materials into the browser directory
+		_base_dropped_materials = materials;
+		_base_dropped_folder    = string_copy(tab_browser_path);
+		sys_notify_on_next_frame(&base_material_dropped_export, NULL);
 	}
 	base_drag_material = NULL;
 }

@@ -917,6 +917,8 @@ void                      tab_sounds_accept_sound_drop(slot_sound_t *sound);
 void                      tab_textures_accept_asset_drop(asset_t *asset);
 void                      tab_textures_delete_texture(asset_t *asset);
 void                      tab_textures_delete_selected();
+void                      tab_materials_delete_selected();
+void                      tab_materials_duplicate_selected(void *_);
 void                      tab_textures_on_asset_moved(i32 asset_pos, i32 new_pos);
 void                      tab_textures_delete_unused();
 void                      tab_browser_show_directory(char *directory);
