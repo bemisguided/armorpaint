@@ -234,16 +234,18 @@ static void gpo_dispatch() {
 }
 
 // Half float target into the pair's RGBA8 buffer, then dilated like a cpu result.
+// Thickness is a hit distance in world units, divided by the world scale to the mesh units of the cpu bake.
 static void gpo_readback(i32 pair) {
 	buffer_t *pixels = gpu_get_texture_pixels(gpo_target);
 	u8       *out    = bake_maps_gpo_result(pair);
 	if (pixels == NULL || out == NULL || pixels->length < (u32)(gpo_w * gpo_h * 8)) {
 		return;
 	}
-	u16 *hp = (u16 *)pixels->buffer;
+	u16 *hp       = (u16 *)pixels->buffer;
+	f32  to_units = gpo_type == BAKE_TYPE_THICKNESS ? 1.0f / gpo_world_scale() : 1.0f;
 	for (i32 i = 0; i < gpo_w * gpo_h; ++i) {
 		for (i32 c = 0; c < 3; ++c) {
-			f32 v          = render_path_raytrace_half_to_float(hp[i * 4 + c]);
+			f32 v          = render_path_raytrace_half_to_float(hp[i * 4 + c]) * to_units;
 			v              = v < 0.0f ? 0.0f : v > 1.0f ? 1.0f : v;
 			out[i * 4 + c] = (u8)(v * 255.0f + 0.5f);
 		}
