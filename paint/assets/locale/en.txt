@@ -913,6 +913,8 @@ Tag
 Ambient Occlusion
 Details
 Rename
+Bake Type
+Edit Details
 Encoding
 Any
 Unknown ({n})
