@@ -57,6 +57,7 @@
 #include "nodes_material/combine_xyz_node.c"
 #include "nodes_material/curvature_bake_node.c"
 #include "nodes_material/float_curve_node.c"
+#include "nodes_material/flood_fill_node.c"
 #include "nodes_material/gabor_texture_node.c"
 #include "nodes_material/gamma_node.c"
 #include "nodes_material/geometry_node.c"
@@ -142,6 +143,7 @@
 #include "render/make_curvature.c"
 #include "render/make_depth.c"
 #include "render/make_discard.c"
+#include "render/make_flood_fill.c"
 #include "render/make_material.c"
 #include "render/make_mesh.c"
 #include "render/make_mesh_preview.c"
@@ -205,6 +207,7 @@
 #include "ui/ui_view2d.c"
 
 #include "util/edit_uvmap.c"
+#include "util/flood_fill_label.c"
 #include "util/util_brush.c"
 #include "util/util_clone.c"
 #include "util/util_csg.c"

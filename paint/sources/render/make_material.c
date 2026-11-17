@@ -207,6 +207,9 @@ void make_material_bake_node_preview(ui_node_t *node, ui_node_canvas_t *group, u
 	else if (string_equals(node->type, "BAKE_CURVATURE")) {
 		make_curvature_bake(node, group, parents, make_material_node_preview_id(node, parents));
 	}
+	else if (string_equals(node->type, "TEX_FLOOD_FILL")) {
+		make_flood_fill_on_traverse(node, group, parents, make_material_bake_linked);
+	}
 }
 
 void make_material_traverse_nodes(ui_node_t_array_t *nodes, ui_node_canvas_t *group, ui_node_t_array_t *parents) {
@@ -230,6 +233,7 @@ void make_material_traverse_nodes(ui_node_t_array_t *nodes, ui_node_canvas_t *gr
 
 // Deletes previews of material m, except the ones listed in keep
 void make_material_delete_node_previews(slot_material_t *m, string_array_t *keep) {
+	make_flood_fill_delete_states(m, keep);
 	if (g_context->node_previews == NULL) {
 		return;
 	}

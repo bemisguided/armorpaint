@@ -40,6 +40,7 @@ Arccosine
 Arcsine
 Arctan2
 Arctangent
+Area
 Array
 Asset
 Attribute
@@ -52,6 +53,7 @@ Bake
 Bake Material...
 Bake Texture
 Bake to Textures
+Baking
 Bands
 Base
 Base Color
@@ -135,6 +137,7 @@ Combine Color
 Combine XYZ
 Compass
 Confirm
+Connectivity
 Console
 Console Model
 Constant
@@ -277,6 +280,8 @@ Filter Textures
 Flat
 Flatten
 Float Curve
+Flood Fill
+Flood Fill: out of memory
 Floor
 Floored Modulo
 Fly
@@ -340,6 +345,7 @@ Hue/Saturation/Value
 Hyperbolic Cosine
 Hyperbolic Sine
 Hyperbolic Tangent
+ID
 Image Texture
 Image to PBR
 Import
@@ -432,6 +438,7 @@ Meshes
 Metallic
 Min
 Min Max
+Min Size
 Minimum
 Mirror
 Mix
@@ -641,6 +648,7 @@ Sculpt
 Sculpt Layer
 Search
 Search for nodes
+Seed
 Segments
 Select
 Select All
@@ -734,6 +742,7 @@ Textures...
 Theme
 Theme imported:
 Thickness
+Threshold
 Tile
 Tile X
 Tile Y
@@ -823,6 +832,7 @@ Window
 Wireframe
 Workspace
 World
+Wrap Edges
 Wrap Mouse
 Wrap mouse around view boundaries during camera control
 X
