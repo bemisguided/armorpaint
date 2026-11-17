@@ -19,7 +19,14 @@ void tab_sounds_delete_sound(slot_sound_t *sound) {
 	ui_dock_redraw(2);
 }
 
-slot_sound_t *_tab_sounds_export_sound;
+void tab_sounds_delete_selected() {
+	any_array_t *sounds = asset_selection_get(ASSET_TRAY_SOUNDS);
+	for (i32 i = 0; i < sounds->length; ++i) {
+		tab_sounds_delete_sound(sounds->buffer[i]);
+	}
+}
+
+static any_array_t *_tab_sounds_export_sounds; // Selected when Export was picked
 
 char *tab_sounds_ext(slot_sound_t *sound) {
 	return path_has_ext(sound->file, "ogg") ? ".ogg" : ".wav";
@@ -37,8 +44,30 @@ buffer_t *tab_sounds_get_bytes(slot_sound_t *sound) {
 	return iron_load_blob(sound->file);
 }
 
+static void tab_sounds_save(slot_sound_t *sound, char *file) {
+	buffer_t *bytes = tab_sounds_get_bytes(sound);
+	if (bytes == NULL) {
+		console_error(string("%s %s", tr("Failed to read sound:"), sound->file));
+		return;
+	}
+	iron_file_save_bytes(file, bytes, bytes->length);
+}
+
+// One file for a single sound, named from the file browser; each sound under its own name for several
 void tab_sounds_export(char *path) {
-	slot_sound_t *sound = _tab_sounds_export_sound;
+	if (_tab_sounds_export_sounds->length > 1) {
+		for (i32 i = 0; i < _tab_sounds_export_sounds->length; ++i) {
+			slot_sound_t *sound = _tab_sounds_export_sounds->buffer[i];
+			if (array_index_of(g_project->_->sounds, sound) == -1) {
+				continue;
+			}
+			char *ext  = tab_sounds_ext(sound);
+			char *name = ends_with(sound->name, ext) ? substring(sound->name, 0, string_length(sound->name) - string_length(ext)) : sound->name;
+			tab_sounds_save(sound, asset_selection_unique_path(path, name, ext + 1, NULL));
+		}
+		return;
+	}
+	slot_sound_t *sound = _tab_sounds_export_sounds->buffer[0];
 	char         *ext   = tab_sounds_ext(sound);
 	char         *f     = ui_files_filename;
 	if (string_equals(f, "")) {
@@ -47,23 +76,19 @@ void tab_sounds_export(char *path) {
 	if (!path_has_ext(f, ext + 1)) {
 		f = string("%s%s", f, ext);
 	}
-	buffer_t *bytes = tab_sounds_get_bytes(sound);
-	if (bytes == NULL) {
-		console_error(string("%s %s", tr("Failed to read sound:"), sound->file));
-		return;
-	}
-	iron_file_save_bytes(string("%s%s%s", path, PATH_SEP, f), bytes, bytes->length);
+	tab_sounds_save(sound, string("%s%s%s", path, PATH_SEP, f));
 }
 
 void tab_sounds_draw_context_menu_draw() {
 	i32 i = _tab_sounds_draw_i;
 	if (ui_menu_button(tr("Export"), "", ICON_EXPORT)) {
-		_tab_sounds_export_sound = g_project->_->sounds->buffer[i];
-		ui_files_filename        = string_copy(_tab_sounds_export_sound->name);
-		ui_files_show(substring(tab_sounds_ext(_tab_sounds_export_sound), 1, 4), true, false, &tab_sounds_export);
+		slot_sound_t *sound       = g_project->_->sounds->buffer[i];
+		_tab_sounds_export_sounds = asset_selection_get(ASSET_TRAY_SOUNDS);
+		ui_files_filename         = string_copy(sound->name);
+		ui_files_show(substring(tab_sounds_ext(sound), 1, 4), true, false, &tab_sounds_export);
 	}
 	if (ui_menu_button(tr("Delete"), "delete", ICON_DELETE)) {
-		tab_sounds_delete_sound(g_project->_->sounds->buffer[i]);
+		tab_sounds_delete_selected();
 	}
 }
 
@@ -121,6 +146,7 @@ void tab_sounds_draw(i32 *htab) {
 		ui_separator(3, false);
 
 		char *search = to_lower_case(tab_sounds_search);
+		asset_selection_sync_filter(ASSET_TRAY_SOUNDS, search);
 
 		f32 a     = ui_base_asset_scale();
 		i32 slotw = math_floor((50 * a + 1) * UI_SCALE());
@@ -169,10 +195,12 @@ void tab_sounds_draw(i32 *htab) {
 
 				gpu_texture_t *img = g_project->_->sounds->buffer[i]->image;
 
-				if (g_context->sound == g_project->_->sounds->buffer[i]) {
+				slot_sound_t *sound     = g_project->_->sounds->buffer[i];
+				bool          is_active = g_context->sound == sound;
+				if (is_active || asset_selection_contains(ASSET_TRAY_SOUNDS, sound)) {
 					// ui_fill(1, -2, img.width + 3, img.height + 3, ui.ops.theme.HIGHLIGHT_COL); // TODO
 					i32 w = 50 * a;
-					ui_rect_round(-1, -1, w + 2, w + 2, g_theme->HIGHLIGHT_COL, 2 * UI_SCALE());
+					ui_rect_round(-1, -1, w + 2, w + 2, is_active ? g_theme->HIGHLIGHT_COL : asset_selection_highlight_color(), 2 * UI_SCALE());
 				}
 
 				uix                       = g_ui->_x;
@@ -204,21 +232,26 @@ void tab_sounds_draw(i32 *htab) {
 				}
 
 				if (state == UI_STATE_STARTED) {
-					if (g_context->sound != g_project->_->sounds->buffer[i]) {
-						_tab_sounds_draw_i = i;
+					bool          can_drag = asset_selection_press(ASSET_TRAY_SOUNDS, sound, filtered);
+					slot_sound_t *primary  = asset_selection_primary_item();
+					if (g_context->sound != primary) {
+						_tab_sounds_draw_i = array_index_of(g_project->_->sounds, primary);
 						sys_notify_on_next_frame(&tab_sounds_draw_select_sound, NULL);
 					}
-					base_drag_off_x = -(mouse_x - uix - g_ui->_window_x - 3);
-					base_drag_off_y = -(mouse_y - uiy - g_ui->_window_y + 1);
-					base_drag_sound = g_project->_->sounds->buffer[i];
-					if (sys_time() - g_context->select_time < 0.2) {
-						ui_base_show_2d_view(VIEW_2D_TYPE_SOUND);
-						base_drag_sound  = NULL;
-						base_is_dragging = false;
+					if (can_drag) {
+						base_drag_off_x = -(mouse_x - uix - g_ui->_window_x - 3);
+						base_drag_off_y = -(mouse_y - uiy - g_ui->_window_y + 1);
+						base_drag_sound = sound;
+						if (sys_time() - g_context->select_time < 0.2) {
+							ui_base_show_2d_view(VIEW_2D_TYPE_SOUND);
+							base_drag_sound  = NULL;
+							base_is_dragging = false;
+						}
+						g_context->select_time = sys_time();
 					}
-					g_context->select_time = sys_time();
 				}
 				if (g_ui->is_hovered && g_ui->input_released_r) {
+					asset_selection_context(ASSET_TRAY_SOUNDS, sound);
 					_tab_sounds_draw_i = i;
 					sys_notify_on_next_frame(&tab_sounds_draw_context_menu, NULL);
 				}
@@ -263,7 +296,7 @@ void tab_sounds_draw(i32 *htab) {
 		                g_ui->input_y < g_ui->_window_y + g_ui->_window_h;
 		if (in_focus && g_ui->is_delete_down && g_project->_->sounds->length > 1 && !string_equals(g_context->sound->file, "")) {
 			g_ui->is_delete_down = false;
-			tab_sounds_delete_sound(g_context->sound);
+			tab_sounds_delete_selected();
 		}
 		if (in_focus) {
 			i32 i = array_index_of(g_project->_->sounds, g_context->sound);
@@ -288,10 +321,6 @@ void tab_sounds_accept_sound_drop(slot_sound_t *sound) {
 		return;
 	}
 
-	i32 sound_pos = array_index_of(g_project->_->sounds, sound);
-	if (sound_pos != -1 && math_abs(sound_pos - tab_sounds_drag_pos) > 0) {
-		array_remove(g_project->_->sounds, sound);
-		i32 new_pos = tab_sounds_drag_pos - sound_pos > 0 ? tab_sounds_drag_pos - 1 : tab_sounds_drag_pos;
-		array_insert(g_project->_->sounds, new_pos, sound);
-	}
+	any_array_t *moving = asset_selection_drag_items(ASSET_TRAY_SOUNDS, sound, true);
+	asset_selection_reorder(g_project->_->sounds, moving, tab_sounds_drag_pos, NULL);
 }
