@@ -596,11 +596,16 @@ static void import_arm_trust_scripts_box_draw() {
 	}
 }
 
-static void import_arm_check_scripts(project_t *project, bool meshes) {
+static bool import_arm_is_cloud(char *path) {
+	char *root = path_is_protected() ? string("%scloud", iron_internal_save_path()) : string("%s%scloud", iron_internal_files_location(), PATH_SEP);
+	return starts_with(path, root);
+}
+
+static void import_arm_check_scripts(project_t *project, char *path, bool meshes) {
 	if (args_player) {
 		return;
 	}
-	if (g_config->auto_run_scripts) {
+	if (g_config->auto_run_scripts || import_arm_is_cloud(path)) {
 		project_scripts_trusted = true;
 		return;
 	}
@@ -613,7 +618,7 @@ static void import_arm_check_scripts(project_t *project, bool meshes) {
 }
 
 static void import_arm_import_materials(project_t *project, char *path, i32_array_t *selected, bool delete_blob) {
-	import_arm_check_scripts(project, false);
+	import_arm_check_scripts(project, path, false);
 	if (project->material_nodes == NULL || project->material_nodes->length == 0) {
 		if (delete_blob) {
 			data_delete_blob(path);
@@ -849,7 +854,7 @@ void import_arm_run_project(char *path) {
 		project_scripts_trusted = was_trusted;
 	}
 	else {
-		import_arm_check_scripts(project, true);
+		import_arm_check_scripts(project, path, true);
 	}
 	layer_data_t *l0                     = g_project->layer_datas->buffer[0];
 	project_format_load_tiles(g_project, l0->res); // Sets base_res, base_res_x/y to the per tile resolution
