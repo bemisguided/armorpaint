@@ -381,31 +381,9 @@ static char *tab_layers_coverage_label(slot_layer_t *l) {
 	return tab_layers_coverage_text(multi, ao, o, first, at, t, t_first);
 }
 
-// Fixed text for the Applies to button, issues are appended by the caller
+// Fixed text for the Applies to button
 static char *tab_layers_coverage_tip() {
 	return util_udim_count() > 1 ? tr("Objects and tiles this layer applies to") : tr("Objects this layer applies to");
-}
-
-// "X shares UV space with Y on tile T..." when a covered object overlaps an uncovered one in uv space, NULL otherwise
-static char *tab_layers_objects_overlap_note(slot_layer_t *l) {
-	i32 object;
-	i32 other;
-	i32 tile;
-	if (!layer_uv_overlap(l, &object, &other, &tile)) {
-		return NULL;
-	}
-	mesh_object_t *a = project_object_by_id(object);
-	mesh_object_t *b = project_object_by_id(other);
-	if (a == NULL || b == NULL) {
-		return NULL;
-	}
-	any_map_t *vars = any_map_create();
-	any_map_set(vars, "object", a->base->name);
-	any_map_set(vars, "other", b->base->name);
-	any_map_set(vars, "tile", string_tmp("%d", tile));
-	char *note = vtr("{object} shares UV space with {other} on tile {tile}. In exports and path tracing this layer also applies to {other}.", vars);
-	map_free(vars);
-	return note;
 }
 
 // One history step per toggle, taken before the change
@@ -518,10 +496,7 @@ static void tab_layers_coverage_buttons(slot_layer_t *l) {
 		ui_menu_draw(&tab_layers_coverage_menu_draw, -1, -1);
 	}
 	else if (g_ui->is_hovered) {
-		// Fixed text, only the UV overlap problem is added to it
-		char *tip   = tab_layers_coverage_tip();
-		char *issue = tab_layers_objects_overlap_note(l);
-		ui_tooltip(issue != NULL ? string_tmp("%s\n%s", tip, issue) : tip);
+		ui_tooltip(tab_layers_coverage_tip());
 	}
 }
 
