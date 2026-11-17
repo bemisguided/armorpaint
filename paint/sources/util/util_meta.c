@@ -550,3 +550,32 @@ void meta_clear_bake(meta_t *m) {
 	meta_remove(m, META_OBJECT);
 	meta_remove(m, META_TILE);
 }
+
+// Renames a material, the name gets the .001 style suffix when taken. An empty or whitespace-only name is rejected and the old name stays.
+// Returns true when the name changed.
+bool asset_material_rename(slot_material_t *m, char *name) {
+	char *n = meta_trim(name);
+	if (m == NULL || string_equals(n, "")) {
+		return false;
+	}
+	n = slot_material_unique_name(m->canvas, n);
+	if (string_equals(m->canvas->name, n)) {
+		return false;
+	}
+	m->canvas->name = string_copy(n);
+	return true;
+}
+
+// Renames a brush, same rules as asset_material_rename
+bool asset_brush_rename(slot_brush_t *b, char *name) {
+	char *n = meta_trim(name);
+	if (b == NULL || string_equals(n, "")) {
+		return false;
+	}
+	n = slot_brush_unique_name(b->canvas, n);
+	if (string_equals(b->canvas->name, n)) {
+		return false;
+	}
+	b->canvas->name = string_copy(n);
+	return true;
+}

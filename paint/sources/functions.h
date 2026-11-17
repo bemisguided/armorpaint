@@ -1114,6 +1114,8 @@ char                     *asset_encoding_label(i32 enc);
 void                      meta_set_bake(meta_t *m, i32 btp, i32 enc, i32 object_paint_id, i32 tile);
 void                      meta_clear_bake(meta_t *m);
 void                      ui_asset_props_show(i32 texture_index);
+bool                      asset_material_rename(slot_material_t *m, char *name);
+bool                      asset_brush_rename(slot_brush_t *b, char *name);
 i32                       util_udim_count();
 i32                       util_udim_tile(i32 slot);
 i32                       util_udim_slot(i32 tile);
