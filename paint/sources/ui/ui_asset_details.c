@@ -3,7 +3,8 @@
 
 // "Details" dialog of an asset of a category (meta_category_t), shared by the Textures, Materials, Brushes, Fonts and Sounds trays.
 // Name (Materials and Brushes only), Tags, and for Textures the Bake Texture section (bake type, object, encoding, tile, see util_meta.c).
-// Changes apply at once, the name commits on Enter, when the field loses focus or when the dialog closes.
+// Changes apply at once, the name commits on Enter or when the field loses focus (a click anywhere else, Tab). Closing the dialog needs no commit of its own:
+// the click on OK or outside ends the edit first, and the field commits in the last frame the dialog draws.
 
 static i32     ui_asset_details_category = 0;
 static i32     ui_asset_details_index    = 0;
@@ -69,14 +70,13 @@ static void ui_asset_details_commit_name() {
 }
 
 static void ui_asset_details_draw_name() {
-	ui_id_t name_id     = ui_widget_id(&ui_asset_details_name, UI_ID_TEXT);
-	bool    was_editing = g_ui->text_selected_id == name_id;
-	if (!was_editing) {
+	ui_id_t name_id = ui_widget_id(&ui_asset_details_name, UI_ID_TEXT);
+	if (g_ui->text_selected_id != name_id) {
 		ui_asset_details_name = ui_asset_details_current_name(); // Follows undo and redo
 	}
 	ui_set_next_id((ui_id_t)&ui_asset_details_name);
 	ui_text_input(&ui_asset_details_name, tr("Name"), UI_ALIGN_LEFT, true, false);
-	if (was_editing && g_ui->text_selected_id != name_id) { // Enter or focus loss
+	if (ui_item_changed()) { // The edit ended (Enter, Tab or a click elsewhere): the field hands over its text only then, Escape hands back the old one
 		ui_asset_details_commit_name();
 	}
 }
@@ -249,12 +249,6 @@ static void ui_asset_details_box_draw() {
 	}
 }
 
-static void ui_asset_details_on_hide() {
-	if (ui_asset_details_index >= 0 && ui_asset_details_index < meta_count(ui_asset_details_category)) {
-		ui_asset_details_commit_name(); // A name still being edited
-	}
-}
-
 // Opens the details dialog of an item of a category (meta_category_t)
 void ui_asset_details_show(i32 category, i32 index) {
 	if (index < 0 || index >= meta_count(category)) {
@@ -276,5 +270,5 @@ void ui_asset_details_show(i32 category, i32 index) {
 	else if (category == MC_MATERIAL || category == MC_BRUSH) {
 		mh = 360;
 	}
-	ui_box_show_custom(&ui_asset_details_box_draw, 400, mh, &ui_asset_details_on_hide, true, tr("Details"));
+	ui_box_show_custom(&ui_asset_details_box_draw, 400, mh, NULL, true, tr("Details"));
 }
