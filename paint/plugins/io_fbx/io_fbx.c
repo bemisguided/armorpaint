@@ -20,6 +20,17 @@ static int          mat_split_count   = 0;
 static int          mat_split_idx     = 0;
 extern int          plugins_split_by;
 
+// The normal matrix of a scaled node (Blender writes a node scale of 100 with cm units) scales normals by the inverse scale
+static ufbx_vec3 fbx_normalize(ufbx_vec3 v) {
+	ufbx_real l = sqrt(v.x * v.x + v.y * v.y + v.z * v.z);
+	if (l > 0.0) {
+		v.x /= l;
+		v.y /= l;
+		v.z /= l;
+	}
+	return v;
+}
+
 static bool valid_mesh(ufbx_node *n) {
 	return n->mesh != NULL && n->mesh->num_triangles > 0;
 }
@@ -186,7 +197,7 @@ static void build_material_split(ufbx_scene *scene) {
 				fbuf_push(&pf[m], v.x);
 				fbuf_push(&pf[m], -v.z);
 				fbuf_push(&pf[m], v.y);
-				ufbx_vec3 nv = ufbx_transform_direction(&normal_mat, ufbx_get_vertex_vec3(&mesh->vertex_normal, a));
+				ufbx_vec3 nv = fbx_normalize(ufbx_transform_direction(&normal_mat, ufbx_get_vertex_vec3(&mesh->vertex_normal, a)));
 				fbuf_push(&nf[m], nv.x);
 				fbuf_push(&nf[m], -nv.z);
 				fbuf_push(&nf[m], nv.y);
@@ -284,7 +295,7 @@ static void build_udim_split(ufbx_scene *scene) {
 					fbuf_push(&pf[t], v.x);
 					fbuf_push(&pf[t], -v.z);
 					fbuf_push(&pf[t], v.y);
-					ufbx_vec3 nv = ufbx_transform_direction(&normal_mat, ufbx_get_vertex_vec3(&mesh->vertex_normal, a));
+					ufbx_vec3 nv = fbx_normalize(ufbx_transform_direction(&normal_mat, ufbx_get_vertex_vec3(&mesh->vertex_normal, a)));
 					fbuf_push(&nf[t], nv.x);
 					fbuf_push(&nf[t], -nv.z);
 					fbuf_push(&nf[t], nv.y);
@@ -346,7 +357,7 @@ void io_fbx_parse_mesh(raw_mesh_t *raw, ufbx_mesh *mesh, ufbx_matrix *to_world, 
 			posa32[pi++] = -v.z;
 			posa32[pi++] = v.y;
 
-			v = ufbx_transform_direction(to_world_unscaled, ufbx_get_vertex_vec3(&mesh->vertex_normal, a));
+			v = fbx_normalize(ufbx_transform_direction(to_world_unscaled, ufbx_get_vertex_vec3(&mesh->vertex_normal, a)));
 			// nora32[ni++] = v.x;
 			// nora32[ni++] = v.y;
 			// nora32[ni++] = v.z;
