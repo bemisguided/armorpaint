@@ -579,3 +579,25 @@ bool asset_brush_rename(slot_brush_t *b, char *name) {
 	b->canvas->name = string_copy(n);
 	return true;
 }
+
+// Renames the material or brush at index of a category (MC_MATERIAL, MC_BRUSH) and pushes one undo step.
+// No step when the name did not change. Returns true when the name changed.
+bool asset_rename(i32 category, i32 index, char *name) {
+	if (category == MC_MATERIAL && index >= 0 && index < g_project->_->materials->length) {
+		slot_material_t *m    = g_project->_->materials->buffer[index];
+		char            *prev = string_copy(m->canvas->name);
+		if (asset_material_rename(m, name)) {
+			history_rename_asset(CANVAS_TYPE_MATERIAL, index, prev);
+			return true;
+		}
+	}
+	else if (category == MC_BRUSH && index >= 0 && index < g_project->_->brushes->length) {
+		slot_brush_t *b    = g_project->_->brushes->buffer[index];
+		char         *prev = string_copy(b->canvas->name);
+		if (asset_brush_rename(b, name)) {
+			history_rename_asset(CANVAS_TYPE_BRUSH, index, prev);
+			return true;
+		}
+	}
+	return false;
+}

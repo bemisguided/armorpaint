@@ -83,6 +83,8 @@ char *history_action_to_string(history_action_t action) {
 		return tr("Edit Swatch");
 	case HISTORY_ACTION_OBJECT_TRANSFORM:
 		return tr("Transform Object");
+	case HISTORY_ACTION_RENAME_ASSET:
+		return tr("Rename");
 	}
 	return tr("Paint");
 }
@@ -284,6 +286,25 @@ void history_swap_swatch(history_step_t *step) {
 	g_context->picked_color = util_clone_swatch_color(s);
 	ui_dock_redraw(TAB_AREA_STATUS);
 	ui_header_handle->redraws = 2;
+}
+
+// Swaps the name of a renamed material or brush with the one stored in the step, used for both undo and redo
+void history_swap_asset_name(history_step_t *step) {
+	bool              material = step->canvas_type == CANVAS_TYPE_MATERIAL;
+	ui_node_canvas_t *canvas   = NULL;
+	if (material && step->asset_index >= 0 && step->asset_index < g_project->_->materials->length) {
+		canvas = g_project->_->materials->buffer[step->asset_index]->canvas;
+	}
+	else if (!material && step->asset_index >= 0 && step->asset_index < g_project->_->brushes->length) {
+		canvas = g_project->_->brushes->buffer[step->asset_index]->canvas;
+	}
+	if (canvas == NULL) {
+		return;
+	}
+	char *t          = canvas->name;
+	canvas->name     = step->asset_name;
+	step->asset_name = t;
+	ui_nodes_hwnd->redraws = 2;
 }
 
 void history_swap_object_transform(history_step_t *step) {
@@ -525,6 +546,9 @@ void history_undo() {
 		}
 		else if (step->action == HISTORY_ACTION_OBJECT_TRANSFORM) {
 			history_swap_object_transform(step);
+		}
+		else if (step->action == HISTORY_ACTION_RENAME_ASSET) {
+			history_swap_asset_name(step);
 		}
 		else if (step->action == HISTORY_ACTION_DELETE_NODE_GROUP) {
 			node_group_t *ng = ALLOC_INIT(node_group_t, {.canvas = NULL, .nodes = ui_nodes_create()});
@@ -813,6 +837,9 @@ void history_redo() {
 		}
 		else if (step->action == HISTORY_ACTION_OBJECT_TRANSFORM) {
 			history_swap_object_transform(step);
+		}
+		else if (step->action == HISTORY_ACTION_RENAME_ASSET) {
+			history_swap_asset_name(step);
 		}
 		else if (step->action == HISTORY_ACTION_DELETE_NODE_GROUP) {
 			history_swap_canvas(step);
@@ -1178,6 +1205,14 @@ void history_object_transform(mesh_object_t *o, vec4_t loc, quat_t rot, vec4_t s
 	step->object_loc   = loc;
 	step->object_rot   = rot;
 	step->object_scale = scale;
+}
+
+// Pushes the rename of a material (CANVAS_TYPE_MATERIAL) or brush (CANVAS_TYPE_BRUSH) at index, prev_name is the name before the rename
+void history_rename_asset(i32 canvas_type, i32 index, char *prev_name) {
+	history_step_t *step = history_push(HISTORY_ACTION_RENAME_ASSET);
+	step->canvas_type    = canvas_type;
+	step->asset_index    = index;
+	step->asset_name     = string_copy(prev_name);
 }
 
 void history_new_swatch() {
