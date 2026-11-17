@@ -70,6 +70,7 @@ int  inpaint_mode   = 0;     // Copy, Smooth
 int  inpaint_target = 0;     // 0: every baked map, n: the n-th of them
 bool inpaint_ready  = false; // Mask layout prepared for the current stroke
 bool inpaint_tried  = false; // One attempt per stroke
+bool inpaint_reached = false; // The stroke reached the mesh
 
 void add_map(int i, char *name, char *suffix, int type, bool enabled) {
 	map_names[i]    = name;
@@ -346,18 +347,36 @@ void inpaint_stroke() {
 			console_error("Inpaint: no baked maps found for this mesh, bake them first");
 			return;
 		}
-		if (!bake_maps_inpaint_begin(map_path(targets[0]), map_per_object(targets[0]))) {
+		int begin = bake_maps_inpaint_begin(map_path(targets[0]), map_per_object(targets[0]));
+		if (begin == 1) {
+			console_error("Inpaint: the baked maps are not loaded in the project, bake them again");
+			return;
+		}
+		if (begin == 2) {
+			console_error("Inpaint is not available while baking");
+			return;
+		}
+		if (begin == 3) {
 			console_error("Inpaint needs a mesh with a UV map");
+			return;
+		}
+		if (begin == 4) {
+			console_error("Inpaint: the per object bake result is not available, bake the maps again");
 			return;
 		}
 		inpaint_ready = true;
 	}
-	bake_maps_inpaint_stroke();
+	if (bake_maps_inpaint_stroke()) {
+		inpaint_reached = true;
+	}
 	plugin_tool_set_overlay(inpaint_tool, bake_maps_inpaint_mask(), 0xa6ff0d0d);
 }
 
 void inpaint_stroke_end() {
-	if (inpaint_ready) {
+	if (inpaint_ready && !inpaint_reached) {
+		console_info("Inpaint: the stroke missed the mesh, nothing repaired");
+	}
+	else if (inpaint_ready) {
 		int targets[13];
 		int count = inpaint_targets(targets);
 		int done  = 0;
@@ -377,8 +396,9 @@ void inpaint_stroke_end() {
 	}
 	bake_maps_inpaint_clear();
 	plugin_tool_set_overlay(inpaint_tool, NULL, 0);
-	inpaint_ready = false;
-	inpaint_tried = false;
+	inpaint_ready   = false;
+	inpaint_tried   = false;
+	inpaint_reached = false;
 }
 
 void inpaint_header() {

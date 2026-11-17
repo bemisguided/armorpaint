@@ -7,7 +7,7 @@
 // Upstream compares versions by exact string and has converters for 0..22 only, so "99" files cleanly fail to load there.
 // Upstream "23" files load through import_arm_from_version_23 below, older ones chain into it from import_legacy.c.
 // Projects decode by field position (armpack), so these types.h fields must stay in the order written here:
-// - project_t: next_object_id, mesh_ids, udim_tiles, mesh_tiles, metas (after mesh_groups, before _)
+// - project_t: next_object_id, mesh_ids, udim_tiles, mesh_tiles, metas, tile_res_x, tile_res_y (after mesh_groups, before _)
 // - meta_t:    category, index, tags, bool_keys, bool_values, i32_keys, i32_values, f32_keys, f32_values, i32_array_keys,
 //              i32_array_values (the entry maps of metas, every field written in this order)
 // layer_data_t has the upstream layout, its object_mask is written as 0 (layer coverage is in metas).
@@ -92,10 +92,14 @@ void project_format_encode_project(project_t *raw) {
 	for (i32 i = 0; raw->metas != NULL && i < raw->metas->length; ++i) {
 		project_format_encode_meta(raw->metas->buffer[i]);
 	}
+	armpack_encode_string("tile_res_x");
+	armpack_encode_i32(raw->tile_res_x);
+	armpack_encode_string("tile_res_y");
+	armpack_encode_i32(raw->tile_res_y);
 }
 
 i32 project_format_encode_size(project_t *raw) {
-	i32 size = 16;
+	i32 size = 64;
 	for (i32 i = 0; raw->metas != NULL && i < raw->metas->length; ++i) {
 		meta_t *m = raw->metas->buffer[i];
 		size += 256; // Map, keys and array headers
@@ -173,6 +177,8 @@ void project_format_save_prep(project_t *raw) {
 	}
 	raw->next_object_id = raw->_->next_object_id;
 	project_format_reset_tiles(raw, objects->length);
+	raw->tile_res_x = config_get_texture_res_x(); // The requested resolution, layers are saved at the clamped atlas size
+	raw->tile_res_y = config_get_texture_res_y();
 
 	// Copies, so project_t never points into runtime arrays that are freed with their mesh
 	for (i32 i = 0; project_format_saved_tiles != NULL && i < project_format_saved_tiles->length; ++i) {
@@ -341,10 +347,10 @@ static bool project_format_has_key(buffer_t *b, char *key) {
 	return false;
 }
 
-// Decodes a project file. A "99" file of an earlier build of the fork has no metas key and another layout, armpack would
-// decode it with shifted fields, so it is refused: NULL, the caller reports an unsupported version. Older versions decode as before.
+// Decodes a project file. A "99" file of an earlier build of the fork has no tile_res_y key (the last field) and another layout,
+// armpack would decode it with shifted fields, so it is refused: NULL, the caller reports an unsupported version. Older versions decode as before.
 project_t *project_format_decode(buffer_t *b) {
-	if (!import_arm_is_old(b) && !project_format_has_key(b, "metas")) {
+	if (!import_arm_is_old(b) && !project_format_has_key(b, "tile_res_y")) {
 		return NULL;
 	}
 	return armpack_decode(b);
@@ -385,7 +391,9 @@ void project_format_set_defaults(project_t *raw) {
 	project_format_reset_tiles(raw, mesh_count);
 	raw->udim_tiles->length = 0; // Converted projects have a single tile, not the one of the project that is open now
 	i32_array_push(raw->udim_tiles, 1001);
-	raw->metas = any_array_create(0); // Every layer covers all objects and tiles
+	raw->metas      = any_array_create(0); // Every layer covers all objects and tiles
+	raw->tile_res_x = 0;                   // Taken from the layer size on load
+	raw->tile_res_y = 0;
 }
 
 // Load, metadata of item index of a category as saved (font index is the font_assets one), a copy the caller owns,
@@ -407,10 +415,17 @@ void project_format_load_mesh_metas(project_t *raw) {
 	}
 }
 
-// Load, before the layer textures are created. The runtime list is the saved one ({1001} when missing),
-// the project resolution becomes the per tile one: saved layers have the atlas size, which is the same for a single tile.
+// Load, before the layer textures are created. The runtime list is the saved one ({1001} when missing), the project resolution
+// becomes the requested per tile one, which the atlas clamps as before the save. Converted projects have none: saved layers have
+// the atlas size, which is the same for a single tile.
 void project_format_load_tiles(project_t *raw, i32 layer_res) {
 	util_udim_set_tiles(raw->udim_tiles);
+	if (raw->tile_res_x > 0 && raw->tile_res_y > 0) {
+		base_res_x = (f32)raw->tile_res_x;
+		base_res_y = (f32)raw->tile_res_y;
+		base_res   = config_get_texture_res_pos(raw->tile_res_x);
+		return;
+	}
 	i32 res = layer_res / util_udim_stride();
 	if (res * util_udim_stride() != layer_res) {
 		console_info(string("Layer size %d is not a multiple of the udim atlas stride %d, using %d per tile", layer_res, util_udim_stride(), res));

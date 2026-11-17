@@ -239,6 +239,17 @@ static void export_texture_set_channel(f32 value, buffer_t *to, i32 to_channel, 
 	}
 }
 
+// Object name as a file name part, characters a file system refuses become "_"
+static char *export_texture_file_label(char *name) {
+	char *r = string_copy(name);
+	for (char *c = r; *c != '\0'; ++c) {
+		if (strchr("/\\:*?\"<>|", *c) != NULL || (unsigned char)*c < 32) {
+			*c = '_';
+		}
+	}
+	return r;
+}
+
 // object_filter (paint id) and tile_filter (udim id) limit every layer to that object or tile, 0 for none.
 // Restricted layers are masked to their coverage footprint either way. A tile filter also crops that tile out of the
 // flattened atlas at its native size and adds "_<tile>" after the channel name. object_name is the file name label.
@@ -277,7 +288,7 @@ static void export_texture_run_layers(char *path, slot_layer_t_array_t *layers, 
 	// Append object name, selected layers can cover any set of objects and get none
 	bool export_selected = g_context->layers_export == EXPORT_MODE_SELECTED;
 	if (!export_selected && !string_equals(object_name, "")) {
-		f = string("%s_%s", f, object_name);
+		f = string("%s_%s", f, export_texture_file_label(object_name));
 	}
 
 	// Clear export layer
