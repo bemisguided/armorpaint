@@ -283,7 +283,10 @@ void base_update(void *_) {
 
 			// Create image texture
 			if (context_in_nodes()) {
-				ui_nodes_accept_asset_drop(array_index_of(g_project->_->assets, base_drag_asset));
+				i32_array_t *indices = asset_selection_drag_indices(ASSET_TRAY_TEXTURES, base_drag_asset);
+				if (indices->length > 0) {
+					ui_nodes_accept_asset_drops(indices);
+				}
 			}
 			else if (context_in_3d_view()) {
 				if (path_has_ext(base_drag_asset->file, "hdr")) {
