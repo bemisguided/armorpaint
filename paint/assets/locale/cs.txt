@@ -688,6 +688,7 @@ Přihlašování...
 Sinus
 Velikost
 Slot
+
 Vyhladit
 Rozmazat
 Přichytit

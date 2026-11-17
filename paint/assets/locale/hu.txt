@@ -688,6 +688,7 @@ Bejelentkezés folyamatban...
 Szinusz
 Méret
 Hely
+
 Simítás
 Elkenés
 Illesztés

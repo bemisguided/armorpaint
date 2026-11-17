@@ -688,6 +688,7 @@ Logowanie...
 Sinus
 Rozmiar
 Slot
+
 Wygładzanie
 Rozmazanie
 Przyciągaj

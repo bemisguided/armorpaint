@@ -1,7 +1,7 @@
 
 #include "../global.h"
 
-// Hidden atlas of the Texture Slot node (interim, see notes/PAINT_PATH.md verdict B).
+// Hidden atlas of the Slot Texture node (interim, see notes/PAINT_PATH.md verdict B).
 // A fill layer is one draw of the merged mesh with the atlas uv as position, so the (object, tile) pair is not known when
 // the texture is bound. Until the draw is split per pair, the textures of one bake type are composed into one internal
 // render target of the project atlas layout (one slot per udim tile, a project without tiles has the single slot 1001).
@@ -43,7 +43,7 @@ static texture_slot_entry_t *texture_slot_entry(i32 btp, bool create) {
 	return e;
 }
 
-// A Texture Slot node of this bake type was parsed or bound, its atlas is kept up to date from now on
+// A Slot Texture node of this bake type was parsed or bound, its atlas is kept up to date from now on
 void texture_slot_want(i32 btp) {
 	texture_slot_entry(btp, true);
 }
@@ -269,7 +269,7 @@ static void texture_slot_invalidate() {
 }
 
 // Per frame from base_update: rebuilds the atlases whose textures changed, then refreshes the layers and previews once.
-// One check when no Texture Slot node was ever parsed.
+// One check when no Slot Texture node was ever parsed.
 void texture_slot_update() {
 	if (texture_slot_count == 0 || gpu_in_use || _draw_current != NULL) {
 		return;

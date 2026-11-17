@@ -1,7 +1,7 @@
 
 #include "../global.h"
 
-// Texture Slot: the baked texture of a bake type (Bake Properties on textures) for the object and tile being painted.
+// Slot Texture: the baked texture of a bake type (Bake Properties on textures) for the object and tile being painted.
 // The button stores the persistent bake type id (BTP_*), not the position in the combo.
 // One sampler per bake type (texslot_<btp>), bound to the hidden atlas of that type (_texslot_<btp>, uniforms.c).
 
@@ -84,7 +84,7 @@ char *texture_slot_node_value(ui_node_t *node, ui_node_socket_t *socket) {
 
 void texture_slot_node_init() {
 	ui_node_t *texture_slot_node_def = ALLOC_INIT(ui_node_t, {.id      = 0,
-	                                                          .name    = _tr("Texture Slot"),
+	                                                          .name    = _tr("Slot Texture"),
 	                                                          .type    = "TEX_SLOT",
 	                                                          .x       = 0,
 	                                                          .y       = 0,

@@ -688,6 +688,7 @@ Iniciando sesión...
 Seno
 Tamaño
 Ranura
+
 Suavizar
 Difuminar
 Adherir

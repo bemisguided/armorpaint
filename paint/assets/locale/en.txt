@@ -688,6 +688,7 @@ Signing in...
 Sine
 Size
 Slot
+Slot Texture
 Smooth
 Smudge
 Snap
