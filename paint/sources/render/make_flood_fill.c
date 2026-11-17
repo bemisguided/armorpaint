@@ -21,6 +21,7 @@ typedef struct make_flood_fill_state {
 	u8                 *pending_mask;
 	flood_fill_params_t pending_params;
 	bool                needs_capture; // Input may have changed during a stroke, capture when the debounce fires
+	bool                just_baked;    // Not captured again by the refresh after its own bake
 } make_flood_fill_state_t;
 
 static any_map_t *make_flood_fill_states      = NULL; // Preview id to state
@@ -279,13 +280,17 @@ static void make_flood_fill_bake(make_flood_fill_state_t *s, char *id) {
 	f32                 *out = malloc((size_t)p->width * p->height * 4 * sizeof(f32));
 	if (out != NULL) {
 		s->islands = flood_fill_label(s->pending_mask, p, out);
-		if (s->islands < 0) {
-			console_error(tr("Flood Fill: out of memory"));
-		}
 		make_flood_fill_upload(id, out, p->width, p->height);
 		free(out);
-		s->has_baked       = true;
-		s->baked_signature = s->pending_signature;
+		if (s->islands < 0) {
+			console_error(tr("Flood Fill: out of memory"));
+			s->has_baked = false; // Black result, the next traversal tries again
+		}
+		else {
+			s->has_baked       = true;
+			s->baked_signature = s->pending_signature;
+			s->just_baked      = true;
+		}
 	}
 	else {
 		console_error(tr("Flood Fill: out of memory"));
@@ -419,6 +424,17 @@ static void make_flood_fill_run(ui_node_t *force_node) {
 			make_flood_fill_refresh(m, changed->buffer[i]);
 		}
 	}
+	// A refilled layer read back by the node's own input (Layer node) would otherwise rebake it forever.
+	// Listed again, the refresh may have freed states.
+	array_free(keys);
+	free(keys);
+	keys = map_keys(make_flood_fill_states);
+	for (i32 i = 0; i < keys->length; ++i) {
+		make_flood_fill_state_t *s = any_map_get(make_flood_fill_states, keys->buffer[i]);
+		if (s != NULL) {
+			s->just_baked = false;
+		}
+	}
 
 	array_free(keys);
 	free(keys);
@@ -474,6 +490,9 @@ void make_flood_fill_on_traverse(ui_node_t *node, ui_node_canvas_t *group, ui_no
 	make_flood_fill_state_t *s = make_flood_fill_get_state(id);
 	s->material_id             = g_context->material->id;
 	s->node                    = node;
+	if (s->just_baked) {
+		return; // Refresh right after its own bake
+	}
 	if (linked || bake_texture_node_baking || g_ui->input_down) {
 		// No readback during strokes and slider drags, or while Bake Texture swaps the layer
 		s->needs_capture = true;
