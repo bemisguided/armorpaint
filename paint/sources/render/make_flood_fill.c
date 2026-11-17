@@ -1,8 +1,8 @@
 #include "../global.h"
 
 // Flood Fill bake on the cpu.
-// Every node preview traversal captures the node's mask input (rendered with the node passing its input through,
-// read back and thresholded). A changed mask or parameter set makes the node pending; 0.5 s after the last change
+// Every node preview traversal captures the node's mask input (the paint mesh drawn in uv space with the node passing
+// its input through, like a fill layer, read back and thresholded). A changed mask or parameter set makes the node pending; 0.5 s after the last change
 // the islands are labelled (util/flood_fill_label.c) and uploaded as one RGBA64 texture into g_context->node_previews,
 // sampled by the node as _texflood_<preview id>. Nothing is saved with the project.
 
@@ -86,21 +86,119 @@ static u64 make_flood_fill_signature(u8 *mask, flood_fill_params_t *p) {
 	return h;
 }
 
-// Renders the mask input of node at w x h and thresholds it, returns w * h bytes, 1 = inside
-static u8 *make_flood_fill_capture_mask(ui_node_t *node, ui_node_canvas_t *group, ui_node_t_array_t *parents, i32 w, i32 h) {
-	gpu_texture_t *target             = gpu_create_render_target(w, h, GPU_TEXTURE_FORMAT_RGBA32);
-	parser_material_flood_passthrough = node;
-	util_render_make_node_preview(g_context->material->canvas, node, target, group, parents);
-	parser_material_flood_passthrough = NULL;
+// The mesh the fill layers are painted on: all paint objects merged, or the single one
+static mesh_object_t *make_flood_fill_capture_object() {
+	return g_context->merged_object != NULL ? g_context->merged_object : g_context->paint_object;
+}
 
-	// The preview writes float3(mask), any color channel holds it whatever the byte order
+// Shader drawing mesh o in uv space, like the paint shader of a fill layer, with the mask input of node as color.
+// The node passes its input through while parsed, so the graph above it is evaluated with the real positions,
+// normals and uvs of the mesh. NULL when it does not compile.
+static shader_context_t *make_flood_fill_capture_shader(ui_node_t *node, ui_node_canvas_t *group, ui_node_t_array_t *parents, mesh_object_t *o) {
+	shader_context_t      *props = ALLOC_INIT(shader_context_t, {.name            = "mesh",
+	                                                             .depth_write     = false,
+	                                                             .compare_mode    = "always",
+	                                                             .cull_mode       = "none",
+	                                                             .vertex_elements = any_array_create_from_raw(
+	                                                                 (void *[]){
+	                                                                     ALLOC_INIT(vertex_element_t, {.name = "pos", .data = "short4norm"}),
+	                                                                     ALLOC_INIT(vertex_element_t, {.name = "nor", .data = "short2norm"}),
+	                                                                     ALLOC_INIT(vertex_element_t, {.name = "tex", .data = "short2norm"}),
+	                                                                 },
+	                                                                 3),
+	                                                             .color_attachments = any_array_create_from_raw(
+	                                                                 (void *[]){
+	                                                                     "RGBA32",
+	                                                                 },
+	                                                                 1)});
+	material_t            *data  = ALLOC_INIT(material_t, {.name = "Material", .canvas = g_context->material->canvas});
+	node_shader_context_t *con   = node_shader_context_create(data, props);
+	bool                   vcols = mesh_data_get_vertex_array(o->data, "col") != NULL;
+	if (vcols) {
+		node_shader_context_add_elem(con, "col", "short4norm");
+	}
+	if (mesh_data_get_vertex_array(o->data, "tex1") != NULL) {
+		node_shader_context_add_elem(con, "tex1", "short2norm");
+	}
+	con->allow_vcols = vcols;
+
+	node_shader_t *kong = node_shader_context_make_kong(con);
+	node_shader_write_vert(kong, "float2 tpos = float2(input.tex.x * 2.0 - 1.0, (1.0 - input.tex.y) * 2.0 - 1.0);");
+	node_shader_write_vert(kong, "output.pos = float4(tpos, 0.0, 1.0);");
+	node_shader_add_out(kong, "float2 tex_coord");
+	node_shader_write_attrib_vert(kong, "output.tex_coord = input.tex;");
+	node_shader_write_attrib_frag(kong, "float2 tex_coord = input.tex_coord;");
+
+	parser_material_init();
+	parser_material_canvases = any_array_create_from_raw(
+	    (void *[]){
+	        g_context->material->canvas,
+	    },
+	    1);
+	parser_material_nodes = g_context->material->canvas->nodes;
+	parser_material_links = g_context->material->canvas->links;
+	if (group != NULL) {
+		parser_material_push_group(group);
+		parser_material_parents = parents;
+	}
+	ui_node_link_t_array_t *links = parser_material_links;
+	ui_node_link_t *link = ALLOC_INIT(ui_node_link_t, {.id = ui_next_link_id(links), .from_id = node->id, .from_socket = 0, .to_id = -1, .to_socket = -1});
+	any_array_push(links, link);
+	parser_material_con                   = con;
+	parser_material_kong                  = kong;
+	parser_material_flood_passthrough     = node;
+	parser_material_transform_color_space = false;
+	char *res                             = parser_material_write_result(link); // ID output, the mask while passed through
+	parser_material_transform_color_space = true;
+	parser_material_flood_passthrough     = NULL;
+	array_remove(links, link);
+
+	kong->frag_out = "float4";
+	node_shader_write_frag(kong, string_tmp("output = float4(%s, %s, %s, 1.0);", res, res, res));
+	parser_material_finalize(con);
+	con->data->shader_from_source = true;
+	gpu_create_shaders_from_kong(node_shader_get(kong), &con->data->vertex_shader, &con->data->fragment_shader, &con->data->_->vertex_shader_size,
+	                             &con->data->_->fragment_shader_size);
+	shader_context_load(con->data);
+	shader_context_t *scon = con->data;
+	node_shader_context_free(con);
+	free(data);
+	return scon;
+}
+
+// Renders the mask input of node into the uv layout of the paint mesh at w x h and thresholds it,
+// returns w * h bytes, 1 = inside, or NULL when the shader does not compile
+static u8 *make_flood_fill_capture_mask(ui_node_t *node, ui_node_canvas_t *group, ui_node_t_array_t *parents, i32 w, i32 h) {
+	mesh_object_t    *o    = make_flood_fill_capture_object();
+	shader_context_t *scon = make_flood_fill_capture_shader(node, group, parents, o);
+	if (scon == NULL) {
+		return NULL;
+	}
+	gpu_texture_t         *target = gpu_create_render_target(w, h, GPU_TEXTURE_FORMAT_RGBA32);
+	static string_array_t *empty  = NULL;
+	if (empty == NULL) {
+		empty = any_array_create_from_raw(
+		    (void *[]){
+		        "",
+		    },
+		    1);
+	}
+	_gpu_begin(target, NULL, NULL, GPU_CLEAR_COLOR, 0x00000000, 0.0); // Alpha 0 outside the uv islands
+	_mesh_object_last_pipeline = NULL;
+	mesh_object_draw(o, scon, empty);
+	gpu_end();
+	make_material_delete_context(scon);
+
+	// The shader writes float4(mask, mask, mask, 1), any color channel holds it whatever the byte order.
+	// Pixels no triangle covers stay outside, also with Invert, so the uv gutter never becomes an island.
 	u8  *pixels    = gpu_get_texture_pixels(target)->buffer;
 	f32  threshold = flood_fill_node_threshold(node) * 255.0;
 	bool invert    = flood_fill_node_invert(node);
 	u8  *mask      = malloc((size_t)w * h);
 	for (size_t i = 0; i < (size_t)w * h; ++i) {
-		bool inside = pixels[i * 4] > threshold;
-		mask[i]     = inside != invert;
+		bool covered = pixels[i * 4 + 3] > 127;
+		bool inside  = pixels[i * 4] > threshold;
+		mask[i]      = covered && inside != invert;
 	}
 	gpu_delete_texture(target); // Frees the readback copy too
 	return mask;
@@ -109,12 +207,15 @@ static u8 *make_flood_fill_capture_mask(ui_node_t *node, ui_node_canvas_t *group
 // Captures the node's mask. A new mask or parameter set makes the node pending, returns true then.
 // force keeps it pending even when it matches the baked result.
 static bool make_flood_fill_capture(make_flood_fill_state_t *s, char *id, ui_node_t *node, ui_node_canvas_t *group, ui_node_t_array_t *parents, bool force) {
-	i32                 w    = config_get_texture_res_x();
-	i32                 h    = config_get_texture_res_y();
-	u8                 *mask = make_flood_fill_capture_mask(node, group, parents, w, h);
-	flood_fill_params_t p    = flood_fill_node_params(node, w, h);
-	u64                 sig  = make_flood_fill_signature(mask, &p);
-	s->needs_capture         = false;
+	i32 w            = config_get_texture_res_x();
+	i32 h            = config_get_texture_res_y();
+	u8 *mask         = make_flood_fill_capture_mask(node, group, parents, w, h);
+	s->needs_capture = false;
+	if (mask == NULL) {
+		return false; // Shader error, keep what is baked
+	}
+	flood_fill_params_t p   = flood_fill_node_params(node, w, h);
+	u64                 sig = make_flood_fill_signature(mask, &p);
 
 	bool has_result = g_context->node_previews != NULL && any_map_get(g_context->node_previews, id) != NULL;
 	if (!force && has_result && s->has_baked && sig == s->baked_signature) {
