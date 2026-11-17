@@ -866,13 +866,10 @@ type
 untitled
 x
 {shortcut} and move mouse
-Objects: All
 No objects
 objects
-Tiles: All
 No tiles
 tiles
-Limit this layer to the selected objects.
 Limit this layer to the selected UDIM tiles.
 This layer's objects were deleted, so it covers nothing. Select objects or choose All to use it again.
 Objects
@@ -885,21 +882,39 @@ Excluded by the group
 On
 Off
 UDIM tiles
-Auto uses tiles when the UVs span more than one tile and no triangle crosses a tile border
+Auto uses tiles when the UVs use a tile other than 1001 and no triangle crosses a tile border
 {count} triangles cross UDIM tile borders and were clamped
 Tile layout changed, undo history was cleared
 UDIM atlas too large: {tiles} tiles use {res} px per tile ({atlas} px atlas)
 Layer covers no tiles
 Tile {id}
 {id} (unused)
-Tiles: {tiles}
+Objects and tiles this layer applies to
 Remove tile {id}? Its pixels are deleted and undo history is cleared.
 Remove tile
-Resolution (per tile)
-{tiles} tiles, atlas {atlas} px, about {mb} MB
+Objects this layer applies to
 Clamped to {res} px per tile (atlas limit 16384)
 {object} shares UV space with {other} on tile {tile}. In exports and path tracing this layer also applies to {other}.
 Per Object & Tile
 Default
 Atlas
 CPU bake of a {size} px atlas needs a lot of memory, consider the GPU bake or a lower resolution
+Tiles {tiles} are not used by the imported meshes and were removed with their pixels
+Show only the layers that cover this tile
++{count} more
+{count} objects
+{count} tiles
+All objects
+All tiles
+All objects & tiles
+Not enough memory for the undo step, lower the resolution
+CPU bake of {size} px tiles needs a lot of memory, consider a lower resolution
+Not enough memory for the CPU bake, lower the resolution
+The GPU bake needs ray tracing, baking on the CPU
+Another GPU bake is running, baking on the CPU
+The GPU bake takes up to {count} objects, baking on the CPU
+Not enough memory for the GPU bake, baking on the CPU
+The meshes changed during the GPU bake, baking on the CPU
+Another GPU bake started, baking on the CPU
+The GPU bake shader is missing, baking on the CPU
+The GPU bake could not prepare the meshes, baking on the CPU

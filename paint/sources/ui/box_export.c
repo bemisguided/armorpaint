@@ -56,7 +56,7 @@ void box_export_tab_export_textures(char *title, bool bake_material) {
 		    },
 		    5);
 
-		ui_combo(&base_res, base_res_combo, util_udim_count() > 1 ? tr("Resolution (per tile)") : tr("Resolution"), true, UI_ALIGN_LEFT, true);
+		ui_combo(&base_res, base_res_combo, tr("Resolution"), true, UI_ALIGN_LEFT, true);
 		if (ui_item_changed()) {
 			config_set_texture_res(base_res);
 			layers_on_resized();

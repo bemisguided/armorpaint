@@ -3,7 +3,9 @@
 // Bake Mesh Maps plugin based on the work of Falkor.
 // Bakes mesh maps of the paint objects on the CPU, optionally projected from a high poly file.
 // Each map is saved as <name>_<map>.png and added to the project textures.
-// With UDIM tiles the resolution is per tile, the png is the atlas and <name>_<map>_1001.png... are written per tile.
+// With UDIM tiles the resolution is per tile and every map writes one png per object and tile, <object>_<map>_<tile>.png,
+// GPU maps too (plugins/bake_maps/bake_maps_gpu.c), on the CPU when the GPU bake can't start.
+// Without UDIM tiles a GPU map is baked by the core bake into one image of the layout.
 // The ray tracer runs natively on worker threads, see plugins/bake_maps/bake_maps.c.
 
 void *plugin;
@@ -15,6 +17,7 @@ char *map_names[13];
 char *map_suffixes[13];
 int   map_types[13]; // bake_type_t, 14 is cavity
 bool  map_enabled[13];
+int   map_route[13]; // How the map was last baked: 0 not in this session, 1 one image of the layout (atlas), 2 per object
 
 int   res_index       = 1;
 float rays            = 64;
@@ -73,6 +76,16 @@ void add_map(int i, char *name, char *suffix, int type, bool enabled) {
 	map_suffixes[i] = suffix;
 	map_types[i]    = type;
 	map_enabled[i]  = enabled;
+	map_route[i]    = 0;
+}
+
+int map_index(char *suffix) {
+	for (int i = 0; i < 13; ++i) {
+		if (string_equals(map_suffixes[i], suffix)) {
+			return i;
+		}
+	}
+	return -1;
 }
 
 bool any_selected(int a, int b) {
@@ -142,7 +155,9 @@ void update_material() {
 	int   assets[3];
 	bool  any = false;
 	for (int k = 0; k < 3; ++k) {
-		assets[k] = script_asset_index(string("%s%s%s_%s.png", out_folder, sep, out_name, suffixes[k]));
+		// Maps baked per object have no atlas image, one image node can't hold their textures
+		int i     = map_index(suffixes[k]);
+		assets[k] = map_route[i] == 2 ? -1 : script_asset_index(string("%s%s%s_%s.png", out_folder, sep, out_name, suffixes[k]));
 		any       = any || assets[k] >= 0;
 	}
 	if (!any) {
@@ -195,16 +210,28 @@ bool use_gpu(int type) {
 	return device == 0 && gpu_available() && (type == 10 || type == 12 || type == 13);
 }
 
+bool start_cpu(int type) {
+	return bake_maps_start(type, rays, axis, up_axis, use_high, bake_res, bake_res);
+}
+
+// GPU maps of a UDIM project bake per object and tile, on the CPU when the GPU bake can't start
+bool start_map(int type) {
+	if (!use_gpu(type)) {
+		return start_cpu(type);
+	}
+	if (!bake_maps_udim()) {
+		return bake_maps_gpu_start(type, gpu_samples, ao_strength, ao_radius, ao_offset);
+	}
+	if (bake_maps_gpu_object_start(type, gpu_samples, ao_strength, ao_radius, ao_offset, up_axis, bake_res, bake_res)) {
+		return true;
+	}
+	return start_cpu(type);
+}
+
 void start_next() {
 	while (queue_i < queue_len) {
-		int  type = map_types[queue[queue_i]];
-		bool started;
-		if (use_gpu(type)) {
-			started = bake_maps_gpu_start(type, gpu_samples, ao_strength, ao_radius, ao_offset);
-		}
-		else {
-			started = bake_maps_start(type, rays, axis, up_axis, use_high, bake_res, bake_res);
-		}
+		int  type    = map_types[queue[queue_i]];
+		bool started = start_map(type);
 		if (started) {
 			return;
 		}
@@ -261,12 +288,34 @@ void run() {
 
 // Inpaint tool: paint over bake artifacts, the baked maps are repaired on release
 
-// Path of a baked map, as saved by the last bake
-char *map_path(int i) {
-	char *name   = string_equals(out_name, "") ? default_name() : out_name;
+char *map_folder_path(char *file) {
 	char *folder = string_equals(out_folder, "") ? default_folder() : out_folder;
 	char *sep    = string_index_of(folder, "\\") >= 0 ? "\\" : "/";
-	return string("%s%s%s_%s.png", folder, sep, name, map_suffixes[i]);
+	return string("%s%s%s", folder, sep, file);
+}
+
+// Image of the whole layout (CPU bake without UDIM tiles, GPU atlas)
+char *map_atlas_path(int i) {
+	char *name = string_equals(out_name, "") ? default_name() : out_name;
+	return map_folder_path(string("%s_%s.png", name, map_suffixes[i]));
+}
+
+// The map was baked per object (UDIM project, CPU or GPU), its files are <object>_<map>_<tile>.png.
+// Maps not baked in this session follow the files in the project textures.
+bool map_per_object(int i) {
+	if (map_route[i] != 0) {
+		return map_route[i] == 2;
+	}
+	char *result = bake_maps_result_name(map_suffixes[i]);
+	return script_asset_index(map_atlas_path(i)) < 0 && !string_equals(result, "") && script_asset_index(map_folder_path(result)) >= 0;
+}
+
+// Path of a baked map, as saved by the last bake: the current per object result, or the atlas
+char *map_path(int i) {
+	if (map_per_object(i)) {
+		return map_folder_path(bake_maps_result_name(map_suffixes[i]));
+	}
+	return map_atlas_path(i);
 }
 
 // Maps with a texture in the project, repaired by the stroke
@@ -297,7 +346,7 @@ void inpaint_stroke() {
 			console_error("Inpaint: no baked maps found for this mesh, bake them first");
 			return;
 		}
-		if (!bake_maps_inpaint_begin(map_path(targets[0]))) {
+		if (!bake_maps_inpaint_begin(map_path(targets[0]), map_per_object(targets[0]))) {
 			console_error("Inpaint needs a mesh with a UV map");
 			return;
 		}
@@ -318,11 +367,13 @@ void inpaint_stroke_end() {
 			}
 			int  i      = targets[k];
 			bool vector = string_index_of(map_suffixes[i], "normal") >= 0;
-			if (bake_maps_inpaint_apply(map_path(i), inpaint_mode, vector)) {
+			if (bake_maps_inpaint_apply(map_path(i), inpaint_mode, vector, map_per_object(i))) {
 				done = done + 1;
 			}
 		}
-		console_info(string("Inpaint: %d maps repaired", done));
+		if (done > 0) { // A stroke outside the maps leaves them as they are
+			console_info(string("Inpaint: %d maps repaired", done));
+		}
 	}
 	bake_maps_inpaint_clear();
 	plugin_tool_set_overlay(inpaint_tool, NULL, 0);
@@ -366,7 +417,12 @@ char *map_name() {
 	return string_equals(out_name, "") ? default_name() : out_name;
 }
 
+// Maps baked per object are one image per object and tile, the view shows atlas images only
 gpu_texture_t *map_texture(char *suffix) {
+	int i = map_index(suffix);
+	if (i >= 0 && map_route[i] == 2) {
+		return NULL;
+	}
 	return script_get_texture(string("%s_%s.png", map_name(), suffix));
 }
 
@@ -437,8 +493,19 @@ void on_update() {
 		return;
 	}
 	int i = queue[queue_i];
-	if (bake_maps_save(out_folder, string("%s_%s.png", out_name, map_suffixes[i]))) {
-		done_count = done_count + 1;
+	if (bake_maps_gpu_object_failed()) {
+		// The GPU per object bake stopped, the same map bakes on the CPU
+		if (!start_cpu(map_types[i])) {
+			console_error("Unable to bake, check that the mesh has a UV map");
+			queue_i = queue_len;
+			finish();
+		}
+		return;
+	}
+	bool per_object = bake_maps_last_per_object(); // CPU and GPU maps of a UDIM project, GPU maps without UDIM stay atlas images
+	if (bake_maps_save(out_folder, string("%s_%s.png", out_name, map_suffixes[i]), map_suffixes[i])) {
+		done_count   = done_count + 1;
+		map_route[i] = per_object ? 2 : 1;
 	}
 	queue_i = queue_i + 1;
 	start_next();

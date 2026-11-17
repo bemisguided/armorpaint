@@ -16,7 +16,11 @@ bind_tex_t *parser_material_make_texture(ui_node_t *image_node, char *tex_name) 
 }
 
 // "UV: Atlas": the image covers the whole udim atlas (baked maps). Button 2, missing in older projects (Default).
+// The Bake Texture node always bakes into an atlas sized target, so it always samples the atlas uv.
 static bool image_texture_node_atlas_uv(ui_node_t *node) {
+	if (string_equals(node->type, "TEX_BAKE")) {
+		return true;
+	}
 	return string_equals(node->type, "TEX_IMAGE") && node->buttons->length > 2 && node->buttons->buffer[2]->default_value->buffer[0] == 1;
 }
 

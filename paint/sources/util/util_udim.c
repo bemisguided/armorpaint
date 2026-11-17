@@ -444,8 +444,11 @@ void util_udim_relayout(i32_array_t *tiles) {
 }
 
 // Meshes just imported (tex tile-local, tile data or none for all in 1001) join the project layout.
-// fresh: the import replaced the project and cleared its layers, the list becomes exactly the imported tiles.
-void util_udim_import_meshes(any_array_t *mds, bool fresh) {
+// replace: the import replaced every mesh of the project (fresh import or Reimport Mesh), the list becomes exactly the tiles
+// the imported meshes use, so tiles of the previous meshes do not linger. Otherwise (append) the tiles are added to the list.
+// cleared: the replacing import also cleared the layers, they are resized instead of relaid out.
+void util_udim_import_meshes(any_array_t *mds, bool replace, bool cleared) {
+	bool fresh = replace && cleared;
 	i32_array_t *ids = i32_array_create(0);
 	for (i32 i = 0; i < mds->length; ++i) {
 		mesh_data_t *md = mds->buffer[i];
@@ -465,7 +468,7 @@ void util_udim_import_meshes(any_array_t *mds, bool fresh) {
 
 	// The list the import leads to, meshes without tiles need tile data unless it is the single tile 1001
 	bool active = false;
-	if (fresh) {
+	if (replace) {
 		active = ids->length > 1 || (ids->length == 1 && ids->buffer[0] != 1001);
 	}
 	else {
@@ -503,6 +506,59 @@ void util_udim_import_meshes(any_array_t *mds, bool fresh) {
 			util_udim_apply_layout(mds->buffer[i]);
 		}
 		_util_udim_warn_clamped();
+	}
+	else if (replace) {
+		// Layers kept: tiles in both lists keep their pixels, tiles only the previous meshes used are dropped
+		bool same = ids->length == util_udim_count();
+		for (i32 i = 0; i < ids->length && same; ++i) {
+			same = util_udim_slot(ids->buffer[i]) >= 0;
+		}
+		bool shared = false;
+		for (i32 i = 0; i < ids->length && !shared; ++i) {
+			shared = util_udim_slot(ids->buffer[i]) >= 0;
+		}
+		if (same) {
+			for (i32 i = 0; i < mds->length; ++i) {
+				util_udim_apply_layout(mds->buffer[i]);
+			}
+		}
+		else if (!shared && ids->length == util_udim_count()) {
+			// No tile in common and as many tiles (for example 1001 -> 1002 after Auto changed its decision): the tiles are
+			// renamed slot by slot, the atlas layout and every pixel stay, instead of dropping all paint
+			util_udim_set_tiles(ids);
+			for (i32 i = 0; i < mds->length; ++i) {
+				if (util_udim_active()) {
+					util_udim_set_default(mds->buffer[i]);
+				}
+				util_udim_apply_layout(mds->buffer[i]);
+			}
+			if (!util_udim_active()) {
+				for (i32 i = 0; i < mds->length; ++i) {
+					util_udim_clear(mds->buffer[i]);
+				}
+			}
+		}
+		else {
+			// Tiles only the previous meshes used are dropped with their pixels, say which
+			char dropped[512] = "";
+			for (i32 i = 0; i < util_udim_count(); ++i) {
+				i32 len = (i32)strlen(dropped);
+				if (i32_array_index_of(ids, util_udim_tile(i)) < 0 && len < (i32)sizeof(dropped) - 16) {
+					snprintf(dropped + len, sizeof(dropped) - len, "%s%d", len == 0 ? "" : ", ", util_udim_tile(i));
+				}
+			}
+			// Every mesh carries tile data before the relayout, else it would be derived from its tile-local uvs as if they were atlas uvs
+			for (i32 i = 0; i < mds->length; ++i) {
+				util_udim_set_default(mds->buffer[i]);
+			}
+			util_udim_relayout(ids);
+			if (dropped[0] != '\0') {
+				any_map_t *vars = any_map_create();
+				any_map_set(vars, "tiles", dropped);
+				console_info(vtr("Tiles {tiles} are not used by the imported meshes and were removed with their pixels", vars));
+				map_free(vars);
+			}
+		}
 	}
 	else {
 		i32 count = util_udim_count();
@@ -583,10 +639,12 @@ void util_udim_scan(f32 *uv, i32 corners) {
 	}
 }
 
-// Whether the scanned file is imported with tiles (UDIM tiles import option)
+// Whether the scanned file is imported with tiles (UDIM tiles import option).
+// Auto: the uvs use a tile other than 1001 (several tiles, or one tile such as 1002) and no triangle crosses a tile border.
 bool util_udim_scan_end() {
-	udim_import_t mode  = g_context->udim_import;
-	bool          tiles = mode == UDIM_IMPORT_ON || (mode == UDIM_IMPORT_AUTO && util_udim_scan_multi && util_udim_scan_straddles == 0);
+	udim_import_t mode     = g_context->udim_import;
+	bool          not_1001 = util_udim_scan_multi || util_udim_scan_first > 0;
+	bool          tiles    = mode == UDIM_IMPORT_ON || (mode == UDIM_IMPORT_AUTO && not_1001 && util_udim_scan_straddles == 0);
 	if (tiles && util_udim_scan_straddles > 0) {
 		any_map_t *vars = any_map_create();
 		any_map_set(vars, "count", i32_to_string(util_udim_scan_straddles));

@@ -278,58 +278,112 @@ static bool tab_layers_coverage_object_item(mesh_object_t *o) {
 	return o->data->index_array->length > 0;
 }
 
-static char *tab_layers_objects_label(slot_layer_t *l) {
-	if (slot_layer_all_objects(l)) {
-		return tr("Objects: All");
-	}
-	i32   count  = 0;
-	char *first  = NULL;
-	char *second = NULL;
+// Covered objects and tiles of the label, deleted ids are not counted
+static i32 tab_layers_label_objects(slot_layer_t *l, char **first, char **second) {
+	i32 count = 0;
+	*first    = NULL;
+	*second   = NULL;
 	for (i32 i = 0; i < g_project->_->paint_objects->length; ++i) {
 		mesh_object_t *o = g_project->_->paint_objects->buffer[i];
 		if (o->paint_id > 0 && i32_array_index_of(slot_layer_objects(l), o->paint_id) >= 0) {
 			count++;
-			first  = first == NULL ? o->base->name : first;
-			second = count == 2 ? o->base->name : second;
+			*first  = *first == NULL ? o->base->name : *first;
+			*second = count == 2 ? o->base->name : *second;
 		}
+	}
+	return count;
+}
+
+static i32 tab_layers_label_tiles(slot_layer_t *l, i32 *first, i32 *second) {
+	i32 count = 0;
+	*first    = 0;
+	*second   = 0;
+	for (i32 i = 0; i < util_udim_count(); ++i) {
+		i32 tile = util_udim_tile(i);
+		if (i32_array_index_of(slot_layer_tiles(l), tile) >= 0) {
+			count++;
+			*first  = *first == 0 ? tile : *first;
+			*second = count == 2 ? tile : *second;
+		}
+	}
+	return count;
+}
+
+static any_map_t *tab_layers_count_vars(i32 count) {
+	any_map_t *vars = any_map_create();
+	any_map_set(vars, "count", string_tmp("%d", count));
+	return vars;
+}
+
+static char *tab_layers_objects_text(bool all, i32 count, char *name) {
+	if (all) {
+		return tr("All objects");
 	}
 	if (count == 0) {
 		return tr("No objects");
 	}
 	if (count == 1) {
-		return first;
+		return name;
 	}
-	if (count == 2) {
-		return string_tmp("%s, %s", first, second);
-	}
-	return string_tmp("%d %s", count, tr("objects"));
+	any_map_t *vars = tab_layers_count_vars(count);
+	char      *s    = vtr("{count} objects", vars);
+	map_free(vars);
+	return s;
 }
 
-static char *tab_layers_tiles_label(slot_layer_t *l) {
-	if (slot_layer_all_tiles(l)) {
-		return tr("Tiles: All");
-	}
-	i32 count  = 0;
-	i32 first  = 0;
-	i32 second = 0;
-	for (i32 i = 0; i < util_udim_count(); ++i) {
-		i32 tile = util_udim_tile(i);
-		if (i32_array_index_of(slot_layer_tiles(l), tile) >= 0) {
-			count++;
-			first  = first == 0 ? tile : first;
-			second = count == 2 ? tile : second;
-		}
+static char *tab_layers_tiles_text(bool all, i32 count, i32 id) {
+	if (all) {
+		return tr("All tiles");
 	}
 	if (count == 0) {
 		return tr("No tiles");
 	}
 	if (count == 1) {
-		return string_tmp("%d", first);
+		return string_tmp("%d", id);
 	}
-	if (count == 2) {
-		return string_tmp("%d, %d", first, second);
+	any_map_t *vars = tab_layers_count_vars(count);
+	char      *s    = vtr("{count} tiles", vars);
+	map_free(vars);
+	return s;
+}
+
+// Label of the Applies to button, pure so it can be tested. More than one tile: "objects / tiles", both All gives "All objects & tiles".
+// One tile or fewer: the objects part only. Objects: All objects, No objects, the name, N objects. Tiles: All tiles, No tiles, the id, N tiles.
+static char *tab_layers_coverage_text(bool multi_tile, bool all_objects, i32 object_count, char *object_name, bool all_tiles, i32 tile_count, i32 tile_id) {
+	if (!multi_tile) {
+		return tab_layers_objects_text(all_objects, object_count, object_name);
 	}
-	return string_tmp("%d %s", count, tr("tiles"));
+	if (all_objects && all_tiles) {
+		return tr("All objects & tiles");
+	}
+	return string_tmp("%s / %s", tab_layers_objects_text(all_objects, object_count, object_name), tab_layers_tiles_text(all_tiles, tile_count, tile_id));
+}
+
+// A side reads All when its flag is set. The ticks are followed literally: a list holding every object still reads as that list.
+static bool tab_layers_objects_all(slot_layer_t *l) {
+	return slot_layer_all_objects(l);
+}
+
+static bool tab_layers_tiles_all(slot_layer_t *l) {
+	return slot_layer_all_tiles(l);
+}
+
+static char *tab_layers_coverage_label(slot_layer_t *l) {
+	bool  multi    = util_udim_count() > 1;
+	char *first    = NULL;
+	char *second   = NULL;
+	i32   t_first  = 0;
+	i32   t_second = 0;
+	bool  ao       = tab_layers_objects_all(l);
+	bool  at       = multi && tab_layers_tiles_all(l);
+	i32   o        = ao ? 0 : tab_layers_label_objects(l, &first, &second);
+	i32   t        = !multi || at ? 0 : tab_layers_label_tiles(l, &t_first, &t_second);
+	return tab_layers_coverage_text(multi, ao, o, first, at, t, t_first);
+}
+
+// Fixed text for the Applies to button, issues are appended by the caller
+static char *tab_layers_coverage_tip() {
+	return util_udim_count() > 1 ? tr("Objects and tiles this layer applies to") : tr("Objects this layer applies to");
 }
 
 // "X shares UV space with Y on tile T..." when a covered object overlaps an uncovered one in uv space, NULL otherwise
@@ -442,45 +496,40 @@ static i32 tab_layers_objects_items_count() {
 	return count;
 }
 
-static void tab_layers_objects_menu_draw() {
-	tab_layers_objects_items_draw(tab_layers_coverage_l);
-}
-
-static void tab_layers_tiles_menu_draw() {
-	tab_layers_tiles_items_draw(tab_layers_coverage_l);
-}
-
-// Objects and Tiles buttons of a layer or group row, the Tiles button only shows with more than one tile
-static void tab_layers_coverage_buttons(slot_layer_t *l) {
-	bool tiles = util_udim_count() > 1;
-	f32  w     = g_ui->_w;
-	f32  x     = g_ui->_x;
-	f32  y     = g_ui->_y;
-	if (tiles) {
-		g_ui->_w = w / 2.0;
+// Section heading of the coverage popup, clicking it keeps the popup open
+static void tab_layers_coverage_heading(char *text) {
+	ui_menu_label(text, NULL);
+	if (g_ui->is_hovered && g_ui->input_released) {
+		ui_menu_keep_open = true;
 	}
-	if (ui_button(tab_layers_objects_label(l), UI_ALIGN_LEFT, "")) {
+}
+
+// One popup for the layer's coverage: the objects, then the tiles when the project has more than one
+static void tab_layers_coverage_menu_draw() {
+	slot_layer_t *l = tab_layers_coverage_l;
+	if (util_udim_count() <= 1) {
+		tab_layers_objects_items_draw(l);
+		return;
+	}
+	tab_layers_coverage_heading(tr("Objects"));
+	tab_layers_objects_items_draw(l);
+	ui_menu_separator();
+	tab_layers_coverage_heading(tr("Tiles"));
+	tab_layers_tiles_items_draw(l);
+}
+
+// Applies to button of a layer or group row, it shows the objects and with more than one tile also the tiles
+static void tab_layers_coverage_buttons(slot_layer_t *l) {
+	if (ui_button(tab_layers_coverage_label(l), UI_ALIGN_LEFT, "")) {
 		tab_layers_coverage_l = l;
-		ui_menu_draw(&tab_layers_objects_menu_draw, -1, -1);
+		ui_menu_draw(&tab_layers_coverage_menu_draw, -1, -1);
 	}
 	else if (g_ui->is_hovered) {
-		char *note = tab_layers_objects_overlap_note(l);
-		char *tip  = tr("Limit this layer to the selected objects.");
-		ui_tooltip(note != NULL ? string_tmp("%s\n%s", tip, note) : tip);
+		// Fixed text, only the UV overlap problem is added to it
+		char *tip   = tab_layers_coverage_tip();
+		char *issue = tab_layers_objects_overlap_note(l);
+		ui_tooltip(issue != NULL ? string_tmp("%s\n%s", tip, issue) : tip);
 	}
-	if (tiles) {
-		g_ui->_x = x + w / 2.0;
-		g_ui->_y = y;
-		if (ui_button(tab_layers_tiles_label(l), UI_ALIGN_LEFT, "")) {
-			tab_layers_coverage_l = l;
-			ui_menu_draw(&tab_layers_tiles_menu_draw, -1, -1);
-		}
-		else if (g_ui->is_hovered) {
-			ui_tooltip(tr("Limit this layer to the selected UDIM tiles."));
-		}
-		g_ui->_x = x;
-	}
-	g_ui->_w = w;
 }
 
 // Objects and Tiles sub menus of the mini layer context menu
@@ -598,7 +647,7 @@ void tab_layers_draw_layer_slot_full(slot_layer_t *l, i32 i) {
 	f32 name_x   = icon_x + icon_h + 8 * UI_SCALE();
 	f32 arrow_w  = 24 * UI_SCALE();
 	f32 arrow_x  = uix + uiw - arrow_w;
-	f32 combo_w  = uiw * 0.30;
+	f32 combo_w  = uiw * 0.38;
 	f32 combo_x  = arrow_x - combo_w;
 	f32 name_end = has_combos ? combo_x : arrow_x;
 
@@ -672,17 +721,16 @@ void tab_layers_draw_layer_slot_full(slot_layer_t *l, i32 i) {
 		bool                   covers_nothing = empty != LAYER_COVERAGE_SOME;
 		i32                    text_col       = g_theme->TEXT_COL;
 		if (covers_nothing) {
-			g_theme->TEXT_COL -= 0x99000000;
+			// Halfway to the window background, a lowered alpha is not drawn by the text renderer
+			u32 fg            = (u32)text_col;
+			u32 bg            = (u32)g_theme->WINDOW_BG_COL;
+			u32 r             = (((fg >> 16) & 0xff) + ((bg >> 16) & 0xff)) / 2;
+			u32 g             = (((fg >> 8) & 0xff) + ((bg >> 8) & 0xff)) / 2;
+			u32 b             = ((fg & 0xff) + (bg & 0xff)) / 2;
+			g_theme->TEXT_COL = (i32)(0xff000000 | (r << 16) | (g << 8) | b);
 		}
 		ui_state_t state  = ui_text(l->name, UI_ALIGN_LEFT, 0x00000000);
 		g_theme->TEXT_COL = text_col;
-		if (covers_nothing && g_ui->is_hovered) {
-			ui_tooltip(empty == LAYER_COVERAGE_OBJECTS_DELETED
-			               ? tr("This layer's objects were deleted, so it covers nothing. Select objects or choose All to use it again.")
-			           : empty == LAYER_COVERAGE_NO_OBJECTS
-			               ? tr("No objects are selected for this layer or its group, so it covers nothing. Select objects or choose All to use it.")
-			               : tr("No tiles are selected for this layer or its group, so it covers nothing. Select tiles or choose All to use it."));
-		}
 		if (state == UI_STATE_RELEASED) {
 			if (sys_time() - g_context->select_time < 0.2) {
 				tab_layers_layer_name_edit = l->id;
@@ -1411,8 +1459,7 @@ void tab_layers_draw_edit() {
 	        tr("Custom"),
 	    },
 	    5);
-	bool udim = util_udim_count() > 1;
-	ui_combo(&base_res, ar, udim ? tr("Resolution (per tile)") : tr("Resolution"), true, UI_ALIGN_LEFT, true);
+	ui_combo(&base_res, ar, tr("Resolution"), true, UI_ALIGN_LEFT, true);
 	if (ui_item_changed()) {
 		ui_menu_show_first = true;
 		config_set_texture_res(base_res);
@@ -1442,14 +1489,8 @@ void tab_layers_draw_edit() {
 		}
 	}
 
-	if (udim) {
-		any_map_t *vars = any_map_create();
-		any_map_set(vars, "tiles", string_tmp("%d", util_udim_count()));
-		any_map_set(vars, "atlas", string_tmp("%d", util_udim_res_x()));
-		any_map_set(vars, "mb", string_tmp("%d", (i32)(util_udim_memory_estimate() / 1048576.0 + 0.5)));
-		ui_menu_align();
-		ui_menu_label(vtr("{tiles} tiles, atlas {atlas} px, about {mb} MB", vars), NULL);
-		map_free(vars);
+	if (util_udim_count() > 1) {
+		any_map_t *vars;
 		if (util_udim_clamped()) {
 			vars = any_map_create();
 			any_map_set(vars, "res", string_tmp("%d", util_udim_tile_res_x()));
