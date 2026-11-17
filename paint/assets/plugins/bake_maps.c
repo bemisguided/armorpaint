@@ -390,8 +390,11 @@ void inpaint_stroke_end() {
 				done = done + 1;
 			}
 		}
-		if (done > 0) { // A stroke outside the maps leaves them as they are
+		if (done > 0) {
 			console_info(string("Inpaint: %d maps repaired", done));
+		}
+		else { // A per object map covers only the object and tile of the current result of the Bake Maps window
+			console_info("Inpaint: the stroke covers no texel of the baked maps, nothing repaired");
 		}
 	}
 	bake_maps_inpaint_clear();
