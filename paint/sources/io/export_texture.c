@@ -791,9 +791,9 @@ static void export_texture_run_tiles(char *path, bool objects) {
 	}
 }
 
-// Mode the export box opens with, per tile when the project has several tiles
+// Mode the export box opens with, per tile when the project has tiles (several, or a lone one other than 1001)
 export_mode_t export_texture_default_mode() {
-	return util_udim_count() > 1 ? EXPORT_MODE_PER_UDIM_TILE : EXPORT_MODE_VISIBLE;
+	return util_udim_active() ? EXPORT_MODE_PER_UDIM_TILE : EXPORT_MODE_VISIBLE;
 }
 
 void export_texture_run(char *path, bool bake_material) {

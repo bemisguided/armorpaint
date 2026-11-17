@@ -1883,7 +1883,9 @@ void tab_meshes_draw(i32 *htab) {
 			}
 		}
 
-		if (objects && tab_meshes_search_show) { // The search only filters objects
+		bool search_cell = objects && tab_meshes_search_show; // The search only filters objects
+
+		if (search_cell) {
 			bool search_selected = g_ui->text_selected_id == ui_widget_id(&tab_meshes_search, UI_ID_TEXT);
 			ui_text_input(&tab_meshes_search, tr("Search"), UI_ALIGN_LEFT, true, true);
 			if (g_ui->is_hovered) {

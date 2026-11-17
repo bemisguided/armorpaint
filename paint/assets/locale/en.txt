@@ -878,7 +878,6 @@ Layer covers no objects
 No objects are selected for this layer or its group, so it covers nothing. Select objects or choose All to use it.
 No tiles are selected for this layer or its group, so it covers nothing. Select tiles or choose All to use it.
 Layer's objects are hidden or use another material
-Excluded by the group
 On
 Off
 UDIM tiles
@@ -887,6 +886,7 @@ Tiles when the UVs use a tile other than 1001
 Tile layout changed, undo history was cleared
 UDIM atlas too large: {tiles} tiles use {res} px per tile ({atlas} px atlas)
 Layer covers no tiles
+Layer's objects are not on its tiles
 Tile {id}
 {id} (unused)
 Objects and tiles this layer applies to
@@ -917,3 +917,14 @@ The meshes changed during the GPU bake, baking on the CPU
 Another GPU bake started, baking on the CPU
 The GPU bake shader is missing, baking on the CPU
 The GPU bake could not prepare the meshes, baking on the CPU
+Tags
+Details...
+Tag
+Ambient Occlusion
+Details
+Rename
+Bake Type
+Edit Details
+Encoding
+Any
+Unknown ({n})

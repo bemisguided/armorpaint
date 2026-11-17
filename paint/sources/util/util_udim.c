@@ -903,6 +903,66 @@ static i32_array_t *_layer_stored_objects(slot_layer_t *l) {
 	return NULL;
 }
 
+// Paint object x project tile slot, whether the object has vertices on the tile (an object without tile data is on 1001), cached
+static i32 _layer_object_tiles_version = -1;
+static i32 _layer_object_tiles_key     = 0;
+static u8 *_layer_object_tiles         = NULL;
+
+static void _layer_object_tiles_refresh() {
+	mesh_object_t_array_t *objects = g_project->_->paint_objects;
+	i32                    count   = util_udim_count();
+	i32                    key     = objects->length;
+	for (i32 i = 0; i < count; ++i) {
+		key = key * 31 + util_udim_tile(i);
+	}
+	if (_layer_object_tiles != NULL && _layer_object_tiles_version == util_mesh_version && _layer_object_tiles_key == key) {
+		return;
+	}
+	_layer_object_tiles_version = util_mesh_version;
+	_layer_object_tiles_key     = key;
+	free(_layer_object_tiles);
+	_layer_object_tiles = calloc(objects->length * count + 1, 1);
+	for (i32 i = 0; i < objects->length; ++i) {
+		mesh_data_t *md = objects->buffer[i]->data;
+		util_udim_ensure(md);
+		if (!util_udim_has_tiles(md)) {
+			i32 slot = util_udim_slot(1001);
+			if (slot >= 0) {
+				_layer_object_tiles[i * count + slot] = 1;
+			}
+			continue;
+		}
+		for (i32 j = 0; j < md->_->udim_tile->length; ++j) {
+			i32 slot = util_udim_slot(md->_->udim_tile->buffer[j] + 1001);
+			if (slot >= 0) {
+				_layer_object_tiles[i * count + slot] = 1;
+			}
+		}
+	}
+}
+
+// Whether the layer covers the object and a tile the object has vertices on
+bool layer_covers_object_on_tile(slot_layer_t *l, mesh_object_t *o) {
+	if (!layer_covers_object(l, o)) {
+		return false;
+	}
+	if (!layer_tiles_restricted(l)) {
+		return true;
+	}
+	i32 index = array_index_of(g_project->_->paint_objects, o);
+	if (index < 0) {
+		return true;
+	}
+	_layer_object_tiles_refresh();
+	i32 count = util_udim_count();
+	for (i32 s = 0; s < count; ++s) {
+		if (_layer_object_tiles[index * count + s] && layer_covers_tile(l, util_udim_tile(s))) {
+			return true;
+		}
+	}
+	return false;
+}
+
 // Why a layer has nothing to apply to, LAYER_COVERAGE_SOME when it covers something
 layer_coverage_empty_t layer_coverage_empty_reason(slot_layer_t *l) {
 	if (layer_objects_restricted(l)) {
@@ -924,6 +984,13 @@ layer_coverage_empty_t layer_coverage_empty_reason(slot_layer_t *l) {
 		}
 		if (!any) {
 			return LAYER_COVERAGE_NO_TILES;
+		}
+		bool pair = false; // A covered object must lie on a covered tile
+		for (i32 i = 0; i < g_project->_->paint_objects->length && !pair; ++i) {
+			pair = layer_covers_object_on_tile(l, g_project->_->paint_objects->buffer[i]);
+		}
+		if (!pair) {
+			return LAYER_COVERAGE_NO_OBJECT_TILE;
 		}
 	}
 	return LAYER_COVERAGE_SOME;

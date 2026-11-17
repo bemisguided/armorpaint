@@ -209,6 +209,9 @@ void tab_textures_draw_context_menu() {
 			g_context->ddirty         = 2;
 		}
 	}
+	if (ui_menu_button(tr("Details..."), "", ICON_EDIT)) {
+		ui_asset_details_show(MC_TEXTURE, _tab_textures_draw_i);
+	}
 	if (ui_menu_button(tr("Delete"), "delete", ICON_DELETE)) {
 		tab_textures_delete_selected();
 	}
@@ -367,23 +370,17 @@ void tab_textures_draw(i32 *htab) {
 
 		ui_begin_sticky();
 
-		f32_array_t *row = string_equals(tab_textures_search, "") ? f32_array_create_from_raw(
-		                                                                (f32[]){
-		                                                                    -100,
-		                                                                    -100,
-		                                                                    -100,
-		                                                                    -200,
-		                                                                },
-		                                                                4)
-		                                                          : f32_array_create_from_raw(
-		                                                                (f32[]){
-		                                                                    -100,
-		                                                                    -100,
-		                                                                    -100,
-		                                                                    -200,
-		                                                                    -40,
-		                                                                },
-		                                                                5);
+		f32_array_t *row = f32_array_create(0);
+		f32_array_push(row, -100);
+		f32_array_push(row, -100);
+		f32_array_push(row, -100);
+		f32_array_push(row, -200); // Search
+		if (ui_asset_tags_any(MC_TEXTURE)) {
+			f32_array_push(row, -150); // Tags filter
+		}
+		if (!string_equals(tab_textures_search, "")) {
+			f32_array_push(row, -40); // Clear search
+		}
 		ui_row(row);
 
 		if (ui_icon_button(tr("Import"), ICON_IMPORT, UI_ALIGN_CENTER)) {
@@ -406,6 +403,7 @@ void tab_textures_draw(i32 *htab) {
 		if (g_ui->is_ctrl_down && g_ui->is_key_pressed && g_ui->key_code == KEY_CODE_F) {
 			ui_start_text_edit(&tab_textures_search, UI_ALIGN_LEFT);
 		}
+		ui_asset_tags_filter(MC_TEXTURE);
 		if (!string_equals(tab_textures_search, "") && (ui_button(tr("X"), UI_ALIGN_CENTER, "") || g_ui->is_escape_down)) {
 			tab_textures_search = "";
 		}
@@ -424,10 +422,11 @@ void tab_textures_draw(i32 *htab) {
 				return;
 			}
 
-			// Indices of the assets passing the search filter
+			// Indices of the assets passing the search and tag filters
 			i32_array_t *filtered = i32_array_create_from_raw((i32[]){}, 0);
 			for (i32 i = 0; i < g_project->_->assets->length; ++i) {
-				if (string_equals(search, "") || string_index_of(to_lower_case(g_project->_->assets->buffer[i]->name), search) >= 0) {
+				if (ui_asset_tags_visible(MC_TEXTURE, i) &&
+				    (string_equals(search, "") || string_index_of(to_lower_case(g_project->_->assets->buffer[i]->name), search) >= 0)) {
 					i32_array_push(filtered, i);
 				}
 			}
@@ -480,7 +479,7 @@ void tab_textures_draw(i32 *htab) {
 					ui_state_t _state = ui_sub_image(img, 0xffffffff, slotw, 0, 0, sw, sw);
 
 					// Reordering
-					if (_state == UI_STATE_HOVERED && base_drag_asset != NULL && string_equals(search, "")) {
+					if (_state == UI_STATE_HOVERED && base_drag_asset != NULL && string_equals(search, "") && !ui_asset_tags_active(MC_TEXTURE)) {
 						tab_textures_drag_pos = (mouse_x > uix + g_ui->_window_x + imgw_val / 2.0) ? i + 1 : i;
 						drag_pos_set          = true;
 					}

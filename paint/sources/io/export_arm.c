@@ -506,6 +506,16 @@ packed_asset_t_array_t *export_arm_get_packed_assets(char *project_path, string_
 	return packed_assets;
 }
 
+// Metadata entries of an exported material or brush (category, index 0) and of its textures (index in assets)
+static meta_t_array_t *export_arm_metas(asset_t_array_t *assets, i32 category, meta_t *item) {
+	meta_t_array_t *metas = any_array_create(0);
+	for (i32 i = 0; i < assets->length; ++i) {
+		project_format_add_entry(metas, assets->buffer[i]->meta, MC_TEXTURE, i);
+	}
+	project_format_add_entry(metas, item, category, 0);
+	return metas;
+}
+
 void export_arm_run_material(char *path) {
 	export_arm_material(g_context->material, path);
 }
@@ -572,7 +582,8 @@ void export_arm_material(slot_material_t *m, char *path) {
 	                                        .material_icons  = micons,
 	                                        .material_datas  = mdata2,
 	                                        .assets          = texture_files,
-	                                        .packed_assets   = packed_assets});
+	                                        .packed_assets   = packed_assets,
+	                                        .metas           = export_arm_metas(assets, MC_MATERIAL, m->meta)});
 
 	if (g_context->write_icon_on_export) { // Separate icon files
 		buffer_t *buf = buffer_half_to_u8(gpu_get_texture_pixels(m->image));
@@ -627,9 +638,12 @@ void export_arm_brush(slot_brush_t *b, char *path) {
 	    },
 	    1);
 
-	project_t *raw = ALLOC_INIT(
-	    project_t,
-	    {.version = manifest_version_project, .brush_nodes = bnodes, .brush_icons = bicons, .assets = texture_files, .packed_assets = packed_assets});
+	project_t *raw = ALLOC_INIT(project_t, {.version       = manifest_version_project,
+	                                        .brush_nodes   = bnodes,
+	                                        .brush_icons   = bicons,
+	                                        .assets        = texture_files,
+	                                        .packed_assets = packed_assets,
+	                                        .metas         = export_arm_metas(assets, MC_BRUSH, b->meta)});
 
 	if (g_context->write_icon_on_export) { // Separate icon files
 		buffer_t *buf = gpu_get_texture_pixels(b->image);

@@ -87,6 +87,9 @@ void tab_sounds_draw_context_menu_draw() {
 		ui_files_filename         = string_copy(sound->name);
 		ui_files_show(substring(tab_sounds_ext(sound), 1, 4), true, false, &tab_sounds_export);
 	}
+	if (ui_menu_button(tr("Details..."), "", ICON_EDIT)) {
+		ui_asset_details_show(MC_SOUND, i);
+	}
 	if (ui_menu_button(tr("Delete"), "delete", ICON_DELETE)) {
 		tab_sounds_delete_selected();
 	}
@@ -109,21 +112,16 @@ void tab_sounds_draw(i32 *htab) {
 
 		ui_begin_sticky();
 
-		f32_array_t *row = string_equals(tab_sounds_search, "") ? f32_array_create_from_raw(
-		                                                              (f32[]){
-		                                                                  -100,
-		                                                                  -100,
-		                                                                  -200,
-		                                                              },
-		                                                              3)
-		                                                        : f32_array_create_from_raw(
-		                                                              (f32[]){
-		                                                                  -100,
-		                                                                  -100,
-		                                                                  -200,
-		                                                                  -40,
-		                                                              },
-		                                                              4);
+		f32_array_t *row = f32_array_create(0);
+		f32_array_push(row, -100);
+		f32_array_push(row, -100);
+		f32_array_push(row, -200); // Search
+		if (ui_asset_tags_any(MC_SOUND)) {
+			f32_array_push(row, -150); // Tags filter
+		}
+		if (!string_equals(tab_sounds_search, "")) {
+			f32_array_push(row, -40); // Clear search
+		}
 		ui_row(row);
 
 		if (ui_icon_button(tr("Import"), ICON_IMPORT, UI_ALIGN_CENTER)) {
@@ -138,6 +136,7 @@ void tab_sounds_draw(i32 *htab) {
 		if (g_ui->is_ctrl_down && g_ui->is_key_pressed && g_ui->key_code == KEY_CODE_F) {
 			ui_start_text_edit(&tab_sounds_search, UI_ALIGN_LEFT);
 		}
+		ui_asset_tags_filter(MC_SOUND);
 		if (!string_equals(tab_sounds_search, "") && (ui_button(tr("X"), UI_ALIGN_CENTER, "") || g_ui->is_escape_down)) {
 			tab_sounds_search = "";
 		}
@@ -157,7 +156,8 @@ void tab_sounds_draw(i32 *htab) {
 
 		i32_array_t *filtered = i32_array_create_from_raw((i32[]){}, 0);
 		for (i32 i = 0; i < g_project->_->sounds->length; ++i) {
-			if (string_equals(search, "") || string_index_of(to_lower_case(g_project->_->sounds->buffer[i]->name), search) >= 0) {
+			if (ui_asset_tags_visible(MC_SOUND, i) &&
+			    (string_equals(search, "") || string_index_of(to_lower_case(g_project->_->sounds->buffer[i]->name), search) >= 0)) {
 				i32_array_push(filtered, i);
 			}
 		}
@@ -226,7 +226,7 @@ void tab_sounds_draw(i32 *htab) {
 				g_ui->image_scroll_align = true;
 				// }
 
-				if (state == UI_STATE_HOVERED && base_drag_sound != NULL && string_equals(search, "")) {
+				if (state == UI_STATE_HOVERED && base_drag_sound != NULL && string_equals(search, "") && !ui_asset_tags_active(MC_SOUND)) {
 					tab_sounds_drag_pos = (mouse_x > uix + g_ui->_window_x + imgw_val / 2.0) ? i + 1 : i;
 					drag_pos_set        = true;
 				}

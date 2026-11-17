@@ -83,6 +83,10 @@ char *history_action_to_string(history_action_t action) {
 		return tr("Edit Swatch");
 	case HISTORY_ACTION_OBJECT_TRANSFORM:
 		return tr("Transform Object");
+	case HISTORY_ACTION_RENAME_ASSET:
+		return tr("Rename");
+	case HISTORY_ACTION_EDIT_META:
+		return tr("Edit Details");
 	}
 	return tr("Paint");
 }
@@ -228,10 +232,28 @@ void history_swap_layer_props(history_step_t *step) {
 	}
 }
 
+// Material and brush slots removed and put back by undo and redo keep their canvas and metadata (tags, bake keys) in the step
+void history_new_material_slot(history_step_t *step) {
+	g_context->material = slot_material_create(g_project->_->materials->buffer[0]->data, NULL);
+	array_insert(g_project->_->materials, step->material, g_context->material);
+	g_context->material->canvas = step->canvas;
+	g_context->material->meta   = step->meta;
+	ui_nodes_canvas_changed();
+	ui_nodes_hwnd->redraws = 2;
+}
+
+void history_delete_material_slot(history_step_t *step) {
+	g_context->material = g_project->_->materials->buffer[step->material];
+	step->canvas        = g_context->material->canvas;
+	step->meta          = g_context->material->meta;
+	slot_material_delete(g_context->material);
+}
+
 void history_new_brush_slot(history_step_t *step) {
 	slot_brush_t *b = slot_brush_create(NULL);
 	array_insert(g_project->_->brushes, step->brush, b);
 	b->canvas = step->canvas;
+	b->meta   = step->meta;
 	context_set_brush(b);
 	ui_nodes_canvas_changed();
 	ui_nodes_hwnd->redraws = 2;
@@ -240,7 +262,8 @@ void history_new_brush_slot(history_step_t *step) {
 }
 
 void history_delete_brush_slot(history_step_t *step) {
-	step->canvas = g_project->_->brushes->buffer[step->brush]->canvas;
+	step->canvas     = g_project->_->brushes->buffer[step->brush]->canvas;
+	step->meta       = g_project->_->brushes->buffer[step->brush]->meta;
 	if (g_project->_->brushes->length > 1) {
 		context_select_brush(step->brush == g_project->_->brushes->length - 1 ? step->brush - 1 : step->brush + 1);
 	}
@@ -284,6 +307,49 @@ void history_swap_swatch(history_step_t *step) {
 	g_context->picked_color = util_clone_swatch_color(s);
 	ui_dock_redraw(TAB_AREA_STATUS);
 	ui_header_handle->redraws = 2;
+}
+
+// Live index of the item of a Rename or Edit Details step, -1 when it is gone (the step then does nothing).
+// Materials and brushes are found by index: their new, duplicate and delete are undo steps, so whenever this step is undone or redone the list is
+// as it was when the step was made, and undoing a delete puts a new item at the old index. Textures, fonts, sounds and meshes are found by pointer:
+// their deletes are not undo steps, so an item that left the list is gone for good and the indices after it moved.
+// Either way the item must still have the expected name, so a list changed outside the history never gets the step applied to another item.
+static i32 history_asset_index(history_step_t *step) {
+	i32 category = step->asset_category;
+	i32 index    = category == MC_MATERIAL || category == MC_BRUSH ? step->asset_index : meta_item_index(category, step->asset_ref);
+	if (index < 0 || index >= meta_count(category) || !string_equals(meta_item_name(category, index), step->asset_item_name)) {
+		return -1;
+	}
+	return index;
+}
+
+// Swaps the name of a renamed material or brush with the one stored in the step, used for both undo and redo
+void history_swap_asset_name(history_step_t *step) {
+	i32 index = history_asset_index(step);
+	if (index < 0) {
+		return;
+	}
+	ui_node_canvas_t *canvas =
+	    step->asset_category == MC_MATERIAL ? g_project->_->materials->buffer[index]->canvas : g_project->_->brushes->buffer[index]->canvas;
+	char             *t      = canvas->name;
+	canvas->name             = step->asset_name;
+	step->asset_name         = t;
+	step->asset_item_name    = canvas->name;
+	ui_nodes_hwnd->redraws   = 2;
+	base_redraw_ui();
+}
+
+// Swaps the tags and bake keys of an item with the metadata stored in the step, used for both undo and redo
+void history_swap_meta(history_step_t *step) {
+	i32 index = history_asset_index(step);
+	if (index < 0) {
+		return;
+	}
+	meta_t *current = meta_copy(meta_peek(step->asset_category, index));
+	meta_set(step->asset_category, index, step->meta);
+	step->meta           = current;
+	ui_box_hwnd->redraws = 2;
+	base_redraw_ui();
 }
 
 void history_swap_object_transform(history_step_t *step) {
@@ -526,27 +592,25 @@ void history_undo() {
 		else if (step->action == HISTORY_ACTION_OBJECT_TRANSFORM) {
 			history_swap_object_transform(step);
 		}
+		else if (step->action == HISTORY_ACTION_RENAME_ASSET) {
+			history_swap_asset_name(step);
+		}
+		else if (step->action == HISTORY_ACTION_EDIT_META) {
+			history_swap_meta(step);
+		}
 		else if (step->action == HISTORY_ACTION_DELETE_NODE_GROUP) {
 			node_group_t *ng = ALLOC_INIT(node_group_t, {.canvas = NULL, .nodes = ui_nodes_create()});
 			array_insert(history_groups(step), step->canvas_group, ng);
 			history_swap_canvas(step);
 		}
 		else if (step->action == HISTORY_ACTION_NEW_MATERIAL) {
-			g_context->material = g_project->_->materials->buffer[step->material];
-			step->canvas        = g_context->material->canvas;
-			slot_material_delete(g_context->material);
+			history_delete_material_slot(step);
 		}
 		else if (step->action == HISTORY_ACTION_DELETE_MATERIAL) {
-			g_context->material = slot_material_create(g_project->_->materials->buffer[0]->data, NULL);
-			array_insert(g_project->_->materials, step->material, g_context->material);
-			g_context->material->canvas = step->canvas;
-			ui_nodes_canvas_changed();
-			ui_nodes_hwnd->redraws = 2;
+			history_new_material_slot(step);
 		}
 		else if (step->action == HISTORY_ACTION_DUPLICATE_MATERIAL) {
-			g_context->material = g_project->_->materials->buffer[step->material];
-			step->canvas        = g_context->material->canvas;
-			slot_material_delete(g_context->material);
+			history_delete_material_slot(step);
 		}
 		else { // Paint operation
 			history_undo_i    = history_undo_i - 1 < 0 ? g_config->undo_steps - 1 : history_undo_i - 1;
@@ -814,28 +878,24 @@ void history_redo() {
 		else if (step->action == HISTORY_ACTION_OBJECT_TRANSFORM) {
 			history_swap_object_transform(step);
 		}
+		else if (step->action == HISTORY_ACTION_RENAME_ASSET) {
+			history_swap_asset_name(step);
+		}
+		else if (step->action == HISTORY_ACTION_EDIT_META) {
+			history_swap_meta(step);
+		}
 		else if (step->action == HISTORY_ACTION_DELETE_NODE_GROUP) {
 			history_swap_canvas(step);
 			array_remove(history_groups(step), history_groups(step)->buffer[step->canvas_group]);
 		}
 		else if (step->action == HISTORY_ACTION_NEW_MATERIAL) {
-			g_context->material = slot_material_create(g_project->_->materials->buffer[0]->data, NULL);
-			array_insert(g_project->_->materials, step->material, g_context->material);
-			g_context->material->canvas = step->canvas;
-			ui_nodes_canvas_changed();
-			ui_nodes_hwnd->redraws = 2;
+			history_new_material_slot(step);
 		}
 		else if (step->action == HISTORY_ACTION_DELETE_MATERIAL) {
-			g_context->material = g_project->_->materials->buffer[step->material];
-			step->canvas        = g_context->material->canvas;
-			slot_material_delete(g_context->material);
+			history_delete_material_slot(step);
 		}
 		else if (step->action == HISTORY_ACTION_DUPLICATE_MATERIAL) {
-			g_context->material = slot_material_create(g_project->_->materials->buffer[0]->data, NULL);
-			array_insert(g_project->_->materials, step->material, g_context->material);
-			g_context->material->canvas = step->canvas;
-			ui_nodes_canvas_changed();
-			ui_nodes_hwnd->redraws = 2;
+			history_new_material_slot(step);
 		}
 		else { // Paint operation
 			slot_layer_t *lay = history_undo_slot(history_undo_i);
@@ -1176,6 +1236,7 @@ void history_delete_brush() {
 	history_step_t *step = history_push(HISTORY_ACTION_DELETE_BRUSH);
 	step->canvas_type    = CANVAS_TYPE_BRUSH;
 	step->canvas         = util_clone_canvas(g_context->brush->canvas);
+	step->meta           = g_context->brush->meta != NULL ? meta_copy(g_context->brush->meta) : NULL;
 }
 
 void history_duplicate_brush() {
@@ -1196,6 +1257,27 @@ void history_object_transform(mesh_object_t *o, vec4_t loc, quat_t rot, vec4_t s
 	step->object_loc   = loc;
 	step->object_rot   = rot;
 	step->object_scale = scale;
+}
+
+static history_step_t *history_push_asset(history_action_t action, i32 category, i32 index) {
+	history_step_t *step  = history_push(action);
+	step->asset_category  = category;
+	step->asset_index     = index;
+	step->asset_ref       = meta_item(category, index);
+	step->asset_item_name = string_copy(meta_item_name(category, index));
+	return step;
+}
+
+// Pushes the rename of the material (MC_MATERIAL) or brush (MC_BRUSH) at index, made already, prev_name is the name before the rename
+void history_rename_asset(i32 category, i32 index, char *prev_name) {
+	history_step_t *step = history_push_asset(HISTORY_ACTION_RENAME_ASSET, category, index);
+	step->asset_name     = string_copy(prev_name);
+}
+
+// Pushes an edit of the tags or bake keys of the item at index of a category (meta_category_t), prev is a copy of its metadata before the edit
+void history_edit_meta(i32 category, i32 index, meta_t *prev) {
+	history_step_t *step = history_push_asset(HISTORY_ACTION_EDIT_META, category, index);
+	step->meta           = prev;
 }
 
 void history_new_swatch() {
@@ -1241,6 +1323,7 @@ void history_delete_material() {
 	history_step_t *step = history_push(HISTORY_ACTION_DELETE_MATERIAL);
 	step->canvas_type    = 0;
 	step->canvas         = util_clone_canvas(g_context->material->canvas);
+	step->meta           = g_context->material->meta != NULL ? meta_copy(g_context->material->meta) : NULL;
 }
 
 void history_duplicate_material() {
