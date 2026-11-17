@@ -166,7 +166,7 @@ void tab_materials_draw_slots_menu() {
 
 	if (ui_menu_button(tr("Export"), "", ICON_EXPORT)) {
 		context_select_material(i);
-		box_export_show_material();
+		box_export_show_material(asset_selection_get(ASSET_TRAY_MATERIALS));
 	}
 
 	if (ui_menu_button(tr("Bake"), "", ICON_BAKE)) {

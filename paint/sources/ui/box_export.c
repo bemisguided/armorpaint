@@ -552,11 +552,28 @@ void box_export_show_mesh() {
 	ui_box_show_custom(&box_export_show_mesh_box, 420, 260, NULL, true, tr("Export"));
 }
 
+static any_array_t *_box_export_slots = NULL; // Materials or brushes, each exported under its own name when several
+static char        *_box_export_folder;
+
 void box_export_show_material_export_on_next_frame(char *path) {
 	export_arm_run_material(path);
 }
 
+void box_export_materials_on_next_frame(void *_) {
+	for (i32 i = 0; i < _box_export_slots->length; ++i) {
+		slot_material_t *m = _box_export_slots->buffer[i];
+		if (array_index_of(g_project->_->materials, m) >= 0) {
+			export_arm_material(m, asset_selection_unique_path(_box_export_folder, m->canvas->name, "arm", NULL));
+		}
+	}
+}
+
 void box_export_show_material_export(char *path) {
+	if (_box_export_slots->length > 1) {
+		_box_export_folder = string_copy(path);
+		sys_notify_on_next_frame(&box_export_materials_on_next_frame, NULL);
+		return;
+	}
 	char *f = ui_files_filename;
 	if (string_equals(f, "")) {
 		f = string_copy(tr("untitled"));
@@ -580,7 +597,9 @@ void box_export_show_material_box() {
 	}
 }
 
-void box_export_show_material() {
+// Several materials are exported into the picked folder, one file each
+void box_export_show_material(any_array_t *materials) {
+	_box_export_slots = materials;
 	ui_box_show_custom(&box_export_show_material_box, 400, 200, NULL, true, "");
 }
 
@@ -588,7 +607,21 @@ void box_export_show_brush_export_on_next_frame(char *path) {
 	export_arm_run_brush(path);
 }
 
+void box_export_brushes_on_next_frame(void *_) {
+	for (i32 i = 0; i < _box_export_slots->length; ++i) {
+		slot_brush_t *b = _box_export_slots->buffer[i];
+		if (array_index_of(g_project->_->brushes, b) >= 0) {
+			export_arm_brush(b, asset_selection_unique_path(_box_export_folder, b->canvas->name, "arm", NULL));
+		}
+	}
+}
+
 void box_export_show_brush_export(char *path) {
+	if (_box_export_slots->length > 1) {
+		_box_export_folder = string_copy(path);
+		sys_notify_on_next_frame(&box_export_brushes_on_next_frame, NULL);
+		return;
+	}
 	char *f = ui_files_filename;
 	if (string_equals(f, ""))
 		f = string_copy(tr("untitled"));
@@ -611,7 +644,9 @@ void box_export_show_brush_box() {
 	}
 }
 
-void box_export_show_brush() {
+// Several brushes are exported into the picked folder, one file each
+void box_export_show_brush(any_array_t *brushes) {
+	_box_export_slots = brushes;
 	ui_box_show_custom(&box_export_show_brush_box, 400, 200, NULL, true, "");
 }
 
