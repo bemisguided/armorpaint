@@ -463,7 +463,7 @@ void                   history_new_brush();
 void                   history_delete_brush();
 void                   history_duplicate_brush();
 void                   history_object_transform(mesh_object_t *o, vec4_t loc, quat_t rot, vec4_t scale);
-void                   history_rename_asset(i32 category, void *item, char *prev_name);
+void                   history_rename_asset(i32 category, i32 index, char *prev_name);
 void                   history_edit_meta(i32 category, i32 index, meta_t *prev);
 void                   history_new_swatch();
 void                   history_duplicate_swatch();

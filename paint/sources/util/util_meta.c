@@ -623,7 +623,7 @@ bool asset_rename(i32 category, i32 index, char *name) {
 		slot_material_t *m    = g_project->_->materials->buffer[index];
 		char            *prev = string_copy(m->canvas->name);
 		if (asset_material_rename(m, name)) {
-			history_rename_asset(MC_MATERIAL, m, prev);
+			history_rename_asset(MC_MATERIAL, index, prev);
 			return true;
 		}
 	}
@@ -631,7 +631,7 @@ bool asset_rename(i32 category, i32 index, char *name) {
 		slot_brush_t *b    = g_project->_->brushes->buffer[index];
 		char         *prev = string_copy(b->canvas->name);
 		if (asset_brush_rename(b, name)) {
-			history_rename_asset(MC_BRUSH, b, prev);
+			history_rename_asset(MC_BRUSH, index, prev);
 			return true;
 		}
 	}

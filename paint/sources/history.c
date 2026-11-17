@@ -290,10 +290,23 @@ void history_swap_swatch(history_step_t *step) {
 	ui_header_handle->redraws = 2;
 }
 
-// Swaps the name of a renamed material or brush with the one stored in the step, used for both undo and redo.
-// The item is found by pointer in the live list, nothing happens when it was deleted.
+// Live index of the item of a Rename or Edit Details step, -1 when it is gone (the step then does nothing).
+// Materials and brushes are found by index: their new, duplicate and delete are undo steps, so whenever this step is undone or redone the list is
+// as it was when the step was made, and undoing a delete puts a new item at the old index. Textures, fonts, sounds and meshes are found by pointer:
+// their deletes are not undo steps, so an item that left the list is gone for good and the indices after it moved.
+// Either way the item must still have the expected name, so a list changed outside the history never gets the step applied to another item.
+static i32 history_asset_index(history_step_t *step) {
+	i32 category = step->asset_category;
+	i32 index    = category == MC_MATERIAL || category == MC_BRUSH ? step->asset_index : meta_item_index(category, step->asset_ref);
+	if (index < 0 || index >= meta_count(category) || !string_equals(meta_item_name(category, index), step->asset_item_name)) {
+		return -1;
+	}
+	return index;
+}
+
+// Swaps the name of a renamed material or brush with the one stored in the step, used for both undo and redo
 void history_swap_asset_name(history_step_t *step) {
-	i32 index = meta_item_index(step->asset_category, step->asset_ref);
+	i32 index = history_asset_index(step);
 	if (index < 0) {
 		return;
 	}
@@ -302,14 +315,14 @@ void history_swap_asset_name(history_step_t *step) {
 	char             *t      = canvas->name;
 	canvas->name             = step->asset_name;
 	step->asset_name         = t;
+	step->asset_item_name    = canvas->name;
 	ui_nodes_hwnd->redraws   = 2;
 	base_redraw_ui();
 }
 
-// Swaps the tags and bake keys of an item with the metadata stored in the step, used for both undo and redo.
-// The item is found by pointer in the live list, nothing happens when it was deleted.
+// Swaps the tags and bake keys of an item with the metadata stored in the step, used for both undo and redo
 void history_swap_meta(history_step_t *step) {
-	i32 index = meta_item_index(step->asset_category, step->asset_ref);
+	i32 index = history_asset_index(step);
 	if (index < 0) {
 		return;
 	}
@@ -1226,19 +1239,24 @@ void history_object_transform(mesh_object_t *o, vec4_t loc, quat_t rot, vec4_t s
 	step->object_scale = scale;
 }
 
-// Pushes the rename of a material (MC_MATERIAL) or brush (MC_BRUSH) item (slot_material_t, slot_brush_t), prev_name is the name before the rename
-void history_rename_asset(i32 category, void *item, char *prev_name) {
-	history_step_t *step = history_push(HISTORY_ACTION_RENAME_ASSET);
-	step->asset_category = category;
-	step->asset_ref      = item;
+static history_step_t *history_push_asset(history_action_t action, i32 category, i32 index) {
+	history_step_t *step  = history_push(action);
+	step->asset_category  = category;
+	step->asset_index     = index;
+	step->asset_ref       = meta_item(category, index);
+	step->asset_item_name = string_copy(meta_item_name(category, index));
+	return step;
+}
+
+// Pushes the rename of the material (MC_MATERIAL) or brush (MC_BRUSH) at index, made already, prev_name is the name before the rename
+void history_rename_asset(i32 category, i32 index, char *prev_name) {
+	history_step_t *step = history_push_asset(HISTORY_ACTION_RENAME_ASSET, category, index);
 	step->asset_name     = string_copy(prev_name);
 }
 
 // Pushes an edit of the tags or bake keys of the item at index of a category (meta_category_t), prev is a copy of its metadata before the edit
 void history_edit_meta(i32 category, i32 index, meta_t *prev) {
-	history_step_t *step = history_push(HISTORY_ACTION_EDIT_META);
-	step->asset_category = category;
-	step->asset_ref      = meta_item(category, index);
+	history_step_t *step = history_push_asset(HISTORY_ACTION_EDIT_META, category, index);
 	step->meta           = prev;
 }
 
