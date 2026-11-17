@@ -903,3 +903,4 @@ Per Object & Tile
 Default
 Atlas
 CPU bake of a {size} px atlas needs a lot of memory, consider the GPU bake or a lower resolution
+Not enough memory for the undo step, lower the resolution
