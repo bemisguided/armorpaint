@@ -1,32 +1,91 @@
 
 #include "../global.h"
 
-// "Details" dialog of an asset of a category (meta_category_t), shared by the Textures, Materials, Brushes, Fonts and Sounds trays.
+// "Details" dialog of the assets of a category (meta_category_t), shared by the Textures, Materials, Brushes, Fonts and Sounds trays.
 // Name (Materials and Brushes only), Tags, and for Textures the Bake Texture section (bake type, object, encoding, tile, see util_meta.c).
 // Changes apply at once, the name commits on Enter or when the field loses focus (a click anywhere else, Tab). Closing the dialog needs no commit of its own:
 // the click on OK or outside ends the edit first, and the field commits in the last frame the dialog draws.
+// Opened on an item that is part of the selection of its tray (util_asset_selection.c), the dialog edits all selected items at once:
+// the tags of every item, and fields that differ across the items show as Mixed and are written only when changed. The name is hidden then.
+// Every edit is one undo step for all items (history_group_begin / history_group_end).
 
-static i32     ui_asset_details_category = 0;
-static i32     ui_asset_details_index    = 0;
-static char   *ui_asset_details_input    = ""; // New tag
-static char   *ui_asset_details_name     = ""; // Name field text, committed to the asset on Enter or focus loss
-static i32     ui_asset_details_ids[4];
-static i32     ui_asset_details_last_btp = BTP_NONE; // Last bake type chosen in this session, BTP_NONE = none yet
-static i32     ui_asset_details_obj      = -1;       // Object and Tile are kept while the dialog is open so a type change never clears them
-static i32     ui_asset_details_tile     = -1;
-static meta_t *ui_asset_details_combo_prev = NULL; // Metadata from before the first change made through the open combo, see ui_asset_details_combo_commit
+#define UI_ASSET_DETAILS_MIXED ((i32)0x80000000) // Combo value of a field that differs across the items
 
-// Combo over ids, an id that is not in the list is appended as `Unknown (n)` so it is shown and kept. Returns true and sets value when changed.
+static i32          ui_asset_details_category = 0;
+static any_array_t *ui_asset_details_items    = NULL; // Edited items (asset_t, slot_material_t...), the item alone or the selection of its tray
+static char        *ui_asset_details_input    = "";   // New tag
+static char        *ui_asset_details_name     = "";   // Name field text, committed to the asset on Enter or focus loss
+static i32          ui_asset_details_ids[4];
+static i32          ui_asset_details_last_btp = BTP_NONE; // Last bake type chosen in this session, BTP_NONE = none yet
+static any_array_t *ui_asset_details_combo_prev =
+    NULL; // Metadata of each item from before the first change made through the open combo, see ui_asset_details_combo_commit
+
+static i32 ui_asset_details_count() {
+	return ui_asset_details_items != NULL ? ui_asset_details_items->length : 0;
+}
+
+static bool ui_asset_details_multi() {
+	return ui_asset_details_count() > 1;
+}
+
+// Index of the i-th edited item in the live list of its category
+static i32 ui_asset_details_index(i32 i) {
+	return meta_item_index(ui_asset_details_category, ui_asset_details_items->buffer[i]);
+}
+
+static meta_t *ui_asset_details_peek(i32 i) {
+	return meta_peek(ui_asset_details_category, ui_asset_details_index(i));
+}
+
+static meta_t *ui_asset_details_meta(i32 i) {
+	return meta_get(ui_asset_details_category, ui_asset_details_index(i));
+}
+
+// Drops the items that are gone (deleted, undo of an add) together with their combo snapshot
+static void ui_asset_details_refresh() {
+	for (i32 i = ui_asset_details_count() - 1; i >= 0; --i) {
+		if (ui_asset_details_index(i) == -1) {
+			array_splice(ui_asset_details_items, i, 1);
+			if (ui_asset_details_combo_prev != NULL) {
+				meta_free(ui_asset_details_combo_prev->buffer[i]);
+				array_splice(ui_asset_details_combo_prev, i, 1);
+			}
+		}
+	}
+}
+
+// The value of an i32 key shared by all items, UI_ASSET_DETAILS_MIXED when they differ
+static i32 ui_asset_details_shared(i32 key, i32 def) {
+	i32 v = meta_get_i32(ui_asset_details_peek(0), key, def);
+	for (i32 i = 1; i < ui_asset_details_count(); ++i) {
+		if (meta_get_i32(ui_asset_details_peek(i), key, def) != v) {
+			return UI_ASSET_DETAILS_MIXED;
+		}
+	}
+	return v;
+}
+
+// Combo over ids, an id that is not in the list is appended as `Unknown (n)` so it is shown and kept, UI_ASSET_DETAILS_MIXED comes first as `Mixed`.
+// Returns true and sets value when changed.
 static bool ui_asset_details_combo(i32 *value, string_array_t *ar, i32_array_t *ids, char *label, char *(*label_of)(i32), i32 id_slot) {
 	i32 pos = i32_array_index_of(ids, *value);
-	if (pos == -1) {
+	if (pos == -1 && *value == UI_ASSET_DETAILS_MIXED) {
+		array_insert((any_array_t *)ar, 0, tr("Mixed"));
+		i32_array_push(ids, 0);
+		for (i32 i = ids->length - 1; i > 0; --i) {
+			ids->buffer[i] = ids->buffer[i - 1];
+		}
+		ids->buffer[0] = UI_ASSET_DETAILS_MIXED;
+		pos            = 0;
+	}
+	else if (pos == -1) {
 		any_array_push(ar, label_of(*value));
 		i32_array_push(ids, *value);
 		pos = ids->length - 1;
 	}
 	ui_set_next_id((ui_id_t)&ui_asset_details_ids[id_slot]);
 	ui_combo(&pos, ar, label, true, UI_ALIGN_LEFT, true);
-	bool changed = ui_item_changed() && ids->buffer[pos] != *value; // Escape hands back the old value
+	bool changed = ui_item_changed() && ids->buffer[pos] != *value; // Escape hands back the old value, Mixed again changes nothing
 	if (changed) {
 		*value = ids->buffer[pos];
 	}
@@ -37,14 +96,49 @@ static bool ui_asset_details_combo(i32 *value, string_array_t *ar, i32_array_t *
 	return changed;
 }
 
-// Copy of the metadata of the item, taken before an edit and handed to ui_asset_details_push_edit once the edit is applied
-static meta_t *ui_asset_details_snapshot() {
-	return meta_copy(meta_peek(ui_asset_details_category, ui_asset_details_index));
+// Copies of the metadata of the items, taken before an edit and handed to ui_asset_details_push_edit once the edit is applied
+static any_array_t *ui_asset_details_snapshot() {
+	any_array_t *prev = any_array_create(0);
+	for (i32 i = 0; i < ui_asset_details_count(); ++i) {
+		any_array_push(prev, meta_copy(ui_asset_details_peek(i)));
+	}
+	return prev;
 }
 
-// One undo step for a tag or bake edit, prev is the snapshot from before it
-static void ui_asset_details_push_edit(meta_t *prev) {
-	history_edit_meta(ui_asset_details_category, ui_asset_details_index, prev);
+// Same tags and bake keys, the fields the dialog edits
+static bool ui_asset_details_same(meta_t *a, meta_t *b) {
+	i32 na = a != NULL && a->tags != NULL ? a->tags->length : 0;
+	i32 nb = b != NULL && b->tags != NULL ? b->tags->length : 0;
+	if (na != nb) {
+		return false;
+	}
+	for (i32 i = 0; i < na; ++i) {
+		if (!string_equals(a->tags->buffer[i], b->tags->buffer[i])) {
+			return false;
+		}
+	}
+	i32 keys[] = {META_BAKE_TYPE, META_ENCODING, META_OBJECT, META_TILE};
+	for (i32 i = 0; i < 4; ++i) {
+		if (meta_get_i32(a, keys[i], -1) != meta_get_i32(b, keys[i], -1)) {
+			return false;
+		}
+	}
+	return true;
+}
+
+// One undo step for a tag or bake edit of all items, prev holds the snapshots from before it. Items the edit left unchanged get no step.
+static void ui_asset_details_push_edit(any_array_t *prev) {
+	history_group_begin();
+	for (i32 i = 0; i < prev->length; ++i) {
+		if (ui_asset_details_same(prev->buffer[i], ui_asset_details_peek(i))) {
+			meta_free(prev->buffer[i]);
+		}
+		else {
+			history_edit_meta(ui_asset_details_category, ui_asset_details_index(i), prev->buffer[i]);
+		}
+	}
+	history_group_end();
+	array_delete(prev);
 }
 
 // A combo with a search bar hands over a value for each typed letter or arrow key while it is open, and the old value again on Escape.
@@ -60,20 +154,13 @@ static void ui_asset_details_combo_commit() {
 	if (ui_asset_details_combo_prev == NULL || g_ui->combo_selected_id != 0) {
 		return;
 	}
-	meta_t *prev                = ui_asset_details_combo_prev;
-	meta_t *m                   = meta_peek(MC_TEXTURE, ui_asset_details_index);
+	any_array_t *prev           = ui_asset_details_combo_prev;
 	ui_asset_details_combo_prev = NULL;
-	i32  keys[]                 = {META_BAKE_TYPE, META_ENCODING, META_OBJECT, META_TILE};
-	bool same                   = true;
-	for (i32 i = 0; i < 4; ++i) {
-		same = same && meta_get_i32(prev, keys[i], -1) == meta_get_i32(m, keys[i], -1);
-	}
-	if (same) {
-		return;
-	}
-	i32 btp = meta_get_i32(m, META_BAKE_TYPE, BTP_NONE);
-	if (btp != meta_get_i32(prev, META_BAKE_TYPE, BTP_NONE)) {
-		ui_asset_details_last_btp = btp;
+	for (i32 i = 0; i < prev->length; ++i) {
+		i32 btp = meta_get_i32(ui_asset_details_peek(i), META_BAKE_TYPE, BTP_NONE);
+		if (btp != meta_get_i32(prev->buffer[i], META_BAKE_TYPE, BTP_NONE)) {
+			ui_asset_details_last_btp = btp;
+		}
 	}
 	ui_asset_details_push_edit(prev);
 }
@@ -84,9 +171,9 @@ static bool ui_asset_details_has_name() {
 
 static char *ui_asset_details_current_name() {
 	if (ui_asset_details_category == MC_MATERIAL) {
-		return g_project->_->materials->buffer[ui_asset_details_index]->canvas->name;
+		return g_project->_->materials->buffer[ui_asset_details_index(0)]->canvas->name;
 	}
-	return g_project->_->brushes->buffer[ui_asset_details_index]->canvas->name;
+	return g_project->_->brushes->buffer[ui_asset_details_index(0)]->canvas->name;
 }
 
 // Commits the name field to the asset (one undo step, none when unchanged) and reloads the field from the asset
@@ -94,7 +181,7 @@ static void ui_asset_details_commit_name() {
 	if (!ui_asset_details_has_name()) {
 		return;
 	}
-	if (asset_rename(ui_asset_details_category, ui_asset_details_index, ui_asset_details_name)) {
+	if (asset_rename(ui_asset_details_category, ui_asset_details_index(0), ui_asset_details_name)) {
 		base_redraw_ui();
 		ui_nodes_hwnd->redraws = 2;
 	}
@@ -113,30 +200,101 @@ static void ui_asset_details_draw_name() {
 	}
 }
 
-static void ui_asset_details_draw_tags() {
-	meta_t *m = meta_peek(ui_asset_details_category, ui_asset_details_index);
-	ui_text(tr("Tags"), UI_ALIGN_LEFT, 0x00000000);
-
-	i32 remove = -1;
-	for (i32 i = 0; m != NULL && m->tags != NULL && i < m->tags->length; ++i) {
-		f32_array_t *row = f32_array_create_from_raw_tmp(
-		    (f32[]){
-		        7 / 8.0,
-		        1 / 8.0,
-		    },
-		    2);
-		ui_row(row);
-		ui_text(m->tags->buffer[i], UI_ALIGN_LEFT, 0x00000000);
-		if (ui_button(tr("X"), UI_ALIGN_CENTER, "")) {
-			remove = i;
+// Tags of all items in order of first appearance, compared like meta_has_tag (case-insensitive). The strings belong to the metas.
+static any_array_t *ui_asset_details_tags() {
+	any_array_t *tags = any_array_create(0);
+	for (i32 i = 0; i < ui_asset_details_count(); ++i) {
+		meta_t *m = ui_asset_details_peek(i);
+		for (i32 j = 0; m != NULL && m->tags != NULL && j < m->tags->length; ++j) {
+			char *t     = m->tags->buffer[j];
+			bool  known = false;
+			for (i32 k = 0; k < tags->length && !known; ++k) {
+				known = string_equals(to_lower_case(tags->buffer[k]), to_lower_case(t));
+			}
+			if (!known) {
+				any_array_push(tags, t);
+			}
 		}
 	}
-	if (remove >= 0) {
-		meta_t *prev = ui_asset_details_snapshot();
-		meta_remove_tag(m, string_copy(m->tags->buffer[remove]));
-		ui_asset_details_push_edit(prev);
-		base_redraw_ui();
+	return tags;
+}
+
+static i32 ui_asset_details_tag_count() {
+	any_array_t *tags  = ui_asset_details_tags();
+	i32          count = tags->length;
+	array_delete(tags);
+	return count;
+}
+
+// Adds (or removes) the tag on every item, one undo step
+static void ui_asset_details_set_tag(char *tag, bool add) {
+	any_array_t *prev = ui_asset_details_snapshot();
+	for (i32 i = 0; i < ui_asset_details_count(); ++i) {
+		if (add) {
+			meta_add_tag(ui_asset_details_meta(i), tag);
+		}
+		else {
+			meta_remove_tag(ui_asset_details_peek(i), tag);
+		}
 	}
+	ui_asset_details_push_edit(prev);
+	base_redraw_ui();
+}
+
+static void ui_asset_details_draw_tags() {
+	ui_text(tr("Tags"), UI_ALIGN_LEFT, 0x00000000);
+
+	// A tag on all items: name and X. A tag on some items only: dimmed name with the share, + adds it to the others, X removes it from all.
+	any_array_t *tags = ui_asset_details_tags();
+	i32          n    = ui_asset_details_count();
+	char        *edit = NULL;
+	bool         add  = false;
+	for (i32 i = 0; i < tags->length; ++i) {
+		char *t    = tags->buffer[i];
+		i32   have = 0;
+		for (i32 j = 0; j < n; ++j) {
+			have += meta_has_tag(ui_asset_details_peek(j), t) ? 1 : 0;
+		}
+		if (have == n) {
+			f32_array_t *row = f32_array_create_from_raw_tmp(
+			    (f32[]){
+			        7 / 8.0,
+			        1 / 8.0,
+			    },
+			    2);
+			ui_row(row);
+			ui_text(t, UI_ALIGN_LEFT, 0x00000000);
+		}
+		else {
+			f32_array_t *row = f32_array_create_from_raw_tmp(
+			    (f32[]){
+			        6 / 8.0,
+			        1 / 8.0,
+			        1 / 8.0,
+			    },
+			    3);
+			ui_row(row);
+			i32 text_col      = g_theme->TEXT_COL;
+			g_theme->TEXT_COL = g_theme->LABEL_COL;
+			ui_text(string_tmp("%s (%d/%d)", t, have, n), UI_ALIGN_LEFT, 0x00000000);
+			g_theme->TEXT_COL = text_col;
+			if (ui_button(tr("+"), UI_ALIGN_CENTER, "")) {
+				edit = t;
+				add  = true;
+			}
+			if (g_ui->is_hovered) {
+				ui_tooltip(tr("Add to all"));
+			}
+		}
+		if (ui_button(tr("X"), UI_ALIGN_CENTER, "")) {
+			edit = t;
+			add  = false;
+		}
+	}
+	if (edit != NULL) {
+		ui_asset_details_set_tag(string_copy(edit), add); // Copied, removing shifts the tag arrays
+	}
+	array_delete(tags);
 
 	f32_array_t *row = f32_array_create_from_raw_tmp(
 	    (f32[]){
@@ -148,38 +306,53 @@ static void ui_asset_details_draw_tags() {
 	ui_text_input(&ui_asset_details_input, tr("Tag"), UI_ALIGN_LEFT, true, false);
 	if (ui_icon_button(tr("Add"), ICON_PLUS, UI_ALIGN_CENTER) || g_ui->is_return_down) {
 		if (!string_equals(ui_asset_details_input, "")) {
-			meta_t       *prev = ui_asset_details_snapshot();
-			i32           n    = m != NULL && m->tags != NULL ? m->tags->length : 0;
-			meta_add_tag(meta_get(ui_asset_details_category, ui_asset_details_index), ui_asset_details_input);
-			m = meta_peek(ui_asset_details_category, ui_asset_details_index);
-			if ((m != NULL && m->tags != NULL ? m->tags->length : 0) != n) { // Not for an empty or duplicate tag
-				ui_asset_details_push_edit(prev);
-			}
+			ui_asset_details_set_tag(ui_asset_details_input, true); // No step for an empty tag or one every item has
 			ui_asset_details_input = "";
-			base_redraw_ui();
 		}
 	}
 }
 
+// Value of a field after a combo: the picked value when the combo changed it, else the item's own value
+static i32 ui_asset_details_pick(i32 picked, i32 shown, i32 own) {
+	return picked != shown ? picked : own;
+}
+
 static void ui_asset_details_draw_bake() {
-	meta_t *m     = meta_peek(MC_TEXTURE, ui_asset_details_index);
-	i32     btp   = meta_get_i32(m, META_BAKE_TYPE, BTP_NONE);
-	bool baked = btp != BTP_NONE;
+	i32 n       = ui_asset_details_count();
+	i32 baked_n = 0;
+	for (i32 i = 0; i < n; ++i) {
+		baked_n += meta_get_i32(ui_asset_details_peek(i), META_BAKE_TYPE, BTP_NONE) != BTP_NONE ? 1 : 0;
+	}
+	bool mixed = baked_n > 0 && baked_n < n;
+	bool baked = baked_n == n;
 	bool prev  = baked;
+	if (mixed) {
+		f32_array_t *row = f32_array_create_from_raw_tmp(
+		    (f32[]){
+		        2 / 3.0,
+		        1 / 3.0,
+		    },
+		    2);
+		ui_row(row);
+	}
 	ui_check(&baked, tr("Bake Texture"), "");
+	if (mixed) {
+		i32 text_col      = g_theme->TEXT_COL;
+		g_theme->TEXT_COL = g_theme->LABEL_COL;
+		ui_text(tr("Mixed"), UI_ALIGN_RIGHT, 0x00000000);
+		g_theme->TEXT_COL = text_col;
+	}
 	if (baked != prev) {
-		meta_t *before = ui_asset_details_snapshot();
-		m              = meta_get(MC_TEXTURE, ui_asset_details_index);
-		if (baked) {
-			i32 t = ui_asset_details_last_btp != BTP_NONE ? ui_asset_details_last_btp : BTP_AO;
-			ui_asset_details_obj  = -1;
-			ui_asset_details_tile = -1;
-			meta_set_bake(m, t, asset_bake_default_encoding(t), -1, -1);
-		}
-		else {
-			meta_clear_bake(m);
-			ui_asset_details_obj  = -1;
-			ui_asset_details_tile = -1;
+		// On: the unbaked items get the last used type, items already baked keep their keys. Off: every item is cleared.
+		any_array_t *before = ui_asset_details_snapshot();
+		i32          t      = ui_asset_details_last_btp != BTP_NONE ? ui_asset_details_last_btp : BTP_AO;
+		for (i32 i = 0; i < n; ++i) {
+			if (!baked) {
+				meta_clear_bake(ui_asset_details_peek(i));
+			}
+			else if (meta_get_i32(ui_asset_details_peek(i), META_BAKE_TYPE, BTP_NONE) == BTP_NONE) {
+				meta_set_bake(ui_asset_details_meta(i), t, asset_bake_default_encoding(t), -1, -1);
+			}
 		}
 		ui_asset_details_push_edit(before);
 		return;
@@ -187,11 +360,10 @@ static void ui_asset_details_draw_bake() {
 	if (!baked) {
 		return;
 	}
-	i32 enc               = meta_get_i32(m, META_ENCODING, AE_NONE);
-	i32 obj               = meta_get_i32(m, META_OBJECT, -1);
-	i32 tile              = meta_get_i32(m, META_TILE, -1);
-	ui_asset_details_obj  = obj; // Follows undo and redo
-	ui_asset_details_tile = tile;
+	i32 btp  = ui_asset_details_shared(META_BAKE_TYPE, BTP_NONE);
+	i32 enc  = ui_asset_details_shared(META_ENCODING, AE_NONE);
+	i32 obj  = ui_asset_details_shared(META_OBJECT, -1);
+	i32 tile = ui_asset_details_shared(META_TILE, -1);
 
 	// Type
 	string_array_t *ar  = any_array_create(0);
@@ -202,9 +374,12 @@ static void ui_asset_details_draw_bake() {
 	}
 	i32 new_btp = btp;
 	if (ui_asset_details_combo(&new_btp, ar, ids, tr("Type"), &asset_bake_type_label, 0)) {
-		// A type change refills the encoding only, Object and Tile come from the dialog so a changing type (typed search) never loses them
+		// A type change refills the encoding only, each item keeps its Object and Tile so a changing type (typed search) never loses them
 		ui_asset_details_combo_edit();
-		meta_set_bake(meta_get(MC_TEXTURE, ui_asset_details_index), new_btp, asset_bake_default_encoding(new_btp), ui_asset_details_obj, ui_asset_details_tile);
+		for (i32 i = 0; i < n; ++i) {
+			meta_t *m = ui_asset_details_meta(i);
+			meta_set_bake(m, new_btp, asset_bake_default_encoding(new_btp), meta_get_i32(m, META_OBJECT, -1), meta_get_i32(m, META_TILE, -1));
+		}
 		return;
 	}
 
@@ -222,9 +397,6 @@ static void ui_asset_details_draw_bake() {
 	}
 	i32  new_obj = obj;
 	bool changed = ui_asset_details_combo(&new_obj, ar, ids, tr("Object"), &asset_unknown_label, 1);
-	if (changed) {
-		ui_asset_details_obj = new_obj;
-	}
 
 	// Encoding
 	ar  = any_array_create(0);
@@ -247,15 +419,18 @@ static void ui_asset_details_draw_bake() {
 			any_array_push(ar, string_tmp("%d", util_udim_tile(i)));
 			i32_array_push(ids, util_udim_tile(i));
 		}
-		if (ui_asset_details_combo(&new_tile, ar, ids, tr("Tile"), &asset_unknown_label, 3)) {
-			ui_asset_details_tile = new_tile;
-			changed               = true;
-		}
+		changed = ui_asset_details_combo(&new_tile, ar, ids, tr("Tile"), &asset_unknown_label, 3) || changed;
 	}
 
+	// Only the changed fields are written, the others keep each item's value
 	if (changed) {
 		ui_asset_details_combo_edit();
-		meta_set_bake(meta_get(MC_TEXTURE, ui_asset_details_index), btp, new_enc, new_obj, new_tile);
+		for (i32 i = 0; i < n; ++i) {
+			meta_t *m = ui_asset_details_meta(i);
+			meta_set_bake(m, meta_get_i32(m, META_BAKE_TYPE, BTP_NONE), ui_asset_details_pick(new_enc, enc, meta_get_i32(m, META_ENCODING, AE_NONE)),
+			              ui_asset_details_pick(new_obj, obj, meta_get_i32(m, META_OBJECT, -1)),
+			              ui_asset_details_pick(new_tile, tile, meta_get_i32(m, META_TILE, -1)));
+		}
 	}
 }
 
@@ -266,28 +441,40 @@ static i32 ui_asset_details_height() {
 	if (ui_asset_details_category == MC_TEXTURE) {
 		mh = 460;
 	}
-	else if (ui_asset_details_category == MC_MATERIAL || ui_asset_details_category == MC_BRUSH) {
+	else if (ui_asset_details_has_name()) {
 		mh = 360;
 	}
-	meta_t       *m    = meta_peek(ui_asset_details_category, ui_asset_details_index);
-	i32           tags = m != NULL && m->tags != NULL ? m->tags->length : 0;
-	f32           row  = (UI_ELEMENT_H() + UI_ELEMENT_OFFSET()) / (f32)UI_SCALE();
+	i32 tags = ui_asset_details_tag_count();
+	f32 row  = (UI_ELEMENT_H() + UI_ELEMENT_OFFSET()) / (f32)UI_SCALE();
 	if (tags > 2) {
 		mh += math_ceil((tags - 2) * row);
+	}
+	if (ui_asset_details_multi() && !ui_asset_details_has_name()) { // The item count line, it takes the place of the name field
+		mh += math_ceil(row);
 	}
 	i32 max = math_floor(iron_window_height() / (f32)UI_SCALE()) - 20;
 	return mh < max ? mh : max;
 }
 
+static void ui_asset_details_draw_count() {
+	any_map_t *vars = any_map_create();
+	any_map_set(vars, "count", string_tmp("%d", ui_asset_details_count()));
+	ui_text(vtr("{count} items", vars), UI_ALIGN_LEFT, 0x00000000);
+	map_free(vars);
+}
+
 static void ui_asset_details_box_draw() {
-	i32 count = meta_count(ui_asset_details_category);
-	if (ui_asset_details_index < 0 || ui_asset_details_index >= count) {
+	ui_asset_details_refresh();
+	if (ui_asset_details_count() == 0) {
 		ui_asset_details_combo_prev = NULL;
 		ui_box_hide();
 		return;
 	}
 	ui_box_modalh = ui_asset_details_height();
-	if (ui_asset_details_has_name()) {
+	if (ui_asset_details_multi()) {
+		ui_asset_details_draw_count();
+	}
+	else if (ui_asset_details_has_name()) {
 		ui_asset_details_draw_name();
 	}
 	ui_asset_details_draw_tags();
@@ -303,25 +490,49 @@ static void ui_asset_details_box_draw() {
 
 // A combo closed with Enter is committed in the next draw, unless the dialog closes first (Escape or a click outside)
 static void ui_asset_details_on_hide() {
+	ui_asset_details_refresh();
 	ui_asset_details_combo_commit();
 }
 
-// Opens the details dialog of an item of a category (meta_category_t)
+static asset_tray_t ui_asset_details_tray(i32 category) {
+	switch (category) {
+	case MC_TEXTURE:
+		return ASSET_TRAY_TEXTURES;
+	case MC_MATERIAL:
+		return ASSET_TRAY_MATERIALS;
+	case MC_BRUSH:
+		return ASSET_TRAY_BRUSHES;
+	case MC_FONT:
+		return ASSET_TRAY_FONTS;
+	case MC_SOUND:
+		return ASSET_TRAY_SOUNDS;
+	}
+	return ASSET_TRAY_NONE;
+}
+
+// Opens the details dialog of an item of a category (meta_category_t), for the whole selection of its tray when the item is part of it
 void ui_asset_details_show(i32 category, i32 index) {
-	if (index < 0 || index >= meta_count(category)) {
+	void *item = meta_item(category, index);
+	if (item == NULL) {
 		return;
 	}
+	asset_tray_t tray     = ui_asset_details_tray(category);
+	any_array_t *selected = tray != ASSET_TRAY_NONE && asset_selection_contains(tray, item) ? asset_selection_get_tray_order(tray) : NULL;
+	any_array_t *items    = any_array_create(0);
+	for (i32 i = 0; selected != NULL && i < selected->length; ++i) {
+		if (category != MC_FONT || meta_item_index(category, selected->buffer[i]) > 0) { // Not the built-in default font, it takes no metadata
+			any_array_push(items, selected->buffer[i]);
+		}
+	}
+	array_delete(selected);
+	if (items->length == 0) {
+		any_array_push(items, item);
+	}
+	array_delete(ui_asset_details_items);
+	ui_asset_details_items      = items;
 	ui_asset_details_category   = category;
-	ui_asset_details_index      = index;
 	ui_asset_details_combo_prev = NULL;
 	ui_asset_details_input      = "";
 	ui_asset_details_name       = "";
-	ui_asset_details_obj        = -1;
-	ui_asset_details_tile       = -1;
-	if (category == MC_TEXTURE) {
-		meta_t *m             = meta_peek(MC_TEXTURE, index);
-		ui_asset_details_obj  = meta_get_i32(m, META_OBJECT, -1);
-		ui_asset_details_tile = meta_get_i32(m, META_TILE, -1);
-	}
 	ui_box_show_custom(&ui_asset_details_box_draw, 400, ui_asset_details_height(), &ui_asset_details_on_hide, true, tr("Details"));
 }

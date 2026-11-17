@@ -931,3 +931,6 @@ Unknown ({n})
 Cavity
 Slot Texture
 Several covered objects share UV space.
+Mixed
+{count} items
+Add to all
