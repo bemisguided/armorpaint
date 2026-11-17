@@ -62,7 +62,7 @@ void tab_brushes_draw_context_menu() {
 
 	if (ui_menu_button(tr("Export"), "", ICON_EXPORT)) {
 		context_select_brush(i);
-		box_export_show_brush();
+		box_export_show_brush(asset_selection_get(ASSET_TRAY_BRUSHES));
 	}
 
 	if (ui_menu_button(tr("Duplicate"), "ctrl+d", ICON_DUPLICATE)) {
