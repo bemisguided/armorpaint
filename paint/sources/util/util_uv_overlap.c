@@ -1,6 +1,6 @@
 #include "../global.h"
 
-// Covered objects that share UV space inside a tile (informational label on the Texture Slot node).
+// Covered objects that share UV space inside a tile (informational label on the Slot Texture node).
 // Per tile each covered object's triangles are rasterised into a small bitmap, two objects setting the same pixel overlap.
 // Computed once per (covered object ids, covered tiles, util_mesh_version) and cached, only read from the node UI.
 

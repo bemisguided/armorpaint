@@ -914,5 +914,5 @@ Encoding
 Any
 Unknown ({n})
 Cavity
-Texture Slot
+Slot Texture
 Several covered objects share UV space.
