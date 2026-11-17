@@ -471,8 +471,8 @@ static void make_flood_fill_update(void *_) {
 		make_flood_fill_scheduled = false;
 		return;
 	}
-	// Stroke, Bake Texture or a drag running
-	bool busy = g_context->pdirty > 0 || bake_texture_node_baking || g_ui->input_down;
+	// Stroke, Bake Texture or a drag running (pdirty is no signal: a fill layer leaves it at 1)
+	bool busy = bake_texture_node_baking || g_ui->input_down;
 	if (busy || (force_node == NULL && sys_time() - make_flood_fill_last_change < MAKE_FLOOD_FILL_DEBOUNCE)) {
 		return;
 	}
