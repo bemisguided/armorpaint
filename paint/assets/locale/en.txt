@@ -871,7 +871,7 @@ Layer's objects are hidden or use another material
 On
 Off
 UDIM tiles
-Auto uses tiles when the UVs use a tile other than 1001 and no triangle crosses a tile border
+Tiles when the UVs use a tile other than 1001
 {count} triangles cross UDIM tile borders and were clamped
 Tile layout changed, undo history was cleared
 UDIM atlas too large: {tiles} tiles use {res} px per tile ({atlas} px atlas)
