@@ -860,3 +860,4 @@ type
 untitled
 x
 {shortcut} and move mouse
+Not enough memory for the undo step, lower the resolution

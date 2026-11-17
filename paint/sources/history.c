@@ -613,6 +613,18 @@ void history_copy_to_undo(i32 from_id, i32 to_id, bool is_mask) {
 	if (history_undo_layers != NULL && to_id < history_undo_layers->length) {
 		history_undo_slot(to_id);
 	}
+	// A very large layer can fail to allocate its undo textures (out of GPU memory), skip the copy instead of crashing
+	bool  is_sculpt     = !is_mask && g_context->layer->texpaint_sculpt != NULL;
+	char *undo_names[3] = {string_tmp(is_sculpt ? "texpaint_sculpt_undo%s" : "texpaint_undo%s", to_id_s), string_tmp("texpaint_nor_undo%s", to_id_s),
+	                       string_tmp("texpaint_pack_undo%s", to_id_s)};
+	i32   undo_count    = is_mask || is_sculpt ? 1 : 3;
+	for (i32 i = 0; i < undo_count; ++i) {
+		render_target_t *rt = any_map_get(render_path_render_targets, undo_names[i]);
+		if (rt == NULL || rt->_image == NULL) {
+			console_error(tr("Not enough memory for the undo step, lower the resolution"));
+			return;
+		}
+	}
 	if (is_mask) {
 		render_path_set_target(string_tmp("texpaint_undo%s", to_id_s), NULL, NULL, GPU_CLEAR_NONE, 0, 0.0);
 		render_path_bind_target(string("texpaint%s", from_id_s), "tex");
