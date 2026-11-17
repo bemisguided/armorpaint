@@ -35,6 +35,16 @@ static bool ui_asset_details_combo(i32 *value, string_array_t *ar, i32_array_t *
 	return changed;
 }
 
+// Copy of the metadata of the item, taken before an edit and handed to ui_asset_details_push_edit once the edit is applied
+static meta_t *ui_asset_details_snapshot() {
+	return meta_copy(meta_peek(ui_asset_details_category, ui_asset_details_index));
+}
+
+// One undo step for a tag or bake edit, prev is the snapshot from before it
+static void ui_asset_details_push_edit(meta_t *prev) {
+	history_edit_meta(ui_asset_details_category, ui_asset_details_index, prev);
+}
+
 static bool ui_asset_details_has_name() {
 	return ui_asset_details_category == MC_MATERIAL || ui_asset_details_category == MC_BRUSH;
 }
@@ -90,7 +100,9 @@ static void ui_asset_details_draw_tags() {
 		}
 	}
 	if (remove >= 0) {
+		meta_t *prev = ui_asset_details_snapshot();
 		meta_remove_tag(m, string_copy(m->tags->buffer[remove]));
+		ui_asset_details_push_edit(prev);
 		base_redraw_ui();
 	}
 
@@ -104,7 +116,13 @@ static void ui_asset_details_draw_tags() {
 	ui_text_input(&ui_asset_details_input, tr("Tag"), UI_ALIGN_LEFT, true, false);
 	if (ui_icon_button(tr("Add"), ICON_PLUS, UI_ALIGN_CENTER) || g_ui->is_return_down) {
 		if (!string_equals(ui_asset_details_input, "")) {
+			meta_t       *prev = ui_asset_details_snapshot();
+			i32           n    = m != NULL && m->tags != NULL ? m->tags->length : 0;
 			meta_add_tag(meta_get(ui_asset_details_category, ui_asset_details_index), ui_asset_details_input);
+			m = meta_peek(ui_asset_details_category, ui_asset_details_index);
+			if ((m != NULL && m->tags != NULL ? m->tags->length : 0) != n) { // Not for an empty or duplicate tag
+				ui_asset_details_push_edit(prev);
+			}
 			ui_asset_details_input = "";
 			base_redraw_ui();
 		}
@@ -118,7 +136,8 @@ static void ui_asset_details_draw_bake() {
 	bool prev  = baked;
 	ui_check(&baked, tr("Bake Texture"), "");
 	if (baked != prev) {
-		m = meta_get(MC_TEXTURE, ui_asset_details_index);
+		meta_t *before = ui_asset_details_snapshot();
+		m              = meta_get(MC_TEXTURE, ui_asset_details_index);
 		if (baked) {
 			i32 t = ui_asset_details_last_btp != BTP_NONE ? ui_asset_details_last_btp : BTP_AO;
 			ui_asset_details_obj  = -1;
@@ -130,14 +149,17 @@ static void ui_asset_details_draw_bake() {
 			ui_asset_details_obj  = -1;
 			ui_asset_details_tile = -1;
 		}
+		ui_asset_details_push_edit(before);
 		return;
 	}
 	if (!baked) {
 		return;
 	}
-	i32 enc  = meta_get_i32(m, META_ENCODING, AE_NONE);
-	i32 obj  = meta_get_i32(m, META_OBJECT, -1);
-	i32 tile = meta_get_i32(m, META_TILE, -1);
+	i32 enc               = meta_get_i32(m, META_ENCODING, AE_NONE);
+	i32 obj               = meta_get_i32(m, META_OBJECT, -1);
+	i32 tile              = meta_get_i32(m, META_TILE, -1);
+	ui_asset_details_obj  = obj; // Follows undo and redo
+	ui_asset_details_tile = tile;
 
 	// Type
 	string_array_t *ar  = any_array_create(0);
@@ -150,7 +172,9 @@ static void ui_asset_details_draw_bake() {
 	if (ui_asset_details_combo(&new_btp, ar, ids, tr("Type"), &asset_bake_type_label, 0)) {
 		// A type change refills the encoding only, Object and Tile come from the dialog so a changing type (typed search) never loses them
 		ui_asset_details_last_btp = new_btp;
+		meta_t *prev              = ui_asset_details_snapshot();
 		meta_set_bake(meta_get(MC_TEXTURE, ui_asset_details_index), new_btp, asset_bake_default_encoding(new_btp), ui_asset_details_obj, ui_asset_details_tile);
+		ui_asset_details_push_edit(prev);
 		return;
 	}
 
@@ -200,7 +224,9 @@ static void ui_asset_details_draw_bake() {
 	}
 
 	if (changed) {
+		meta_t *prev = ui_asset_details_snapshot();
 		meta_set_bake(meta_get(MC_TEXTURE, ui_asset_details_index), btp, new_enc, new_obj, new_tile);
+		ui_asset_details_push_edit(prev);
 	}
 }
 

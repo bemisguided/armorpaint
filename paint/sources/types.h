@@ -624,6 +624,7 @@ typedef struct history_step {
 	char                        *asset_name;     // Rename of a material or brush (asset_category): the name on the other side of the step
 	i32                          asset_category; // meta_category_t of asset_ref
 	void                        *asset_ref;      // The slot_material_t, slot_brush_t or other item of the step, looked up in the live list on undo and redo (NULL result = deleted, no-op)
+	meta_t *meta;                                // Edit of tags or bake keys: the metadata on the other side of the step
 } history_step_t;
 
 typedef struct logic_node {

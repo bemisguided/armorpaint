@@ -85,6 +85,8 @@ char *history_action_to_string(history_action_t action) {
 		return tr("Transform Object");
 	case HISTORY_ACTION_RENAME_ASSET:
 		return tr("Rename");
+	case HISTORY_ACTION_EDIT_META:
+		return tr("Edit Details");
 	}
 	return tr("Paint");
 }
@@ -301,6 +303,20 @@ void history_swap_asset_name(history_step_t *step) {
 	canvas->name             = step->asset_name;
 	step->asset_name         = t;
 	ui_nodes_hwnd->redraws   = 2;
+	base_redraw_ui();
+}
+
+// Swaps the tags and bake keys of an item with the metadata stored in the step, used for both undo and redo.
+// The item is found by pointer in the live list, nothing happens when it was deleted.
+void history_swap_meta(history_step_t *step) {
+	i32 index = meta_item_index(step->asset_category, step->asset_ref);
+	if (index < 0) {
+		return;
+	}
+	meta_t *current = meta_copy(meta_peek(step->asset_category, index));
+	meta_set(step->asset_category, index, step->meta);
+	step->meta           = current;
+	ui_box_hwnd->redraws = 2;
 	base_redraw_ui();
 }
 
@@ -546,6 +562,9 @@ void history_undo() {
 		}
 		else if (step->action == HISTORY_ACTION_RENAME_ASSET) {
 			history_swap_asset_name(step);
+		}
+		else if (step->action == HISTORY_ACTION_EDIT_META) {
+			history_swap_meta(step);
 		}
 		else if (step->action == HISTORY_ACTION_DELETE_NODE_GROUP) {
 			node_group_t *ng = ALLOC_INIT(node_group_t, {.canvas = NULL, .nodes = ui_nodes_create()});
@@ -837,6 +856,9 @@ void history_redo() {
 		}
 		else if (step->action == HISTORY_ACTION_RENAME_ASSET) {
 			history_swap_asset_name(step);
+		}
+		else if (step->action == HISTORY_ACTION_EDIT_META) {
+			history_swap_meta(step);
 		}
 		else if (step->action == HISTORY_ACTION_DELETE_NODE_GROUP) {
 			history_swap_canvas(step);
@@ -1210,6 +1232,14 @@ void history_rename_asset(i32 category, void *item, char *prev_name) {
 	step->asset_category = category;
 	step->asset_ref      = item;
 	step->asset_name     = string_copy(prev_name);
+}
+
+// Pushes an edit of the tags or bake keys of the item at index of a category (meta_category_t), prev is a copy of its metadata before the edit
+void history_edit_meta(i32 category, i32 index, meta_t *prev) {
+	history_step_t *step = history_push(HISTORY_ACTION_EDIT_META);
+	step->asset_category = category;
+	step->asset_ref      = meta_item(category, index);
+	step->meta           = prev;
 }
 
 void history_new_swatch() {
