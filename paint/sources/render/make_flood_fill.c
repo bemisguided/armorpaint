@@ -15,6 +15,7 @@ typedef struct make_flood_fill_state {
 	ui_node_t          *node; // Only compared, never dereferenced from here
 	bool                has_baked;
 	u64                 baked_signature;
+	i32                 islands; // Kept islands of the last bake
 	bool                pending; // pending_mask waits for the debounce
 	u64                 pending_signature;
 	u8                 *pending_mask;
@@ -170,7 +171,8 @@ static void make_flood_fill_bake(make_flood_fill_state_t *s, char *id) {
 	flood_fill_params_t *p   = &s->pending_params;
 	f32                 *out = malloc((size_t)p->width * p->height * 4 * sizeof(f32));
 	if (out != NULL) {
-		if (flood_fill_label(s->pending_mask, p, out) < 0) {
+		s->islands = flood_fill_label(s->pending_mask, p, out);
+		if (s->islands < 0) {
 			console_error(tr("Flood Fill: out of memory"));
 		}
 		make_flood_fill_upload(id, out, p->width, p->height);
