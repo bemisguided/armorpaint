@@ -344,7 +344,8 @@ static void make_flood_fill_update(void *_) {
 		make_flood_fill_scheduled = false;
 		return;
 	}
-	bool busy = g_context->pdirty > 0 || bake_texture_node_baking; // Stroke or Bake Texture running
+	// Stroke, Bake Texture or a drag running
+	bool busy = g_context->pdirty > 0 || bake_texture_node_baking || g_ui->input_down;
 	if (busy || (force_node == NULL && sys_time() - make_flood_fill_last_change < MAKE_FLOOD_FILL_DEBOUNCE)) {
 		return;
 	}
@@ -362,8 +363,8 @@ void make_flood_fill_on_traverse(ui_node_t *node, ui_node_canvas_t *group, ui_no
 	make_flood_fill_state_t *s = make_flood_fill_get_state(id);
 	s->material_id             = g_context->material->id;
 	s->node                    = node;
-	if (linked || bake_texture_node_baking) {
-		// No readback during strokes or while Bake Texture swaps the layer
+	if (linked || bake_texture_node_baking || g_ui->input_down) {
+		// No readback during strokes and slider drags, or while Bake Texture swaps the layer
 		s->needs_capture = true;
 		make_flood_fill_schedule();
 		return;
