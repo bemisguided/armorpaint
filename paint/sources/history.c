@@ -232,10 +232,28 @@ void history_swap_layer_props(history_step_t *step) {
 	}
 }
 
+// Material and brush slots removed and put back by undo and redo keep their canvas and metadata (tags, bake keys) in the step
+void history_new_material_slot(history_step_t *step) {
+	g_context->material = slot_material_create(g_project->_->materials->buffer[0]->data, NULL);
+	array_insert(g_project->_->materials, step->material, g_context->material);
+	g_context->material->canvas = step->canvas;
+	g_context->material->meta   = step->meta;
+	ui_nodes_canvas_changed();
+	ui_nodes_hwnd->redraws = 2;
+}
+
+void history_delete_material_slot(history_step_t *step) {
+	g_context->material = g_project->_->materials->buffer[step->material];
+	step->canvas        = g_context->material->canvas;
+	step->meta          = g_context->material->meta;
+	slot_material_delete(g_context->material);
+}
+
 void history_new_brush_slot(history_step_t *step) {
 	slot_brush_t *b = slot_brush_create(NULL);
 	array_insert(g_project->_->brushes, step->brush, b);
 	b->canvas = step->canvas;
+	b->meta   = step->meta;
 	context_set_brush(b);
 	ui_nodes_canvas_changed();
 	ui_nodes_hwnd->redraws = 2;
@@ -244,7 +262,8 @@ void history_new_brush_slot(history_step_t *step) {
 }
 
 void history_delete_brush_slot(history_step_t *step) {
-	step->canvas = g_project->_->brushes->buffer[step->brush]->canvas;
+	step->canvas     = g_project->_->brushes->buffer[step->brush]->canvas;
+	step->meta       = g_project->_->brushes->buffer[step->brush]->meta;
 	if (g_project->_->brushes->length > 1) {
 		context_select_brush(step->brush == g_project->_->brushes->length - 1 ? step->brush - 1 : step->brush + 1);
 	}
@@ -585,21 +604,13 @@ void history_undo() {
 			history_swap_canvas(step);
 		}
 		else if (step->action == HISTORY_ACTION_NEW_MATERIAL) {
-			g_context->material = g_project->_->materials->buffer[step->material];
-			step->canvas        = g_context->material->canvas;
-			slot_material_delete(g_context->material);
+			history_delete_material_slot(step);
 		}
 		else if (step->action == HISTORY_ACTION_DELETE_MATERIAL) {
-			g_context->material = slot_material_create(g_project->_->materials->buffer[0]->data, NULL);
-			array_insert(g_project->_->materials, step->material, g_context->material);
-			g_context->material->canvas = step->canvas;
-			ui_nodes_canvas_changed();
-			ui_nodes_hwnd->redraws = 2;
+			history_new_material_slot(step);
 		}
 		else if (step->action == HISTORY_ACTION_DUPLICATE_MATERIAL) {
-			g_context->material = g_project->_->materials->buffer[step->material];
-			step->canvas        = g_context->material->canvas;
-			slot_material_delete(g_context->material);
+			history_delete_material_slot(step);
 		}
 		else { // Paint operation
 			history_undo_i    = history_undo_i - 1 < 0 ? g_config->undo_steps - 1 : history_undo_i - 1;
@@ -878,23 +889,13 @@ void history_redo() {
 			array_remove(history_groups(step), history_groups(step)->buffer[step->canvas_group]);
 		}
 		else if (step->action == HISTORY_ACTION_NEW_MATERIAL) {
-			g_context->material = slot_material_create(g_project->_->materials->buffer[0]->data, NULL);
-			array_insert(g_project->_->materials, step->material, g_context->material);
-			g_context->material->canvas = step->canvas;
-			ui_nodes_canvas_changed();
-			ui_nodes_hwnd->redraws = 2;
+			history_new_material_slot(step);
 		}
 		else if (step->action == HISTORY_ACTION_DELETE_MATERIAL) {
-			g_context->material = g_project->_->materials->buffer[step->material];
-			step->canvas        = g_context->material->canvas;
-			slot_material_delete(g_context->material);
+			history_delete_material_slot(step);
 		}
 		else if (step->action == HISTORY_ACTION_DUPLICATE_MATERIAL) {
-			g_context->material = slot_material_create(g_project->_->materials->buffer[0]->data, NULL);
-			array_insert(g_project->_->materials, step->material, g_context->material);
-			g_context->material->canvas = step->canvas;
-			ui_nodes_canvas_changed();
-			ui_nodes_hwnd->redraws = 2;
+			history_new_material_slot(step);
 		}
 		else { // Paint operation
 			slot_layer_t *lay = history_undo_slot(history_undo_i);
@@ -1217,6 +1218,7 @@ void history_delete_brush() {
 	history_step_t *step = history_push(HISTORY_ACTION_DELETE_BRUSH);
 	step->canvas_type    = CANVAS_TYPE_BRUSH;
 	step->canvas         = util_clone_canvas(g_context->brush->canvas);
+	step->meta           = g_context->brush->meta != NULL ? meta_copy(g_context->brush->meta) : NULL;
 }
 
 void history_duplicate_brush() {
@@ -1303,6 +1305,7 @@ void history_delete_material() {
 	history_step_t *step = history_push(HISTORY_ACTION_DELETE_MATERIAL);
 	step->canvas_type    = 0;
 	step->canvas         = util_clone_canvas(g_context->material->canvas);
+	step->meta           = g_context->material->meta != NULL ? meta_copy(g_context->material->meta) : NULL;
 }
 
 void history_duplicate_material() {

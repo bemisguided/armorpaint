@@ -626,7 +626,7 @@ typedef struct history_step {
 	void                        *asset_ref;       // The item (asset_t, slot_font_t, slot_sound_t, mesh_object_t, slot_material_t, slot_brush_t) when the step was made
 	char                        *asset_item_name; // Name the item has whenever the step is undone or redone
 	char                        *asset_name;      // Rename of a material or brush: the name on the other side of the step
-	meta_t                      *meta;            // Edit of tags or bake keys: the metadata on the other side of the step
+	meta_t *meta; // Edit of tags or bake keys: the metadata on the other side of the step. Material or brush slot removed by a step: its metadata
 } history_step_t;
 
 typedef struct logic_node {
