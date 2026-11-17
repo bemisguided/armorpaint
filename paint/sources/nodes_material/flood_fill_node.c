@@ -1,0 +1,166 @@
+#include "../global.h"
+
+// Flood Fill: connected islands of a mask with a random grey, a bounding box gradient and the size per island.
+// The islands are labelled on the cpu (render/make_flood_fill.c) into one RGBA64 texture per node:
+// R = ID, G = Position x, B = Position y, A = Area (floored to 1/1024 inside kept islands, so Mask = A > 0).
+
+#define FLOOD_FILL_AREA_FLOOR 1024.0
+
+// Node button indices
+enum {
+	FLOOD_FILL_BUTTON_THRESHOLD    = 0,
+	FLOOD_FILL_BUTTON_INVERT       = 1,
+	FLOOD_FILL_BUTTON_CONNECTIVITY = 2,
+	FLOOD_FILL_BUTTON_WRAP         = 3,
+	FLOOD_FILL_BUTTON_MIN_SIZE     = 4,
+	FLOOD_FILL_BUTTON_SEED         = 5,
+};
+
+// Output socket indices
+enum {
+	FLOOD_FILL_OUTPUT_ID       = 0,
+	FLOOD_FILL_OUTPUT_POSITION = 1,
+	FLOOD_FILL_OUTPUT_AREA     = 2,
+	FLOOD_FILL_OUTPUT_MASK     = 3,
+};
+
+static f32 flood_fill_node_button(ui_node_t *node, i32 i) {
+	return node->buttons->buffer[i]->default_value->buffer[0];
+}
+
+f32 flood_fill_node_threshold(ui_node_t *node) {
+	return flood_fill_node_button(node, FLOOD_FILL_BUTTON_THRESHOLD);
+}
+
+bool flood_fill_node_invert(ui_node_t *node) {
+	return flood_fill_node_button(node, FLOOD_FILL_BUTTON_INVERT) != 0.0;
+}
+
+// Labelling parameters of the node for a width x height mask
+flood_fill_params_t flood_fill_node_params(ui_node_t *node, i32 width, i32 height) {
+	f32 min_size = flood_fill_node_button(node, FLOOD_FILL_BUTTON_MIN_SIZE);
+	f32 seed     = flood_fill_node_button(node, FLOOD_FILL_BUTTON_SEED);
+	return (flood_fill_params_t){
+	    .width         = width,
+	    .height        = height,
+	    .connectivity8 = flood_fill_node_button(node, FLOOD_FILL_BUTTON_CONNECTIVITY) != 0.0,
+	    .wrap          = flood_fill_node_button(node, FLOOD_FILL_BUTTON_WRAP) != 0.0,
+	    .seed          = (u32)math_floor(seed > 0.0 ? seed : 0.0),
+	    .min_size      = (i32)math_floor(min_size > 0.0 ? min_size : 0.0),
+	};
+}
+
+// Samples the baked texture once per node at the texel centre, so filtering never blends two island ids
+static char *flood_fill_node_write(ui_node_t *node) {
+	char *store = parser_material_store_var_name(node);
+	char *key   = string_tmp("%s_flood", store);
+	if (string_array_index_of(parser_material_parsed, key) >= 0) {
+		return store;
+	}
+	any_array_push(parser_material_parsed, key);
+
+	char *tex_name = string_tmp("texflood_%s", make_material_node_preview_id(node, NULL));
+	node_shader_add_texture(parser_material_kong, tex_name, string_tmp("_%s", tex_name));
+	node_shader_add_constant(parser_material_kong, string_tmp("float2 %s_size", tex_name), string_tmp("_size(_%s)", tex_name));
+	char *uv = parser_material_atlas_uv ? "tex_coord_atlas" : "tex_coord";
+	parser_material_write(parser_material_kong,
+	                      string_tmp("float2 %s_uv = (floor(%s * constants.%s_size) + 0.5) / constants.%s_size;", store, uv, tex_name, tex_name));
+	parser_material_write(parser_material_kong, string_tmp("float4 %s_ff = sample(%s, sampler_linear, %s_uv);", store, tex_name, store));
+	return store;
+}
+
+char *flood_fill_node_value(ui_node_t *node, ui_node_socket_t *socket) {
+	if (parser_material_flood_passthrough == node) { // Capturing the input for the bake
+		return parser_material_parse_value_input(node->inputs->buffer[0], false);
+	}
+	char *store = flood_fill_node_write(node);
+	i32   i     = array_index_of(node->outputs, socket);
+	if (i == FLOOD_FILL_OUTPUT_POSITION) {
+		return string_tmp("%s_ff.g", store);
+	}
+	if (i == FLOOD_FILL_OUTPUT_AREA) {
+		return string_tmp("%s_ff.a", store);
+	}
+	if (i == FLOOD_FILL_OUTPUT_MASK) {
+		return string_tmp("clamp(%s_ff.a * %s, 0.0, 1.0)", store, parser_material_vec1(FLOOD_FILL_AREA_FLOOR));
+	}
+	return string_tmp("%s_ff.r", store);
+}
+
+char *flood_fill_node_vector(ui_node_t *node, ui_node_socket_t *socket) {
+	if (parser_material_flood_passthrough == node) {
+		return parser_material_to_vec3(parser_material_parse_value_input(node->inputs->buffer[0], false));
+	}
+	if (array_index_of(node->outputs, socket) == FLOOD_FILL_OUTPUT_POSITION) {
+		char *store = flood_fill_node_write(node);
+		return string_tmp("float3(%s_ff.g, %s_ff.b, 0.0)", store, store);
+	}
+	return parser_material_to_vec3(flood_fill_node_value(node, socket));
+}
+
+static ui_node_socket_t *flood_fill_node_socket(char *name, char *type, u32 color, f32_array_t *default_value) {
+	return ALLOC_INIT(ui_node_socket_t, {.id            = 0,
+	                                     .node_id       = 0,
+	                                     .name          = name,
+	                                     .type          = type,
+	                                     .color         = color,
+	                                     .default_value = default_value,
+	                                     .min           = 0.0,
+	                                     .max           = 1.0,
+	                                     .precision     = 100,
+	                                     .display       = 0});
+}
+
+static ui_node_button_t *flood_fill_node_button_def(char *name, char *type, f32 default_value, char *data, f32 max, f32 precision, f32 height) {
+	return ALLOC_INIT(ui_node_button_t, {.name          = name,
+	                                     .type          = type,
+	                                     .output        = -1,
+	                                     .default_value = f32_array_create_x(default_value),
+	                                     .data          = data != NULL ? u8_array_create_from_string(data) : NULL,
+	                                     .min           = 0.0,
+	                                     .max           = max,
+	                                     .precision     = precision,
+	                                     .height        = height});
+}
+
+void flood_fill_node_init() {
+	u32 value_color  = 0xffa1a1a1;
+	u32 vector_color = 0xff6363c7;
+
+	ui_node_t *flood_fill_node_def =
+	    ALLOC_INIT(ui_node_t, {.id     = 0,
+	                           .name   = _tr("Flood Fill"),
+	                           .type   = "TEX_FLOOD_FILL",
+	                           .x      = 0,
+	                           .y      = 0,
+	                           .color  = 0xff4982a0,
+	                           .inputs = any_array_create_from_raw(
+	                               (void *[]){
+	                                   flood_fill_node_socket(_tr("Mask"), "VALUE", value_color, f32_array_create_x(0.0)),
+	                               },
+	                               1),
+	                           .outputs = any_array_create_from_raw(
+	                               (void *[]){
+	                                   flood_fill_node_socket(_tr("ID"), "VALUE", value_color, f32_array_create_x(0.0)),
+	                                   flood_fill_node_socket(_tr("Position"), "VECTOR", vector_color, f32_array_create_xyz(0.0, 0.0, 0.0)),
+	                                   flood_fill_node_socket(_tr("Area"), "VALUE", value_color, f32_array_create_x(0.0)),
+	                                   flood_fill_node_socket(_tr("Mask"), "VALUE", value_color, f32_array_create_x(0.0)),
+	                               },
+	                               4),
+	                           .buttons = any_array_create_from_raw(
+	                               (void *[]){
+	                                   flood_fill_node_button_def(_tr("Threshold"), "VALUE", 0.5, NULL, 1.0, 100, 0),
+	                                   flood_fill_node_button_def(_tr("Invert"), "BOOL", 0, NULL, 1.0, 100, 0),
+	                                   flood_fill_node_button_def(_tr("Connectivity"), "ENUM", 0, "4\n8", 1.0, 100, 0),
+	                                   flood_fill_node_button_def(_tr("Wrap Edges"), "BOOL", 0, NULL, 1.0, 100, 0),
+	                                   flood_fill_node_button_def(_tr("Min Size"), "VALUE", 0, NULL, 4096.0, 1, 0),
+	                                   flood_fill_node_button_def(_tr("Seed"), "VALUE", 0, NULL, 1000.0, 1, 0),
+	                               },
+	                               6),
+	                           .width = 0,
+	                           .flags = 0});
+
+	any_array_push(nodes_material_texture, flood_fill_node_def);
+	any_map_set(parser_material_node_values, "TEX_FLOOD_FILL", flood_fill_node_value);
+	any_map_set(parser_material_node_vectors, "TEX_FLOOD_FILL", flood_fill_node_vector);
+}
