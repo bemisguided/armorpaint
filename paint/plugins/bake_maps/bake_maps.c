@@ -2221,7 +2221,13 @@ static f32 inpaint_radius() {
 	return sx > 0.0 ? world / sx : world;
 }
 
-// bool bake_maps_inpaint_begin(char *path): uv layout at the resolution of the baked map, false without uvs
+// Results of bake_maps_inpaint_begin
+#define INPAINT_BEGIN_OK        0
+#define INPAINT_BEGIN_NO_MAP    1 // The baked map is not loaded in the project
+#define INPAINT_BEGIN_BUSY      2 // A bake is running
+#define INPAINT_BEGIN_NO_LAYOUT 3 // The paint objects have no uv layout
+
+// int bake_maps_inpaint_begin(char *path): uv layout at the resolution of the baked map, an INPAINT_BEGIN_ result
 static minic_val_t bake_maps_inpaint_begin(minic_val_t *a, int n) {
 	char    *path  = bake_maps_arg_s(a, n, 0);
 	asset_t *asset = NULL;
@@ -2231,8 +2237,11 @@ static minic_val_t bake_maps_inpaint_begin(minic_val_t *a, int n) {
 			asset = as;
 		}
 	}
-	if (asset == NULL || bake_rays_working) {
-		return minic_val_int(0);
+	if (asset == NULL) {
+		return minic_val_int(INPAINT_BEGIN_NO_MAP);
+	}
+	if (bake_rays_working) {
+		return minic_val_int(INPAINT_BEGIN_BUSY);
 	}
 	i32 w = asset->image->width;
 	i32 h = asset->image->height;
@@ -2242,7 +2251,7 @@ static minic_val_t bake_maps_inpaint_begin(minic_val_t *a, int n) {
 	}
 	bool same = bake_rays_texmap != NULL && bake_rays_w == w && bake_rays_h == h;
 	if (!bake_rays_prepare_layout(w, h)) {
-		return minic_val_int(0);
+		return minic_val_int(INPAINT_BEGIN_NO_LAYOUT);
 	}
 	if (bake_rays_island == NULL) {
 		bake_rays_build_islands();
@@ -2252,10 +2261,10 @@ static minic_val_t bake_maps_inpaint_begin(minic_val_t *a, int n) {
 		inpaint_mask     = calloc(w * h, 1);
 		inpaint_has_mask = false;
 	}
-	return minic_val_int(1);
+	return minic_val_int(INPAINT_BEGIN_OK);
 }
 
-// void bake_maps_inpaint_stroke(): stamps the mask from the last mouse hit to the current one
+// bool bake_maps_inpaint_stroke(): stamps the mask from the last mouse hit to the current one, false when the mouse misses the mesh
 static minic_val_t bake_maps_inpaint_stroke(minic_val_t *a, int n) {
 	f32 hit[3];
 	if (inpaint_mask == NULL || bake_rays_texmap == NULL || !inpaint_hit(hit)) {
@@ -2278,7 +2287,7 @@ static minic_val_t bake_maps_inpaint_stroke(minic_val_t *a, int n) {
 	inpaint_has_last = true;
 	inpaint_has_mask = true;
 	inpaint_dirty    = true;
-	return minic_val_int(0);
+	return minic_val_int(1);
 }
 
 // gpu_texture_t *bake_maps_inpaint_mask(): the painted mask in the red channel, for the viewport overlay
@@ -2736,8 +2745,8 @@ void bake_maps_init() {
 	minic_register("bake_maps_ui_column", "v(i)", bake_maps_ui_column);
 	minic_register("bake_maps_ui_section", "v(p)", bake_maps_ui_section);
 	minic_register("bake_maps_ui_enabled", "v(b)", bake_maps_ui_enabled);
-	minic_register("bake_maps_inpaint_begin", "b(p)", bake_maps_inpaint_begin);
-	minic_register("bake_maps_inpaint_stroke", "v()", bake_maps_inpaint_stroke);
+	minic_register("bake_maps_inpaint_begin", "i(p)", bake_maps_inpaint_begin);
+	minic_register("bake_maps_inpaint_stroke", "b()", bake_maps_inpaint_stroke);
 	minic_register("bake_maps_inpaint_mask", "p()", bake_maps_inpaint_mask);
 	minic_register("bake_maps_inpaint_clear", "v()", bake_maps_inpaint_clear);
 	minic_register("bake_maps_inpaint_apply", "b(p,i,b)", bake_maps_inpaint_apply);
