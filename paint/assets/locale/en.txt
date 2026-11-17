@@ -55,6 +55,7 @@ Bake
 Bake Material...
 Bake Texture
 Bake to Textures
+Baking
 Bands
 Base
 Base Color

@@ -98,6 +98,27 @@ char *flood_fill_node_vector(ui_node_t *node, ui_node_socket_t *socket) {
 	return parser_material_to_vec3(flood_fill_node_value(node, socket));
 }
 
+// Bake row: the Bake button, highlighted as Baking while a bake is pending. Either bakes now.
+static void flood_fill_node_bake_button(i32 node_id) {
+	ui_node_t *node = ui_get_node(ui_nodes_get_canvas(true)->nodes, node_id);
+	if (node == NULL) {
+		return;
+	}
+	ui_push_id((ui_id_t)ui_nodes_get_nodes());
+	ui_push_id((ui_id_t)node_id);
+	bool pending     = make_flood_fill_is_pending(node);
+	i32  _BUTTON_COL = g_theme->BUTTON_COL;
+	if (pending) {
+		g_theme->BUTTON_COL = g_theme->HIGHLIGHT_COL;
+	}
+	if (ui_icon_button(pending ? tr("Baking") : tr("Bake"), ICON_PLAY, UI_ALIGN_CENTER)) {
+		make_flood_fill_bake_now(node);
+	}
+	g_theme->BUTTON_COL = _BUTTON_COL;
+	ui_pop_id();
+	ui_pop_id();
+}
+
 static ui_node_socket_t *flood_fill_node_socket(char *name, char *type, u32 color, f32_array_t *default_value) {
 	return ALLOC_INIT(ui_node_socket_t, {.id            = 0,
 	                                     .node_id       = 0,
@@ -155,12 +176,14 @@ void flood_fill_node_init() {
 	                                   flood_fill_node_button_def(_tr("Wrap Edges"), "BOOL", 0, NULL, 1.0, 100, 0),
 	                                   flood_fill_node_button_def(_tr("Min Size"), "VALUE", 0, NULL, 4096.0, 1, 0),
 	                                   flood_fill_node_button_def(_tr("Seed"), "VALUE", 0, NULL, 1000.0, 1, 0),
+	                                   flood_fill_node_button_def("flood_fill_node_bake_button", "CUSTOM", 0, NULL, 1.0, 100, 1),
 	                               },
-	                               6),
+	                               7),
 	                           .width = 0,
 	                           .flags = 0});
 
 	any_array_push(nodes_material_texture, flood_fill_node_def);
 	any_map_set(parser_material_node_values, "TEX_FLOOD_FILL", flood_fill_node_value);
 	any_map_set(parser_material_node_vectors, "TEX_FLOOD_FILL", flood_fill_node_vector);
+	any_map_set(ui_nodes_custom_buttons, "flood_fill_node_bake_button", flood_fill_node_bake_button);
 }
