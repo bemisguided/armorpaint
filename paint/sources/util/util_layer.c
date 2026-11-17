@@ -781,8 +781,12 @@ slot_layer_t *layers_new_text_layer() {
 	return l;
 }
 
-void layers_create_fill_layer_on_next_frame(void *_) {
+// Fill layer of g_context->material
+static slot_layer_t *layers_add_fill_layer() {
 	slot_layer_t *l = layers_new_layer(false, _layers_position, NULL);
+	if (l == NULL) {
+		return NULL;
+	}
 	history_new_layer();
 	l->uv_type = _layers_uv_type;
 	if (!mat4_isnan(_layers_decal_mat)) {
@@ -797,6 +801,11 @@ void layers_create_fill_layer_on_next_frame(void *_) {
 
 	history_to_fill_layer();
 	slot_layer_to_fill_layer(l);
+	return l;
+}
+
+void layers_create_fill_layer_on_next_frame(void *_) {
+	layers_add_fill_layer();
 }
 
 void layers_create_fill_layer(uv_type_t uv_type, mat4_t decal_mat, i32 position) {
@@ -804,6 +813,39 @@ void layers_create_fill_layer(uv_type_t uv_type, mat4_t decal_mat, i32 position)
 	_layers_decal_mat = decal_mat;
 	_layers_position  = position;
 	sys_notify_on_next_frame(&layers_create_fill_layer_on_next_frame, NULL);
+}
+
+static slot_material_t_array_t *_layers_fill_materials = NULL;
+
+void layers_create_fill_layers_on_next_frame(void *_) {
+	slot_material_t_array_t *materials = _layers_fill_materials;
+	slot_material_t         *active    = g_context->material;
+	history_group_begin();
+	for (i32 k = 0; k < materials->length; ++k) {
+		// A new layer goes above the active layer or below the earlier ones at a fixed position, the first material ends on top
+		slot_material_t *m = materials->buffer[_layers_position == -1 ? materials->length - 1 - k : k];
+		if (array_index_of(g_project->_->materials, m) == -1) {
+			continue;
+		}
+		g_context->material = m;
+		if (layers_add_fill_layer() == NULL) {
+			break;
+		}
+	}
+	history_group_end();
+	g_context->material = active;
+	if (materials->length > 1) {
+		context_set_material(active);
+	}
+}
+
+// One fill layer per material, top to bottom in the given order
+void layers_create_fill_layers(slot_material_t_array_t *materials, uv_type_t uv_type, mat4_t decal_mat, i32 position) {
+	_layers_fill_materials = materials;
+	_layers_uv_type        = uv_type;
+	_layers_decal_mat      = decal_mat;
+	_layers_position       = position;
+	sys_notify_on_next_frame(&layers_create_fill_layers_on_next_frame, NULL);
 }
 
 void tab_materials_button_new_on_next_frame(void *_);
@@ -877,6 +919,18 @@ void layers_create_image_layer(asset_t *asset) {
 	slot_layer_t *m = layers_new_layer(false, -1, NULL);
 	slot_layer_clear(m, 0x00000000, project_get_image(asset), 1.0, layers_default_rough, 0.0);
 	g_context->layer_preview_dirty = true;
+}
+
+// One image layer per texture, top to bottom in the given order, one undo step
+void layers_create_image_layers(asset_t_array_t *assets) {
+	history_group_begin();
+	for (i32 i = assets->length - 1; i >= 0; --i) {
+		if (g_project->_->layers->length > layers_max_layers) {
+			break;
+		}
+		layers_create_image_layer(assets->buffer[i]);
+	}
+	history_group_end();
 }
 
 void layers_create_color_layer_on_next_frame(void *_) {
