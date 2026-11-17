@@ -538,6 +538,9 @@ gpu_texture_t *uniforms_ext_tex_link(object_t *object, shader_data_t *mat, char 
 		}
 		return image;
 	}
+	if (starts_with(link, "_texslot_")) {
+		return texture_slot_resolve(parse_int(link + 9));
+	}
 	if (starts_with(link, "_texbake_")) {
 		char *id = link + 9;
 		if (g_context->node_previews != NULL) {

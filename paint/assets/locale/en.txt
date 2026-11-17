@@ -928,3 +928,6 @@ Edit Details
 Encoding
 Any
 Unknown ({n})
+Cavity
+Slot Texture
+Several covered objects share UV space.
