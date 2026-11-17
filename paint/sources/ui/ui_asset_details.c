@@ -230,12 +230,33 @@ static void ui_asset_details_draw_bake() {
 	}
 }
 
+// Box height in unscaled units: the fixed height of the category grows by one row per tag beyond two, up to the window height.
+// Past that the window scrolls, so every tag stays reachable.
+static i32 ui_asset_details_height() {
+	i32 mh = 320;
+	if (ui_asset_details_category == MC_TEXTURE) {
+		mh = 460;
+	}
+	else if (ui_asset_details_category == MC_MATERIAL || ui_asset_details_category == MC_BRUSH) {
+		mh = 360;
+	}
+	meta_t       *m    = meta_peek(ui_asset_details_category, ui_asset_details_index);
+	i32           tags = m != NULL && m->tags != NULL ? m->tags->length : 0;
+	f32           row  = (UI_ELEMENT_H() + UI_ELEMENT_OFFSET()) / (f32)UI_SCALE();
+	if (tags > 2) {
+		mh += math_ceil((tags - 2) * row);
+	}
+	i32 max = math_floor(iron_window_height() / (f32)UI_SCALE()) - 20;
+	return mh < max ? mh : max;
+}
+
 static void ui_asset_details_box_draw() {
 	i32 count = meta_count(ui_asset_details_category);
 	if (ui_asset_details_index < 0 || ui_asset_details_index >= count) {
 		ui_box_hide();
 		return;
 	}
+	ui_box_modalh = ui_asset_details_height();
 	if (ui_asset_details_has_name()) {
 		ui_asset_details_draw_name();
 	}
@@ -260,15 +281,10 @@ void ui_asset_details_show(i32 category, i32 index) {
 	ui_asset_details_name     = "";
 	ui_asset_details_obj      = -1;
 	ui_asset_details_tile     = -1;
-	i32 mh                    = 320;
 	if (category == MC_TEXTURE) {
 		meta_t *m             = meta_peek(MC_TEXTURE, index);
 		ui_asset_details_obj  = meta_get_i32(m, META_OBJECT, -1);
 		ui_asset_details_tile = meta_get_i32(m, META_TILE, -1);
-		mh                    = 460;
 	}
-	else if (category == MC_MATERIAL || category == MC_BRUSH) {
-		mh = 360;
-	}
-	ui_box_show_custom(&ui_asset_details_box_draw, 400, mh, NULL, true, tr("Details"));
+	ui_box_show_custom(&ui_asset_details_box_draw, 400, ui_asset_details_height(), NULL, true, tr("Details"));
 }
