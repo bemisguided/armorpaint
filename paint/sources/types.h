@@ -621,8 +621,9 @@ typedef struct history_step {
 	i32                          merge_start;
 	i32                          merge_length;
 	bool                         with_prev; // Undone and redone together with the previous step
-	char                        *asset_name;  // Rename of a material or brush (canvas_type): the name on the other side of the step
-	i32                          asset_index; // Index in the materials or brushes array
+	char                        *asset_name;     // Rename of a material or brush (asset_category): the name on the other side of the step
+	i32                          asset_category; // meta_category_t of asset_ref
+	void                        *asset_ref;      // The slot_material_t, slot_brush_t or other item of the step, looked up in the live list on undo and redo (NULL result = deleted, no-op)
 } history_step_t;
 
 typedef struct logic_node {

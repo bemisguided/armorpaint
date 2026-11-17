@@ -580,6 +580,42 @@ bool asset_brush_rename(slot_brush_t *b, char *name) {
 	return true;
 }
 
+// The item (asset_t, slot_font_t, slot_sound_t, mesh_object_t, slot_material_t, slot_brush_t) at index of a category, NULL when out of range
+void *meta_item(i32 category, i32 index) {
+	if (index < 0 || index >= meta_count(category)) {
+		return NULL;
+	}
+	switch (category) {
+	case MC_TEXTURE:
+		return g_project->_->assets->buffer[index];
+	case MC_FONT:
+		return g_project->_->fonts->buffer[index];
+	case MC_SOUND:
+		return g_project->_->sounds->buffer[index];
+	case MC_MESH:
+		return g_project->_->paint_objects->buffer[index];
+	case MC_MATERIAL:
+		return g_project->_->materials->buffer[index];
+	case MC_BRUSH:
+		return g_project->_->brushes->buffer[index];
+	}
+	return NULL;
+}
+
+// Index of an item in the live list of a category, -1 when it is not there any more (deleted)
+i32 meta_item_index(i32 category, void *item) {
+	if (item == NULL) {
+		return -1;
+	}
+	i32 count = meta_count(category);
+	for (i32 i = 0; i < count; ++i) {
+		if (meta_item(category, i) == item) {
+			return i;
+		}
+	}
+	return -1;
+}
+
 // Renames the material or brush at index of a category (MC_MATERIAL, MC_BRUSH) and pushes one undo step.
 // No step when the name did not change. Returns true when the name changed.
 bool asset_rename(i32 category, i32 index, char *name) {
@@ -587,7 +623,7 @@ bool asset_rename(i32 category, i32 index, char *name) {
 		slot_material_t *m    = g_project->_->materials->buffer[index];
 		char            *prev = string_copy(m->canvas->name);
 		if (asset_material_rename(m, name)) {
-			history_rename_asset(CANVAS_TYPE_MATERIAL, index, prev);
+			history_rename_asset(MC_MATERIAL, m, prev);
 			return true;
 		}
 	}
@@ -595,7 +631,7 @@ bool asset_rename(i32 category, i32 index, char *name) {
 		slot_brush_t *b    = g_project->_->brushes->buffer[index];
 		char         *prev = string_copy(b->canvas->name);
 		if (asset_brush_rename(b, name)) {
-			history_rename_asset(CANVAS_TYPE_BRUSH, index, prev);
+			history_rename_asset(MC_BRUSH, b, prev);
 			return true;
 		}
 	}

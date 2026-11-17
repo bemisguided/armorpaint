@@ -288,23 +288,20 @@ void history_swap_swatch(history_step_t *step) {
 	ui_header_handle->redraws = 2;
 }
 
-// Swaps the name of a renamed material or brush with the one stored in the step, used for both undo and redo
+// Swaps the name of a renamed material or brush with the one stored in the step, used for both undo and redo.
+// The item is found by pointer in the live list, nothing happens when it was deleted.
 void history_swap_asset_name(history_step_t *step) {
-	bool              material = step->canvas_type == CANVAS_TYPE_MATERIAL;
-	ui_node_canvas_t *canvas   = NULL;
-	if (material && step->asset_index >= 0 && step->asset_index < g_project->_->materials->length) {
-		canvas = g_project->_->materials->buffer[step->asset_index]->canvas;
-	}
-	else if (!material && step->asset_index >= 0 && step->asset_index < g_project->_->brushes->length) {
-		canvas = g_project->_->brushes->buffer[step->asset_index]->canvas;
-	}
-	if (canvas == NULL) {
+	i32 index = meta_item_index(step->asset_category, step->asset_ref);
+	if (index < 0) {
 		return;
 	}
-	char *t          = canvas->name;
-	canvas->name     = step->asset_name;
-	step->asset_name = t;
-	ui_nodes_hwnd->redraws = 2;
+	ui_node_canvas_t *canvas =
+	    step->asset_category == MC_MATERIAL ? g_project->_->materials->buffer[index]->canvas : g_project->_->brushes->buffer[index]->canvas;
+	char             *t      = canvas->name;
+	canvas->name             = step->asset_name;
+	step->asset_name         = t;
+	ui_nodes_hwnd->redraws   = 2;
+	base_redraw_ui();
 }
 
 void history_swap_object_transform(history_step_t *step) {
@@ -1207,11 +1204,11 @@ void history_object_transform(mesh_object_t *o, vec4_t loc, quat_t rot, vec4_t s
 	step->object_scale = scale;
 }
 
-// Pushes the rename of a material (CANVAS_TYPE_MATERIAL) or brush (CANVAS_TYPE_BRUSH) at index, prev_name is the name before the rename
-void history_rename_asset(i32 canvas_type, i32 index, char *prev_name) {
+// Pushes the rename of a material (MC_MATERIAL) or brush (MC_BRUSH) item (slot_material_t, slot_brush_t), prev_name is the name before the rename
+void history_rename_asset(i32 category, void *item, char *prev_name) {
 	history_step_t *step = history_push(HISTORY_ACTION_RENAME_ASSET);
-	step->canvas_type    = canvas_type;
-	step->asset_index    = index;
+	step->asset_category = category;
+	step->asset_ref      = item;
 	step->asset_name     = string_copy(prev_name);
 }
 
