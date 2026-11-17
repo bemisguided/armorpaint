@@ -429,6 +429,8 @@ slot_layer_t          *history_undo_slot(i32 i);
 void                   history_undo();
 void                   history_redo();
 void                   history_reset();
+void                   history_group_begin();
+void                   history_group_end();
 void                   history_edit_nodes(ui_node_canvas_t *canvas, i32 canvas_type, i32 canvas_group);
 void                   history_paint();
 void                   history_new_layer();

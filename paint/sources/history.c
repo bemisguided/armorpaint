@@ -888,6 +888,19 @@ void history_reset() {
 	history_undo_i = 0;
 }
 
+static bool history_grouping     = false;
+static bool history_group_pushed = false;
+
+// Steps pushed until history_group_end() are undone and redone as one
+void history_group_begin() {
+	history_grouping     = true;
+	history_group_pushed = false;
+}
+
+void history_group_end() {
+	history_grouping = false;
+}
+
 history_step_t *history_push(history_action_t action) {
 	char *name = history_action_to_string(action);
 #if defined(IRON_WINDOWS) || defined(IRON_LINUX) || defined(IRON_MACOS)
@@ -931,6 +944,11 @@ history_step_t *history_push(history_action_t action) {
 	                                .layer_opacity  = g_context->layer->mask_opacity,
 	                                .layer_object   = g_context->layer->object_mask,
 	                                .layer_blending = g_context->layer->blending});
+
+	if (history_grouping) {
+		step->with_prev      = history_group_pushed;
+		history_group_pushed = true;
+	}
 
 	any_array_push(history_steps, step);
 
