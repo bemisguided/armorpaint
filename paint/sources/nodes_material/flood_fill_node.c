@@ -62,7 +62,7 @@ static char *flood_fill_node_write(ui_node_t *node) {
 	char *tex_name = string_tmp("texflood_%s", make_material_node_preview_id(node, NULL));
 	node_shader_add_texture(parser_material_kong, tex_name, string_tmp("_%s", tex_name));
 	node_shader_add_constant(parser_material_kong, string_tmp("float2 %s_size", tex_name), string_tmp("_size(_%s)", tex_name));
-	char *uv = "tex_coord"; // The udim stack keeps tex_coord in atlas space
+	char *uv = parser_material_tex_coord_atlas != NULL ? parser_material_tex_coord_atlas : "tex_coord"; // The result is laid out in udim atlas uv
 	parser_material_write(parser_material_kong,
 	                      string_tmp("float2 %s_uv = (floor(%s * constants.%s_size) + 0.5) / constants.%s_size;", store, uv, tex_name, tex_name));
 	parser_material_write(parser_material_kong, string_tmp("float4 %s_ff = sample(%s, sampler_linear, %s_uv);", store, tex_name, store));
