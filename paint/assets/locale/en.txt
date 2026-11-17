@@ -908,12 +908,11 @@ Another GPU bake started, baking on the CPU
 The GPU bake shader is missing, baking on the CPU
 The GPU bake could not prepare the meshes, baking on the CPU
 Tags
-Tags...
+Details...
 Tag
 Ambient Occlusion
-Bake Properties
-Bake Properties...
-Bake Type
+Details
+Rename
 Encoding
 Any
 Unknown ({n})
