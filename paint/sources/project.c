@@ -140,6 +140,7 @@ void project_assign_object_id(mesh_object_t *o) {
 }
 
 void project_new(bool reset_layers) {
+	asset_selection_clear();
 	if (g_context->paint_object != NULL) {
 		project_cleanup();
 		g_project->_->filepath = "";
