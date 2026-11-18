@@ -55,7 +55,7 @@ static i32 tile_uv_node_process(u8 *bytes, i32 size, void *params, f32 *result) 
 
 static image_node_type_t tile_uv_node_image_type = {
     .type          = "TEX_TILE_UV",
-    .result_format = GPU_TEXTURE_FORMAT_RGBA64,
+    .result_format = GPU_TEXTURE_FORMAT_RGBA128,
     .params_size   = 0,
     .size          = tile_uv_node_size,
     .capture       = tile_uv_node_capture,
