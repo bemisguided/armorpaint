@@ -2434,6 +2434,14 @@ void script_export_set_format(i32 format) {
 	g_context->format_type = format;
 }
 
+// Export dialog Destination combo: 0 Disk, 1 Pack into Project. Pack writes into the project when export_texture_run gets the path "/"
+void script_export_set_destination(i32 destination) {
+	if (destination < EXPORT_DESTINATION_DISK || destination > EXPORT_DESTINATION_PACK_INTO_PROJECT) {
+		return;
+	}
+	g_context->layers_destination = destination;
+}
+
 static void script_key_press_up(void *data) {
 	iron_internal_keyboard_trigger_key_up((i32)(intptr_t)data);
 }

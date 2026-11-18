@@ -755,6 +755,7 @@ void                   script_mouse_up(i32 x, i32 y, i32 button);
 void                   script_project_set_resolution(i32 res);
 void                   script_export_set_bits(i32 bits);
 void                   script_export_set_format(i32 format);
+void                   script_export_set_destination(i32 destination);
 void                   script_key_press(char *key);
 any_array_t           *script_get_mesh_objects();
 void                   script_call(void *fn);
