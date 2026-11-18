@@ -433,6 +433,7 @@ void tab_textures_draw(i32 *htab) {
 			}
 
 			asset_selection_select_all(ASSET_TRAY_TEXTURES, filtered);
+			asset_selection_marquee_begin(ASSET_TRAY_TEXTURES);
 
 			bool drag_pos_set = false;
 			f32  uix          = 0.0;
@@ -473,6 +474,7 @@ void tab_textures_draw(i32 *htab) {
 					}
 					uix    = g_ui->_x;
 					uiy    = g_ui->_y;
+					asset_selection_marquee_cell(asset, uix, uiy, imgw_val, imgw_val);
 					i32 sw = img->height < img->width ? img->height : 0;
 
 					if (base_drag_asset != NULL && tab_textures_drag_pos == i) {
@@ -560,6 +562,8 @@ void tab_textures_draw(i32 *htab) {
 				g_ui->_y = uiy;
 				ui_fill(imgw_val + 1, -2, 2, imgw_val + 4, g_theme->HIGHLIGHT_COL);
 			}
+
+			asset_selection_marquee_end(ASSET_TRAY_TEXTURES);
 
 			if (!drag_pos_set) {
 				tab_textures_drag_pos = -1;
