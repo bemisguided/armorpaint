@@ -122,6 +122,7 @@ typedef struct bevel_edt_ctx {
 	f32      *dist;    // Result: the distance in pixels, size * size
 	i32       size;
 	bool      wrap;
+	bool      failed; // A worker could not allocate its lines, only ever set to true
 } bevel_edt_ctx_t;
 
 // One line of the transform: f has size samples, tripled when wrap (the middle copy is the result, so the distance
@@ -161,6 +162,9 @@ static void bevel_node_edt_columns(void *param, i32 begin, i32 end) {
 			}
 		}
 	}
+	else {
+		c->failed = true;
+	}
 	free(line);
 	free(work);
 	free(d);
@@ -192,6 +196,9 @@ static void bevel_node_edt_rows(void *param, i32 begin, i32 end) {
 			}
 		}
 	}
+	else {
+		c->failed = true;
+	}
 	free(line);
 	free(work);
 	free(d);
@@ -199,11 +206,13 @@ static void bevel_node_edt_rows(void *param, i32 begin, i32 end) {
 	free(z);
 }
 
-// Distance in pixels of every pixel to the nearest pixel where feature is set (BEVEL_FAR when there is none)
-static void bevel_node_distance(const u8 *feature, f32 *g, f32 *dist, i32 size, bool wrap) {
+// Distance in pixels of every pixel to the nearest pixel where feature is set (BEVEL_FAR when there is none).
+// Returns false when memory runs out, dist is not valid then.
+static bool bevel_node_distance(const u8 *feature, f32 *g, f32 *dist, i32 size, bool wrap) {
 	bevel_edt_ctx_t c = {.feature = feature, .g = g, .dist = dist, .size = size, .wrap = wrap};
 	make_image_node_parallel(size, bevel_node_edt_columns, &c);
 	make_image_node_parallel(size, bevel_node_edt_rows, &c);
+	return !c.failed;
 }
 
 // Shaped height of t in 0..1: a chamfer at smoothing 0, a quarter circle at 1
@@ -281,6 +290,7 @@ static i32 bevel_node_process(u8 *bytes, i32 size, void *params, f32 *result) {
 		free(outer);
 		return -1;
 	}
+	bool ok = true;
 	for (size_t i = 0; i < n; ++i) {
 		inside[i] = pixels[i * 4] >= 0.5f ? 1 : 0;
 	}
@@ -288,10 +298,18 @@ static i32 bevel_node_process(u8 *bytes, i32 size, void *params, f32 *result) {
 		for (size_t i = 0; i < n; ++i) {
 			edge[i] = inside[i] ? 0 : 1;
 		}
-		bevel_node_distance(edge, g, inner, size, p.wrap != 0);
+		ok = bevel_node_distance(edge, g, inner, size, p.wrap != 0);
 	}
 	if (outer != NULL) { // Outside pixels: the nearest inside pixel is the feature
-		bevel_node_distance(inside, g, outer, size, p.wrap != 0);
+		ok = ok && bevel_node_distance(inside, g, outer, size, p.wrap != 0);
+	}
+	if (!ok) {
+		free(inside);
+		free(edge);
+		free(g);
+		free(inner);
+		free(outer);
+		return -1;
 	}
 	f32 width_px = p.distance * (f32)size;
 	width_px     = width_px < 1.0f ? 1.0f : width_px;
