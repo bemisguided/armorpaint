@@ -55,8 +55,20 @@ static void export_texture_write_texture(char *file, buffer_t *pixels, i32 type,
 		// Packed textures are rgba8, apply the channel layout the file writers do
 		buffer_t      *rgba  = export_texture_pack_pixels(pixels, res_x * res_y, bits, format);
 		gpu_texture_t *image = gpu_create_texture_from_bytes(rgba, res_x, res_y, GPU_TEXTURE_FORMAT_RGBA32);
+		// The pixels exist only in memory: keep their png in the project so saving packs them (no file on disk to read back)
+		buffer_t *png = iron_encode_png(rgba, res_x, res_y, 0);
 		array_free(rgba);
 		free(rgba);
+		if (g_project->packed_assets == NULL) {
+			g_project->packed_assets = any_array_create_from_raw((void *[]){}, 0);
+		}
+		for (i32 i = 0; i < g_project->packed_assets->length; ++i) {
+			if (string_equals(g_project->packed_assets->buffer[i]->name, file)) {
+				array_splice(g_project->packed_assets, i, 1);
+				break;
+			}
+		}
+		any_array_push(g_project->packed_assets, ALLOC_INIT(packed_asset_t, {.name = file, .bytes = png}));
 		any_map_set(data_cached_textures, file, image);
 
 		// Baking again replaces the packed asset of the same file
@@ -82,21 +94,7 @@ static void export_texture_write_texture(char *file, buffer_t *pixels, i32 type,
 			}
 			any_array_push(g_project->assets, asset->file);
 		}
-		else if (g_project->packed_assets != NULL) {
-			for (i32 i = 0; i < g_project->packed_assets->length; ++i) {
-				if (string_equals(g_project->packed_assets->buffer[i]->name, file)) {
-					array_splice(g_project->packed_assets, i, 1);
-					break;
-				}
-			}
-		}
-		asset->image            = image;
-		asset_t_array_t *assets = any_array_create_from_raw(
-		    (void *[]){
-		        asset,
-		    },
-		    1);
-		export_arm_pack_assets(g_project, assets);
+		asset->image = image;
 		export_texture_bake_material_add_texture(file);
 		return;
 	}
@@ -271,8 +269,8 @@ static void export_texture_run_layers(char *path, slot_layer_t_array_t *layers, 
 		f = string_copy(substring(f, 0, string_length(f) - 4));
 	}
 
-	if (bits > 8 && g_context->layers_destination == EXPORT_DESTINATION_PACK_INTO_PROJECT) {
-		ext = ".png"; // Packed as rgba8 png
+	if (g_context->layers_destination == EXPORT_DESTINATION_PACK_INTO_PROJECT) {
+		ext = ".png"; // Packed as rgba8 png, whatever the format of the dialog
 	}
 
 	// Tile suffix goes after the channel, before the extension
