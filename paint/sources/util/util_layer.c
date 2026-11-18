@@ -396,6 +396,7 @@ void layers_update_fill_layers() {
 						make_material_parse_paint_material(false);
 					}
 					layers_update_paint_set();
+					texture_slot_prepare(l); // Slot Texture atlas of the objects this layer covers
 					if (l->texpaint_sculpt != NULL) {
 						i32 tid = l->id;
 						i32 hid = history_undo_i - 1 < 0 ? g_config->undo_steps - 1 : history_undo_i - 1;
@@ -426,6 +427,7 @@ void layers_update_fill_layers() {
 						make_material_parse_paint_material(false);
 					}
 					layers_update_paint_set();
+					texture_slot_prepare(l);
 					slot_layer_clear(l, 0x00000000, NULL, 1.0, layers_default_rough, 0.0);
 					render_path_paint_commands_paint(false);
 					render_path_paint_dilate(true, true);
@@ -495,6 +497,7 @@ void layers_update_fill_layer(bool parse_paint) {
 		render_path_sculpt_commands();
 	}
 	else {
+		texture_slot_prepare(g_context->layer); // Slot Texture atlas of the objects this layer covers
 		slot_layer_clear(g_context->layer, 0x00000000, NULL, 1.0, layers_default_rough, 0.0);
 		if (parse_paint) {
 			make_material_parse_paint_material(false);

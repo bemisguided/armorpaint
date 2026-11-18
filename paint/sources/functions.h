@@ -1217,6 +1217,7 @@ bool                      layer_tiles_tested(slot_layer_t *l);
 void                      util_udim_write_slot(node_shader_t *kong, char *uv);
 void                      texture_slot_want(i32 btp);
 void                      texture_slot_update();
+void                      texture_slot_prepare(slot_layer_t *l);
 gpu_texture_t            *texture_slot_atlas(i32 btp);
 gpu_texture_t            *texture_slot_resolve(i32 btp);
 bool                      texture_slot_changed();
