@@ -40,6 +40,7 @@ Arcus cosinus
 Arcus sinus
 Arcus tangens 2
 Arcus tangens
+
 Szyk
 Zasób
 Atlas
@@ -54,6 +55,7 @@ Wypalanie
 Wypalanie materiału...
 Wypalanie tekstury
 Wypal do tekstur
+
 Pasma
 Podstawowy
 Kolor bazowy
@@ -137,6 +139,7 @@ Połącz kolor
 Połącz XYZ
 Kompas
 Potwierdź
+
 Konsola
 Model konsoli
 Stała
@@ -279,6 +282,8 @@ Filtruj tekstury
 Płaski
 Spłaszcz
 Krzywa liczby
+
+
 Zaokrąglij w dół
 Modulo z podłogą
 Latanie
@@ -342,6 +347,7 @@ Odcień/Nasycenie/Wartość
 Cosinus hiperboliczny
 Sinus hiperboliczny
 Tangens hiperboliczny
+
 Tekstura obrazu
 Obraz do PBR
 Importuj
@@ -434,6 +440,7 @@ Modele
 Metaliczność
 Min
 Min Maks
+
 Minimum
 Lustro
 Mieszaj
@@ -643,6 +650,7 @@ Rzeźbienie
 Warstwa rzeźbienia
 Szukaj
 Szukaj węzłów
+
 Segmenty
 Zaznacz
 Zaznacz wszystko
@@ -737,6 +745,7 @@ Tekstury...
 Motyw
 Motyw zaimportowany:
 Grubość
+
 Kafelek
 Kafelek X
 Kafelek Y
@@ -827,6 +836,7 @@ Okno
 Siatka
 Przestrzeń robocza
 Świat
+
 Zawijaj mysz
 Zawijaj mysz wokół granic widoku podczas sterowania kamerą
 X

@@ -40,6 +40,7 @@ Arc coseno
 Arc seno
 Arc tangente 2
 Arc tangente
+
 Matriz
 Recurso
 Atlas
@@ -54,6 +55,7 @@ Hornear
 Hornear material...
 Hornear textura
 Hornear a texturas
+
 Bandas
 Base
 Color base
@@ -137,6 +139,7 @@ Combinar color
 Combinar XYZ
 Gizmo orientación
 Confirmar
+
 Consola
 Modelo de consola
 Constante
@@ -279,6 +282,8 @@ Filtrar texturas
 Plano
 Aplanar
 Curva de valor
+
+
 Piso
 Módulo hacia abajo
 Volar
@@ -342,6 +347,7 @@ Tono/Saturación/Valor
 Coseno hiperbólico
 Seno hiperbólico
 Tangente hiperbólica
+
 Imagen
 Imagen a PBR
 Importar
@@ -434,6 +440,7 @@ Mallas
 Metálico
 Mín
 Mín Máx
+
 Mínimo
 Espejo
 Mezcla
@@ -643,6 +650,7 @@ Escultura
 Capa de escultura
 Buscar
 Buscar nodos
+
 Segmentos
 Seleccionar
 Seleccionar todo
@@ -737,6 +745,7 @@ Texturas...
 Tema
 Tema importado:
 Grosor
+
 Mosaico
 Mosaico X
 Mosaico Y
@@ -827,6 +836,7 @@ Ventana
 Alambre
 Espacio de trabajo
 Mundo
+
 Envolver ratón
 Envolver ratón alrededor de límites de vista durante control de cámara
 X
