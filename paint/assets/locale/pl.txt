@@ -537,6 +537,7 @@ Wklej
 Ścieżka
 Śledzenie ścieżek
 Śledzenie ścieżek
+
 Pauza
 Pióro
 Ołówek
