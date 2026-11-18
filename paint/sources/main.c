@@ -389,22 +389,24 @@ void _kickstart() {
 	    (void *[]){
 	        _tr("Input"),
 	        _tr("Texture"),
+	        _tr("Generators"),
 	        _tr("Color"),
 	        _tr("Utilities"),
 	        _tr("Neural"),
 	        _tr("Group"),
 	    },
-	    6);
+	    7);
 #else
 	nodes_material_categories = any_array_create_from_raw(
 	    (void *[]){
 	        _tr("Input"),
 	        _tr("Texture"),
+	        _tr("Generators"),
 	        _tr("Color"),
 	        _tr("Utilities"),
 	        _tr("Group"),
 	    },
-	    5);
+	    6);
 #endif
 
 #if defined(IRON_ANDROID) || defined(IRON_IOS)

@@ -30,7 +30,6 @@ void nodes_material_init() {
 	camera_texture_node_init();
 	checker_texture_node_init();
 	curvature_bake_node_init();
-	flood_fill_node_init();
 	gabor_texture_node_init();
 	gradient_texture_node_init();
 	image_texture_node_init();
@@ -40,6 +39,9 @@ void nodes_material_init() {
 	texture_slot_node_init();
 	voronoi_texture_node_init();
 	wave_texture_node_init();
+
+	nodes_material_generators = any_array_create_from_raw((void *[]){}, 0);
+	flood_fill_node_init();
 
 	nodes_material_color = any_array_create_from_raw((void *[]){}, 0);
 	blur_node_init();
@@ -96,12 +98,13 @@ void nodes_material_init() {
 	    (void *[]){
 	        nodes_material_input,
 	        nodes_material_texture,
+	        nodes_material_generators,
 	        nodes_material_color,
 	        nodes_material_utilities,
 	        nodes_material_neural,
 	        nodes_material_group,
 	    },
-	    6);
+	    7);
 
 #else
 
@@ -109,11 +112,12 @@ void nodes_material_init() {
 	    (void *[]){
 	        nodes_material_input,
 	        nodes_material_texture,
+	        nodes_material_generators,
 	        nodes_material_color,
 	        nodes_material_utilities,
 	        nodes_material_group,
 	    },
-	    5);
+	    6);
 
 #endif
 }

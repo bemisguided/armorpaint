@@ -1,10 +1,18 @@
 #include "../global.h"
 
 // Flood Fill: connected islands of a mask with a random grey, a bounding box gradient and the size per island.
-// The islands are labelled on the cpu (render/make_flood_fill.c) into one RGBA64 texture per node:
+// Generator node: the graph feeding the Mask is evaluated over the node's own square, [0, 1] of tex_coord, independent
+// of the mesh (render/make_flood_fill.c), and labelled on the cpu into one RGBA64 texture per node:
 // R = ID, G = Position x, B = Position y, A = Area (floored to 1/1024 inside kept islands, so Mask = A > 0).
+// The texture is sampled like an Image Texture: at the Vector input or tex_coord, repeating.
 
 #define FLOOD_FILL_AREA_FLOOR 1024.0
+
+// Input socket indices
+enum {
+	FLOOD_FILL_INPUT_MASK   = 0,
+	FLOOD_FILL_INPUT_VECTOR = 1,
+};
 
 // Node button indices
 enum {
@@ -14,6 +22,7 @@ enum {
 	FLOOD_FILL_BUTTON_WRAP         = 3,
 	FLOOD_FILL_BUTTON_MIN_SIZE     = 4,
 	FLOOD_FILL_BUTTON_SEED         = 5,
+	FLOOD_FILL_BUTTON_SIZE         = 6,
 };
 
 // Output socket indices
@@ -36,6 +45,12 @@ bool flood_fill_node_invert(ui_node_t *node) {
 	return flood_fill_node_button(node, FLOOD_FILL_BUTTON_INVERT) != 0.0;
 }
 
+// Width and height of the generated square: Size 512, 1024, 2048 or 4096
+i32 flood_fill_node_size(ui_node_t *node) {
+	i32 i = (i32)flood_fill_node_button(node, FLOOD_FILL_BUTTON_SIZE);
+	return 512 << (i < 0 ? 0 : i > 3 ? 3 : i);
+}
+
 // Labelling parameters of the node for a width x height mask
 flood_fill_params_t flood_fill_node_params(ui_node_t *node, i32 width, i32 height) {
 	f32 min_size = flood_fill_node_button(node, FLOOD_FILL_BUTTON_MIN_SIZE);
@@ -50,7 +65,16 @@ flood_fill_params_t flood_fill_node_params(ui_node_t *node, i32 width, i32 heigh
 	};
 }
 
-// Samples the baked texture once per node at the texel centre, so filtering never blends two island ids
+// Writes float4 <var> = the texel of the baked texture under uv (a float2 expression), repeating.
+// The uv is wrapped and snapped to the texel centre, so the one linear sampler never blends two island ids.
+static void flood_fill_node_write_sample(char *var, char *tex_name, char *uv) {
+	parser_material_write(parser_material_kong, string_tmp("float2 %s_uv = %s;", var, uv));
+	parser_material_write(parser_material_kong, string_tmp("%s_uv = (floor((%s_uv - floor(%s_uv)) * constants.%s_size) + 0.5) / constants.%s_size;", var, var,
+	                                                       var, tex_name, tex_name));
+	parser_material_write(parser_material_kong, string_tmp("float4 %s = sample_lod(%s, sampler_linear, %s_uv, 0.0);", var, tex_name, var));
+}
+
+// Samples the baked texture once per node, shared by all outputs
 static char *flood_fill_node_write(ui_node_t *node) {
 	char *store = parser_material_store_var_name(node);
 	char *key   = string_tmp("%s_flood", store);
@@ -62,16 +86,31 @@ static char *flood_fill_node_write(ui_node_t *node) {
 	char *tex_name = string_tmp("texflood_%s", make_material_node_preview_id(node, NULL));
 	node_shader_add_texture(parser_material_kong, tex_name, string_tmp("_%s", tex_name));
 	node_shader_add_constant(parser_material_kong, string_tmp("float2 %s_size", tex_name), string_tmp("_size(_%s)", tex_name));
-	char *uv = parser_material_tex_coord_atlas != NULL ? parser_material_tex_coord_atlas : "tex_coord"; // The result is laid out in udim atlas uv
-	parser_material_write(parser_material_kong,
-	                      string_tmp("float2 %s_uv = (floor(%s * constants.%s_size) + 0.5) / constants.%s_size;", store, uv, tex_name, tex_name));
-	parser_material_write(parser_material_kong, string_tmp("float4 %s_ff = sample(%s, sampler_linear, %s_uv);", store, tex_name, store));
+	char *ff = string_tmp("%s_ff", store);
+
+	ui_node_socket_t *vector = node->inputs->buffer[FLOOD_FILL_INPUT_VECTOR];
+	if (parser_material_get_input_link(vector) != NULL) {
+		char *uv = parser_material_parse_vector_input(vector);
+		flood_fill_node_write_sample(ff, tex_name, string_tmp("%s.xy", uv));
+	}
+	else if (parser_material_triplanar) { // Like Image Texture: one sample per projection, blended
+		node_shader_context_add_elem(parser_material_kong->context, "tex", "short2norm");
+		flood_fill_node_write_sample(string_tmp("%s0", ff), tex_name, "tex_coord");
+		flood_fill_node_write_sample(string_tmp("%s1", ff), tex_name, "tex_coord1");
+		flood_fill_node_write_sample(string_tmp("%s2", ff), tex_name, "tex_coord2");
+		parser_material_write(parser_material_kong,
+		                      string_tmp("float4 %s = %s0 * tex_coord_blend.x + %s1 * tex_coord_blend.y + %s2 * tex_coord_blend.z;", ff, ff, ff, ff));
+	}
+	else {
+		node_shader_context_add_elem(parser_material_kong->context, "tex", "short2norm");
+		flood_fill_node_write_sample(ff, tex_name, "tex_coord");
+	}
 	return store;
 }
 
 char *flood_fill_node_value(ui_node_t *node, ui_node_socket_t *socket) {
 	if (parser_material_flood_passthrough == node) { // Capturing the input for the bake
-		return parser_material_parse_value_input(node->inputs->buffer[0], false);
+		return parser_material_parse_value_input(node->inputs->buffer[FLOOD_FILL_INPUT_MASK], false);
 	}
 	char *store = flood_fill_node_write(node);
 	i32   i     = array_index_of(node->outputs, socket);
@@ -89,7 +128,7 @@ char *flood_fill_node_value(ui_node_t *node, ui_node_socket_t *socket) {
 
 char *flood_fill_node_vector(ui_node_t *node, ui_node_socket_t *socket) {
 	if (parser_material_flood_passthrough == node) {
-		return parser_material_to_vec3(parser_material_parse_value_input(node->inputs->buffer[0], false));
+		return parser_material_to_vec3(parser_material_parse_value_input(node->inputs->buffer[FLOOD_FILL_INPUT_MASK], false));
 	}
 	if (array_index_of(node->outputs, socket) == FLOOD_FILL_OUTPUT_POSITION) {
 		char *store = flood_fill_node_write(node);
@@ -154,12 +193,13 @@ void flood_fill_node_init() {
 	                           .type   = "TEX_FLOOD_FILL",
 	                           .x      = 0,
 	                           .y      = 0,
-	                           .color  = 0xff4982a0,
+	                           .color  = NODES_MATERIAL_GENERATORS_COLOR,
 	                           .inputs = any_array_create_from_raw(
 	                               (void *[]){
 	                                   flood_fill_node_socket(_tr("Mask"), "VALUE", value_color, f32_array_create_x(0.0)),
+	                                   flood_fill_node_socket(_tr("Vector"), "VECTOR", vector_color, f32_array_create_xyz(0.0, 0.0, 0.0)),
 	                               },
-	                               1),
+	                               2),
 	                           .outputs = any_array_create_from_raw(
 	                               (void *[]){
 	                                   flood_fill_node_socket(_tr("ID"), "VALUE", value_color, f32_array_create_x(0.0)),
@@ -176,13 +216,14 @@ void flood_fill_node_init() {
 	                                   flood_fill_node_button_def(_tr("Wrap Edges"), "BOOL", 0, NULL, 1.0, 100, 0),
 	                                   flood_fill_node_button_def(_tr("Min Size"), "VALUE", 0, NULL, 4096.0, 1, 0),
 	                                   flood_fill_node_button_def(_tr("Seed"), "VALUE", 0, NULL, 1000.0, 1, 0),
+	                                   flood_fill_node_button_def(_tr("Size"), "ENUM", 1, "512\n1024\n2048\n4096", 1.0, 100, 0),
 	                                   flood_fill_node_button_def("flood_fill_node_bake_button", "CUSTOM", 0, NULL, 1.0, 100, 1),
 	                               },
-	                               7),
+	                               8),
 	                           .width = 0,
 	                           .flags = 0});
 
-	any_array_push(nodes_material_texture, flood_fill_node_def);
+	any_array_push(nodes_material_generators, flood_fill_node_def);
 	any_map_set(parser_material_node_values, "TEX_FLOOD_FILL", flood_fill_node_value);
 	any_map_set(parser_material_node_vectors, "TEX_FLOOD_FILL", flood_fill_node_vector);
 	any_map_set(ui_nodes_custom_buttons, "flood_fill_node_bake_button", flood_fill_node_bake_button);

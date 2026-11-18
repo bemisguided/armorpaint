@@ -686,3 +686,6 @@ typedef enum {
 	MT_F32       = 2,
 	MT_I32_ARRAY = 3,
 } meta_type_t;
+
+// Header color of the Generators node category: the yellow of color sockets
+#define NODES_MATERIAL_GENERATORS_COLOR 0xffc7c729
