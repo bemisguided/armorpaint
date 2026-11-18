@@ -11,7 +11,7 @@
 // Angle by Radius (a line, like a motion blur). Radius is a fraction of Size.
 // Radius, Angle and Aspect hold for the whole image (scalar, evaluated at the image centre when linked).
 // Mask multiplies the radius per pixel (Non-Uniform Blur): each pass takes the radius at the pixel it writes, so a
-// varying radius is an approximation, exact only where the mask is constant. A pass takes at most 33 taps per pixel
+// varying radius is an approximation, exact only where the mask is constant. A pass takes at most 65 taps per pixel
 // spread over the radius, large radii on fine detail alias.
 
 // Input socket indices
@@ -36,7 +36,7 @@ enum {
 	ADVANCED_BLUR_MODE_DIRECTIONAL = 2,
 };
 
-#define ADVANCED_BLUR_MAX_TAPS 33
+#define ADVANCED_BLUR_MAX_TAPS 65
 
 typedef struct advanced_blur_params {
 	i32 mode;
@@ -104,7 +104,7 @@ static void advanced_blur_node_pass(f32 *src, f32 *dst, f32 *px, i32 size, f32 d
 			n         = n < 3 ? 3 : n;
 			f32 sum   = 0.0f;
 			f32 wsum  = 0.0f;
-			f32 sigma = r * 0.5f;
+			f32 sigma = r / 3.0f; // The kernel reaches 3 sigma at its ends: no visible cut off
 			for (i32 k = 0; k < n; ++k) {
 				f32 t = -r + 2.0f * r * (f32)k / (f32)(n - 1);
 				f32 w = gaussian ? expf(-t * t / (2.0f * sigma * sigma)) : 1.0f;
@@ -165,6 +165,7 @@ static image_node_type_t advanced_blur_node_image_type = {
     .size          = advanced_blur_node_size,
     .capture       = advanced_blur_node_capture,
     .capture_float = true,
+    .smooth_sample = true,
     .params        = advanced_blur_node_params,
     .process       = advanced_blur_node_process,
 };
