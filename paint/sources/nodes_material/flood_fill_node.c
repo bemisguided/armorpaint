@@ -19,10 +19,10 @@ enum {
 
 // Node button indices (settings)
 enum {
-	FLOOD_FILL_BUTTON_SIZE         = 0,
-	FLOOD_FILL_BUTTON_CONNECTIVITY = 1,
-	FLOOD_FILL_BUTTON_INVERT       = 2,
-	FLOOD_FILL_BUTTON_WRAP         = 3,
+	FLOOD_FILL_BUTTON_SIZE         = 0, // Button 1 is the state row
+	FLOOD_FILL_BUTTON_CONNECTIVITY = 2,
+	FLOOD_FILL_BUTTON_INVERT       = 3,
+	FLOOD_FILL_BUTTON_WRAP         = 4,
 };
 
 // Output socket indices
@@ -178,10 +178,10 @@ void flood_fill_node_init() {
 	                .buttons = any_array_create_from_raw(
 	                    (void *[]){
 	                        flood_fill_node_setting(_tr("Size"), "ENUM", 1, "512\n1024\n2048\n4096"),
+	                        make_image_node_state_button(),
 	                        flood_fill_node_setting(_tr("Connectivity"), "ENUM", 0, "4\n8"),
 	                        flood_fill_node_setting(_tr("Invert"), "BOOL", 0, NULL),
 	                        flood_fill_node_setting(_tr("Wrap Edges"), "BOOL", 0, NULL),
-	                        make_image_node_state_button(),
 	                    },
 	                    5),
 	                .width = 0,
