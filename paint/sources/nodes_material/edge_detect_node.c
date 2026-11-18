@@ -224,7 +224,7 @@ void edge_detect_node_init() {
 	                .color  = NODES_MATERIAL_IMAGE_COLOR,
 	                .inputs = any_array_create_from_raw(
 	                    (void *[]){
-	                        edge_detect_node_socket(_tr("Image"), "VALUE", NODES_MATERIAL_IMAGE_COLOR, f32_array_create_x(0.0), 1.0, 100),
+	                        edge_detect_node_socket(_tr("Image"), "VALUE", NODES_MATERIAL_IMAGE_COLOR, f32_array_create_x(1.0), 1.0, 100),
 	                        edge_detect_node_socket(_tr("Edge Width"), "VALUE", value_color, f32_array_create_x(0.005), 0.1, 1000),
 	                        edge_detect_node_socket(_tr("Tolerance"), "VALUE", value_color, f32_array_create_x(0.0), 1.0, 100),
 	                    },
