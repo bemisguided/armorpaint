@@ -832,7 +832,7 @@ static f32 bake_rays_id_hash(f32 a, f32 b) {
 }
 
 static u8 bake_rays_unorm(f32 f) {
-	return (u8)floorf(bake_rays_fmin(bake_rays_fmax(f, 0.0), 1.0) * 255.0);
+	return (u8)floorf(bake_rays_fmin(bake_rays_fmax(f, 0.0), 1.0) * 255.0 + 0.5);
 }
 
 static void bake_rays_store(u8 *o, f32 r, f32 g, f32 b) {
