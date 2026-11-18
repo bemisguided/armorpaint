@@ -648,6 +648,7 @@ Executar
 Executar no Player
 Executando...
 
+
 SSAO
 Amostras
 Saturação
@@ -663,9 +664,9 @@ Salvando projeto
 Serra
 Escala
 Escala X
+
 Tela
 Script
-
 Nós de Script
 Script aberto
 Scripts
@@ -776,11 +777,11 @@ Bloco Y
 Ladrilhado
 Blocos X
 Blocos Y
+
 Folha de Blocos
 Animação de Folha de Blocos
 Tempo
 Linha do Tempo
-
 Para Graus
 Para Camada de Preenchimento
 Para Máscara de Preenchimento

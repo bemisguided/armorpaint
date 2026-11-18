@@ -648,6 +648,7 @@ Spustit
 Spustit v přehrávači
 Probíhá...
 
+
 SSAO
 Vzorky
 Sytost

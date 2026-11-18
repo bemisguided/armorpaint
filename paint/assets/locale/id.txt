@@ -648,6 +648,7 @@ Jalankan
 Jalankan di Pemutar
 Berjalan...
 
+
 SSAO
 Sampel
 Saturasi
@@ -663,9 +664,9 @@ Menyimpan proyek
 Gigi Gergaji
 Skala
 Skala X
+
 Layar
 Skrip
-
 Node Skrip
 Skrip dibuka
 Skrip
@@ -776,11 +777,11 @@ Petak Y
 Diubin
 Jumlah Petak X
 Jumlah Petak Y
+
 Tilesheet
 Animasi Tilesheet
 Waktu
 Garis Waktu
-
 Ke Derajat
 Ke Lapisan Isi
 Ke Masker Isi

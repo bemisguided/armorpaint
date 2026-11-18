@@ -648,6 +648,7 @@ Ejecutar
 Ejecutar en el reproductor
 Ejecutando...
 
+
 SSAO
 Muestras
 Saturación
@@ -663,9 +664,9 @@ Guardando proyecto
 Sierra
 Escala
 Escalar en X
+
 Trama
 Script
-
 Nodos de script
 Script abierto
 Scripts
@@ -776,11 +777,11 @@ Mosaico Y
 Tileado
 Mosaicos X
 Mosaicos Y
+
 Hoja de mosaicos
 Animación de hoja de mosaicos
 Tiempo
 Línea de tiempo
-
 A grados
 Rellenar Capa
 a máscara de relleno

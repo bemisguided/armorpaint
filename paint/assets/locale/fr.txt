@@ -648,6 +648,7 @@ Exécuter
 Exécuter dans le lecteur
 En cours...
 
+
 SSAO
 Échantillons
 Saturation
@@ -663,9 +664,9 @@ Enregistrement du projet
 Dents de scie
 Échelle
 Échelle X
+
 Écran
 Script
-
 Nœuds de script
 Script ouvert
 Scripts
@@ -776,11 +777,11 @@ Tuile Y
 Carrelé
 Tuiles X
 Tuiles Y
+
 Feuille de tuiles
 Animation de feuille de tuiles
 Temps
 Chronologie
-
 En degrés
 Vers calque de remplissage
 Vers masque de remplissage

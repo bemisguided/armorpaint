@@ -648,6 +648,7 @@ Futtatás
 Futtatás a Playerben
 Fut...
 
+
 SSAO
 Minták
 Telítettség
@@ -663,9 +664,9 @@ Projekt mentése...
 Fogazott
 Méretezés
 X méretezés
+
 Képernyő (Screen)
 Szkript
-
 Szkript csomópontok
 Szkript megnyitva
 Szkriptek
@@ -776,11 +777,11 @@ Mozaik Y
 Csempézett
 Mozaikok X
 Mozaikok Y
+
 Mozaiklap
 Mozaiklap animáció
 Idő
 Időszalag
-
 Fokra
 Kitöltő réteggé
 Kitöltő maszkká

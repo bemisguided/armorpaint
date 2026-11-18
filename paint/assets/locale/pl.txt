@@ -648,6 +648,7 @@ Uruchom
 Uruchom w odtwarzaczu
 Uruchomiono...
 
+
 SSAO
 Próbki
 Nasycenie
@@ -663,9 +664,9 @@ Zapisywanie projektu
 Piła
 Skala
 Skala X
+
 Ekran
 Skrypt
-
 Węzły skryptów
 Skrypt otwarty
 Skrypty
@@ -776,11 +777,11 @@ Kafelek Y
 Kafelkowany
 Kafelków X
 Kafelków Y
+
 Arkusz kafelków
 Animacja arkusza kafelków
 Czas
 Oś czasu
-
 Do stopni
 Do warstwy wypełnienia
 Do maski wypełnienia
