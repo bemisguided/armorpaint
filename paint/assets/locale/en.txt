@@ -647,7 +647,11 @@ Row Height
 Run
 Run in Player
 Running...
+<<<<<<< HEAD
 Scale Random
+=======
+Smoothing
+>>>>>>> fork/feat/bevel
 SSAO
 Samples
 Saturation
