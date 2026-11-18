@@ -10,7 +10,7 @@
 
 // Project tile list (g_project->_->udim_tiles): sorted, distinct, never empty, {1001} by default.
 // Slots are the positions in the list, the atlas has stride x stride slots (see util_udim_stride).
-// The configured project resolution (base_res_x/y) is per tile, layers and targets use the atlas size util_udim_res_x/y.
+// The configured project resolution (base_res_x/y) is per tile, layers and targets use the atlas size config_get_texture_res_x/y.
 
 #define UTIL_UDIM_MAX_SIDE 16384
 
@@ -61,28 +61,19 @@ bool util_udim_active() {
 // Per tile resolution, the configured one unless the atlas would pass the max side
 i32 util_udim_tile_res_x() {
 	i32 max = UTIL_UDIM_MAX_SIDE / util_udim_stride();
-	i32 res = config_get_texture_res_x();
+	i32 res = config_get_tile_res_x();
 	return res < max ? res : max;
 }
 
 i32 util_udim_tile_res_y() {
 	i32 max = UTIL_UDIM_MAX_SIDE / util_udim_stride();
-	i32 res = config_get_texture_res_y();
+	i32 res = config_get_tile_res_y();
 	return res < max ? res : max;
-}
-
-// Atlas size, the configured resolution when the project has one slot
-i32 util_udim_res_x() {
-	return util_udim_tile_res_x() * util_udim_stride();
-}
-
-i32 util_udim_res_y() {
-	return util_udim_tile_res_y() * util_udim_stride();
 }
 
 // The per tile resolution was lowered to fit the atlas
 bool util_udim_clamped() {
-	return util_udim_tile_res_x() < config_get_texture_res_x() || util_udim_tile_res_y() < config_get_texture_res_y();
+	return util_udim_tile_res_x() < config_get_tile_res_x() || util_udim_tile_res_y() < config_get_tile_res_y();
 }
 
 // Bytes of the layer textures (3 per layer) at the atlas size
@@ -369,7 +360,7 @@ static void _util_udim_warn_clamped() {
 	any_map_t *vars = any_map_create();
 	any_map_set(vars, "tiles", i32_to_string(util_udim_count()));
 	any_map_set(vars, "res", i32_to_string(util_udim_tile_res_x()));
-	any_map_set(vars, "atlas", i32_to_string(util_udim_res_x()));
+	any_map_set(vars, "atlas", i32_to_string(config_get_texture_res_x()));
 	console_info(vtr("UDIM atlas too large: {tiles} tiles use {res} px per tile ({atlas} px atlas)", vars));
 	map_free(vars);
 }
@@ -492,7 +483,7 @@ void util_udim_import_meshes(any_array_t *mds, bool fresh) {
 		}
 		// The layers were just cleared to a single color, resizing them loses nothing
 		slot_layer_t *l0 = g_project->_->layers->length > 0 ? g_project->_->layers->buffer[0] : NULL;
-		if (l0 != NULL && l0->texpaint != NULL && (l0->texpaint->width != util_udim_res_x() || l0->texpaint->height != util_udim_res_y())) {
+		if (l0 != NULL && l0->texpaint != NULL && (l0->texpaint->width != config_get_texture_res_x() || l0->texpaint->height != config_get_texture_res_y())) {
 			gpu_texture_t *current = _draw_current;
 			bool           in_use  = gpu_in_use;
 			if (in_use) {
