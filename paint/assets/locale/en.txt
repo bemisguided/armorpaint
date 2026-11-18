@@ -964,3 +964,6 @@ Several covered objects share UV space.
 Mixed
 {count} items
 Add to all
+The GPU bake result could not be read, baking on the CPU
+The GPU bake result could not be read
+Not enough memory for the GPU bake, lower the resolution

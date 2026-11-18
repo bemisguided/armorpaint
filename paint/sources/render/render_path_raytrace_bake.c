@@ -158,10 +158,14 @@ bool render_path_raytrace_bake_commands(void (*parse_paint_material)(bool)) {
 		render_path_bind_target("baketex2", "tex");
 		render_path_draw_shader("Scene/copy_pass/copy_pass");
 
-#if defined(IRON_METAL) || defined(IRON_WEBGPU)
-		i32 samples_per_frame = 4;
-#else
+		// WebGPU builds every bake shader with low samples, Metal only the lightmap one
 		i32 samples_per_frame = 64;
+#if defined(IRON_WEBGPU)
+		samples_per_frame = 4;
+#elif defined(IRON_METAL)
+		if (g_context->bake_type == BAKE_TYPE_LIGHTMAP) {
+			samples_per_frame = 4;
+		}
 #endif
 
 		render_path_raytrace_bake_rays_pix = render_path_raytrace_frame * samples_per_frame;
