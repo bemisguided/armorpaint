@@ -173,7 +173,7 @@ void layers_set_bits() {
 		slot_layer_t *l = g_project->_->layers->buffer[i];
 		slot_layer_resize_and_set_bits(l);
 	}
-	for (i32 i = 0; i < history_undo_layers->length; ++i) {
+	for (i32 i = 0; history_undo_layers != NULL && i < history_undo_layers->length; ++i) {
 		slot_layer_t *l = history_undo_layers->buffer[i];
 		slot_layer_resize_and_set_bits(l);
 	}
