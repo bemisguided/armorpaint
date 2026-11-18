@@ -54,10 +54,12 @@ static ui_node_t_array_t       *make_image_node_capture_parents = NULL;
 static i32                      make_image_node_capture_input   = 0; // Input of make_image_node_input_value
 
 static void make_image_node_update(void *_);
+static void make_image_node_state_row(i32 node_id);
 
 void make_image_node_register(image_node_type_t *type) {
 	if (make_image_node_types == NULL) {
 		make_image_node_types = any_array_create_from_raw((void *[]){}, 0);
+		any_map_set(ui_nodes_custom_buttons, "make_image_node_state_row", make_image_node_state_row);
 	}
 	any_array_push(make_image_node_types, type);
 }
@@ -803,4 +805,34 @@ char *make_image_node_sample(ui_node_t *node, i32 vector_input) {
 		make_image_node_write_fetch(var, tex_name, "tex_coord");
 	}
 	return var;
+}
+
+// Body row of an image node, after its settings: Baking on the highlight color while a bake is pending, Baked once
+// the result is there, empty before the first bake. The node has no Bake button: it bakes on its own.
+static void make_image_node_state_row(i32 node_id) {
+	ui_node_t *node = ui_get_node(ui_nodes_get_canvas(true)->nodes, node_id);
+	if (node == NULL) {
+		return;
+	}
+	if (make_image_node_is_pending(node)) {
+		ui_text(tr("Baking"), UI_ALIGN_CENTER, g_theme->HIGHLIGHT_COL);
+		return;
+	}
+	i32 _TEXT_COL     = g_theme->TEXT_COL;
+	g_theme->TEXT_COL = g_theme->LABEL_COL;
+	ui_text(make_image_node_result(node) != NULL ? tr("Baked") : "", UI_ALIGN_CENTER, 0);
+	g_theme->TEXT_COL = _TEXT_COL;
+}
+
+// The state row button of an image node definition, placed after the settings
+ui_node_button_t *make_image_node_state_button() {
+	return ALLOC_INIT(ui_node_button_t, {.name          = "make_image_node_state_row",
+	                                     .type          = "CUSTOM",
+	                                     .output        = -1,
+	                                     .default_value = f32_array_create_x(0),
+	                                     .data          = NULL,
+	                                     .min           = 0.0,
+	                                     .max           = 1.0,
+	                                     .precision     = 100,
+	                                     .height        = 1});
 }

@@ -54,6 +54,8 @@ Wypalanie
 Wypalanie materiału...
 Wypalanie tekstury
 Wypal do tekstur
+
+
 Pasma
 Podstawowy
 Kolor bazowy

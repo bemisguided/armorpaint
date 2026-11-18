@@ -54,6 +54,8 @@ Sütés (Bake)
 Anyag sütése...
 Textúra sütése
 Sütés textúrákra
+
+
 Sávok
 Alap
 Alapszín

@@ -994,6 +994,7 @@ gpu_texture_t            *make_image_node_result(ui_node_t *node);
 i32                       make_image_node_result_count(ui_node_t *node);
 void                      make_image_node_bake_now(ui_node_t *node);
 void                      make_image_node_regenerate();
+ui_node_button_t         *make_image_node_state_button();
 void                      make_material_bake_node_previews_linked();
 void                      make_material_delete_node_previews(slot_material_t *m, string_array_t *keep);
 char                     *blur_node_input_alpha(ui_node_t *node);

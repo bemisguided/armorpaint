@@ -54,6 +54,8 @@ Bake
 Bake Material...
 Bake Tekstur
 Bake ke Tekstur
+
+
 Pita
 Dasar
 Warna Dasar

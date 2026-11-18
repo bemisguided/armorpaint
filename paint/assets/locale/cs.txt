@@ -54,6 +54,8 @@ Zapékat
 Zapékat materiál...
 Zapékání textury
 Zapékat do textur
+
+
 Pásy
 Základní
 Základní barva
