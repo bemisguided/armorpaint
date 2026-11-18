@@ -1155,6 +1155,9 @@ typedef struct image_node_type {
 	// false: the capture is 8 bit per channel (RGBA8), enough for masks. true: 32 bit float per channel (size * size * 16 bytes,
 	// 268 MB at 4096), for height maps and blurs that would band; process then gets the pixels as a f32 array (cast to f32 *).
 	bool capture_float;
+	// false: the result is read at the nearest texel (ids, labels, anything that must not blend). true: bilinear, for smooth
+	// results (blurs, edges) that would show the texel steps when magnified.
+	bool smooth_sample;
 	// Turns the captured pixels (size * size RGBA8, or size * size * 4 floats with capture_float, per capture) into size * size * 4 floats (RGBA).
 	// Returns a count kept with the result (Flood Fill: islands), or -1 when memory runs out.
 	i32 (*process)(u8 *pixels, i32 size, void *params, f32 *result);
