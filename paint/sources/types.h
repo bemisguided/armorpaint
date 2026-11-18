@@ -1150,9 +1150,12 @@ typedef struct image_node_type {
 	// They are part of the signature; the node itself is not kept for the bake.
 	void (*params)(ui_node_t *node, void *params);
 	// Number of captures of the node, NULL for one. Capture k (make_image_node_capture_index) calls capture again;
-	// the captures are handed to process one after the other (count * size * size RGBA8).
+	// the captures are handed to process one after the other (count * size * size pixels).
 	i32 (*capture_count)(ui_node_t *node);
-	// Turns the captured pixels (size * size RGBA8 per capture) into size * size * 4 floats (RGBA).
+	// false: the capture is 8 bit per channel (RGBA8), enough for masks. true: 32 bit float per channel (size * size * 16 bytes,
+	// 268 MB at 4096), for height maps and blurs that would band; process then gets the pixels as a f32 array (cast to f32 *).
+	bool capture_float;
+	// Turns the captured pixels (size * size RGBA8, or size * size * 4 floats with capture_float, per capture) into size * size * 4 floats (RGBA).
 	// Returns a count kept with the result (Flood Fill: islands), or -1 when memory runs out.
 	i32 (*process)(u8 *pixels, i32 size, void *params, f32 *result);
 } image_node_type_t;

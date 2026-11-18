@@ -170,10 +170,10 @@ static u64 make_image_node_hash(u64 h, u8 *bytes, size_t n) {
 	return h;
 }
 
-// 64 bit FNV-1a over the captured pixels (count captures), the size and the processing parameters
-static u64 make_image_node_signature(u8 *pixels, i32 count, i32 size, void *params, i32 params_size) {
+// 64 bit FNV-1a over the captured pixels (bytes), the size and the processing parameters
+static u64 make_image_node_signature(u8 *pixels, size_t bytes, i32 size, void *params, i32 params_size) {
 	u64 h = 14695981039346656037ull;
-	h     = make_image_node_hash(h, pixels, (size_t)size * size * 4 * count);
+	h     = make_image_node_hash(h, pixels, bytes);
 	h     = make_image_node_hash(h, (u8 *)&size, sizeof(size));
 	return make_image_node_hash(h, params, params_size);
 }
@@ -319,11 +319,13 @@ static bool make_image_node_capture(make_image_node_state_t *s, char *id, ui_nod
 	make_image_node_capture_parents = parents;
 	i32   size                      = t->size(node);
 	i32   count                     = t->capture_count != NULL ? t->capture_count(node) : 1;
+	i32   pixel_bytes               = t->capture_float ? 16 : 4;
+	gpu_texture_format_t format     = t->capture_float ? GPU_TEXTURE_FORMAT_RGBA128 : GPU_TEXTURE_FORMAT_RGBA32;
 	u8   *pixels                    = NULL;
-	size_t one                      = (size_t)size * size * 4;
+	size_t one                      = (size_t)size * size * pixel_bytes;
 	for (i32 k = 0; k < count; ++k) {
 		make_image_node_capture_k = k;
-		u8 *p                     = make_image_node_capture_pixels(node, t->capture, size, GPU_TEXTURE_FORMAT_RGBA32);
+		u8 *p                     = make_image_node_capture_pixels(node, t->capture, size, format);
 		if (p == NULL) {
 			free(pixels);
 			pixels = NULL;
@@ -351,7 +353,7 @@ static bool make_image_node_capture(make_image_node_state_t *s, char *id, ui_nod
 	if (pixels == NULL) {
 		return false; // Shader error, keep what is baked
 	}
-	u64 sig = make_image_node_signature(pixels, count, size, params, t->params_size);
+	u64 sig = make_image_node_signature(pixels, one * count, size, params, t->params_size);
 
 	bool has_result = g_context->node_previews != NULL && any_map_get(g_context->node_previews, id) != NULL;
 	if (!force && has_result && s->has_baked && sig == s->baked_signature) {
