@@ -1137,6 +1137,13 @@ typedef struct ui_nodes_editor_state {
 
 // An image node type (render/make_image_node.c): the shared pass captures the node's inputs in image space,
 // the type turns the captured pixels into its result, which the node samples at the current texture coordinate (Tile UV at its own placement)
+// How the baked result of an image node is read where it is placed (make_image_node_sample_at)
+enum {
+	IMAGE_FILTER_NEAREST = 0,
+	IMAGE_FILTER_LINEAR  = 1,
+	IMAGE_FILTER_CUBIC   = 2,
+};
+
 typedef struct image_node_type {
 	char *type;          // Node type, e.g. "TEX_FLOOD_FILL"
 	i32   result_format; // gpu_texture_format_t of the result: RGBA64 or RGBA128
@@ -1155,8 +1162,8 @@ typedef struct image_node_type {
 	// false: the capture is 8 bit per channel (RGBA8), enough for masks. true: 32 bit float per channel (size * size * 16 bytes,
 	// 268 MB at 4096), for height maps and blurs that would band; process then gets the pixels as a f32 array (cast to f32 *).
 	bool capture_float;
-	// false: the result is read at the nearest texel (ids, labels, anything that must not blend). true: bilinear, for smooth
-	// results (blurs, edges) that would show the texel steps when magnified.
+	// false: the result is read at the nearest texel (ids, labels, anything that must not blend). true: cubic on the mesh
+	// (bilinear in a capture), for smooth results (blurs, edges) that would show texel steps and slope jumps when magnified.
 	bool smooth_sample;
 	// Turns the captured pixels (size * size RGBA8, or size * size * 4 floats with capture_float, per capture) into size * size * 4 floats (RGBA).
 	// Returns a count kept with the result (Flood Fill: islands), or -1 when memory runs out.
