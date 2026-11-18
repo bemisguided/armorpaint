@@ -30,9 +30,9 @@ enum {
 
 // Node button indices (settings)
 enum {
-	TILE_GENERATOR_BUTTON_SIZE         = 0,
-	TILE_GENERATOR_BUTTON_PATTERNS     = 1,
-	TILE_GENERATOR_BUTTON_PATTERN_MODE = 2,
+	TILE_GENERATOR_BUTTON_SIZE         = 0, // Button 1 is the state row
+	TILE_GENERATOR_BUTTON_PATTERNS     = 2,
+	TILE_GENERATOR_BUTTON_PATTERN_MODE = 3,
 };
 
 // Output socket indices
@@ -297,9 +297,9 @@ void tile_generator_node_init() {
 	                .buttons = any_array_create_from_raw(
 	                    (void *[]){
 	                        tile_generator_node_setting(_tr("Size"), "ENUM", 1, "512\n1024\n2048\n4096"),
+	                        make_image_node_state_button(),
 	                        tile_generator_node_setting(_tr("Patterns"), "ENUM", 0, "1\n2\n3\n4"),
 	                        tile_generator_node_setting(_tr("Pattern Mode"), "ENUM", 0, "Random\nCycle"),
-	                        make_image_node_state_button(),
 	                    },
 	                    4),
 	                .width = 0,
