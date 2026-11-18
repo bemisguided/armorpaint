@@ -281,7 +281,7 @@ void tab_materials_draw_slots(bool mini) {
 	f32  uiy          = 0.0;
 	i32  imgw_val     = math_floor(50 * a * UI_SCALE());
 	asset_selection_select_all(ASSET_TRAY_MATERIALS, filtered);
-	asset_selection_marquee_begin(ASSET_TRAY_MATERIALS);
+	asset_selection_marquee_begin();
 
 	for (i32 row = 0; row < math_floor(math_ceil(filtered->length / (float)num)); ++row) {
 		i32          mult = g_config->show_asset_names ? 2 : 1;
@@ -364,7 +364,7 @@ void tab_materials_draw_slots(bool mini) {
 
 			// Select material
 			if (state == UI_STATE_STARTED && g_ui->input_y > g_ui->_window_y) {
-				bool             can_drag = asset_selection_press(ASSET_TRAY_MATERIALS, material, NULL);
+				bool             can_drag = asset_selection_press(ASSET_TRAY_MATERIALS, material, filtered);
 				slot_material_t *primary  = asset_selection_primary_item();
 				if (g_context->material != primary) {
 					context_set_material(primary);

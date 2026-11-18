@@ -163,7 +163,7 @@ void tab_brushes_draw(i32 *htab) {
 			}
 		}
 		asset_selection_select_all(ASSET_TRAY_BRUSHES, filtered);
-		asset_selection_marquee_begin(ASSET_TRAY_BRUSHES);
+		asset_selection_marquee_begin();
 
 		bool drag_pos_set = false;
 		f32  uix          = 0.0;
@@ -227,7 +227,7 @@ void tab_brushes_draw(i32 *htab) {
 				}
 
 				if (state == UI_STATE_STARTED) {
-					bool          can_drag = asset_selection_press(ASSET_TRAY_BRUSHES, brush, NULL);
+					bool          can_drag = asset_selection_press(ASSET_TRAY_BRUSHES, brush, filtered);
 					slot_brush_t *primary  = asset_selection_primary_item();
 					if (g_context->brush != primary) {
 						context_set_brush(primary);

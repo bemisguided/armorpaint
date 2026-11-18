@@ -18,8 +18,8 @@ static char        *ui_asset_details_name     = "";   // Name field text, commit
 static i32          ui_asset_details_ids[4];
 static bool         ui_asset_details_had_mixed[4]; // The field started mixed when the dialog opened: its Mixed entry stays in the combo list
 static i32          ui_asset_details_last_btp = BTP_NONE; // Last bake type chosen in this session, BTP_NONE = none yet
-static any_array_t *ui_asset_details_combo_prev =
-    NULL; // Metadata of each item from before the first change made through the open combo, see ui_asset_details_combo_commit
+// Metadata of each item from before the first change made through the open combo, see ui_asset_details_combo_commit
+static any_array_t *ui_asset_details_combo_prev = NULL;
 
 static i32 ui_asset_details_count() {
 	return ui_asset_details_items != NULL ? ui_asset_details_items->length : 0;
@@ -214,7 +214,7 @@ static any_array_t *ui_asset_details_tags() {
 			char *t     = m->tags->buffer[j];
 			bool  known = false;
 			for (i32 k = 0; k < tags->length && !known; ++k) {
-				known = string_equals(to_lower_case(tags->buffer[k]), to_lower_case(t));
+				known = string_equals(string_to_lower_tmp(tags->buffer[k]), string_to_lower_tmp(t));
 			}
 			if (!known) {
 				any_array_push(tags, t);

@@ -14,7 +14,7 @@ static string_array_t *ui_asset_tags_in_use(i32 category) {
 	for (i32 i = 0; i < count; ++i) {
 		meta_t *m = meta_peek(category, i);
 		for (i32 j = 0; m != NULL && m->tags != NULL && j < m->tags->length; ++j) {
-			char *l = to_lower_case(m->tags->buffer[j]);
+			char *l = string_to_lower_tmp(m->tags->buffer[j]);
 			if (string_array_index_of(lower, l) >= 0) {
 				continue;
 			}
@@ -46,7 +46,7 @@ bool ui_asset_tags_filter(i32 category) {
 	i32             idx  = 0;
 	if (*sel != NULL) { // The selected tag may be gone, fall back to All
 		for (i32 i = 0; i < tags->length; ++i) {
-			if (string_equals(to_lower_case(tags->buffer[i]), to_lower_case(*sel))) {
+			if (string_equals(string_to_lower_tmp(tags->buffer[i]), string_to_lower_tmp(*sel))) {
 				idx = i + 1;
 				break;
 			}
@@ -67,6 +67,7 @@ bool ui_asset_tags_filter(i32 category) {
 	ui_combo(&idx, texts, tr("Tags"), false, UI_ALIGN_LEFT, true);
 	if (ui_item_changed()) { // Copied only on change, the combo runs every frame
 		*sel = idx > 0 ? string_copy(texts->buffer[idx]) : NULL;
+		asset_selection_clear(); // Items the filter hides must not stay selected
 	}
 	array_delete(texts);
 	array_delete(tags);

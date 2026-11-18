@@ -17,8 +17,6 @@ typedef struct meta {
 	i32_array_t      *bool_values;
 	i32_array_t      *i32_keys;
 	i32_array_t      *i32_values;
-	i32_array_t      *f32_keys;
-	f32_array_t      *f32_values;
 	i32_array_t      *i32_array_keys;
 	struct any_array *i32_array_values;
 } meta_t;

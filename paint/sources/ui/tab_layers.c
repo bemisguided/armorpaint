@@ -361,23 +361,14 @@ static char *tab_layers_coverage_text(bool multi_tile, bool all_objects, i32 obj
 	return string_tmp("%s / %s", tab_layers_objects_text(all_objects, object_count, object_name), tab_layers_tiles_text(all_tiles, tile_count, tile_id));
 }
 
-// A side reads All when its flag is set. The ticks are followed literally: a list holding every object still reads as that list.
-static bool tab_layers_objects_all(slot_layer_t *l) {
-	return slot_layer_all_objects(l);
-}
-
-static bool tab_layers_tiles_all(slot_layer_t *l) {
-	return slot_layer_all_tiles(l);
-}
-
 static char *tab_layers_coverage_label(slot_layer_t *l) {
 	bool  multi    = util_udim_count() > 1;
 	char *first    = NULL;
 	char *second   = NULL;
 	i32   t_first  = 0;
 	i32   t_second = 0;
-	bool  ao       = tab_layers_objects_all(l);
-	bool  at       = multi && tab_layers_tiles_all(l);
+	bool  ao       = slot_layer_all_objects(l); // The ticks are followed literally: a list holding every object still reads as that list
+	bool  at       = multi && slot_layer_all_tiles(l);
 	i32   o        = ao ? 0 : tab_layers_label_objects(l, &first, &second);
 	i32   t        = !multi || at ? 0 : tab_layers_label_tiles(l, &t_first, &t_second);
 	return tab_layers_coverage_text(multi, ao, o, first, at, t, t_first);
