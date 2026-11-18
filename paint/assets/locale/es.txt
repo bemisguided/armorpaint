@@ -421,6 +421,7 @@ Logaritmo
 Mágica
 Hacer único
 Manual
+
 Mapear Rango
 Mapeado
 Máscara

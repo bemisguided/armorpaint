@@ -421,6 +421,7 @@ Logarytm
 Tekstura magiczna
 Uczyń unikalnym
 Instrukcja
+
 Mapa zakresu
 Mapowanie
 Maska

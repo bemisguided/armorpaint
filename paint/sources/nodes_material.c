@@ -55,6 +55,7 @@ void nodes_material_init() {
 	advanced_blur_node_init();
 	tile_uv_node_init();
 	seamless_node_init();
+	image_warp_node_init();
 
 	array_sort(nodes_material_pattern, nodes_material_compare_names);
 	array_sort(nodes_material_filter, nodes_material_compare_names);

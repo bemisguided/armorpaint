@@ -67,6 +67,7 @@
 #include "nodes_material/group_node.c"
 #include "nodes_material/hue_saturation_value_node.c"
 #include "nodes_material/image_texture_node.c"
+#include "nodes_material/image_warp_node.c"
 #include "nodes_material/invert_color_node.c"
 #include "nodes_material/layer_mask_node.c"
 #include "nodes_material/layer_node.c"

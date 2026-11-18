@@ -421,6 +421,7 @@ Logarithm
 Magic Texture
 Make Unique
 Manual
+Map
 Map Range
 Mapping
 Mask
