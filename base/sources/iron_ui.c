@@ -1117,9 +1117,8 @@ void ui_draw_combo() {
 		}
 		current->combo_selected_texts_filtered++;
 
-		if (reset_position) { // The search has changed, select first entry that matches
+		if (reset_position) { // The search has changed, highlight the first entry that matches, it is applied with Enter
 			current->combo_to_submit = i;
-			current->submit_combo_id = current->combo_selected_id;
 			reset_position           = false;
 		}
 		if (unroll_up) {
@@ -1170,6 +1169,9 @@ void ui_draw_combo() {
 	}
 
 	if ((current->input_released || current->input_released_r || current->is_escape_down || current->is_return_down) && !current->combo_first) {
+		if (current->is_return_down && current->combo_search_bar && !current->is_escape_down) {
+			current->submit_combo_id = current->combo_selected_id; // Apply the highlighted entry of the search
+		}
 		if (current->input_released_r || current->is_escape_down) {
 			current->submit_combo_id = current->combo_selected_id;
 			current->combo_to_submit = current->combo_initial_value;
