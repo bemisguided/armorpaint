@@ -989,7 +989,6 @@ void                      make_image_node_on_traverse(ui_node_t *node, ui_node_c
 void                      make_image_node_delete_states(slot_material_t *m, string_array_t *keep);
 f32                       make_image_node_input_value(ui_node_t *node, i32 input);
 i32                       make_image_node_capture_index();
-char                     *make_image_node_sample(ui_node_t *node, i32 vector_input);
 char                     *make_image_node_sample(ui_node_t *node);
 char                     *make_image_node_sample_at(ui_node_t *node, char *uv, bool smooth);
 bool                      make_image_node_is_pending(ui_node_t *node);
