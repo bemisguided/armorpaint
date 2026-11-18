@@ -8,7 +8,8 @@
 // Chosen over evaluating the Image graph at the placed uv in the material shader: whatever sits between the image
 // nodes and Tile UV (Math, Mix, ...) then stays a plain image space graph, nothing is evaluated twice at a
 // different coordinate, and chained image nodes keep reading each other 1:1.
-// Filter: Linear reads bilinear, Nearest the nearest texel (ids, islands, anything that must not blend).
+// Filter: Linear reads bilinear, Cubic (default) a cubic B-spline whose slope is continuous (a Bump node on the result
+// shows no texel dashes), Nearest the nearest texel (ids, islands, anything that must not blend).
 
 // Input socket indices
 enum {
@@ -92,8 +93,9 @@ static char *tile_uv_node_sample(ui_node_t *node) {
 		                      string_tmp("%s = float2(%s.x * cos(%s) - %s.y * sin(%s), %s.x * sin(%s) + %s.y * cos(%s));", p, p, a, p, a, p, a, p, a));
 		parser_material_write(parser_material_kong, string_tmp("%s = %s * float2(%s, %s) + 0.5 + float2(%s, %s);", p, p, sx, sy, ox, oy));
 	}
-	bool smooth = tile_uv_node_button(node, TILE_UV_BUTTON_FILTER) == 0.0;
-	return make_image_node_sample_at(node, p, smooth);
+	i32 setting = (i32)tile_uv_node_button(node, TILE_UV_BUTTON_FILTER); // 0 Linear, 1 Cubic, 2 Nearest
+	i32 filter  = setting == 0 ? IMAGE_FILTER_LINEAR : setting == 1 ? IMAGE_FILTER_CUBIC : IMAGE_FILTER_NEAREST;
+	return make_image_node_sample_at(node, p, filter);
 }
 
 char *tile_uv_node_vector(ui_node_t *node, ui_node_socket_t *socket) {
@@ -160,7 +162,7 @@ void tile_uv_node_init() {
 	                .buttons = any_array_create_from_raw(
 	                    (void *[]){
 	                        tile_uv_node_setting(_tr("Size"), 1, "512\n1024\n2048\n4096"),
-	                        tile_uv_node_setting(_tr("Filter"), 0, "Linear\nNearest"),
+	                        tile_uv_node_setting(_tr("Filter"), 1, "Linear\nCubic\nNearest"),
 	                        make_image_node_state_button(),
 	                    },
 	                    3),
