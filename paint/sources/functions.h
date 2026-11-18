@@ -988,6 +988,7 @@ image_node_type_t        *make_image_node_type_of(char *node_type);
 void                      make_image_node_on_traverse(ui_node_t *node, ui_node_canvas_t *group, ui_node_t_array_t *parents, bool linked);
 void                      make_image_node_delete_states(slot_material_t *m, string_array_t *keep);
 f32                       make_image_node_input_value(ui_node_t *node, i32 input);
+i32                       make_image_node_capture_index();
 char                     *make_image_node_sample(ui_node_t *node, i32 vector_input);
 bool                      make_image_node_is_pending(ui_node_t *node);
 gpu_texture_t            *make_image_node_result(ui_node_t *node);
