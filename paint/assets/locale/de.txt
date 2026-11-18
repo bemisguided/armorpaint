@@ -18,6 +18,7 @@ Animation hinzufügen
 Farbfeld hinzufügen
 Neues Farbfeld hinzufügen
 Gewählte Farbe zu Farbfeldern hinzufügen
+
 Alle
 Alle Verarbeitung erfolgt lokal auf dem Gerät
 Kamera über Kopf erlauben
@@ -42,6 +43,7 @@ Arkustangens 2
 Arkustangens
 
 Array
+
 Asset
 Attribut
 Automatisch

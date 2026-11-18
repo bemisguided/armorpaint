@@ -43,6 +43,7 @@
 #include "nodes_brush/vector_node.c"
 
 #include "nodes_material/attribute_node.c"
+#include "nodes_material/advanced_blur_node.c"
 #include "nodes_material/bake_texture_node.c"
 #include "nodes_material/blur_node.c"
 #include "nodes_material/brick_texture_node.c"

@@ -18,6 +18,7 @@ Přidat animaci
 Přidat vzorek
 Přidat nový vzorek
 Přidat vybranou barvu do vzorků
+
 Vše
 Veškeré zpracování probíhá lokálně na zařízení
 Povolit převrácenou kameru
@@ -42,6 +43,7 @@ Arktangens 2
 Arktangens
 
 Pole
+
 Asset
 Atribut
 Automaticky

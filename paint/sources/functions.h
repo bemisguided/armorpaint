@@ -1597,6 +1597,7 @@ void              uv_map_node_init();
 void              wave_texture_node_init();
 void              clamp_node_init();
 void              curvature_bake_node_init();
+void              advanced_blur_node_init();
 void              blur_node_init();
 void              flood_fill_node_init();
 void              tile_generator_node_init();

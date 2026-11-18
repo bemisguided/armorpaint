@@ -18,6 +18,7 @@ Animáció hozzáadása
 Színminta hozzáadása
 Új színminta hozzáadása
 Kiválasztott szín hozzáadása a mintákhoz
+
 Összes
 Minden feldolgozás helyben történik
 Fejjel lefelé álló kamera engedélyezése
@@ -42,6 +43,7 @@ Arkusz tangens 2
 Arkusz tangens
 
 Tömb
+
 Asset
 Attribútum
 Auto

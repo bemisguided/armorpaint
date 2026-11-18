@@ -18,6 +18,7 @@ Adicionar Animação
 Adicionar Amostra
 Adicionar nova amostra
 Adicionar cor selecionada às amostras
+
 Tudo
 Todo o processamento é feito localmente no dispositivo
 Permitir Câmera Invertida
@@ -42,6 +43,7 @@ Arctan2
 Arco tangente
 
 Matriz
+
 Ativo
 Atributo
 Automático

@@ -18,6 +18,7 @@ Add Animation
 Add Swatch
 Add new swatch
 Add picked color to swatches
+Advanced Blur
 All
 All processing is done locally on device
 Allow Upside Down Camera
@@ -42,6 +43,7 @@ Arctan2
 Arctangent
 Area
 Array
+Aspect
 Asset
 Attribute
 Auto
