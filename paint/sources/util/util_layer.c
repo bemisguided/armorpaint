@@ -177,7 +177,7 @@ void layers_set_bits() {
 		slot_layer_t *l = g_project->_->layers->buffer[i];
 		slot_layer_resize_and_set_bits(l);
 	}
-	for (i32 i = 0; i < history_undo_layers->length; ++i) {
+	for (i32 i = 0; history_undo_layers != NULL && i < history_undo_layers->length; ++i) {
 		slot_layer_t *l = history_undo_layers->buffer[i];
 		slot_layer_resize_and_set_bits(l);
 	}
@@ -1565,9 +1565,9 @@ gpu_texture_t *layers_coverage_merge_mask(slot_layer_t *l, slot_layer_t_array_t 
 		draw_begin(pipes_temp_mask_image, true, 0xffffffff);
 		draw_end();
 	}
-	slot_layer_t *target = ALLOC_INIT(slot_layer_t, {.texpaint = pipes_temp_mask_image});
+	slot_layer_t target = {.texpaint = pipes_temp_mask_image};
 	for (i32 i = 0; i < masks->length; ++i) {
-		layers_merge_layer(target, move_preview ? layers_move_preview(masks->buffer[i]) : masks->buffer[i], false); // Multiplies
+		layers_merge_layer(&target, move_preview ? layers_move_preview(masks->buffer[i]) : masks->buffer[i], false); // Multiplies
 	}
 	return pipes_temp_mask_image;
 }
