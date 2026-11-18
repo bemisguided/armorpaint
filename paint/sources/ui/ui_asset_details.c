@@ -214,7 +214,7 @@ static any_array_t *ui_asset_details_tags() {
 			char *t     = m->tags->buffer[j];
 			bool  known = false;
 			for (i32 k = 0; k < tags->length && !known; ++k) {
-				known = string_equals(to_lower_case(tags->buffer[k]), to_lower_case(t));
+				known = string_equals(string_to_lower_tmp(tags->buffer[k]), string_to_lower_tmp(t));
 			}
 			if (!known) {
 				any_array_push(tags, t);
