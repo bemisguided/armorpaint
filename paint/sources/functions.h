@@ -825,6 +825,7 @@ void                   args_mcp();
 void                   args_parse();
 void                   args_run();
 void                   util_render_make_default_world();
+void                   util_render_create_screen_aligned_full_data();
 bool                   util_render_is_default_envmap(char *file);
 gpu_texture_t         *util_render_default_envmap();
 buffer_t              *util_render_default_envmap_pixels();
@@ -992,6 +993,7 @@ void                      make_material_delete_node_previews(slot_material_t *m,
 char                     *blur_node_input_alpha(ui_node_t *node);
 i32                       blur_node_seamless_passes(ui_node_t *node);
 f32                       flood_fill_node_threshold(ui_node_t *node);
+i32                       flood_fill_node_size(ui_node_t *node);
 bool                      flood_fill_node_invert(ui_node_t *node);
 flood_fill_params_t       flood_fill_node_params(ui_node_t *node, i32 width, i32 height);
 char                     *make_material_node_preview_id(ui_node_t *node, ui_node_t_array_t *parents);

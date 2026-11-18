@@ -369,7 +369,59 @@ char *parser_material_parse_vector_input(ui_node_socket_t *inp) {
 	}
 }
 
+// Generator space (parser_material_generator): the graph is evaluated over the square of tex_coord, with no mesh.
+// Outputs that read the mesh, its layers, its bakes or the camera give a neutral value instead,
+// positions give the generator uv. NULL for every other output.
+#define PARSER_MATERIAL_GENERATOR_POSITION "float3(tex_coord.x, tex_coord.y, 0.0)"
+#define PARSER_MATERIAL_GENERATOR_NORMAL   "float3(0.0, 0.0, 1.0)"
+
+static char *parser_material_generator_vector(ui_node_t *node, ui_node_socket_t *socket) {
+	i32   i    = parser_material_socket_index(node, socket);
+	char *type = node->type;
+	if (string_equals(type, "NEW_GEOMETRY")) { // Position, Normal, Tangent, Incoming, Parametric
+		return i == 0 || i == 4 ? PARSER_MATERIAL_GENERATOR_POSITION : i == 2 ? "float3(0.0, 0.0, 0.0)" : PARSER_MATERIAL_GENERATOR_NORMAL;
+	}
+	if (string_equals(type, "TEX_COORD")) { // Generated, Normal, UV, Object, Camera, Window
+		return i == 1 ? PARSER_MATERIAL_GENERATOR_NORMAL : PARSER_MATERIAL_GENERATOR_POSITION;
+	}
+	if (string_equals(type, "UVMAP")) {
+		return PARSER_MATERIAL_GENERATOR_POSITION;
+	}
+	if (string_equals(type, "ATTRIBUTE") && i == 0) { // Vertex color
+		return "float3(0.0, 0.0, 0.0)";
+	}
+	if (string_equals(type, "LAYER")) { // Base Color, Normal Map
+		return i == 0 ? "float3(0.0, 0.0, 0.0)" : "float3(0.5, 0.5, 1.0)";
+	}
+	if (string_equals(type, "VECT_TRANSFORM")) { // Object, world and camera space are the same
+		return parser_material_parse_vector_input(node->inputs->buffer[0]);
+	}
+	if (string_equals(type, "OBJECT_INFO") || string_equals(type, "TEX_CAMERA") || string_equals(type, "TEX_BAKE")) {
+		return "float3(0.0, 0.0, 0.0)";
+	}
+	return NULL;
+}
+
+static char *parser_material_generator_value(ui_node_t *node, ui_node_socket_t *socket) {
+	i32   i    = parser_material_socket_index(node, socket);
+	char *type = node->type;
+	if (string_equals(type, "LAYER")) { // Occlusion of an empty layer is 1
+		return i == 2 ? "1.0" : "0.0";
+	}
+	if (string_equals(type, "NEW_GEOMETRY") || string_equals(type, "OBJECT_INFO") || string_equals(type, "LAYER_MASK") ||
+	    string_equals(type, "BAKE_CURVATURE") || string_equals(type, "WIREFRAME")) {
+		return "0.0";
+	}
+	return NULL;
+}
+
 char *parser_material_parse_vector(ui_node_t *node, ui_node_socket_t *socket) {
+	if (parser_material_generator) {
+		char *neutral = parser_material_generator_vector(node, socket);
+		if (neutral != NULL) {
+			return neutral;
+		}
+	}
 	char *(*node_vector)(ui_node_t *, ui_node_socket_t *) = any_map_get(parser_material_node_vectors, node->type);
 	if (node_vector != NULL) {
 		return node_vector(node, socket);
@@ -409,6 +461,12 @@ char *parser_material_parse_value_input(ui_node_socket_t *inp, bool vector_as_gr
 }
 
 char *parser_material_parse_value(ui_node_t *node, ui_node_socket_t *socket) {
+	if (parser_material_generator) {
+		char *neutral = parser_material_generator_value(node, socket);
+		if (neutral != NULL) {
+			return neutral;
+		}
+	}
 	char *(*node_value)(ui_node_t *, ui_node_socket_t *) = any_map_get(parser_material_node_values, node->type);
 	if (node_value != NULL) {
 		return node_value(node, socket);
@@ -427,6 +485,9 @@ char *parser_material_parse_value(ui_node_t *node, ui_node_socket_t *socket) {
 char *parser_material_get_coord(ui_node_t *node) {
 	if (parser_material_get_input_link(node->inputs->buffer[0]) != NULL) {
 		return parser_material_parse_vector_input(node->inputs->buffer[0]);
+	}
+	else if (parser_material_generator) {
+		return PARSER_MATERIAL_GENERATOR_POSITION;
 	}
 	else {
 		parser_material_kong->frag_bposition = true;
