@@ -172,8 +172,8 @@ void project_format_save_prep(project_t *raw) {
 	}
 	raw->next_object_id = raw->_->next_object_id;
 	project_format_reset_tiles(raw, objects->length);
-	raw->tile_res_x = config_get_texture_res_x(); // The requested resolution, layers are saved at the clamped atlas size
-	raw->tile_res_y = config_get_texture_res_y();
+	raw->tile_res_x = config_get_tile_res_x(); // The requested resolution, layers are saved at the clamped atlas size
+	raw->tile_res_y = config_get_tile_res_y();
 
 	// Copies, so project_t never points into runtime arrays that are freed with their mesh
 	for (i32 i = 0; project_format_saved_tiles != NULL && i < project_format_saved_tiles->length; ++i) {
