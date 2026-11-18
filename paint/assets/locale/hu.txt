@@ -627,6 +627,7 @@ Sor magassága
 Futtatás
 Futtatás a Playerben
 Fut...
+
 SSAO
 Minták
 Telítettség
@@ -837,6 +838,7 @@ Ablak
 Drótváz
 Munkaterület
 Világ
+
 Egér átfordítása
 Kamera mozgatása közben az egér átfordul a képernyő szélein
 X

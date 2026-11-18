@@ -627,6 +627,7 @@ Reihenhöhe
 Ausführen
 Im Player ausführen
 Läuft...
+
 SSAO
 Samples
 Sättigung
@@ -837,6 +838,7 @@ Fenster
 Drahtgitter
 Arbeitsbereich
 Welt
+
 Maus herumführen
 Bei der Steuerung der Kamera die Maus um die Ansichtsgrenzen herumführen.
 X

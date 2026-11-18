@@ -627,6 +627,7 @@ Wysokość rzędu
 Uruchom
 Uruchom w odtwarzaczu
 Uruchomiono...
+
 SSAO
 Próbki
 Nasycenie
@@ -837,6 +838,7 @@ Okno
 Siatka
 Przestrzeń robocza
 Świat
+
 Zawijaj mysz
 Zawijaj mysz wokół granic widoku podczas sterowania kamerą
 X

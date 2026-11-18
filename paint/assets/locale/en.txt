@@ -627,6 +627,7 @@ Row Height
 Run
 Run in Player
 Running...
+Smoothing
 SSAO
 Samples
 Saturation
@@ -837,6 +838,7 @@ Window
 Wireframe
 Workspace
 World
+Wrap Edges
 Wrap Mouse
 Wrap mouse around view boundaries during camera control
 X

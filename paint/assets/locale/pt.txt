@@ -627,6 +627,7 @@ Altura da Linha
 Executar
 Executar no Player
 Executando...
+
 SSAO
 Amostras
 Saturação
@@ -837,6 +838,7 @@ Janela
 Aramado
 Área de Trabalho
 Mundo
+
 Envolver Mouse
 Envolver mouse nas bordas da visualização durante controle da câmera
 X

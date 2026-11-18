@@ -627,6 +627,7 @@ Tinggi Baris
 Jalankan
 Jalankan di Pemutar
 Berjalan...
+
 SSAO
 Sampel
 Saturasi
@@ -837,6 +838,7 @@ Jendela
 Wireframe
 Ruang Kerja
 Dunia
+
 Bungkus Mouse
 Bungkus mouse di sekitar batas tampilan saat mengontrol kamera
 X
