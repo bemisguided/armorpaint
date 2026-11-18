@@ -112,32 +112,30 @@ void nodes_material_init() {
 
 #if defined(IRON_WINDOWS) || defined(IRON_LINUX) || defined(IRON_MACOS)
 
-	nodes_material_list = any_array_create_from_raw(
-	    (void *[]){
-	        nodes_material_input,
-	        nodes_material_texture,
-	        nodes_material_pattern,
-	        nodes_material_filter,
-	        nodes_material_color,
-	        nodes_material_utilities,
-	        nodes_material_neural,
-	        nodes_material_group,
-	    },
-	    8);
+	void *lists[] = {
+	    nodes_material_input,
+	    nodes_material_texture,
+	    nodes_material_pattern,
+	    nodes_material_filter,
+	    nodes_material_color,
+	    nodes_material_utilities,
+	    nodes_material_neural,
+	    nodes_material_group,
+	};
+	nodes_material_list = any_array_create_from_raw(lists, sizeof(lists) / sizeof(lists[0]));
 
 #else
 
-	nodes_material_list = any_array_create_from_raw(
-	    (void *[]){
-	        nodes_material_input,
-	        nodes_material_texture,
-	        nodes_material_pattern,
-	        nodes_material_filter,
-	        nodes_material_color,
-	        nodes_material_utilities,
-	        nodes_material_group,
-	    },
-	    7);
+	void *lists[] = {
+	    nodes_material_input,
+	    nodes_material_texture,
+	    nodes_material_pattern,
+	    nodes_material_filter,
+	    nodes_material_color,
+	    nodes_material_utilities,
+	    nodes_material_group,
+	};
+	nodes_material_list = any_array_create_from_raw(lists, sizeof(lists) / sizeof(lists[0]));
 
 #endif
 }
