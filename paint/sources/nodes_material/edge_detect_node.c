@@ -6,8 +6,9 @@
 // tex_coord, repeating.
 //
 // Per pixel the largest difference to the eight neighbours at distance Edge Width (a fraction of Size, at least
-// one pixel) is taken. Gradient mode: ramps from 0 at Tolerance to 1 at a difference of 1. Boundary mode: 1 where
-// the difference exceeds Tolerance, else 0.
+// one pixel) is taken. Gradient mode: ramps from 0 at Tolerance to 1 at the largest difference of the image, so a
+// smooth input (noise, distance fields) still gives visible edges. Boundary mode: 1 where the difference exceeds
+// Tolerance, else 0.
 // Edge Width and Tolerance hold for the whole image (scalar, evaluated at the image centre when linked): the
 // neighbour distance has to be known per bake, and a per pixel link has no neighbours to compare in image space.
 
@@ -73,9 +74,9 @@ static i32 edge_detect_node_process(u8 *pixels, i32 size, void *params, f32 *res
 	i32 r                  = (i32)(width_px + 0.5);
 	r                      = r < 1 ? 1 : r > size / 2 ? size / 2 : r;
 	f32 tol                = p.tolerance < 0.0 ? 0.0 : p.tolerance > 1.0 ? 1.0 : p.tolerance;
-	f32 ramp               = 1.0 - tol;
 	static const i32 dx[8] = {-1, 0, 1, -1, 1, -1, 0, 1};
 	static const i32 dy[8] = {-1, -1, -1, 0, 0, 1, 1, 1};
+	f32 max_diff = 0.0;
 	for (i32 y = 0; y < size; ++y) {
 		for (i32 x = 0; x < size; ++x) {
 			i32 c    = pixels[((size_t)y * size + x) * 4];
@@ -87,21 +88,26 @@ static i32 edge_detect_node_process(u8 *pixels, i32 size, void *params, f32 *res
 				d      = d < 0 ? -d : d;
 				best   = d > best ? d : best;
 			}
-			f32 diff = (f32)best / 255.0;
-			f32 edge;
-			if (p.boundary) {
-				edge = diff > tol ? 1.0 : 0.0;
-			}
-			else {
-				edge = diff <= tol ? 0.0 : ramp > 0.0001 ? (diff - tol) / ramp : 1.0;
-				edge = edge > 1.0 ? 1.0 : edge;
-			}
-			f32 *out = &result[((size_t)y * size + x) * 4];
-			out[0]   = edge;
-			out[1]   = edge;
-			out[2]   = edge;
-			out[3]   = 1.0;
+			f32 diff                        = (f32)best / 255.0;
+			result[((size_t)y * size + x) * 4] = diff; // The difference first, the edge value once the largest is known
+			max_diff                        = diff > max_diff ? diff : max_diff;
 		}
+	}
+	f32 ramp = max_diff - tol;
+	for (size_t i = 0; i < (size_t)size * size; ++i) {
+		f32 diff = result[i * 4];
+		f32 edge;
+		if (p.boundary) {
+			edge = diff > tol ? 1.0 : 0.0;
+		}
+		else {
+			edge = diff <= tol || ramp <= 0.0001 ? 0.0 : (diff - tol) / ramp;
+			edge = edge > 1.0 ? 1.0 : edge;
+		}
+		result[i * 4]     = edge;
+		result[i * 4 + 1] = edge;
+		result[i * 4 + 2] = edge;
+		result[i * 4 + 3] = 1.0;
 	}
 	return 0;
 }
@@ -112,6 +118,7 @@ static image_node_type_t edge_detect_node_image_type = {
     .params_size   = sizeof(edge_detect_params_t),
     .size          = edge_detect_node_size,
     .capture       = edge_detect_node_capture,
+    .smooth_sample = true,
     .params        = edge_detect_node_params,
     .process       = edge_detect_node_process,
 };
@@ -165,7 +172,7 @@ void edge_detect_node_init() {
 	                    (void *[]){
 	                        edge_detect_node_socket(_tr("Image"), "VALUE", NODES_MATERIAL_IMAGE_COLOR, f32_array_create_x(0.0), 1.0, 100),
 	                        edge_detect_node_socket(_tr("Edge Width"), "VALUE", value_color, f32_array_create_x(0.005), 0.1, 1000),
-	                        edge_detect_node_socket(_tr("Tolerance"), "VALUE", value_color, f32_array_create_x(0.1), 1.0, 100),
+	                        edge_detect_node_socket(_tr("Tolerance"), "VALUE", value_color, f32_array_create_x(0.0), 1.0, 100),
 	                        edge_detect_node_socket(_tr("Vector"), "VECTOR", vector_color, f32_array_create_xyz(0.0, 0.0, 0.0), 1.0, 100),
 	                    },
 	                    4),
