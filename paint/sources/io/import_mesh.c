@@ -100,7 +100,9 @@ void import_mesh_run(char *path, bool _clear_layers, bool replace_existing, bool
 	import_mesh_imported_reset();
 
 	if (path_has_ext(path, "obj")) {
-		import_obj_run(path, replace_existing);
+		if (!import_obj_run(path, replace_existing)) {
+			return;
+		}
 	}
 	else if (path_has_ext(path, "blend")) {
 		import_blend_mesh_run(path, replace_existing);
