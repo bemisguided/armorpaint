@@ -161,7 +161,7 @@ void flood_fill_node_init() {
 	                .color  = NODES_MATERIAL_IMAGE_COLOR,
 	                .inputs = any_array_create_from_raw(
 	                    (void *[]){
-	                        flood_fill_node_socket(_tr("Image"), "VALUE", NODES_MATERIAL_IMAGE_COLOR, f32_array_create_x(0.0), 1.0, 100), // The mask
+	                        flood_fill_node_socket(_tr("Image"), "VALUE", NODES_MATERIAL_IMAGE_COLOR, f32_array_create_x(1.0), 1.0, 100), // The mask
 	                        flood_fill_node_socket(_tr("Threshold"), "VALUE", value_color, f32_array_create_x(0.5), 1.0, 100),
 	                        flood_fill_node_socket(_tr("Min Size"), "VALUE", value_color, f32_array_create_x(0.0), 4096.0, 1),
 	                        flood_fill_node_socket(_tr("Seed"), "VALUE", value_color, f32_array_create_x(0.0), 1000.0, 1),
