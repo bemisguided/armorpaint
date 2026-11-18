@@ -78,6 +78,7 @@ Caixa
 Textura de Tijolos
 Largura do Tijolo
 Brilho
+
 Brilho/Contraste
 Navegador
 Pincel
@@ -164,6 +165,7 @@ Curva
 Curvado
 Personalizado
 Cortar
+
 Escurecer
 Depuração
 Decalque
@@ -348,6 +350,7 @@ Cosseno Hiperbólico
 Seno Hiperbólico
 Tangente Hiperbólica
 
+
 Textura de Imagem
 
 Imagem para PBR
@@ -495,6 +498,7 @@ Mapa de Normais 2
 Normalizar
 Não disponível na compilação de depuração
 Não implementado
+
 OK
 Objeto
 ID de Objeto
@@ -524,6 +528,8 @@ Origem para Geometria
 Ortográfica
 Saída
 Sobrepor
+
+
 PBR
 Empacotar Ativos
 Empacotar no Projeto
@@ -622,12 +628,14 @@ Direita
 Anéis
 Rotacionar
 Rotação
+
 Rugosidade
 Arredondar
 Altura da Linha
 Executar
 Executar no Player
 Executando...
+
 SSAO
 Amostras
 Saturação
@@ -748,6 +756,7 @@ Tema importado:
 Espessura
 
 Bloco
+
 Bloco X
 Bloco Y
 Ladrilhado

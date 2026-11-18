@@ -78,6 +78,7 @@ Box
 Backstein Textur
 Backstein Breite
 Helligkeit
+
 Helligkeit/Kontrast
 Browser
 Pinsel
@@ -164,6 +165,7 @@ Kurve
 Gebogen
 Benutzerdefiniert
 Ausschneiden
+
 Abdunkeln
 Debug
 Aufkleber
@@ -348,6 +350,7 @@ Kosinus Hyperbolicus
 Sinus Hyperbolicus
 Tangens Hyperbolicus
 
+
 Bild Textur
 
 Bild zu PBR
@@ -495,6 +498,7 @@ Normal Map 2
 Normieren
 Nicht verfügbar im Debug Build
 Nicht implementiert
+
 OK
 Objekt
 Objekt ID
@@ -524,6 +528,8 @@ Ursprung zur Geometrie
 Orthografisch
 Ausgang
 Überlagern
+
+
 PBR
 Assets zusammenpacken
 In Projekt packen
@@ -622,12 +628,14 @@ Rechts
 Ringe
 Drehen
 Drehung
+
 Roughness
 Runden
 Reihenhöhe
 Ausführen
 Im Player ausführen
 Läuft...
+
 SSAO
 Samples
 Sättigung
@@ -748,6 +756,7 @@ Theme importiert:
 Dicke
 
 Kachel
+
 Kachel X
 Kachel Y
 Gekachelt

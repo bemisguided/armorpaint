@@ -78,6 +78,7 @@ Krabice
 Cihlová textura
 Šířka cihly
 Jas
+
 Jas/Kontrast
 Prohlížeč
 Štětec
@@ -164,6 +165,7 @@ Křivka
 Zakřivený
 Vlastní
 Vyjmout
+
 Ztmavit
 Ladění
 Dekál
@@ -348,6 +350,7 @@ Hyperbolický kosinus
 Hyperbolický sinus
 Hyperbolický tangens
 
+
 Textura obrázku
 
 Obrázek na PBR
@@ -495,6 +498,7 @@ Normálová mapa 2
 Normalizovat
 Není dostupné v ladicím buildu
 Neimplementováno
+
 OK
 Objekt
 ID objektu
@@ -524,6 +528,8 @@ Počátek na geometrii
 Ortografie
 Výstup
 Překrytí
+
+
 PBR
 Zabalit assety
 Zabalit do projektu
@@ -622,12 +628,14 @@ Vpravo
 Kruhy
 Otáčet
 Otáčení
+
 Drsnost
 Zaokrouhlit
 Výška řádku
 Spustit
 Spustit v přehrávači
 Probíhá...
+
 SSAO
 Vzorky
 Sytost
@@ -748,6 +756,7 @@ Téma importováno:
 Tloušťka
 
 Dlaždice
+
 Dlaždice X
 Dlaždice Y
 Dlaždicový

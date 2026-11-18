@@ -52,6 +52,7 @@ static make_image_node_state_t *make_image_node_capturing       = NULL;  // Coll
 static ui_node_canvas_t        *make_image_node_capture_group   = NULL;
 static ui_node_t_array_t       *make_image_node_capture_parents = NULL;
 static i32                      make_image_node_capture_input   = 0; // Input of make_image_node_input_value
+static i32                      make_image_node_capture_k       = 0; // Capture of a type with several, see make_image_node_capture_index
 
 static void make_image_node_update(void *_);
 static void make_image_node_state_row(i32 node_id);
@@ -169,10 +170,10 @@ static u64 make_image_node_hash(u64 h, u8 *bytes, size_t n) {
 	return h;
 }
 
-// 64 bit FNV-1a over the captured pixels, the size and the processing parameters
-static u64 make_image_node_signature(u8 *pixels, i32 size, void *params, i32 params_size) {
+// 64 bit FNV-1a over the captured pixels (count captures), the size and the processing parameters
+static u64 make_image_node_signature(u8 *pixels, i32 count, i32 size, void *params, i32 params_size) {
 	u64 h = 14695981039346656037ull;
-	h     = make_image_node_hash(h, pixels, (size_t)size * size * 4);
+	h     = make_image_node_hash(h, pixels, (size_t)size * size * 4 * count);
 	h     = make_image_node_hash(h, (u8 *)&size, sizeof(size));
 	return make_image_node_hash(h, params, params_size);
 }
@@ -282,6 +283,11 @@ static char *make_image_node_input_expr(ui_node_t *node) {
 	return string_tmp("float4(%s, %s, %s, 1.0)", v, v, v);
 }
 
+// Which capture of the node is being written, 0 to capture_count - 1; for the capture callback of a type with several
+i32 make_image_node_capture_index() {
+	return make_image_node_capture_k;
+}
+
 // Value of a number input of the node being captured, for the whole image: the default value when unlinked,
 // else the linked graph evaluated once at the image centre. Called from the type's params callback.
 f32 make_image_node_input_value(ui_node_t *node, i32 input) {
@@ -312,8 +318,29 @@ static bool make_image_node_capture(make_image_node_state_t *s, char *id, ui_nod
 	make_image_node_capture_group   = group;
 	make_image_node_capture_parents = parents;
 	i32   size                      = t->size(node);
-	u8   *pixels                    = make_image_node_capture_pixels(node, t->capture, size, GPU_TEXTURE_FORMAT_RGBA32);
-	void *params                    = NULL;
+	i32   count                     = t->capture_count != NULL ? t->capture_count(node) : 1;
+	u8   *pixels                    = NULL;
+	size_t one                      = (size_t)size * size * 4;
+	for (i32 k = 0; k < count; ++k) {
+		make_image_node_capture_k = k;
+		u8 *p                     = make_image_node_capture_pixels(node, t->capture, size, GPU_TEXTURE_FORMAT_RGBA32);
+		if (p == NULL) {
+			free(pixels);
+			pixels = NULL;
+			break;
+		}
+		if (count == 1) {
+			pixels = p;
+			break;
+		}
+		if (pixels == NULL) {
+			pixels = malloc(one * count);
+		}
+		memcpy(pixels + one * k, p, one);
+		free(p);
+	}
+	make_image_node_capture_k = 0;
+	void *params              = NULL;
 	if (pixels != NULL) {
 		params = calloc(1, t->params_size > 0 ? t->params_size : 1);
 		t->params(node, params); // May capture a linked scalar input
@@ -324,7 +351,7 @@ static bool make_image_node_capture(make_image_node_state_t *s, char *id, ui_nod
 	if (pixels == NULL) {
 		return false; // Shader error, keep what is baked
 	}
-	u64 sig = make_image_node_signature(pixels, size, params, t->params_size);
+	u64 sig = make_image_node_signature(pixels, count, size, params, t->params_size);
 
 	bool has_result = g_context->node_previews != NULL && any_map_get(g_context->node_previews, id) != NULL;
 	if (!force && has_result && s->has_baked && sig == s->baked_signature) {

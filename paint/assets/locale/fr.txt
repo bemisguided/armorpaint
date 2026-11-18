@@ -78,6 +78,7 @@ Boîte
 Texture de brique
 Largeur de brique
 Luminosité
+
 Luminosité/Contraste
 Navigateur
 Brosse
@@ -164,6 +165,7 @@ Courbe
 Courbé
 Personnalisé
 Couper
+
 Assombrir
 Débogage
 Décalcomanie
@@ -348,6 +350,7 @@ Cosinus hyperbolique
 Sinus hyperbolique
 Tangente hyperbolique
 
+
 Texture image
 
 Image vers PBR
@@ -495,6 +498,7 @@ Carte de normales 2
 Normaliser
 Non disponible dans la version de débogage
 Non implémenté
+
 OK
 Objet
 ID objet
@@ -524,6 +528,8 @@ Origine vers la géométrie
 Orthographique
 Sortie
 Superposer
+
+
 PBR
 Embarquer les assets
 Empaqueter dans projet
@@ -622,12 +628,14 @@ Droite
 Anneaux
 Rotation
 Rotation
+
 Rugosité
 Arrondi
 Hauteur de rangée
 Exécuter
 Exécuter dans le lecteur
 En cours...
+
 SSAO
 Échantillons
 Saturation
@@ -748,6 +756,7 @@ Thème importé :
 Épaisseur
 
 Tuile
+
 Tuile X
 Tuile Y
 Carrelé

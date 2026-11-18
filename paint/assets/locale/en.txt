@@ -78,6 +78,7 @@ Box
 Brick Texture
 Brick Width
 Brightness
+Brightness Random
 Brightness/Contrast
 Browser
 Brush
@@ -164,6 +165,7 @@ Curve
 Curved
 Custom
 Cut
+Cycle
 Darken
 Debug
 Decal
@@ -347,6 +349,7 @@ Hue/Saturation/Value
 Hyperbolic Cosine
 Hyperbolic Sine
 Hyperbolic Tangent
+ID
 Image
 Image Texture
 Image node bake: out of memory
@@ -495,6 +498,7 @@ Normal Map 2
 Normalize
 Not available in debug build
 Not implemented
+Offset Random
 OK
 Object
 Object ID
@@ -524,6 +528,8 @@ Origin to Geometry
 Orthographic
 Out
 Overlay
+Pattern Mode
+Patterns
 PBR
 Pack Assets
 Pack into Project
@@ -622,12 +628,14 @@ Right
 Rings
 Rotate
 Rotation
+Rotation Random
 Roughness
 Round
 Row Height
 Run
 Run in Player
 Running...
+Scale Random
 SSAO
 Samples
 Saturation
@@ -748,6 +756,7 @@ Theme imported:
 Thickness
 Threshold
 Tile
+Tile Generator
 Tile X
 Tile Y
 Tiled
