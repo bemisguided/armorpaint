@@ -320,6 +320,7 @@ any_map_t            *nodes_brush_creates;
 string_array_t       *nodes_material_categories;
 ui_node_t_array_t    *nodes_material_input;
 ui_node_t_array_t    *nodes_material_texture;
+ui_node_t_array_t    *nodes_material_image;
 ui_node_t_array_t    *nodes_material_color;
 ui_node_t_array_t    *nodes_material_utilities;
 ui_node_t_array_t    *nodes_material_neural;

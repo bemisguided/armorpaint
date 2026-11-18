@@ -342,6 +342,7 @@ Hue/Saturation/Value
 Hyperbolic Cosine
 Hyperbolic Sine
 Hyperbolic Tangent
+Image
 Image Texture
 Image to PBR
 Import

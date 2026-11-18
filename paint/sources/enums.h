@@ -598,3 +598,6 @@ typedef enum {
 	HISTORY_ACTION_EDIT_SWATCH,
 	HISTORY_ACTION_OBJECT_TRANSFORM,
 } history_action_t;
+
+// Header color of the Image node category and color of every Image socket
+#define NODES_MATERIAL_IMAGE_COLOR 0xffc78a29

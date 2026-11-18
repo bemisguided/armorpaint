@@ -39,6 +39,8 @@ void nodes_material_init() {
 	voronoi_texture_node_init();
 	wave_texture_node_init();
 
+	nodes_material_image = any_array_create_from_raw((void *[]){}, 0); // Image nodes (make_image_node.c) add themselves
+
 	nodes_material_color = any_array_create_from_raw((void *[]){}, 0);
 	blur_node_init();
 	brightness_contrast_node_init();
@@ -94,12 +96,13 @@ void nodes_material_init() {
 	    (void *[]){
 	        nodes_material_input,
 	        nodes_material_texture,
+	        nodes_material_image,
 	        nodes_material_color,
 	        nodes_material_utilities,
 	        nodes_material_neural,
 	        nodes_material_group,
 	    },
-	    6);
+	    7);
 
 #else
 
@@ -107,11 +110,12 @@ void nodes_material_init() {
 	    (void *[]){
 	        nodes_material_input,
 	        nodes_material_texture,
+	        nodes_material_image,
 	        nodes_material_color,
 	        nodes_material_utilities,
 	        nodes_material_group,
 	    },
-	    5);
+	    6);
 
 #endif
 }

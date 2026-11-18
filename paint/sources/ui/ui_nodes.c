@@ -779,8 +779,14 @@ void ui_nodes_draw_menubar() {
 	string_array_t *cats = ui_nodes_get_categories();
 	for (i32 i = 0; i < cats->length; ++i) {
 
-		if (!full && i == 4) { // MATERIAL_NODE_CATEGORY_GROUP
+		if (!full && string_equals(cats->buffer[i], "Group")) {
 			break;
+		}
+
+		// A category without nodes has no menu (the Image category until an image node is added), Group lists the groups
+		node_list_t_array_t *lists = ui_nodes_get_node_list();
+		if (i < lists->length && ((ui_node_t_array_t *)lists->buffer[i])->length == 0 && !string_equals(cats->buffer[i], "Group")) {
+			continue;
 		}
 
 		if ((ui_menubar_button(tr(cats->buffer[i]))) || (g_ui->is_hovered && ui_nodes_show_menu)) {

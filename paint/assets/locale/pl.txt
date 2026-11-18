@@ -342,6 +342,7 @@ Odcień/Nasycenie/Wartość
 Cosinus hiperboliczny
 Sinus hiperboliczny
 Tangens hiperboliczny
+
 Tekstura obrazu
 Obraz do PBR
 Importuj
