@@ -267,6 +267,7 @@ void tab_materials_draw_slots(bool mini) {
 	f32  uiy          = 0.0;
 	i32  imgw_val     = math_floor(50 * a * UI_SCALE());
 	asset_selection_select_all(ASSET_TRAY_MATERIALS, NULL);
+	asset_selection_marquee_begin(ASSET_TRAY_MATERIALS);
 
 	for (i32 row = 0; row < math_floor(math_ceil(g_project->_->materials->length / (float)num)); ++row) {
 		i32          mult = g_config->show_asset_names ? 2 : 1;
@@ -315,6 +316,7 @@ void tab_materials_draw_slots(bool mini) {
 			uiy      = g_ui->_y;
 			i32 tile = UI_SCALE() > 1 ? 100 : 50;
 			f32 imgh = mini ? ui_sidebar_w_mini * 0.85 : 50 * a * UI_SCALE();
+			asset_selection_marquee_cell(material, uix, uiy, mini ? g_ui->_w : imgw_val, imgh);
 
 			if (base_drag_material != NULL && tab_materials_drag_pos == i) {
 				ui_fill(-1, -2, 2, imgw_val + 4, g_theme->HIGHLIGHT_COL);
@@ -415,6 +417,8 @@ void tab_materials_draw_slots(bool mini) {
 		g_ui->_y = uiy;
 		ui_fill(imgw_val + 1, -2, 2, imgw_val + 4, g_theme->HIGHLIGHT_COL);
 	}
+
+	asset_selection_marquee_end(ASSET_TRAY_MATERIALS);
 
 	if (!drag_pos_set) {
 		tab_materials_drag_pos = -1;
