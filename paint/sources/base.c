@@ -481,6 +481,7 @@ void base_update(void *_) {
 
 	g_context->frame++;
 
+	asset_selection_validate_drag(); // A shortcut of this frame (undo, delete) may have removed the dragged item
 	if (base_is_dragging) {
 		iron_mouse_set_cursor(IRON_CURSOR_HAND);
 		gpu_texture_t *img          = base_get_drag_image();
