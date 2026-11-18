@@ -8,7 +8,6 @@
 #include "iron_raycast.h"
 #include "iron_ui.h"
 #include "types.h"
-#include "util/flood_fill_label.h"
 
 f32                   ui_MENUBAR_H(ui_t *ui);
 f32                   ui_nodes_INPUT_Y(ui_node_canvas_t *canvas, ui_node_t *node, i32 pos);
@@ -852,7 +851,6 @@ void                   args_mcp();
 void                   args_parse();
 void                   args_run();
 void                   util_render_make_default_world();
-void                   util_render_create_screen_aligned_full_data();
 bool                   util_render_is_default_envmap(char *file);
 gpu_texture_t         *util_render_default_envmap();
 buffer_t              *util_render_default_envmap_pixels();
@@ -1036,18 +1034,10 @@ void                      make_material_parse_mesh_preview_material();
 void                      make_material_parse_paint_material(bool bake_previews);
 void                      make_material_bake_node_previews();
 void                      make_curvature_bake(ui_node_t *node, ui_node_canvas_t *group, ui_node_t_array_t *parents, char *id);
-void                      make_flood_fill_on_traverse(ui_node_t *node, ui_node_canvas_t *group, ui_node_t_array_t *parents, bool linked);
-void                      make_flood_fill_delete_states(slot_material_t *m, string_array_t *keep);
-bool                      make_flood_fill_is_pending(ui_node_t *node);
-void                      make_flood_fill_bake_now(ui_node_t *node);
 void                      make_material_bake_node_previews_linked();
 void                      make_material_delete_node_previews(slot_material_t *m, string_array_t *keep);
 char                     *blur_node_input_alpha(ui_node_t *node);
 i32                       blur_node_seamless_passes(ui_node_t *node);
-f32                       flood_fill_node_threshold(ui_node_t *node);
-i32                       flood_fill_node_size(ui_node_t *node);
-bool                      flood_fill_node_invert(ui_node_t *node);
-flood_fill_params_t       flood_fill_node_params(ui_node_t *node, i32 width, i32 height);
 char                     *make_material_node_preview_id(ui_node_t *node, ui_node_t_array_t *parents);
 void                      make_material_save_paint_material();
 void                      make_material_restore_paint_material();
@@ -1594,7 +1584,6 @@ void              wave_texture_node_init();
 void              clamp_node_init();
 void              curvature_bake_node_init();
 void              blur_node_init();
-void              flood_fill_node_init();
 void              text_texture_node_init();
 void              texture_slot_node_init();
 char             *texture_slot_node_vector(ui_node_t *node, ui_node_socket_t *socket);

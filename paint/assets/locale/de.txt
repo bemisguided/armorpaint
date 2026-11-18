@@ -40,7 +40,6 @@ Arkuskosinus
 Arkussinus
 Arkustangens 2
 Arkustangens
-
 Array
 Asset
 Attribut
@@ -53,7 +52,6 @@ Baken
 Material baken...
 Textur baken
 Auf Textur backen
-
 Bänder
 Basis
 Base Color
@@ -137,7 +135,6 @@ Farbe zusammenführen
 XYZ zusammenführen
 Kompass
 Bestätigen
-
 Konsole
 Konsolen Modell
 Konstant
@@ -280,8 +277,6 @@ Texturen filtern
 Flach
 Abflachen
 Float Kurve
-
-
 Abrunden
 Abgerundetes Modulo
 Fliegen
@@ -309,7 +304,6 @@ G
 Gabor Textur
 Gamma
 Generiert
-
 Geometrie
 Geometrie in den Ursprung
 Loslegen
@@ -346,7 +340,6 @@ Farbton/Sättigung/Helligkeit
 Kosinus Hyperbolicus
 Sinus Hyperbolicus
 Tangens Hyperbolicus
-
 Bild Textur
 Bild zu PBR
 Importieren
@@ -439,7 +432,6 @@ Meshes
 Metallic
 Min
 Min Max
-
 Minumum
 Spiegeln
 Mix
@@ -649,7 +641,6 @@ Skulptur
 Skulpturebene
 Suchen
 Nach Nodes suchen
-
 Segmente
 Auswählen
 Alles auswählen
@@ -743,7 +734,6 @@ Texturen...
 Theme
 Theme importiert:
 Dicke
-
 Kachel
 Kachel X
 Kachel Y
@@ -833,7 +823,6 @@ Fenster
 Drahtgitter
 Arbeitsbereich
 Welt
-
 Maus herumführen
 Bei der Steuerung der Kamera die Maus um die Ansichtsgrenzen herumführen.
 X

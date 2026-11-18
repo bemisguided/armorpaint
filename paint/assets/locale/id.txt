@@ -40,7 +40,6 @@ Arkuskosinus
 Arkusinus
 Arktangen2
 Arkutangen
-
 Array
 Aset
 Atribut
@@ -53,7 +52,6 @@ Bake
 Bake Material...
 Bake Tekstur
 Bake ke Tekstur
-
 Pita
 Dasar
 Warna Dasar
@@ -137,7 +135,6 @@ Gabung Warna
 Gabung XYZ
 Kompas
 Konfirmasi
-
 Konsol
 Model Konsol
 Konstan
@@ -280,8 +277,6 @@ Filter Tekstur
 Rata
 Ratakan
 Kurva Float
-
-
 Lantai
 Modulo Lantai
 Terbang
@@ -309,7 +304,6 @@ G
 Tekstur Gabor
 Gamma
 Dihasilkan
-
 Geometri
 Geometri ke Asal
 Mulai
@@ -346,7 +340,6 @@ Rona/Saturasi/Nilai
 Kosinus Hiperbolik
 Sinus Hiperbolik
 Tangen Hiperbolik
-
 Tekstur Gambar
 Gambar ke PBR
 Impor
@@ -439,7 +432,6 @@ Mesh
 Logam
 Min
 Min Maks
-
 Minimum
 Cermin
 Campur
@@ -649,7 +641,6 @@ Sculpt
 Lapisan Sculpt
 Cari
 Cari node
-
 Segmen
 Pilih
 Pilih Semua
@@ -743,7 +734,6 @@ Tekstur...
 Tema
 Tema diimpor:
 Ketebalan
-
 Petak
 Petak X
 Petak Y
@@ -833,7 +823,6 @@ Jendela
 Wireframe
 Ruang Kerja
 Dunia
-
 Bungkus Mouse
 Bungkus mouse di sekitar batas tampilan saat mengontrol kamera
 X

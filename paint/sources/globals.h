@@ -253,8 +253,6 @@ char                 *parser_material_tex_coord_atlas       = NULL; // Atlas uv 
 bool                  parser_material_transform_color_space = true;
 bool                  parser_material_blur_passthrough      = false;
 bool                  parser_material_warp_passthrough      = false;
-ui_node_t            *parser_material_flood_passthrough     = NULL;  // Flood Fill node whose outputs return its mask input
-bool                  parser_material_generator             = false; // Generator space: over the square of tex_coord, no mesh
 ui_node_canvas_t     *parser_material_start_group           = NULL;
 ui_node_t_array_t    *parser_material_start_parents         = NULL;
 ui_node_t            *parser_material_start_node            = NULL;
@@ -322,7 +320,6 @@ any_map_t            *nodes_brush_creates;
 string_array_t       *nodes_material_categories;
 ui_node_t_array_t    *nodes_material_input;
 ui_node_t_array_t    *nodes_material_texture;
-ui_node_t_array_t    *nodes_material_generators;
 ui_node_t_array_t    *nodes_material_color;
 ui_node_t_array_t    *nodes_material_utilities;
 ui_node_t_array_t    *nodes_material_neural;
