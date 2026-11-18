@@ -539,6 +539,7 @@ Pegar
 Ruta
 Trazado de ruta
 Trazador de rutas
+
 Pausar
 Stylus
 Lápiz

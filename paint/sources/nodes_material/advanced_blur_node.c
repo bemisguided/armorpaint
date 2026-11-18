@@ -276,7 +276,7 @@ void advanced_blur_node_init() {
 	                           .type   = "TEX_ADVANCED_BLUR",
 	                           .x      = 0,
 	                           .y      = 0,
-	                           .color  = NODES_MATERIAL_IMAGE_COLOR,
+	                           .color  = NODES_MATERIAL_FILTER_COLOR,
 	                           .inputs = any_array_create_from_raw(
 	                               (void *[]){
 	                                   advanced_blur_node_socket(_tr("Image"), "VALUE", NODES_MATERIAL_IMAGE_COLOR, f32_array_create_x(0.0), 1.0, 100),
@@ -301,7 +301,7 @@ void advanced_blur_node_init() {
 	                           .width = 0,
 	                           .flags = 0});
 
-	any_array_push(nodes_material_image, advanced_blur_node_def);
+	any_array_push(nodes_material_filter, advanced_blur_node_def);
 	any_map_set(parser_material_node_values, "TEX_ADVANCED_BLUR", advanced_blur_node_value);
 	any_map_set(parser_material_node_vectors, "TEX_ADVANCED_BLUR", advanced_blur_node_vector);
 	make_image_node_register(&advanced_blur_node_image_type);

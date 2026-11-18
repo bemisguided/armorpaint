@@ -539,6 +539,7 @@ Colar
 Caminho
 Traçado de Caminho
 Traçador de Caminho
+
 Pausar
 Caneta
 Lápis
