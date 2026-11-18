@@ -509,6 +509,8 @@ Objektum Infó
 Objektum Normál
 Okklúzió (AO)
 Eltolás
+
+
 Régi szín
 Átlátszatlanság
 Átlátszatlanság mód
@@ -655,6 +657,7 @@ Méretezés
 X méretezés
 Képernyő (Screen)
 Szkript
+
 Szkript csomópontok
 Szkript megnyitva
 Szkriptek
@@ -768,6 +771,7 @@ Mozaiklap
 Mozaiklap animáció
 Idő
 Időszalag
+
 Fokra
 Kitöltő réteggé
 Kitöltő maszkká

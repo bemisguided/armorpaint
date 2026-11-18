@@ -509,6 +509,8 @@ Object Info
 Object Normal
 Occlusion
 Offset
+Offset X
+Offset Y
 Old Color
 Opacity
 Opacity Mode
@@ -653,6 +655,7 @@ Saving project
 Saw
 Scale
 Scale X
+Scale Y
 Screen
 Script
 Script Nodes
@@ -764,6 +767,7 @@ Tile Y
 Tiled
 Tiles X
 Tiles Y
+Tile UV
 Tilesheet
 Tilesheet Animation
 Time

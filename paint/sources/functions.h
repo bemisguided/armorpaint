@@ -1042,6 +1042,8 @@ void                      make_image_node_delete_states(slot_material_t *m, stri
 f32                       make_image_node_input_value(ui_node_t *node, i32 input);
 i32                       make_image_node_capture_index();
 char                     *make_image_node_sample(ui_node_t *node, i32 vector_input);
+char                     *make_image_node_sample(ui_node_t *node);
+char                     *make_image_node_sample_at(ui_node_t *node, char *uv, bool smooth);
 bool                      make_image_node_is_pending(ui_node_t *node);
 gpu_texture_t            *make_image_node_result(ui_node_t *node);
 i32                       make_image_node_result_count(ui_node_t *node);
@@ -1601,6 +1603,7 @@ void              advanced_blur_node_init();
 void              blur_node_init();
 void              flood_fill_node_init();
 void              tile_generator_node_init();
+void              tile_uv_node_init();
 void              text_texture_node_init();
 void              texture_slot_node_init();
 char             *texture_slot_node_vector(ui_node_t *node, ui_node_socket_t *socket);

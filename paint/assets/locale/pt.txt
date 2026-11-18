@@ -509,6 +509,8 @@ Informação do Objeto
 Normal do Objeto
 Oclusão
 Deslocamento
+
+
 Cor Antiga
 Opacidade
 Modo de Opacidade
@@ -655,6 +657,7 @@ Escala
 Escala X
 Tela
 Script
+
 Nós de Script
 Script aberto
 Scripts
@@ -768,6 +771,7 @@ Folha de Blocos
 Animação de Folha de Blocos
 Tempo
 Linha do Tempo
+
 Para Graus
 Para Camada de Preenchimento
 Para Máscara de Preenchimento

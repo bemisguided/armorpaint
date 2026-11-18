@@ -45,6 +45,7 @@ void nodes_material_init() {
 	edge_detect_node_init();
 	tile_generator_node_init();
 	advanced_blur_node_init();
+	tile_uv_node_init();
 
 	nodes_material_color = any_array_create_from_raw((void *[]){}, 0);
 	blur_node_init();
