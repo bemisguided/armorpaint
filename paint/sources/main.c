@@ -93,6 +93,7 @@
 #include "nodes_material/tile_generator_node.c"
 #include "nodes_material/tilesheet_animation_node.c"
 #include "nodes_material/tilesheet_node.c"
+#include "nodes_material/tile_uv_node.c"
 #include "nodes_material/uv_map_node.c"
 #include "nodes_material/value_node.c"
 #include "nodes_material/vector_curves_node.c"

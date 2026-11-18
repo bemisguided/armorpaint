@@ -8,7 +8,7 @@
 // A = ID (a random grey per tile, floored to 1/1024 so that Mask = A > 0).
 // Tiles are drawn in row order, a later tile covers an earlier one where they overlap (Scale above 1, jitter), and
 // nothing is clipped to the cell. The image wraps, so a tile leaving one side comes back on the other and the result
-// repeats seamlessly. The texture is sampled like an Image Texture: at the Vector input or tex_coord, repeating.
+// repeats seamlessly. The texture is sampled like an Image Texture at tex_coord, repeating (Tile UV places it on the uv).
 
 #define TILE_GENERATOR_ID_FLOOR  1024.0
 #define TILE_GENERATOR_MAX_TILES 64
@@ -25,8 +25,7 @@ enum {
 	TILE_GENERATOR_INPUT_ROTATION_RANDOM   = 9,
 	TILE_GENERATOR_INPUT_OFFSET_RANDOM     = 10,
 	TILE_GENERATOR_INPUT_BRIGHTNESS_RANDOM = 11,
-	TILE_GENERATOR_INPUT_VECTOR            = 12,
-	TILE_GENERATOR_INPUT_SEED              = 13,
+	TILE_GENERATOR_INPUT_SEED              = 12,
 };
 
 // Node button indices (settings)
@@ -209,7 +208,7 @@ static image_node_type_t tile_generator_node_image_type = {
 };
 
 char *tile_generator_node_value(ui_node_t *node, ui_node_socket_t *socket) {
-	char *tg = make_image_node_sample(node, TILE_GENERATOR_INPUT_VECTOR);
+	char *tg = make_image_node_sample(node);
 	i32   i  = array_index_of(node->outputs, socket);
 	if (i == TILE_GENERATOR_OUTPUT_MASK) {
 		return string_tmp("clamp(%s.a * %s, 0.0, 1.0)", tg, parser_material_vec1(TILE_GENERATOR_ID_FLOOR));
@@ -225,7 +224,7 @@ char *tile_generator_node_value(ui_node_t *node, ui_node_socket_t *socket) {
 
 char *tile_generator_node_vector(ui_node_t *node, ui_node_socket_t *socket) {
 	if (array_index_of(node->outputs, socket) == TILE_GENERATOR_OUTPUT_POSITION) {
-		char *tg = make_image_node_sample(node, TILE_GENERATOR_INPUT_VECTOR);
+		char *tg = make_image_node_sample(node);
 		return string_tmp("float3(%s.g, %s.b, 0.0)", tg, tg);
 	}
 	return parser_material_to_vec3(tile_generator_node_value(node, socket));
@@ -284,10 +283,9 @@ void tile_generator_node_init() {
 	                        tile_generator_node_socket(_tr("Rotation Random"), "VALUE", value_color, f32_array_create_x(0.0), 1.0, 100),
 	                        tile_generator_node_socket(_tr("Offset Random"), "VALUE", value_color, f32_array_create_x(0.0), 1.0, 100),
 	                        tile_generator_node_socket(_tr("Brightness Random"), "VALUE", value_color, f32_array_create_x(0.0), 1.0, 100),
-	                        tile_generator_node_socket(_tr("Vector"), "VECTOR", vector_color, f32_array_create_xyz(0.0, 0.0, 0.0), 1.0, 100),
 	                        tile_generator_node_socket(_tr("Seed"), "VALUE", value_color, f32_array_create_x(0.0), 1000.0, 1),
 	                    },
-	                    14),
+	                    13),
 	                .outputs = any_array_create_from_raw(
 	                    (void *[]){
 	                        tile_generator_node_socket(_tr("Image"), "VALUE", image_color, f32_array_create_x(0.0), 1.0, 100),

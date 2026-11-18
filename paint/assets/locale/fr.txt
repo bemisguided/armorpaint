@@ -503,6 +503,8 @@ Info d'objet
 Normale objet
 Occlusion
 Décalage
+
+
 Ancienne couleur
 Opacité
 Mode d'opacité
@@ -649,6 +651,7 @@ Dents de scie
 Échelle X
 Écran
 Script
+
 Nœuds de script
 Script ouvert
 Scripts
@@ -762,6 +765,7 @@ Feuille de tuiles
 Animation de feuille de tuiles
 Temps
 Chronologie
+
 En degrés
 Vers calque de remplissage
 Vers masque de remplissage

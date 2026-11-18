@@ -1092,7 +1092,7 @@ typedef struct ui_nodes_editor_state {
 } ui_nodes_editor_state_t;
 
 // An image node type (render/make_image_node.c): the shared pass captures the node's inputs in image space,
-// the type turns the captured pixels into its result, which the node samples at its Vector input
+// the type turns the captured pixels into its result, which the node samples at the current texture coordinate (Tile UV at its own placement)
 typedef struct image_node_type {
 	char *type;          // Node type, e.g. "TEX_FLOOD_FILL"
 	i32   result_format; // gpu_texture_format_t of the result: RGBA64 or RGBA128

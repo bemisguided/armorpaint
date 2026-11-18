@@ -503,6 +503,8 @@ Informacje o obiekcie
 Normalna obiektu
 Okluzja
 Przesunięcie
+
+
 Stary kolor
 Krycie
 Tryb krycia
@@ -649,6 +651,7 @@ Skala
 Skala X
 Ekran
 Skrypt
+
 Węzły skryptów
 Skrypt otwarty
 Skrypty
@@ -762,6 +765,7 @@ Arkusz kafelków
 Animacja arkusza kafelków
 Czas
 Oś czasu
+
 Do stopni
 Do warstwy wypełnienia
 Do maski wypełnienia
