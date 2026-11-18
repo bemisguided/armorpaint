@@ -1165,7 +1165,7 @@ mesh_geo_t               *util_csg_boolean(mesh_geo_t *ga, mesh_geo_t *gb, i32 o
 node_list_t_array_t      *ui_nodes_get_node_list();
 string_array_t           *ui_nodes_get_categories();
 ui_node_t                *nodes_brush_create_node(char *node_type);
-void                      import_obj_run(char *path, bool replace_existing);
+bool                      import_obj_run(char *path, bool replace_existing);
 void                      import_obj_parse(buffer_t *b, bool replace_existing);
 void                      import_folder_run(char *path);
 void                      export_obj_run(char *path, mesh_object_t_array_t *paint_objects);

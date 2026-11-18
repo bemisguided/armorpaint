@@ -1,10 +1,15 @@
 
 #include "../global.h"
 
-void import_obj_run(char *path, bool replace_existing) {
+bool import_obj_run(char *path, bool replace_existing) {
 	buffer_t *b = data_get_blob(path);
+	if (b == NULL) {
+		console_error(strings_failed_to_read_mesh_data());
+		return false;
+	}
 	import_obj_parse(b, replace_existing);
 	data_delete_blob(path);
+	return true;
 }
 
 void import_obj_parse(buffer_t *b, bool replace_existing) {
