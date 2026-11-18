@@ -5,10 +5,11 @@
 // computed on the cpu into one RGBA128 texture per node. It is sampled like an Image Texture at tex_coord, repeating
 // (Tile UV places it on the uv).
 //
-// The usual make-it-tile: the image is blended with a copy of itself shifted by half the image in x and y. The weight
-// of the original is 0 on the borders and ramps (smoothstep) to 1 over Blend Width, a fraction of the image measured
-// from each border, in x and y. On a border the result is the shifted copy, which meets itself across the repeat, and
-// the weight is 0 on both sides of it, so the image repeats without a seam. The price is a cross fade inside the
+// The usual make-it-tile, separable: the image is blended with copies of itself shifted by half the image in x, in y
+// and in both. The weight of the unshifted image along an axis is 0 on the borders and ramps (smoothstep) to 1 over
+// Blend Width, a fraction of the image measured from each border. The four copies are weighted by the products of the
+// x and y weights, so the shifted copies' own wrap seams (at the centre lines) always carry weight 0 and the borders
+// are continuous across the repeat: no seam on the borders and none through the middle. The price is a cross fade inside the
 // Blend Width: detail there is mixed from two places (ghosting on strong features), a smaller Blend Width keeps more
 // of the original and shows the join more.
 // Blend Width holds for the whole image (scalar, evaluated at the image centre when linked).
@@ -77,13 +78,19 @@ static i32 seamless_node_process(u8 *bytes, i32 size, void *params, f32 *result)
 		i32 ys = (y + half) % size;
 		f32 wy = wx[y];
 		for (i32 x = 0; x < size; ++x) {
-			i32 xs = (x + half) % size;
-			f32 w  = wx[x] * wy;
-			f32 *a = pixels + ((size_t)y * size + x) * 4;
-			f32 *b = pixels + ((size_t)ys * size + xs) * 4;
-			f32 *r = result + ((size_t)y * size + x) * 4;
-			for (i32 c = 0; c < 3; ++c) {
-				r[c] = a[c] * w + b[c] * (1.0f - w);
+			i32  xs = (x + half) % size;
+			f32  wxx = wx[x];
+			f32  w00 = wxx * wy;                  // Original
+			f32  w10 = (1.0f - wxx) * wy;         // Shifted in x
+			f32  w01 = wxx * (1.0f - wy);         // Shifted in y
+			f32  w11 = (1.0f - wxx) * (1.0f - wy); // Shifted in x and y
+			f32 *a   = pixels + ((size_t)y * size + x) * 4;
+			f32 *b   = pixels + ((size_t)y * size + xs) * 4;
+			f32 *c   = pixels + ((size_t)ys * size + x) * 4;
+			f32 *d   = pixels + ((size_t)ys * size + xs) * 4;
+			f32 *r   = result + ((size_t)y * size + x) * 4;
+			for (i32 k = 0; k < 3; ++k) {
+				r[k] = a[k] * w00 + b[k] * w10 + c[k] * w01 + d[k] * w11;
 			}
 			r[3] = 1.0f;
 		}
