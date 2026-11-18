@@ -208,6 +208,7 @@ static bool tab_layers_coverage_fill(slot_layer_t *l, i32 i) {
 
 // Fills only reach the objects they cover, refill them on the next frame
 static void tab_layers_coverage_refill(slot_layer_t *l) {
+	slot_material_t *material = g_context->material;
 	for (i32 i = 0; i < g_project->_->layers->length; ++i) {
 		if (tab_layers_coverage_fill(l, i)) {
 			slot_layer_t *m     = g_project->_->layers->buffer[i];
@@ -216,6 +217,7 @@ static void tab_layers_coverage_refill(slot_layer_t *l) {
 			layers_update_fill_layers();
 		}
 	}
+	g_context->material = material;
 }
 
 // After the coverage of l (a layer or a group) changed, l is the context layer
