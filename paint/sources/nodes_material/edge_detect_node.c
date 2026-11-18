@@ -1,7 +1,7 @@
 #include "../global.h"
 
 // Edge Detect (Image menu): edges of the Image input. An image node (render/make_image_node.c): the Image input is
-// evaluated in image space (grey in R, G and B) and the edge image is computed on the cpu into one RGBA64 texture
+// evaluated in image space (grey in R, G and B, 32 bit float so smooth inputs do not band) and the edge image is computed on the cpu into one RGBA64 texture
 // per node, R = Image (the edge mask). The texture is sampled like an Image Texture: at the Vector input or
 // tex_coord, repeating.
 //
@@ -68,7 +68,8 @@ static i32 edge_detect_node_wrap_index(i32 i, i32 size, bool wrap) {
 }
 
 // Edge image from the captured grey (R of every pixel); returns 0
-static i32 edge_detect_node_process(u8 *pixels, i32 size, void *params, f32 *result) {
+static i32 edge_detect_node_process(u8 *bytes, i32 size, void *params, f32 *result) {
+	f32 *pixels = (f32 *)bytes; // Float capture
 	edge_detect_params_t p = *(edge_detect_params_t *)params;
 	f32 width_px           = p.edge_width * (f32)size;
 	i32 r                  = (i32)(width_px + 0.5);
@@ -79,16 +80,16 @@ static i32 edge_detect_node_process(u8 *pixels, i32 size, void *params, f32 *res
 	f32 max_diff = 0.0;
 	for (i32 y = 0; y < size; ++y) {
 		for (i32 x = 0; x < size; ++x) {
-			i32 c    = pixels[((size_t)y * size + x) * 4];
-			i32 best = 0;
+			f32 c    = pixels[((size_t)y * size + x) * 4];
+			f32 best = 0.0;
 			for (i32 k = 0; k < 8; ++k) {
 				i32 nx = edge_detect_node_wrap_index(x + dx[k] * r, size, p.wrap);
 				i32 ny = edge_detect_node_wrap_index(y + dy[k] * r, size, p.wrap);
-				i32 d  = (i32)pixels[((size_t)ny * size + nx) * 4] - c;
-				d      = d < 0 ? -d : d;
+				f32 d  = pixels[((size_t)ny * size + nx) * 4] - c;
+				d      = d < 0.0 ? -d : d;
 				best   = d > best ? d : best;
 			}
-			f32 diff                        = (f32)best / 255.0;
+			f32 diff                           = best;
 			result[((size_t)y * size + x) * 4] = diff; // The difference first, the edge value once the largest is known
 			max_diff                        = diff > max_diff ? diff : max_diff;
 		}
@@ -118,6 +119,7 @@ static image_node_type_t edge_detect_node_image_type = {
     .params_size   = sizeof(edge_detect_params_t),
     .size          = edge_detect_node_size,
     .capture       = edge_detect_node_capture,
+    .capture_float = true,
     .smooth_sample = true,
     .params        = edge_detect_node_params,
     .process       = edge_detect_node_process,
