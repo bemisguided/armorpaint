@@ -503,6 +503,8 @@ Info Objek
 Normal Objek
 Okklusi
 Ofset
+
+
 Warna Lama
 Opasitas
 Mode Opasitas
@@ -645,6 +647,7 @@ Skala
 Skala X
 Layar
 Skrip
+
 Node Skrip
 Skrip dibuka
 Skrip
@@ -758,6 +761,7 @@ Tilesheet
 Animasi Tilesheet
 Waktu
 Garis Waktu
+
 Ke Derajat
 Ke Lapisan Isi
 Ke Masker Isi
