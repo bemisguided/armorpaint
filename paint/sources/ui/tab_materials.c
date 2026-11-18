@@ -361,7 +361,7 @@ void tab_materials_draw_slots(bool mini) {
 
 			// Select material
 			if (state == UI_STATE_STARTED && g_ui->input_y > g_ui->_window_y) {
-				bool             can_drag = asset_selection_press(ASSET_TRAY_MATERIALS, material, NULL);
+				bool             can_drag = asset_selection_press(ASSET_TRAY_MATERIALS, material, filtered);
 				slot_material_t *primary  = asset_selection_primary_item();
 				if (g_context->material != primary) {
 					context_set_material(primary);

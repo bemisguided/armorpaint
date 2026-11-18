@@ -193,13 +193,15 @@ static char *meta_trim(char *s) {
 	while (end > start && (s[end - 1] == ' ' || s[end - 1] == '\t' || s[end - 1] == '\n' || s[end - 1] == '\r')) {
 		end--;
 	}
-	return substring(s, start, end);
+	char *r = string_tmp_alloc(end - start + 1);
+	memcpy(r, s + start, end - start);
+	return r;
 }
 
 static i32 meta_tag_index(meta_t *m, char *tag) {
-	char *t = to_lower_case(meta_trim(tag));
+	char *t = string_to_lower_tmp(meta_trim(tag));
 	for (i32 i = 0; m != NULL && m->tags != NULL && i < m->tags->length; ++i) {
-		if (string_equals(to_lower_case(m->tags->buffer[i]), t)) {
+		if (string_equals(string_to_lower_tmp(m->tags->buffer[i]), t)) {
 			return i;
 		}
 	}
