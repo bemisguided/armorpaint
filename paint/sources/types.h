@@ -1090,3 +1090,22 @@ typedef struct ui_nodes_editor_state {
 	ui_color_state_t color_state;
 	i32              line;
 } ui_nodes_editor_state_t;
+
+// An image node type (render/make_image_node.c): the shared pass captures the node's inputs in image space,
+// the type turns the captured pixels into its result, which the node samples at its Vector input
+typedef struct image_node_type {
+	char *type;          // Node type, e.g. "TEX_FLOOD_FILL"
+	i32   result_format; // gpu_texture_format_t of the result: RGBA64 or RGBA128
+	i32   params_size;   // Bytes of the processing parameters
+	// Width and height of the capture and the result (the Size setting)
+	i32 (*size)(ui_node_t *node);
+	// float4 expression of what is captured per pixel, written while the capture shader is parsed in image space.
+	// Readback may swap R and B on some backends: a single value goes into R, G and B.
+	char *(*capture)(ui_node_t *node);
+	// Copies the settings and scalar inputs the processing needs into params (zeroed, params_size bytes).
+	// They are part of the signature; the node itself is not kept for the bake.
+	void (*params)(ui_node_t *node, void *params);
+	// Turns the captured pixels (size * size RGBA8) into size * size * 4 floats (RGBA).
+	// Returns a count kept with the result (Flood Fill: islands), or -1 when memory runs out.
+	i32 (*process)(u8 *pixels, i32 size, void *params, f32 *result);
+} image_node_type_t;

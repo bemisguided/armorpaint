@@ -141,6 +141,7 @@
 #include "render/make_curvature.c"
 #include "render/make_depth.c"
 #include "render/make_discard.c"
+#include "render/make_image_node.c"
 #include "render/make_material.c"
 #include "render/make_mesh.c"
 #include "render/make_mesh_preview.c"
