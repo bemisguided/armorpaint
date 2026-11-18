@@ -40,24 +40,11 @@ void nodes_material_init() {
 	voronoi_texture_node_init();
 	wave_texture_node_init();
 
-	nodes_material_image = any_array_create_from_raw((void *[]){}, 0);
-	flood_fill_node_init();
-	edge_detect_node_init();
-	tile_generator_node_init();
-	advanced_blur_node_init();
-	nodes_material_pattern = any_array_create_from_raw((void *[]){}, 0); // Image nodes that make a pattern (make_image_node.c): they add themselves
-	nodes_material_filter  = any_array_create_from_raw((void *[]){}, 0); // Image nodes that filter an image
 	nodes_material_pattern = any_array_create_from_raw((void *[]){}, 0); // Image nodes that make a pattern (make_image_node.c): they add themselves
 	nodes_material_filter  = any_array_create_from_raw((void *[]){}, 0); // Image nodes that filter an image
 	flood_fill_node_init();
-	nodes_material_pattern = any_array_create_from_raw((void *[]){}, 0); // Image nodes that make a pattern (make_image_node.c): they add themselves
-	nodes_material_filter  = any_array_create_from_raw((void *[]){}, 0); // Image nodes that filter an image
 	tile_generator_node_init();
-	nodes_material_pattern = any_array_create_from_raw((void *[]){}, 0); // Image nodes that make a pattern (make_image_node.c): they add themselves
-	nodes_material_filter  = any_array_create_from_raw((void *[]){}, 0); // Image nodes that filter an image
 	edge_detect_node_init();
-	nodes_material_pattern = any_array_create_from_raw((void *[]){}, 0); // Image nodes that make a pattern (make_image_node.c): they add themselves
-	nodes_material_filter  = any_array_create_from_raw((void *[]){}, 0); // Image nodes that filter an image
 	advanced_blur_node_init();
 	tile_uv_node_init();
 	seamless_node_init();
