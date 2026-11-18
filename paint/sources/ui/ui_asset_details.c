@@ -16,6 +16,7 @@ static any_array_t *ui_asset_details_items    = NULL; // Edited items (asset_t, 
 static char        *ui_asset_details_input    = "";   // New tag
 static char        *ui_asset_details_name     = "";   // Name field text, committed to the asset on Enter or focus loss
 static i32          ui_asset_details_ids[4];
+static bool         ui_asset_details_had_mixed[4]; // The field started mixed when the dialog opened: its Mixed entry stays in the combo list
 static i32          ui_asset_details_last_btp = BTP_NONE; // Last bake type chosen in this session, BTP_NONE = none yet
 static any_array_t *ui_asset_details_combo_prev =
     NULL; // Metadata of each item from before the first change made through the open combo, see ui_asset_details_combo_commit
@@ -66,26 +67,30 @@ static i32 ui_asset_details_shared(i32 key, i32 def) {
 }
 
 // Combo over ids, an id that is not in the list is appended as `Unknown (n)` so it is shown and kept, UI_ASSET_DETAILS_MIXED comes first as `Mixed`.
-// Returns true and sets value when changed.
+// A field that was mixed when the dialog opened keeps its Mixed entry after the first pick, so the list indices of an open combo do not shift
+// under its arrow keys. Returns true and sets value when changed.
 static bool ui_asset_details_combo(i32 *value, string_array_t *ar, i32_array_t *ids, char *label, char *(*label_of)(i32), i32 id_slot) {
 	i32 pos = i32_array_index_of(ids, *value);
-	if (pos == -1 && *value == UI_ASSET_DETAILS_MIXED) {
+	if (*value == UI_ASSET_DETAILS_MIXED) {
+		ui_asset_details_had_mixed[id_slot] = true;
+	}
+	if (pos == -1 && *value != UI_ASSET_DETAILS_MIXED) {
+		any_array_push(ar, label_of(*value));
+		i32_array_push(ids, *value);
+		pos = ids->length - 1;
+	}
+	if (ui_asset_details_had_mixed[id_slot]) {
 		array_insert((any_array_t *)ar, 0, tr("Mixed"));
 		i32_array_push(ids, 0);
 		for (i32 i = ids->length - 1; i > 0; --i) {
 			ids->buffer[i] = ids->buffer[i - 1];
 		}
 		ids->buffer[0] = UI_ASSET_DETAILS_MIXED;
-		pos            = 0;
-	}
-	else if (pos == -1) {
-		any_array_push(ar, label_of(*value));
-		i32_array_push(ids, *value);
-		pos = ids->length - 1;
+		pos            = *value == UI_ASSET_DETAILS_MIXED ? 0 : pos + 1;
 	}
 	ui_set_next_id((ui_id_t)&ui_asset_details_ids[id_slot]);
 	ui_combo(&pos, ar, label, true, UI_ALIGN_LEFT, true);
-	bool changed = ui_item_changed() && ids->buffer[pos] != *value; // Escape hands back the old value, Mixed again changes nothing
+	bool changed = ui_item_changed() && ids->buffer[pos] != *value && ids->buffer[pos] != UI_ASSET_DETAILS_MIXED; // Escape hands back the old value, Mixed again changes nothing
 	if (changed) {
 		*value = ids->buffer[pos];
 	}
@@ -534,5 +539,8 @@ void ui_asset_details_show(i32 category, i32 index) {
 	ui_asset_details_combo_prev = NULL;
 	ui_asset_details_input      = "";
 	ui_asset_details_name       = "";
+	for (i32 i = 0; i < 4; ++i) {
+		ui_asset_details_had_mixed[i] = false;
+	}
 	ui_box_show_custom(&ui_asset_details_box_draw, 400, ui_asset_details_height(), &ui_asset_details_on_hide, true, tr("Details"));
 }
