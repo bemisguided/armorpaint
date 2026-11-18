@@ -543,6 +543,7 @@ Paste
 Path
 Path Traced
 Path Tracer
+Pattern
 Pause
 Pen
 Pencil

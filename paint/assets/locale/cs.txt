@@ -543,6 +543,7 @@ Vložit
 Cesta
 Trasovaná cesta
 Trasovač cest
+
 Pozastavit
 Pero
 Tužka
