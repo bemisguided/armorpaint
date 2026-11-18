@@ -412,6 +412,7 @@ Logaritmus
 Magická textura
 Učinit jedinečným
 Manuál
+
 Mapovat rozsah
 Mapování
 Maska

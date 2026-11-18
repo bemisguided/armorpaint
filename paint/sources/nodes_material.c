@@ -49,6 +49,7 @@ void nodes_material_init() {
 	nodes_material_pattern = any_array_create_from_raw((void *[]){}, 0); // Image nodes that make a pattern (make_image_node.c): they add themselves
 	nodes_material_filter  = any_array_create_from_raw((void *[]){}, 0); // Image nodes that filter an image
 	tile_uv_node_init();
+	image_warp_node_init();
 
 	array_sort(nodes_material_pattern, nodes_material_compare_names);
 	array_sort(nodes_material_filter, nodes_material_compare_names);

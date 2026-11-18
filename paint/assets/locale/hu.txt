@@ -412,6 +412,7 @@ Logaritmus
 Mágikus textúra
 Egyedivé tétel
 Kézikönyv
+
 Tartomány leképzése
 Leképzés
 Maszk

@@ -412,6 +412,7 @@ Logaritmo
 Textura Mágica
 Tornar Único
 Manual
+
 Mapear Intervalo
 Mapeamento
 Máscara

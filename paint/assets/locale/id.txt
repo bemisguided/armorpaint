@@ -412,6 +412,7 @@ Logaritma
 Tekstur Ajaib
 Jadikan Unik
 Manual
+
 Petakan Rentang
 Pemetaan
 Masker
