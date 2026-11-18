@@ -40,6 +40,7 @@ Arkuskosinus
 Arkusinus
 Arktangen2
 Arkutangen
+
 Array
 Aset
 Atlas
@@ -139,6 +140,7 @@ Gabung Warna
 Gabung XYZ
 Kompas
 Konfirmasi
+
 Konsol
 Model Konsol
 Konstan
@@ -281,6 +283,7 @@ Filter Tekstur
 Rata
 Ratakan
 Kurva Float
+
 Lantai
 Modulo Lantai
 Terbang
@@ -438,6 +441,7 @@ Mesh
 Logam
 Min
 Min Maks
+
 Minimum
 Cermin
 Campur
@@ -648,6 +652,7 @@ Sculpt
 Lapisan Sculpt
 Cari
 Cari node
+
 Segmen
 Pilih
 Pilih Semua
@@ -742,6 +747,7 @@ Tekstur...
 Tema
 Tema diimpor:
 Ketebalan
+
 Petak
 Petak X
 Petak Y
@@ -832,6 +838,7 @@ Jendela
 Wireframe
 Ruang Kerja
 Dunia
+
 Bungkus Mouse
 Bungkus mouse di sekitar batas tampilan saat mengontrol kamera
 X

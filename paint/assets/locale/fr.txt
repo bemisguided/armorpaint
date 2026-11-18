@@ -40,6 +40,7 @@ Arc cosinus
 Arc sinus
 Arc tangente 2
 Arc tangente
+
 Réseau
 Asset
 Atlas
@@ -139,6 +140,7 @@ Recomposer couleur
 Recomposer XYZ
 Gizmos XYZ
 Confirmer
+
 Console
 Modèle de console
 Constante
@@ -281,6 +283,7 @@ Filtrer les textures
 Plat
 Aplatir
 Courbe de flottant
+
 Plancher
 Modulo plancher
 Voler
@@ -438,6 +441,7 @@ Maillages
 Métallique
 Min
 Min Max
+
 Minimum
 Miroir
 Mélanger
@@ -648,6 +652,7 @@ Sculpture
 Calque sculpture
 Rechercher
 Rechercher des nœuds
+
 Segments
 Sélectionner
 Tout sélectionner
@@ -742,6 +747,7 @@ Textures...
 Thème
 Thème importé :
 Épaisseur
+
 Tuile
 Tuile X
 Tuile Y
@@ -832,6 +838,7 @@ Fenêtre
 Fil de fer
 Espace de travail
 Monde
+
 Boucler la souris
 Boucler la souris autour des limites de la vue pendant le contrôle caméra
 X

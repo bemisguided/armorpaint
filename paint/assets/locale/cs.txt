@@ -40,6 +40,7 @@ Arkuskosinus
 Arkussinus
 Arktangens 2
 Arktangens
+
 Pole
 Asset
 Atlas
@@ -139,6 +140,7 @@ Kombinovat barvu
 Kombinovat XYZ
 Kompas
 Potvrdit
+
 Konzole
 Model konzole
 Konstanta
@@ -281,6 +283,7 @@ Filtrovat textury
 Plochý
 Zploštit
 Křivka čísla
+
 Zaokrouhlit dolů
 Modulo dolní
 Letět
@@ -438,6 +441,7 @@ Sítě
 Kovovost
 Min
 Min Max
+
 Minimum
 Zrcadlit
 Smíchat
@@ -648,6 +652,7 @@ Sochání
 Sochařská vrstva
 Hledat
 Hledat uzly
+
 Segmenty
 Vybrat
 Vybrat vše
@@ -742,6 +747,7 @@ Textury...
 Téma
 Téma importováno:
 Tloušťka
+
 Dlaždice
 Dlaždice X
 Dlaždice Y
@@ -832,6 +838,7 @@ Okno
 Drátěný model
 Pracovní prostor
 Svět
+
 Obtáčet myš
 Obtáčet myš kolem hranic pohledu při ovládání kamery
 X

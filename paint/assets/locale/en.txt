@@ -40,6 +40,7 @@ Arccosine
 Arcsine
 Arctan2
 Arctangent
+Area
 Array
 Asset
 Atlas
@@ -139,6 +140,7 @@ Combine Color
 Combine XYZ
 Compass
 Confirm
+Connectivity
 Console
 Console Model
 Constant
@@ -281,6 +283,7 @@ Filter Textures
 Flat
 Flatten
 Float Curve
+Flood Fill
 Floor
 Floored Modulo
 Fly
@@ -438,6 +441,7 @@ Meshes
 Metallic
 Min
 Min Max
+Min Size
 Minimum
 Mirror
 Mix
@@ -648,6 +652,7 @@ Sculpt
 Sculpt Layer
 Search
 Search for nodes
+Seed
 Segments
 Select
 Select All
@@ -742,6 +747,7 @@ Textures...
 Theme
 Theme imported:
 Thickness
+Threshold
 Tile
 Tile X
 Tile Y
@@ -832,6 +838,7 @@ Window
 Wireframe
 Workspace
 World
+Wrap Edges
 Wrap Mouse
 Wrap mouse around view boundaries during camera control
 X
