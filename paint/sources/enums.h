@@ -599,7 +599,5 @@ typedef enum {
 	HISTORY_ACTION_OBJECT_TRANSFORM,
 } history_action_t;
 
-// Header color of the Image node category and color of every Image socket
+// Header color of every baked image node (a node with a resolution whose result is baked after a debounce, Pattern and Filter menus) and color of every Image socket
 #define NODES_MATERIAL_IMAGE_COLOR 0xffc78a29
-// Header of the image nodes that filter an image (Filter menu), the same grey as the Utilities nodes; their sockets stay orange
-#define NODES_MATERIAL_FILTER_COLOR 0xff62676d
