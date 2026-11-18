@@ -221,6 +221,8 @@ Duplicate Brush
 Duplicate Layer
 Duplicate Material
 Duplicate Swatch
+Edge Detect
+Edge Width
 Edit
 Edit Image
 Edit Nodes
@@ -767,6 +769,7 @@ To Paint Mask
 To Radians
 Toggle Fullscreen
 Toggle header
+Tolerance
 Tools
 Top
 Touch UI

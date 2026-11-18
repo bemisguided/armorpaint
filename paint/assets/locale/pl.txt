@@ -221,6 +221,8 @@ Duplikuj pędzel
 Duplikuj warstwę
 Duplikuj materiał
 Duplikuj próbkę koloru
+
+
 Edytuj
 Edytuj obraz
 Edytuj węzły
@@ -767,6 +769,7 @@ Do maski malowania
 Do radianów
 Przełącz pełny ekran
 Przełącz nagłówek
+
 Narzędzia
 Góra
 Interfejs dotykowy

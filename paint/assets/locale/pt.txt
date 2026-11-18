@@ -221,6 +221,8 @@ Duplicar Pincel
 Duplicar Camada
 Duplicar Material
 Duplicar Amostra
+
+
 Editar
 Editar Imagem
 Editar Nós
@@ -767,6 +769,7 @@ Para Máscara de Pintura
 Para Radianos
 Alternar Tela Cheia
 Alternar cabeçalho
+
 Ferramentas
 Superior
 Interface Touch

@@ -221,6 +221,8 @@ Duplikat Kuas
 Duplikat Lapisan
 Duplikat Material
 Duplikat Contoh Warna
+
+
 Sunting
 Sunting Gambar
 Sunting Node
@@ -767,6 +769,7 @@ Ke Masker Lukis
 Ke Radian
 Alihkan Layar Penuh
 Alihkan header
+
 Alat
 Atas
 UI Sentuh

@@ -221,6 +221,8 @@ Duplikovat štětec
 Duplikovat vrstvu
 Duplikovat materiál
 Duplikovat vzorek
+
+
 Upravit
 Upravit obrázek
 Upravit uzly
@@ -767,6 +769,7 @@ Na malovací masku
 Na radiány
 Přepnout celou obrazovku
 Přepnout záhlaví
+
 Nástroje
 Horní
 Dotykové rozhraní

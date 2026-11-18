@@ -42,6 +42,7 @@ void nodes_material_init() {
 
 	nodes_material_image = any_array_create_from_raw((void *[]){}, 0);
 	flood_fill_node_init();
+	edge_detect_node_init();
 
 	nodes_material_color = any_array_create_from_raw((void *[]){}, 0);
 	blur_node_init();

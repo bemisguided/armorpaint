@@ -221,6 +221,8 @@ Duplicar pincel
 Duplicar capa
 Duplicar material
 Duplicar muestra
+
+
 Editar
 Editar imagen
 Editar nodos
@@ -767,6 +769,7 @@ Pintar máscara
 A radianes
 Ventana a pantalla completa
 Alternar cabecera
+
 Herramientas
 Superior
 Interfaz táctil

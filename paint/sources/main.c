@@ -61,6 +61,7 @@
 #include "nodes_material/gabor_texture_node.c"
 #include "nodes_material/gamma_node.c"
 #include "nodes_material/geometry_node.c"
+#include "nodes_material/edge_detect_node.c"
 #include "nodes_material/gradient_texture_node.c"
 #include "nodes_material/group_node.c"
 #include "nodes_material/hue_saturation_value_node.c"

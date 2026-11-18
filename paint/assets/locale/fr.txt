@@ -221,6 +221,8 @@ Dupliquer la brosse
 Dupliquer le calque
 Dupliquer matériau
 Dupliquer l'échantillon
+
+
 Modifier
 Éditer image
 Modifier nœuds
@@ -767,6 +769,7 @@ Vers masque de peinture
 En radians
 Plein écran
 Basculer en-tête
+
 Outils
 Dessus
 Interface tactile

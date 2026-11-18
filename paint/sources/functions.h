@@ -1602,6 +1602,7 @@ void              text_texture_node_init();
 void              texture_slot_node_init();
 char             *texture_slot_node_vector(ui_node_t *node, ui_node_socket_t *socket);
 char             *texture_slot_node_value(ui_node_t *node, ui_node_socket_t *socket);
+void              edge_detect_node_init();
 void              gradient_texture_node_init();
 void              object_info_node_init();
 void              magic_texture_node_init();
