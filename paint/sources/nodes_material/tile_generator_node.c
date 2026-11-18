@@ -305,7 +305,7 @@ void tile_generator_node_init() {
 	                .width = 0,
 	                .flags = 0});
 
-	any_array_push(nodes_material_image, tile_generator_node_def);
+	any_array_push(nodes_material_pattern, tile_generator_node_def);
 	any_map_set(parser_material_node_values, "TEX_TILE_GENERATOR", tile_generator_node_value);
 	any_map_set(parser_material_node_vectors, "TEX_TILE_GENERATOR", tile_generator_node_vector);
 	make_image_node_register(&tile_generator_node_image_type);
