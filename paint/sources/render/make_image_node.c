@@ -389,6 +389,10 @@ static bool make_image_node_capture(make_image_node_state_t *s, char *id, ui_nod
 		}
 		if (pixels == NULL) {
 			pixels = malloc(total);
+			if (pixels == NULL) {
+				free(p);
+				break;
+			}
 		}
 		size_t one = (size_t)ks * ks * pixel_bytes;
 		memcpy(pixels + offset, p, one);
@@ -399,7 +403,13 @@ static bool make_image_node_capture(make_image_node_state_t *s, char *id, ui_nod
 	void *params              = NULL;
 	if (pixels != NULL) {
 		params = calloc(1, t->params_size > 0 ? t->params_size : 1);
-		t->params(node, params); // May capture a linked scalar input
+		if (params == NULL) {
+			free(pixels);
+			pixels = NULL;
+		}
+		else {
+			t->params(node, params); // May capture a linked scalar input
+		}
 	}
 	make_image_node_capturing       = NULL;
 	make_image_node_capture_group   = NULL;
@@ -430,8 +440,8 @@ static bool make_image_node_capture(make_image_node_state_t *s, char *id, ui_nod
 	return true;
 }
 
-// Uploads size * size * 4 floats as the node's result, in the type's format
-static void make_image_node_upload(char *id, f32 *result, i32 size, gpu_texture_format_t format) {
+// Uploads size * size * 4 floats as the node's result, in the type's format. Returns false when memory runs out.
+static bool make_image_node_upload(char *id, f32 *result, i32 size, gpu_texture_format_t format) {
 	size_t         n   = (size_t)size * size * 4;
 	gpu_texture_t *tmp = NULL;
 	if (format == GPU_TEXTURE_FORMAT_RGBA128) {
@@ -441,12 +451,18 @@ static void make_image_node_upload(char *id, f32 *result, i32 size, gpu_texture_
 	else {
 		format  = GPU_TEXTURE_FORMAT_RGBA64;
 		u16 *hb = malloc(n * sizeof(u16));
+		if (hb == NULL) {
+			return false;
+		}
 		for (size_t i = 0; i < n; ++i) {
 			hb[i] = float_to_half_fast(result[i]);
 		}
 		buffer_t b = {.buffer = (u8 *)hb, .length = (i32)(n * sizeof(u16))};
 		tmp        = gpu_create_texture_from_bytes_raw(&b, size, size, GPU_TEXTURE_FORMAT_RGBA64);
 		free(hb);
+	}
+	if (tmp == NULL) {
+		return false;
 	}
 
 	gpu_texture_t *image = any_map_get(g_context->node_previews, id);
@@ -464,6 +480,7 @@ static void make_image_node_upload(char *id, f32 *result, i32 size, gpu_texture_
 	draw_set_pipeline(NULL);
 	draw_end();
 	gpu_delete_texture(tmp);
+	return true;
 }
 
 // Processes the pending capture of s into its result texture
@@ -484,7 +501,9 @@ static void make_image_node_bake(make_image_node_state_t *s, char *id) {
 		free(s->pending_params);
 		s->pending_pixels = NULL;
 		s->pending_params = NULL;
-		make_image_node_upload(id, result, size, t->result_format);
+		if (!make_image_node_upload(id, result, size, t->result_format)) {
+			status = -1;
+		}
 		free(result);
 	}
 	if (status < 0) {
