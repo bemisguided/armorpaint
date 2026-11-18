@@ -18,8 +18,8 @@ static char        *ui_asset_details_name     = "";   // Name field text, commit
 static i32          ui_asset_details_ids[4];
 static bool         ui_asset_details_had_mixed[4]; // The field started mixed when the dialog opened: its Mixed entry stays in the combo list
 static i32          ui_asset_details_last_btp = BTP_NONE; // Last bake type chosen in this session, BTP_NONE = none yet
-static any_array_t *ui_asset_details_combo_prev =
-    NULL; // Metadata of each item from before the first change made through the open combo, see ui_asset_details_combo_commit
+// Metadata of each item from before the first change made through the open combo, see ui_asset_details_combo_commit
+static any_array_t *ui_asset_details_combo_prev = NULL;
 
 static i32 ui_asset_details_count() {
 	return ui_asset_details_items != NULL ? ui_asset_details_items->length : 0;

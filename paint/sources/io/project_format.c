@@ -8,7 +8,7 @@
 // Upstream "23" files load through import_arm_from_version_23 below, older ones chain into it from import_legacy.c.
 // Projects decode by field position (armpack), so these types.h fields must stay in the order written here:
 // - project_t: next_object_id, mesh_ids, udim_tiles, mesh_tiles, metas, tile_res_x, tile_res_y (after mesh_groups, before _)
-// - meta_t:    category, index, tags, bool_keys, bool_values, i32_keys, i32_values, f32_keys, f32_values, i32_array_keys,
+// - meta_t:    category, index, tags, bool_keys, bool_values, i32_keys, i32_values, i32_array_keys,
 //              i32_array_values (the entry maps of metas, every field written in this order)
 // layer_data_t has the upstream layout, its object_mask is written as 0 (layer coverage is in metas).
 // project_t atlas_objects / atlas_names of upstream "23" are only read to convert atlas group object masks (Export > Atlases was removed).
@@ -32,7 +32,7 @@ static meta_t_array_t *project_format_saved_metas = NULL; // List project_t.meta
 
 // One metas entry, fields in declaration order
 static void project_format_encode_meta(meta_t *m) {
-	armpack_encode_map(11);
+	armpack_encode_map(9);
 	armpack_encode_string("category");
 	armpack_encode_i32(m->category);
 	armpack_encode_string("index");
@@ -47,10 +47,6 @@ static void project_format_encode_meta(meta_t *m) {
 	armpack_encode_array_i32(m->i32_keys);
 	armpack_encode_string("i32_values");
 	armpack_encode_array_i32(m->i32_values);
-	armpack_encode_string("f32_keys");
-	armpack_encode_array_i32(m->f32_keys);
-	armpack_encode_string("f32_values");
-	armpack_encode_array_f32(m->f32_values);
 	armpack_encode_string("i32_array_keys");
 	armpack_encode_array_i32(m->i32_array_keys);
 	armpack_encode_string("i32_array_values");
@@ -106,8 +102,7 @@ i32 project_format_encode_size(project_t *raw) {
 		for (i32 j = 0; m->tags != NULL && j < m->tags->length; ++j) {
 			size += 8 + string_length(m->tags->buffer[j]);
 		}
-		size += 8 * ((m->bool_keys != NULL ? m->bool_keys->length : 0) + (m->i32_keys != NULL ? m->i32_keys->length : 0) +
-		             (m->f32_keys != NULL ? m->f32_keys->length : 0));
+		size += 8 * ((m->bool_keys != NULL ? m->bool_keys->length : 0) + (m->i32_keys != NULL ? m->i32_keys->length : 0));
 		for (i32 j = 0; m->i32_array_values != NULL && j < m->i32_array_values->length; ++j) {
 			i32_array_t *values = m->i32_array_values->buffer[j];
 			size += 16 + 4 * (values != NULL ? values->length : 0);

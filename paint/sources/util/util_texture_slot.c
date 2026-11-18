@@ -1,9 +1,9 @@
 
 #include "../global.h"
 
-// Hidden atlas of the Slot Texture node (interim, see notes/PAINT_PATH.md verdict B).
+// Hidden atlas of the Slot Texture node.
 // A fill layer is one draw of the merged mesh with the atlas uv as position, so the (object, tile) pair is not known when
-// the texture is bound. Until the draw is split per pair, the textures of one bake type are composed into one internal
+// the texture is bound. The textures of one bake type are composed into one internal
 // render target of the project atlas layout (one slot per udim tile, a project without tiles has the single slot 1001).
 // Per object images are not black outside their islands (bake padding fills the tile), so each one is drawn only inside the
 // uv islands of its object on the slot (mask of layers_object_slot_mask, dilated like painted texels), replacing what is there.
@@ -13,7 +13,7 @@
 // A layer restricted to some objects or tiles gets an atlas composed from the objects it covers only (texture_slot_prepare, called
 // before each fill layer is painted): where islands of two objects overlap, the layer then reads the image of an object it covers,
 // not the one of a later object it does not cover. Overlapping objects covered by the same layer still share the texels of the
-// layer itself, see specs/slot-texture-overlap/OVERLAP.md (Split by Object).
+// layer itself.
 
 #define TEXTURE_SLOT_MAX 32
 
@@ -371,9 +371,4 @@ gpu_texture_t *texture_slot_resolve(i32 btp) {
 	}
 	render_target_t *rt = any_map_get(render_path_render_targets, "empty_black");
 	return rt->_image;
-}
-
-// True while an atlas changed and the layers and previews are not refreshed yet
-bool texture_slot_changed() {
-	return texture_slot_pending;
 }

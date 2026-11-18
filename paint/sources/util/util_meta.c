@@ -14,24 +14,6 @@
 static i32_array_t *meta_mesh_ids    = NULL; // paint_id of meta_mesh_values[i]
 static any_array_t *meta_mesh_values = NULL;
 
-// Type of an app key, unknown keys are kept as i32
-i32 meta_key_type(i32 key) {
-	switch (key) {
-	case META_ALL_OBJECTS:
-	case META_ALL_TILES:
-		return MT_BOOL;
-	case META_OBJECTS:
-	case META_TILES:
-		return MT_I32_ARRAY;
-	case META_BAKE_TYPE:
-	case META_ENCODING:
-	case META_OBJECT:
-	case META_TILE:
-		return MT_I32;
-	}
-	return MT_I32;
-}
-
 meta_t *meta_create() {
 	return calloc(1, sizeof(meta_t));
 }
@@ -56,8 +38,6 @@ meta_t *meta_copy(meta_t *m) {
 	c->bool_values = meta_copy_i32(m->bool_values);
 	c->i32_keys    = meta_copy_i32(m->i32_keys);
 	c->i32_values  = meta_copy_i32(m->i32_values);
-	c->f32_keys    = meta_copy_i32(m->f32_keys);
-	c->f32_values  = m->f32_values != NULL && m->f32_values->length > 0 ? f32_array_create_from_array(m->f32_values) : NULL;
 	if (m->i32_array_keys != NULL && m->i32_array_values != NULL && m->i32_array_keys->length > 0) {
 		c->i32_array_keys   = i32_array_create_from_array(m->i32_array_keys);
 		c->i32_array_values = any_array_create(0);
@@ -79,8 +59,6 @@ void meta_free(meta_t *m) {
 	array_delete(m->bool_values);
 	array_delete(m->i32_keys);
 	array_delete(m->i32_values);
-	array_delete(m->f32_keys);
-	array_delete(m->f32_values);
 	for (i32 i = 0; m->i32_array_values != NULL && i < m->i32_array_values->length; ++i) {
 		array_delete(m->i32_array_values->buffer[i]);
 	}
@@ -91,7 +69,7 @@ void meta_free(meta_t *m) {
 
 bool meta_is_empty(meta_t *m) {
 	return m == NULL || ((m->tags == NULL || m->tags->length == 0) && (m->bool_keys == NULL || m->bool_keys->length == 0) &&
-	                     (m->i32_keys == NULL || m->i32_keys->length == 0) && (m->f32_keys == NULL || m->f32_keys->length == 0) &&
+	                     (m->i32_keys == NULL || m->i32_keys->length == 0) &&
 	                     (m->i32_array_keys == NULL || m->i32_array_keys->length == 0));
 }
 
@@ -144,31 +122,6 @@ void meta_set_bool(meta_t *m, i32 key, bool v) {
 	}
 }
 
-f32 meta_get_f32(meta_t *m, i32 key, f32 def) {
-	if (m == NULL) {
-		return def;
-	}
-	i32 i = meta_index(m->f32_keys, m->f32_values != NULL ? m->f32_values->length : 0, key);
-	return i >= 0 ? m->f32_values->buffer[i] : def;
-}
-
-void meta_set_f32(meta_t *m, i32 key, f32 v) {
-	if (m == NULL) {
-		return;
-	}
-	if (m->f32_keys == NULL || m->f32_values == NULL || m->f32_keys->length != m->f32_values->length) {
-		m->f32_keys   = i32_array_create(0);
-		m->f32_values = f32_array_create(0);
-	}
-	i32 i = meta_index(m->f32_keys, m->f32_values->length, key);
-	if (i >= 0) {
-		m->f32_values->buffer[i] = v;
-		return;
-	}
-	i32_array_push(m->f32_keys, key);
-	f32_array_push(m->f32_values, v);
-}
-
 // The i32 array of a key, NULL when the key is absent. The meta keeps ownership, the array may be changed in place.
 i32_array_t *meta_get_i32_array(meta_t *m, i32 key) {
 	if (m == NULL) {
@@ -199,28 +152,13 @@ void meta_set_i32_array(meta_t *m, i32 key, i32 *values, i32 count) {
 	any_array_push(m->i32_array_values, copy);
 }
 
-static void meta_remove_entry(i32_array_t *keys, i32_array_t *values, f32_array_t *fvalues, i32 key) {
-	i32 vl = values != NULL ? values->length : (fvalues != NULL ? fvalues->length : 0);
-	i32 i  = meta_index(keys, vl, key);
+static void meta_remove_entry(i32_array_t *keys, i32_array_t *values, i32 key) {
+	i32 i = meta_index(keys, values != NULL ? values->length : 0, key);
 	if (i < 0) {
 		return;
 	}
-	for (i32 j = i; j + 1 < keys->length; ++j) {
-		keys->buffer[j] = keys->buffer[j + 1];
-	}
-	keys->length--;
-	for (i32 j = i; values != NULL && j + 1 < values->length; ++j) {
-		values->buffer[j] = values->buffer[j + 1];
-	}
-	if (values != NULL) {
-		values->length--;
-	}
-	for (i32 j = i; fvalues != NULL && j + 1 < fvalues->length; ++j) {
-		fvalues->buffer[j] = fvalues->buffer[j + 1];
-	}
-	if (fvalues != NULL) {
-		fvalues->length--;
-	}
+	i32_array_splice(keys, i, 1);
+	i32_array_splice(values, i, 1);
 }
 
 static void meta_remove_i32_array(meta_t *m, i32 key) {
@@ -238,9 +176,8 @@ void meta_remove(meta_t *m, i32 key) {
 	if (m == NULL) {
 		return;
 	}
-	meta_remove_entry(m->bool_keys, m->bool_values, NULL, key);
-	meta_remove_entry(m->i32_keys, m->i32_values, NULL, key);
-	meta_remove_entry(m->f32_keys, NULL, m->f32_values, key);
+	meta_remove_entry(m->bool_keys, m->bool_values, key);
+	meta_remove_entry(m->i32_keys, m->i32_values, key);
 	meta_remove_i32_array(m, key);
 }
 
@@ -392,19 +329,6 @@ void meta_set(i32 category, i32 index, meta_t *m) {
 	if (slot != NULL) {
 		*slot = m;
 	}
-}
-
-// First item whose metadata has the i32 key set to value, -1 when none
-i32 meta_find(i32 category, i32 key, i32 value) {
-	i32 count = meta_count(category);
-	for (i32 i = 0; i < count; ++i) {
-		meta_t *m = meta_peek(category, i);
-		i32     k = m != NULL ? meta_index(m->i32_keys, m->i32_values != NULL ? m->i32_values->length : 0, key) : -1;
-		if (k >= 0 && m->i32_values->buffer[k] == value) {
-			return i;
-		}
-	}
-	return -1;
 }
 
 // Name of an item, "" when out of range
