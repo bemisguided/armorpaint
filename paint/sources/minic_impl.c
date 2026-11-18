@@ -2411,6 +2411,37 @@ void script_mouse_up(i32 x, i32 y, i32 button) {
 	sys_notify_on_next_frame(script_mouse_up_next, script_click_create(x, y, button));
 }
 
+// Project resolution like the Resolution combo of the Layers tab and the export dialog: 0 2048, 1 4096, 2 8192, 3 16384
+void script_project_set_resolution(i32 res) {
+	if (res < TEXTURE_RES_RES2048 || res > TEXTURE_RES_RES16384) {
+		return;
+	}
+	base_res = res;
+	config_set_texture_res(base_res);
+	layers_on_resized();
+}
+
+// Export dialog Color combo: 0 8bit, 1 16bit, 2 32bit. Rebuilds the layers next frame like the combo
+static void script_export_set_bits_next(void *data) {
+	layers_set_bits();
+}
+
+void script_export_set_bits(i32 bits) {
+	if (bits < TEXTURE_BITS_BITS8 || bits > TEXTURE_BITS_BITS32) {
+		return;
+	}
+	base_bits = bits;
+	sys_notify_on_next_frame(script_export_set_bits_next, NULL);
+}
+
+// Export dialog Format combo: 0 png, 1 jpg (8bit only; 16bit and 32bit always write exr)
+void script_export_set_format(i32 format) {
+	if (format < TEXTURE_LDR_FORMAT_PNG || format > TEXTURE_LDR_FORMAT_JPG) {
+		return;
+	}
+	g_context->format_type = format;
+}
+
 static void script_key_press_up(void *data) {
 	iron_internal_keyboard_trigger_key_up((i32)(intptr_t)data);
 }
