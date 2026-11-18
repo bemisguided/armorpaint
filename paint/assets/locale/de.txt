@@ -499,6 +499,8 @@ Objekt Information
 Objekt Normale
 Occlusion
 Offset
+
+
 Alte Farbe
 Deckkraft
 Deckkraft Modus
@@ -639,6 +641,7 @@ Projekt wird gespeichert
 Sägezahn
 Skalierung
 X skalieren
+
 Verdecken
 Skript
 Skript-Nodes
@@ -748,6 +751,7 @@ Kachel Y
 Gekachelt
 Kacheln X
 Kacheln Y
+
 Tilesheet
 Tilesheet Animation
 Zeit

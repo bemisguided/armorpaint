@@ -4,8 +4,9 @@
 // An image node evaluates its inputs in image space: the graph above the node drawn over the node's own square
 // ([0, 1] of tex_coord, Size x Size pixels, no mesh, no uv layout, parser_material_image_space), read back and
 // processed on the cpu by the node's type (image_node_type_t, make_image_node_register). The result is uploaded into
-// g_context->node_previews under the node's preview id and sampled by the node like an Image Texture, at its Vector
-// input, repeating (make_image_node_sample, bound as _teximage_<preview id>). Nothing is saved with the project.
+// g_context->node_previews under the node's preview id and sampled by the node like an Image Texture at the
+// current texture coordinate, repeating (make_image_node_sample; Tile UV places an image on the uv with
+// make_image_node_sample_at; bound as _teximage_<preview id>). Image nodes have no Vector input. Nothing is saved with the project.
 // Every node preview traversal captures the node; a changed capture or parameter set makes it pending, and 0.5 s
 // after the last change, with no mouse button held and no Bake Texture running, the pending nodes are baked:
 // chained image nodes in dependency order, the inner node first.
@@ -761,8 +762,7 @@ void make_image_node_bake_now(ui_node_t *node) {
 	}
 }
 
-// Writes the fetch of the node's baked result at its Vector input (unlinked: tex_coord, the triplanar projections
-// blended like Image Texture), once per node, and returns the float4 variable holding it. Repeating: the uv is wrapped
+// Writes the fetch of the node's baked result at the float2 expression uv, once per variable. Repeating: the uv is wrapped
 // and snapped to the texel centre, so the one linear sampler never blends two texels. Black until the first bake.
 static void make_image_node_write_fetch(char *var, char *tex_name, char *uv, bool smooth) {
 	parser_material_write(parser_material_kong, string_tmp("float2 %s_uv = %s;", var, uv));
@@ -788,12 +788,25 @@ static void make_image_node_write_fetch(char *var, char *tex_name, char *uv, boo
 	parser_material_write(parser_material_kong, string_tmp("float4 %s = sample_lod(%s, sampler_linear, %s_uv, 0.0);", var, tex_name, var));
 }
 
-char *make_image_node_sample(ui_node_t *node, i32 vector_input) {
-	char *id  = make_material_node_preview_id(node, NULL);
-	char *var = string_tmp("%s_image", parser_material_store_var_name(node));
+// Records the dependency of a capture on the node, binds its result texture and size constant; returns the texture name
+static char *make_image_node_bind(ui_node_t *node, char *id) {
 	if (make_image_node_capturing != NULL && string_array_index_of(make_image_node_capturing->upstream, id) == -1) {
 		any_array_push(make_image_node_capturing->upstream, string_copy(id)); // Chained: bakes before the node being captured
 	}
+	char *tex_name = string_tmp("teximage_%s", id);
+	node_shader_add_texture(parser_material_kong, tex_name, string_tmp("_%s", tex_name));
+	node_shader_add_constant(parser_material_kong, string_tmp("float2 %s_size", tex_name), string_tmp("_size(_%s)", tex_name));
+	return tex_name;
+}
+
+// The fetch of the node's baked result at the current texture coordinate (the triplanar projections blended like
+// Image Texture), once per node; returns the float4 variable. Image nodes have no Vector input: the placement on the
+// uv is done by a Tile UV node at the end of the chain (make_image_node_sample_at). In image space (a capture) tex_coord
+// is the image uv, so chained nodes read each other's result 1:1.
+char *make_image_node_sample(ui_node_t *node) {
+	char *id  = make_material_node_preview_id(node, NULL);
+	char *var = string_tmp("%s_image", parser_material_store_var_name(node));
+	char *tex_name = make_image_node_bind(node, id);
 	if (string_array_index_of(parser_material_parsed, var) >= 0) {
 		return var;
 	}
@@ -801,16 +814,7 @@ char *make_image_node_sample(ui_node_t *node, i32 vector_input) {
 
 	image_node_type_t *type   = make_image_node_type_of(node->type);
 	bool               smooth = type != NULL && type->smooth_sample;
-	char              *tex_name = string_tmp("teximage_%s", id);
-	node_shader_add_texture(parser_material_kong, tex_name, string_tmp("_%s", tex_name));
-	node_shader_add_constant(parser_material_kong, string_tmp("float2 %s_size", tex_name), string_tmp("_size(_%s)", tex_name));
-
-	ui_node_socket_t *vector = node->inputs->buffer[vector_input];
-	if (parser_material_get_input_link(vector) != NULL) {
-		char *uv = parser_material_parse_vector_input(vector);
-		make_image_node_write_fetch(var, tex_name, string_tmp("%s.xy", uv), smooth);
-	}
-	else if (parser_material_triplanar && !parser_material_image_space) { // Like Image Texture: one fetch per projection, blended
+	if (parser_material_triplanar && !parser_material_image_space) { // Like Image Texture: one fetch per projection, blended
 		node_shader_context_add_elem(parser_material_kong->context, "tex", "short2norm");
 		make_image_node_write_fetch(string_tmp("%s0", var), tex_name, "tex_coord", smooth);
 		make_image_node_write_fetch(string_tmp("%s1", var), tex_name, "tex_coord1", smooth);
@@ -824,6 +828,20 @@ char *make_image_node_sample(ui_node_t *node, i32 vector_input) {
 		}
 		make_image_node_write_fetch(var, tex_name, "tex_coord", smooth);
 	}
+	return var;
+}
+
+// The fetch of the node's baked result at the float2 expression uv (repeating), once per node; returns the float4
+// variable. Used by Tile UV, which places its own result on the uv. smooth: bilinear, else the nearest texel.
+char *make_image_node_sample_at(ui_node_t *node, char *uv, bool smooth) {
+	char *id  = make_material_node_preview_id(node, NULL);
+	char *var = string_tmp("%s_tile", parser_material_store_var_name(node));
+	char *tex_name = make_image_node_bind(node, id);
+	if (string_array_index_of(parser_material_parsed, var) >= 0) {
+		return var;
+	}
+	any_array_push(parser_material_parsed, var);
+	make_image_node_write_fetch(var, tex_name, uv, smooth);
 	return var;
 }
 
