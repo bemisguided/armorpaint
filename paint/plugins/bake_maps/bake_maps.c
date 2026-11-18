@@ -3151,8 +3151,11 @@ static minic_val_t bake_maps_inpaint_apply(minic_val_t *a, int n) {
 			asset = as;
 		}
 	}
+	if (asset == NULL) {
+		return minic_val_int(0);
+	}
 	buffer_t *blob = iron_load_blob(path);
-	if (asset == NULL || blob == NULL) {
+	if (blob == NULL) {
 		return minic_val_int(0);
 	}
 	i32 iw, ih, comp;
