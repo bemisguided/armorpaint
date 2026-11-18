@@ -161,6 +161,7 @@ void tab_sounds_draw(i32 *htab) {
 				i32_array_push(filtered, i);
 			}
 		}
+		asset_selection_select_all(ASSET_TRAY_SOUNDS, filtered);
 
 		bool drag_pos_set = false;
 		f32  uix          = 0.0;

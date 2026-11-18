@@ -885,6 +885,7 @@ bool                      asset_selection_press(asset_tray_t tray, void *item, i
 void                      asset_selection_context(asset_tray_t tray, void *item);
 void                      asset_selection_set(asset_tray_t tray, any_array_t *items, void *primary);
 void                      asset_selection_sync_filter(asset_tray_t tray, char *search);
+void                      asset_selection_select_all(asset_tray_t tray, i32_array_t *visible);
 i32                       asset_selection_drag_count();
 void                      asset_selection_update();
 void                      asset_selection_reorder(any_array_t *items, any_array_t *moving, i32 drop_pos, void (*on_move)(i32, i32));
