@@ -65,10 +65,22 @@ static i32 edge_detect_node_wrap_index(i32 i, i32 size, bool wrap) {
 	return i < 0 ? 0 : i >= size ? size - 1 : i;
 }
 
-// One box blur pass of odd width w along x (horizontal) or y, wrapping or clamping, by a running sum
-static void edge_detect_node_box_pass(f32 *src, f32 *dst, i32 size, i32 w, bool wrap, bool horizontal) {
-	i32 half = w / 2;
-	for (i32 l = 0; l < size; ++l) {
+typedef struct edge_detect_box_ctx {
+	f32 *src;
+	f32 *dst;
+	i32  size;
+	i32  w;
+	bool wrap;
+	bool horizontal;
+} edge_detect_box_ctx_t;
+
+// Lines [begin, end) of one box blur pass of odd width w along x (horizontal) or y, wrapping or clamping, by a running sum
+static void edge_detect_node_box_lines(void *param, i32 begin, i32 end) {
+	edge_detect_box_ctx_t *c = param;
+	f32 *src = c->src, *dst = c->dst;
+	i32  size = c->size, w = c->w, half = w / 2;
+	bool wrap = c->wrap, horizontal = c->horizontal;
+	for (i32 l = begin; l < end; ++l) {
 		f32 sum = 0.0;
 		for (i32 k = -half; k <= half; ++k) {
 			i32 i = edge_detect_node_wrap_index(k, size, wrap);
@@ -85,6 +97,43 @@ static void edge_detect_node_box_pass(f32 *src, f32 *dst, i32 size, i32 w, bool 
 			i32 sub = edge_detect_node_wrap_index(i - half, size, wrap);
 			sum += horizontal ? src[(size_t)l * size + add] - src[(size_t)l * size + sub] : src[(size_t)add * size + l] - src[(size_t)sub * size + l];
 		}
+	}
+}
+
+static void edge_detect_node_box_pass(f32 *src, f32 *dst, i32 size, i32 w, bool wrap, bool horizontal) {
+	edge_detect_box_ctx_t c = {.src = src, .dst = dst, .size = size, .w = w, .wrap = wrap, .horizontal = horizontal};
+	make_image_node_parallel(size, edge_detect_node_box_lines, &c);
+}
+
+typedef struct edge_detect_sobel_ctx {
+	f32 *pixels;
+	f32 *e;
+	f32 *max_rows; // Largest magnitude of every row
+	i32  size;
+	bool wrap;
+} edge_detect_sobel_ctx_t;
+
+// Rows [begin, end) of the Sobel gradient magnitude of the captured grey (a step of 1 gives 1)
+static void edge_detect_node_sobel_rows(void *param, i32 begin, i32 end) {
+	edge_detect_sobel_ctx_t *c = param;
+	f32 *pixels = c->pixels;
+	i32  size = c->size;
+	for (i32 y = begin; y < end; ++y) {
+		f32 row_max = 0.0;
+		for (i32 x = 0; x < size; ++x) {
+			i32 xm = edge_detect_node_wrap_index(x - 1, size, c->wrap);
+			i32 xp = edge_detect_node_wrap_index(x + 1, size, c->wrap);
+			i32 ym = edge_detect_node_wrap_index(y - 1, size, c->wrap);
+			i32 yp = edge_detect_node_wrap_index(y + 1, size, c->wrap);
+#define ED_AT(px_, py_) pixels[((size_t)(py_) * size + (px_)) * 4]
+			f32 gx  = (ED_AT(xp, ym) + 2.0f * ED_AT(xp, y) + ED_AT(xp, yp)) - (ED_AT(xm, ym) + 2.0f * ED_AT(xm, y) + ED_AT(xm, yp));
+			f32 gy  = (ED_AT(xm, yp) + 2.0f * ED_AT(x, yp) + ED_AT(xp, yp)) - (ED_AT(xm, ym) + 2.0f * ED_AT(x, ym) + ED_AT(xp, ym));
+#undef ED_AT
+			f32 mag = sqrtf(gx * gx + gy * gy) * 0.25f;
+			c->e[(size_t)y * size + x] = mag;
+			row_max                    = mag > row_max ? mag : row_max;
+		}
+		c->max_rows[y] = row_max;
 	}
 }
 
@@ -106,22 +155,19 @@ static i32 edge_detect_node_process(u8 *bytes, i32 size, void *params, f32 *resu
 		free(t);
 		return -1;
 	}
+	f32 *max_rows = malloc((size_t)size * sizeof(f32));
+	if (max_rows == NULL) {
+		free(e);
+		free(t);
+		return -1;
+	}
+	edge_detect_sobel_ctx_t sc = {.pixels = pixels, .e = e, .max_rows = max_rows, .size = size, .wrap = p.wrap};
+	make_image_node_parallel(size, edge_detect_node_sobel_rows, &sc);
 	f32 max_e = 0.0;
 	for (i32 y = 0; y < size; ++y) {
-		for (i32 x = 0; x < size; ++x) {
-			i32 xm = edge_detect_node_wrap_index(x - 1, size, p.wrap);
-			i32 xp = edge_detect_node_wrap_index(x + 1, size, p.wrap);
-			i32 ym = edge_detect_node_wrap_index(y - 1, size, p.wrap);
-			i32 yp = edge_detect_node_wrap_index(y + 1, size, p.wrap);
-#define ED_AT(px_, py_) pixels[((size_t)(py_) * size + (px_)) * 4]
-			f32 gx  = (ED_AT(xp, ym) + 2.0f * ED_AT(xp, y) + ED_AT(xp, yp)) - (ED_AT(xm, ym) + 2.0f * ED_AT(xm, y) + ED_AT(xm, yp));
-			f32 gy  = (ED_AT(xm, yp) + 2.0f * ED_AT(x, yp) + ED_AT(xp, yp)) - (ED_AT(xm, ym) + 2.0f * ED_AT(x, ym) + ED_AT(xp, ym));
-#undef ED_AT
-			f32 mag = sqrtf(gx * gx + gy * gy) * 0.25f;
-			e[(size_t)y * size + x] = mag;
-			max_e                   = mag > max_e ? mag : max_e;
-		}
+		max_e = max_rows[y] > max_e ? max_rows[y] : max_e;
 	}
+	free(max_rows);
 	f32 ramp = max_e - tol;
 	for (size_t i = 0; i < n; ++i) {
 		f32 v = e[i];
