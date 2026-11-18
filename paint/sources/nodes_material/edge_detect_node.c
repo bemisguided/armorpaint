@@ -20,9 +20,9 @@ enum {
 
 // Node button indices (settings)
 enum {
-	EDGE_DETECT_BUTTON_SIZE = 0,
-	EDGE_DETECT_BUTTON_MODE = 1,
-	EDGE_DETECT_BUTTON_WRAP = 2,
+	EDGE_DETECT_BUTTON_SIZE = 0, // Button 1 is the state row
+	EDGE_DETECT_BUTTON_MODE = 2,
+	EDGE_DETECT_BUTTON_WRAP = 3,
 };
 
 typedef struct edge_detect_params {
@@ -221,7 +221,7 @@ void edge_detect_node_init() {
 	                .type   = "TEX_EDGE_DETECT",
 	                .x      = 0,
 	                .y      = 0,
-	                .color  = NODES_MATERIAL_FILTER_COLOR,
+	                .color  = NODES_MATERIAL_IMAGE_COLOR,
 	                .inputs = any_array_create_from_raw(
 	                    (void *[]){
 	                        edge_detect_node_socket(_tr("Image"), "VALUE", NODES_MATERIAL_IMAGE_COLOR, f32_array_create_x(0.0), 1.0, 100),
@@ -237,9 +237,9 @@ void edge_detect_node_init() {
 	                .buttons = any_array_create_from_raw(
 	                    (void *[]){
 	                        edge_detect_node_setting(_tr("Size"), "ENUM", 1, "512\n1024\n2048\n4096"),
+	                        make_image_node_state_button(),
 	                        edge_detect_node_setting(_tr("Mode"), "ENUM", 0, "Gradient\nBoundary"),
 	                        edge_detect_node_setting(_tr("Wrap Edges"), "BOOL", 0, NULL),
-	                        make_image_node_state_button(),
 	                    },
 	                    4),
 	                .width = 0,
