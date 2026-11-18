@@ -25,7 +25,7 @@ enum {
 // Node button indices (settings)
 enum {
 	TILE_UV_BUTTON_SIZE   = 0,
-	TILE_UV_BUTTON_FILTER = 1,
+	TILE_UV_BUTTON_FILTER = 2, // The state row is button 1
 };
 
 static f32 tile_uv_node_button(ui_node_t *node, i32 i) {
@@ -162,8 +162,8 @@ void tile_uv_node_init() {
 	                .buttons = any_array_create_from_raw(
 	                    (void *[]){
 	                        tile_uv_node_setting(_tr("Size"), 1, "512\n1024\n2048\n4096"),
-	                        tile_uv_node_setting(_tr("Filter"), 1, "Linear\nCubic\nNearest"),
 	                        make_image_node_state_button(),
+	                        tile_uv_node_setting(_tr("Filter"), 1, "Linear\nCubic\nNearest"),
 	                    },
 	                    3),
 	                .width = 0,

@@ -895,7 +895,7 @@ static void make_image_node_state_row(i32 node_id) {
 	g_theme->TEXT_COL = _TEXT_COL;
 }
 
-// The state row button of an image node definition, placed after the settings
+// The state row button of an image node definition, placed right after the Size setting (Size first, then the state row, then the other settings)
 ui_node_button_t *make_image_node_state_button() {
 	return ALLOC_INIT(ui_node_button_t, {.name          = "make_image_node_state_row",
 	                                     .type          = "CUSTOM",
