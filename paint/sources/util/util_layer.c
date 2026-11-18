@@ -939,8 +939,8 @@ void layers_create_image_mask(asset_t *asset) {
 }
 
 void layers_create_image_layer(asset_t *asset) {
-	history_new_layer();
 	slot_layer_t *m = layers_new_layer(false, -1, NULL);
+	history_new_layer();
 	slot_layer_clear(m, 0x00000000, project_get_image(asset), 1.0, layers_default_rough, 0.0);
 	g_context->layer_preview_dirty = true;
 }

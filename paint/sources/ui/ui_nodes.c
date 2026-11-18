@@ -1255,6 +1255,13 @@ static void ui_nodes_place_dropped(ui_node_t *n, i32 position, i32_array_t *sele
 	i32_array_push(selected, n->id);
 }
 
+// The release that ends the drop lands on the first new node and must not be taken as a click selecting only that node
+static void ui_nodes_select_dropped(i32_array_t *selected) {
+	ui_nodes_t *nodes        = ui_nodes_get_nodes();
+	nodes->nodes_selected_id = selected;
+	nodes->dragged           = true;
+}
+
 // One image texture node per asset index
 void ui_nodes_accept_asset_drops(i32_array_t *indices) {
 	if (ui_nodes_canvas_type == CANVAS_TYPE_MESH && g_context->paint_object == NULL) {
@@ -1270,7 +1277,7 @@ void ui_nodes_accept_asset_drops(i32_array_t *indices) {
 		n->buttons->buffer[0]->default_value->buffer[0] = indices->buffer[i];
 		ui_nodes_place_dropped(n, i, selected);
 	}
-	ui_nodes_get_nodes()->nodes_selected_id = selected;
+	ui_nodes_select_dropped(selected);
 }
 
 void ui_nodes_accept_asset_drop(i32 index) {
@@ -1310,7 +1317,7 @@ void ui_nodes_accept_material_drops(i32_array_t *indices) {
 		n->buttons->buffer[0]->default_value->buffer[0] = indices->buffer[i];
 		ui_nodes_place_dropped(n, i, selected);
 	}
-	ui_nodes_get_nodes()->nodes_selected_id = selected;
+	ui_nodes_select_dropped(selected);
 }
 
 void ui_nodes_accept_material_drop(i32 index) {

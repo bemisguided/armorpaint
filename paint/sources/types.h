@@ -620,7 +620,8 @@ typedef struct history_step {
 	i32_array_t                 *merge_parents;
 	i32                          merge_start;
 	i32                          merge_length;
-	bool                         with_prev; // Undone and redone together with the previous step
+	i32                          undo_slots;      // Undo layers written for this step
+	bool                         with_prev;       // Undone and redone together with the previous step
 	i32                          asset_category;  // Rename or Edit Details: meta_category_t of the item, found again by history_asset_index
 	i32                          asset_index;     // Index of the item in its category list when the step was made
 	void                        *asset_ref;       // The item (asset_t, slot_font_t, slot_sound_t, mesh_object_t, slot_material_t, slot_brush_t) when the step was made
