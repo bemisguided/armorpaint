@@ -554,7 +554,7 @@ static void project_format_migrate_udim_names(any_map_t *old, project_t *project
 		array_delete(ids);
 		return;
 	}
-	i32_array_sort(ids, NULL);
+	i32_array_sort(ids, util_udim_compare_i32);
 	if (ids->length > 64) {
 		console_info(string("Project uses %d udim tiles, tiles past the 64th shared one atlas slot in older versions and start empty", ids->length));
 	}
