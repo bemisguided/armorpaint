@@ -527,6 +527,11 @@ Orthographic
 Out
 Overlay
 Pattern Mode
+By Map
+Color Map
+Pattern Map
+Rotation Map
+Scale Map
 Patterns
 PBR
 Pack Assets
