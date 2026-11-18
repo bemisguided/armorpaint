@@ -170,9 +170,9 @@ static u64 make_image_node_hash(u64 h, u8 *bytes, size_t n) {
 }
 
 // 64 bit FNV-1a over the captured pixels, the size and the processing parameters
-static u64 make_image_node_signature(u8 *pixels, i32 size, void *params, i32 params_size) {
+static u64 make_image_node_signature(u8 *pixels, i32 pixel_bytes, i32 size, void *params, i32 params_size) {
 	u64 h = 14695981039346656037ull;
-	h     = make_image_node_hash(h, pixels, (size_t)size * size * 4);
+	h     = make_image_node_hash(h, pixels, (size_t)size * size * pixel_bytes);
 	h     = make_image_node_hash(h, (u8 *)&size, sizeof(size));
 	return make_image_node_hash(h, params, params_size);
 }
@@ -312,7 +312,8 @@ static bool make_image_node_capture(make_image_node_state_t *s, char *id, ui_nod
 	make_image_node_capture_group   = group;
 	make_image_node_capture_parents = parents;
 	i32   size                      = t->size(node);
-	u8   *pixels                    = make_image_node_capture_pixels(node, t->capture, size, GPU_TEXTURE_FORMAT_RGBA32);
+	i32   pixel_bytes               = t->capture_float ? 16 : 4;
+	u8   *pixels                    = make_image_node_capture_pixels(node, t->capture, size, t->capture_float ? GPU_TEXTURE_FORMAT_RGBA128 : GPU_TEXTURE_FORMAT_RGBA32);
 	void *params                    = NULL;
 	if (pixels != NULL) {
 		params = calloc(1, t->params_size > 0 ? t->params_size : 1);
@@ -324,7 +325,7 @@ static bool make_image_node_capture(make_image_node_state_t *s, char *id, ui_nod
 	if (pixels == NULL) {
 		return false; // Shader error, keep what is baked
 	}
-	u64 sig = make_image_node_signature(pixels, size, params, t->params_size);
+	u64 sig = make_image_node_signature(pixels, pixel_bytes, size, params, t->params_size);
 
 	bool has_result = g_context->node_previews != NULL && any_map_get(g_context->node_previews, id) != NULL;
 	if (!force && has_result && s->has_baked && sig == s->baked_signature) {
