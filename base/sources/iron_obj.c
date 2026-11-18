@@ -175,7 +175,9 @@ static void next_line() {
 	}
 }
 
-static int get_tile(int i1, int i2, int i3, i32_array_t *uv_indices, int tiles_u) {
+#define OBJ_UDIM_MAX_TILES 10
+
+static int get_tile(int i1, int i2, int i3, i32_array_t *uv_indices, int tiles_u, int tiles_v) {
 	float u1     = uv_temp.buffer[uv_indices->buffer[i1] * 2];
 	float v1     = uv_temp.buffer[uv_indices->buffer[i1] * 2 + 1];
 	float u2     = uv_temp.buffer[uv_indices->buffer[i2] * 2];
@@ -184,6 +186,8 @@ static int get_tile(int i1, int i2, int i3, i32_array_t *uv_indices, int tiles_u
 	float v3     = uv_temp.buffer[uv_indices->buffer[i3] * 2 + 1];
 	int   tile_u = (int)((u1 + u2 + u3) / 3);
 	int   tile_v = (int)((v1 + v2 + v3) / 3);
+	tile_u       = tile_u < 0 ? 0 : tile_u >= tiles_u ? tiles_u - 1 : tile_u;
+	tile_v       = tile_v < 0 ? 0 : tile_v >= tiles_v ? tiles_v - 1 : tile_v;
 	return tile_u + tile_v * tiles_u;
 }
 
@@ -631,9 +635,9 @@ raw_mesh_t *obj_parse(buffer_t *file_bytes, char split_code, uint64_t start_pos,
 			int tiles_u = 1;
 			int tiles_v = 1;
 			for (int i = 0; i < (int)(uv_temp.length / 2); ++i) {
-				while (uv_temp.buffer[i * 2] > tiles_u)
+				while (uv_temp.buffer[i * 2] > tiles_u && tiles_u < OBJ_UDIM_MAX_TILES)
 					tiles_u++;
-				while (uv_temp.buffer[i * 2 + 1] > tiles_v)
+				while (uv_temp.buffer[i * 2 + 1] > tiles_v && tiles_v < OBJ_UDIM_MAX_TILES)
 					tiles_v++;
 			}
 
@@ -641,7 +645,7 @@ raw_mesh_t *obj_parse(buffer_t *file_bytes, char split_code, uint64_t start_pos,
 			uint32_t *num = (uint32_t *)malloc(tiles_u * tiles_v * sizeof(uint32_t));
 			memset(num, 0, tiles_u * tiles_v * sizeof(uint32_t));
 			for (int i = 0; i < (int)(inda_length / 3); ++i) {
-				int tile = get_tile(part->inda->buffer[i * 3], part->inda->buffer[i * 3 + 1], part->inda->buffer[i * 3 + 2], &uv_indices, tiles_u);
+				int tile = get_tile(part->inda->buffer[i * 3], part->inda->buffer[i * 3 + 1], part->inda->buffer[i * 3 + 2], &uv_indices, tiles_u, tiles_v);
 				num[tile] += 3;
 			}
 
@@ -658,7 +662,7 @@ raw_mesh_t *obj_parse(buffer_t *file_bytes, char split_code, uint64_t start_pos,
 				int          i1        = part->inda->buffer[i * 3];
 				int          i2        = part->inda->buffer[i * 3 + 1];
 				int          i3        = part->inda->buffer[i * 3 + 2];
-				int          tile      = get_tile(i1, i2, i3, &uv_indices, tiles_u);
+				int          tile      = get_tile(i1, i2, i3, &uv_indices, tiles_u, tiles_v);
 				u32_array_t *a         = part->udims->buffer[tile];
 				a->buffer[num[tile]++] = i1;
 				a->buffer[num[tile]++] = i2;
@@ -671,7 +675,7 @@ raw_mesh_t *obj_parse(buffer_t *file_bytes, char split_code, uint64_t start_pos,
 				int i1                                 = part->inda->buffer[i * 3];
 				int i2                                 = part->inda->buffer[i * 3 + 1];
 				int i3                                 = part->inda->buffer[i * 3 + 2];
-				int tile                               = get_tile(i1, i2, i3, &uv_indices, tiles_u);
+				int tile                               = get_tile(i1, i2, i3, &uv_indices, tiles_u, tiles_v);
 				int tile_u                             = tile % tiles_u;
 				int tile_v                             = (int)(tile / tiles_u);
 				uvtiles[uv_indices.buffer[i1] * 2]     = tile_u;
