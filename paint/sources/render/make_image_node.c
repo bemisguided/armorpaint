@@ -792,9 +792,41 @@ void make_image_node_bake_now(ui_node_t *node) {
 
 // Writes the fetch of the node's baked result at the float2 expression uv, once per variable. Repeating: the uv is wrapped
 // and snapped to the texel centre, so the one linear sampler never blends two texels. Black until the first bake.
-static void make_image_node_write_fetch(char *var, char *tex_name, char *uv, bool smooth) {
+static void make_image_node_write_fetch(char *var, char *tex_name, char *uv, i32 filter) {
 	parser_material_write(parser_material_kong, string_tmp("float2 %s_uv = %s;", var, uv));
-	if (smooth) {
+	if (filter == IMAGE_FILTER_CUBIC) {
+		// Cubic B-spline over 4 x 4 texel centres (wrapped, like the bilinear below). Chosen over Catmull-Rom: it is C2, so
+		// the slope of the result (ddx, ddy of a Bump node) has no jumps at texel borders, and it never overshoots, so no
+		// dark or bright halos at the steps of a mask. The price is a blur of about half a texel, below a screen pixel
+		// wherever the result is magnified, and 16 fetches per pixel.
+		parser_material_write(parser_material_kong, string_tmp("float2 %s_p = %s_uv * constants.%s_size - 0.5;", var, var, tex_name));
+		parser_material_write(parser_material_kong, string_tmp("float2 %s_f = floor(%s_p);", var, var));
+		parser_material_write(parser_material_kong, string_tmp("float2 %s_t = %s_p - %s_f;", var, var, var));
+		parser_material_write(parser_material_kong, string_tmp("float2 %s_t2 = %s_t * %s_t;", var, var, var));
+		parser_material_write(parser_material_kong, string_tmp("float2 %s_t3 = %s_t2 * %s_t;", var, var, var));
+		parser_material_write(parser_material_kong, string_tmp("float2 %s_w0 = (1.0 - %s_t) * (1.0 - %s_t) * (1.0 - %s_t) / 6.0;", var, var, var, var));
+		parser_material_write(parser_material_kong, string_tmp("float2 %s_w1 = (3.0 * %s_t3 - 6.0 * %s_t2 + 4.0) / 6.0;", var, var, var));
+		parser_material_write(parser_material_kong, string_tmp("float2 %s_w2 = (-3.0 * %s_t3 + 3.0 * %s_t2 + 3.0 * %s_t + 1.0) / 6.0;", var, var, var, var));
+		parser_material_write(parser_material_kong, string_tmp("float2 %s_w3 = %s_t3 / 6.0;", var, var));
+		for (i32 j = 0; j < 4; ++j) {
+			for (i32 i = 0; i < 4; ++i) {
+				parser_material_write(parser_material_kong, string_tmp("float2 %s_q%d%d = (%s_f + float2(%d.0, %d.0) + 0.5) / constants.%s_size;", var, j, i, var,
+				                                                       i - 1, j - 1, tex_name));
+				parser_material_write(parser_material_kong,
+				                      string_tmp("%s_q%d%d = (floor((%s_q%d%d - floor(%s_q%d%d)) * constants.%s_size) + 0.5) / constants.%s_size;", var, j, i, var, j,
+				                                 i, var, j, i, tex_name, tex_name));
+			}
+			parser_material_write(parser_material_kong,
+			                      string_tmp("float4 %s_r%d = sample_lod(%s, sampler_linear, %s_q%d0, 0.0) * %s_w0.x + sample_lod(%s, sampler_linear, %s_q%d1, 0.0) * %s_w1.x + "
+			                                 "sample_lod(%s, sampler_linear, %s_q%d2, 0.0) * %s_w2.x + sample_lod(%s, sampler_linear, %s_q%d3, 0.0) * %s_w3.x;",
+			                                 var, j, tex_name, var, j, var, tex_name, var, j, var, tex_name, var, j, var, tex_name, var, j, var));
+		}
+		parser_material_write(parser_material_kong,
+		                      string_tmp("float4 %s = %s_r0 * %s_w0.y + %s_r1 * %s_w1.y + %s_r2 * %s_w2.y + %s_r3 * %s_w3.y;", var, var, var, var, var, var, var,
+		                                 var, var));
+		return;
+	}
+	if (filter == IMAGE_FILTER_LINEAR) {
 		// Bilinear by hand: four fetches, each exactly at a texel centre of the wrapped position, so the linear sampler
 		// never blends two texels itself and the blend wraps at the border
 		parser_material_write(parser_material_kong, string_tmp("float2 %s_p = %s_uv * constants.%s_size - 0.5;", var, var, tex_name));
@@ -841,12 +873,13 @@ char *make_image_node_sample(ui_node_t *node) {
 	any_array_push(parser_material_parsed, var);
 
 	image_node_type_t *type   = make_image_node_type_of(node->type);
-	bool               smooth = type != NULL && type->smooth_sample;
+	// Smooth results are read cubic on the mesh; a capture (chained nodes, image space) reads 1:1 and stays bilinear
+	i32 filter = type != NULL && type->smooth_sample ? (parser_material_image_space ? IMAGE_FILTER_LINEAR : IMAGE_FILTER_CUBIC) : IMAGE_FILTER_NEAREST;
 	if (parser_material_triplanar && !parser_material_image_space) { // Like Image Texture: one fetch per projection, blended
 		node_shader_context_add_elem(parser_material_kong->context, "tex", "short2norm");
-		make_image_node_write_fetch(string_tmp("%s0", var), tex_name, "tex_coord", smooth);
-		make_image_node_write_fetch(string_tmp("%s1", var), tex_name, "tex_coord1", smooth);
-		make_image_node_write_fetch(string_tmp("%s2", var), tex_name, "tex_coord2", smooth);
+		make_image_node_write_fetch(string_tmp("%s0", var), tex_name, "tex_coord", filter);
+		make_image_node_write_fetch(string_tmp("%s1", var), tex_name, "tex_coord1", filter);
+		make_image_node_write_fetch(string_tmp("%s2", var), tex_name, "tex_coord2", filter);
 		parser_material_write(parser_material_kong,
 		                      string_tmp("float4 %s = %s0 * tex_coord_blend.x + %s1 * tex_coord_blend.y + %s2 * tex_coord_blend.z;", var, var, var, var));
 	}
@@ -854,14 +887,14 @@ char *make_image_node_sample(ui_node_t *node) {
 		if (!parser_material_image_space) {
 			node_shader_context_add_elem(parser_material_kong->context, "tex", "short2norm");
 		}
-		make_image_node_write_fetch(var, tex_name, "tex_coord", smooth);
+		make_image_node_write_fetch(var, tex_name, "tex_coord", filter);
 	}
 	return var;
 }
 
 // The fetch of the node's baked result at the float2 expression uv (repeating), once per node; returns the float4
-// variable. Used by Tile UV, which places its own result on the uv. smooth: bilinear, else the nearest texel.
-char *make_image_node_sample_at(ui_node_t *node, char *uv, bool smooth) {
+// variable. Used by Tile UV, which places its own result on the uv. filter: IMAGE_FILTER_NEAREST, _LINEAR or _CUBIC.
+char *make_image_node_sample_at(ui_node_t *node, char *uv, i32 filter) {
 	char *id  = make_material_node_preview_id(node, NULL);
 	char *var = string_tmp("%s_tile", parser_material_store_var_name(node));
 	char *tex_name = make_image_node_bind(node, id);
@@ -869,7 +902,7 @@ char *make_image_node_sample_at(ui_node_t *node, char *uv, bool smooth) {
 		return var;
 	}
 	any_array_push(parser_material_parsed, var);
-	make_image_node_write_fetch(var, tex_name, uv, smooth);
+	make_image_node_write_fetch(var, tex_name, uv, filter);
 	return var;
 }
 
