@@ -287,6 +287,156 @@ void asset_selection_select_all(asset_tray_t tray, i32_array_t *visible) {
 	ui_dock_redraw(TAB_AREA_SIDEBAR1);
 }
 
+// Marquee: dragging from empty tray space draws a rectangle and selects the items it touches. The trays register the cell of every
+// shown item while they draw (asset_selection_marquee_begin, _cell, then _end after the loop), so filtered items are never reached.
+// Replaces the selection (shift: adds, ctrl: toggles) and never changes the active item, which stays part of the selection.
+static any_array_t *asset_marquee_items  = NULL; // Items drawn this frame, in display order
+static f32_array_t *asset_marquee_cells  = NULL; // x, y, w, h of each in screen pixels
+static any_array_t *asset_marquee_base   = NULL; // Selection when the marquee started
+static asset_tray_t asset_marquee_tray   = ASSET_TRAY_NONE;
+static void        *asset_marquee_window = NULL; // Window the marquee started in (a tray can be shown in two windows)
+static bool         asset_marquee_active = false;
+static bool         asset_marquee_moved  = false;
+static f32          asset_marquee_x      = 0.0;
+static f32          asset_marquee_y      = 0.0;
+
+void asset_selection_marquee_begin(asset_tray_t tray) {
+	if (asset_marquee_items != NULL) {
+		array_delete(asset_marquee_items);
+		array_delete(asset_marquee_cells);
+	}
+	asset_marquee_items = any_array_create_from_raw((void *[]){}, 0);
+	asset_marquee_cells = f32_array_create_from_raw((f32[]){}, 0);
+}
+
+// Cell of an item, x and y relative to the tray window like the layout coordinates
+void asset_selection_marquee_cell(void *item, f32 x, f32 y, f32 w, f32 h) {
+	any_array_push(asset_marquee_items, item);
+	f32_array_push(asset_marquee_cells, g_ui->_window_x + x);
+	f32_array_push(asset_marquee_cells, g_ui->_window_y + y);
+	f32_array_push(asset_marquee_cells, w);
+	f32_array_push(asset_marquee_cells, h);
+}
+
+static bool asset_marquee_press_on_item(f32 px, f32 py) {
+	for (i32 i = 0; i < asset_marquee_items->length; ++i) {
+		f32 *c = &asset_marquee_cells->buffer[i * 4];
+		if (px >= c[0] && px < c[0] + c[2] && py >= c[1] && py < c[1] + c[3]) {
+			return true;
+		}
+	}
+	return false;
+}
+
+void asset_selection_marquee_end(asset_tray_t tray) {
+	if (asset_marquee_items == NULL) {
+		return;
+	}
+	if (asset_marquee_active && (asset_marquee_tray != tray || asset_marquee_window != g_ui->current_window)) {
+		return; // Another tray or window is being drawn
+	}
+
+	if (!asset_marquee_active) {
+		f32  px     = g_ui->input_started_x;
+		f32  py     = g_ui->input_started_y;
+		bool inside = px >= g_ui->_window_x && px < g_ui->_window_x + g_ui->_window_w - UI_SCROLL_W() && py >= g_ui->_window_y + g_ui->window_header_h &&
+		              py < g_ui->_window_y + g_ui->_window_h;
+		if (g_ui->input_started && g_ui->enabled && g_ui->input_enabled && !g_ui->is_typing && !base_is_dragging && inside &&
+		    !asset_marquee_press_on_item(px, py)) {
+			asset_marquee_active = true;
+			asset_marquee_moved  = false;
+			asset_marquee_tray   = tray;
+			asset_marquee_window = g_ui->current_window;
+			asset_marquee_x      = px;
+			asset_marquee_y      = py;
+			asset_marquee_base   = asset_selection_get(tray);
+		}
+		return;
+	}
+
+	if (!mouse_down("left")) {
+		asset_marquee_active = false;
+		return;
+	}
+
+	f32 mx = g_ui->input_x;
+	f32 my = g_ui->input_y;
+	if (!asset_marquee_moved && (math_abs(mx - asset_marquee_x) > 4 * UI_SCALE() || math_abs(my - asset_marquee_y) > 4 * UI_SCALE())) {
+		asset_marquee_moved = true;
+	}
+	if (!asset_marquee_moved) {
+		return;
+	}
+
+	f32 x0 = math_max(math_min(asset_marquee_x, mx), g_ui->_window_x);
+	f32 y0 = math_max(math_min(asset_marquee_y, my), g_ui->_window_y + g_ui->window_header_h);
+	f32 x1 = math_min(math_max(asset_marquee_x, mx), g_ui->_window_x + g_ui->_window_w);
+	f32 y1 = math_min(math_max(asset_marquee_y, my), g_ui->_window_y + g_ui->_window_h);
+
+	// Items touched by the rectangle
+	any_array_t *hit = any_array_create_from_raw((void *[]){}, 0);
+	for (i32 i = 0; i < asset_marquee_items->length; ++i) {
+		f32 *c = &asset_marquee_cells->buffer[i * 4];
+		if (c[0] < x1 && c[0] + c[2] > x0 && c[1] < y1 && c[1] + c[3] > y0) {
+			any_array_push(hit, asset_marquee_items->buffer[i]);
+		}
+	}
+
+	void        *active = asset_selection_active(tray);
+	any_array_t *items  = any_array_create_from_raw((void *[]){}, 0);
+	if (g_ui->is_shift_down) {
+		for (i32 i = 0; i < asset_marquee_base->length; ++i) {
+			any_array_push(items, asset_marquee_base->buffer[i]);
+		}
+		for (i32 i = 0; i < hit->length; ++i) {
+			if (array_index_of(items, hit->buffer[i]) == -1) {
+				any_array_push(items, hit->buffer[i]);
+			}
+		}
+	}
+	else if (g_ui->is_ctrl_down) {
+		for (i32 i = 0; i < asset_marquee_base->length; ++i) {
+			if (array_index_of(hit, asset_marquee_base->buffer[i]) == -1) {
+				any_array_push(items, asset_marquee_base->buffer[i]);
+			}
+		}
+		for (i32 i = 0; i < hit->length; ++i) {
+			if (array_index_of(asset_marquee_base, hit->buffer[i]) == -1) {
+				any_array_push(items, hit->buffer[i]);
+			}
+		}
+	}
+	else {
+		for (i32 i = 0; i < hit->length; ++i) {
+			any_array_push(items, hit->buffer[i]);
+		}
+	}
+	if (active != NULL && array_index_of(items, active) == -1) {
+		any_array_push(items, active);
+	}
+	array_delete(hit);
+
+	asset_selection_clear();
+	asset_selection_tray = tray;
+	for (i32 i = 0; i < items->length; ++i) {
+		any_array_push(asset_selection_items, items->buffer[i]);
+	}
+	array_delete(items);
+	asset_selection_anchor = active;
+	asset_selection_set_primary(active);
+
+	// The rectangle, in window coordinates
+	u32 c = g_theme->HIGHLIGHT_COL;
+	draw_set_color((c & 0x00ffffff) | 0x30000000);
+	draw_filled_rect(x0 - g_ui->_window_x, y0 - g_ui->_window_y, x1 - x0, y1 - y0);
+	draw_set_color((c & 0x00ffffff) | 0xb0000000);
+	draw_rect(x0 - g_ui->_window_x, y0 - g_ui->_window_y, x1 - x0, y1 - y0, 1.0);
+	draw_set_color(0xffffffff);
+	if (g_ui->current_window != NULL) {
+		g_ui->current_window->redraws = 2; // Follow the mouse
+	}
+}
+
 // Called every frame by the trays with a search field, a new search text collapses the selection
 void asset_selection_sync_filter(asset_tray_t tray, char *search) {
 	char *last = asset_selection_filters[tray];

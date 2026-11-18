@@ -162,6 +162,7 @@ void tab_sounds_draw(i32 *htab) {
 			}
 		}
 		asset_selection_select_all(ASSET_TRAY_SOUNDS, filtered);
+		asset_selection_marquee_begin(ASSET_TRAY_SOUNDS);
 
 		bool drag_pos_set = false;
 		f32  uix          = 0.0;
@@ -206,6 +207,7 @@ void tab_sounds_draw(i32 *htab) {
 
 				uix                       = g_ui->_x;
 				uiy                       = g_ui->_y;
+				asset_selection_marquee_cell(sound, uix, uiy, imgw_val, imgw_val);
 				gpu_texture_t *tile_icons = resource_get("icons.k");
 				i32            tile       = UI_SCALE() > 1 ? 100 : 50;
 				if (tile == 50 && a > 1) {
@@ -288,6 +290,8 @@ void tab_sounds_draw(i32 *htab) {
 			g_ui->_y = uiy;
 			ui_fill(imgw_val + 1, -2, 2, imgw_val + 4, g_theme->HIGHLIGHT_COL);
 		}
+
+		asset_selection_marquee_end(ASSET_TRAY_SOUNDS);
 
 		if (!drag_pos_set) {
 			tab_sounds_drag_pos = -1;

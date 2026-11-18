@@ -163,6 +163,7 @@ void tab_brushes_draw(i32 *htab) {
 			}
 		}
 		asset_selection_select_all(ASSET_TRAY_BRUSHES, filtered);
+		asset_selection_marquee_begin(ASSET_TRAY_BRUSHES);
 
 		bool drag_pos_set = false;
 		f32  uix          = 0.0;
@@ -207,6 +208,7 @@ void tab_brushes_draw(i32 *htab) {
 
 				uix      = g_ui->_x;
 				uiy      = g_ui->_y;
+				asset_selection_marquee_cell(brush, uix, uiy, imgw_val, imgw_val);
 				i32 tile = UI_SCALE() > 1 ? 100 : 50;
 
 				if (base_drag_brush != NULL && tab_brushes_drag_pos == i) {
@@ -283,6 +285,8 @@ void tab_brushes_draw(i32 *htab) {
 			g_ui->_y = uiy;
 			ui_fill(imgw_val + 1, -2, 2, imgw_val + 4, g_theme->HIGHLIGHT_COL);
 		}
+
+		asset_selection_marquee_end(ASSET_TRAY_BRUSHES);
 
 		if (!drag_pos_set) {
 			tab_brushes_drag_pos = -1;
