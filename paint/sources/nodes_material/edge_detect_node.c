@@ -1,6 +1,6 @@
 #include "../global.h"
 
-// Edge Detect (Image menu): edges of the Image input. An image node (render/make_image_node.c): the Image input is
+// Edge Detect (Filter menu): edges of the Image input. An image node (render/make_image_node.c): the Image input is
 // evaluated in image space (grey in R, G and B, 32 bit float so smooth inputs do not band) and the edge image is computed on the cpu into one RGBA128 texture
 // per node, R = Image (the edge mask). The texture is sampled like an Image Texture at tex_coord, repeating (Tile UV places it on the uv).
 //
@@ -32,14 +32,9 @@ typedef struct edge_detect_params {
 	f32 tolerance;
 } edge_detect_params_t;
 
-static f32 edge_detect_node_button(ui_node_t *node, i32 i) {
-	return node->buttons->buffer[i]->default_value->buffer[0];
-}
-
 // Width and height of the image: Size 512, 1024, 2048 or 4096
 static i32 edge_detect_node_size(ui_node_t *node) {
-	i32 i = (i32)edge_detect_node_button(node, EDGE_DETECT_BUTTON_SIZE);
-	return 512 << (i < 0 ? 0 : i > 3 ? 3 : i);
+	return make_image_node_size(node, EDGE_DETECT_BUTTON_SIZE);
 }
 
 // Captured per pixel: the Image input as grey
@@ -52,8 +47,8 @@ static char *edge_detect_node_capture(ui_node_t *node) {
 
 static void edge_detect_node_params(ui_node_t *node, void *params) {
 	edge_detect_params_t *p = params;
-	p->boundary             = edge_detect_node_button(node, EDGE_DETECT_BUTTON_MODE) != 0.0;
-	p->wrap                 = edge_detect_node_button(node, EDGE_DETECT_BUTTON_WRAP) != 0.0;
+	p->boundary             = make_image_node_button(node, EDGE_DETECT_BUTTON_MODE) != 0.0;
+	p->wrap                 = make_image_node_button(node, EDGE_DETECT_BUTTON_WRAP) != 0.0;
 	p->edge_width           = make_image_node_input_value(node, EDGE_DETECT_INPUT_EDGE_WIDTH);
 	p->tolerance            = make_image_node_input_value(node, EDGE_DETECT_INPUT_TOLERANCE);
 }
@@ -232,31 +227,6 @@ char *edge_detect_node_vector(ui_node_t *node, ui_node_socket_t *socket) {
 	return parser_material_to_vec3(edge_detect_node_value(node, socket));
 }
 
-static ui_node_socket_t *edge_detect_node_socket(char *name, char *type, u32 color, f32_array_t *default_value, f32 max, f32 precision) {
-	return ALLOC_INIT(ui_node_socket_t, {.id            = 0,
-	                                     .node_id       = 0,
-	                                     .name          = name,
-	                                     .type          = type,
-	                                     .color         = color,
-	                                     .default_value = default_value,
-	                                     .min           = 0.0,
-	                                     .max           = max,
-	                                     .precision     = precision,
-	                                     .display       = 0});
-}
-
-static ui_node_button_t *edge_detect_node_setting(char *name, char *type, f32 default_value, char *data) {
-	return ALLOC_INIT(ui_node_button_t, {.name          = name,
-	                                     .type          = type,
-	                                     .output        = -1,
-	                                     .default_value = f32_array_create_x(default_value),
-	                                     .data          = data != NULL ? u8_array_create_from_string(data) : NULL,
-	                                     .min           = 0.0,
-	                                     .max           = 1.0,
-	                                     .precision     = 100,
-	                                     .height        = 0});
-}
-
 void edge_detect_node_init() {
 	u32 value_color  = 0xffa1a1a1;
 
@@ -270,22 +240,22 @@ void edge_detect_node_init() {
 	                .color  = NODES_MATERIAL_IMAGE_COLOR,
 	                .inputs = any_array_create_from_raw(
 	                    (void *[]){
-	                        edge_detect_node_socket(_tr("Image"), "VALUE", NODES_MATERIAL_IMAGE_COLOR, f32_array_create_x(1.0), 1.0, 100),
-	                        edge_detect_node_socket(_tr("Edge Width"), "VALUE", value_color, f32_array_create_x(0.005), 0.1, 1000),
-	                        edge_detect_node_socket(_tr("Tolerance"), "VALUE", value_color, f32_array_create_x(0.0), 1.0, 100),
+	                        make_image_node_socket(_tr("Image"), "VALUE", NODES_MATERIAL_IMAGE_COLOR, f32_array_create_x(1.0), 0.0, 1.0, 100),
+	                        make_image_node_socket(_tr("Edge Width"), "VALUE", value_color, f32_array_create_x(0.005), 0.0, 0.1, 1000),
+	                        make_image_node_socket(_tr("Tolerance"), "VALUE", value_color, f32_array_create_x(0.0), 0.0, 1.0, 100),
 	                    },
 	                    3),
 	                .outputs = any_array_create_from_raw(
 	                    (void *[]){
-	                        edge_detect_node_socket(_tr("Image"), "VALUE", NODES_MATERIAL_IMAGE_COLOR, f32_array_create_x(0.0), 1.0, 100),
+	                        make_image_node_socket(_tr("Image"), "VALUE", NODES_MATERIAL_IMAGE_COLOR, f32_array_create_x(0.0), 0.0, 1.0, 100),
 	                    },
 	                    1),
 	                .buttons = any_array_create_from_raw(
 	                    (void *[]){
-	                        edge_detect_node_setting(_tr("Size"), "ENUM", 1, "512\n1024\n2048\n4096"),
+	                        make_image_node_setting(_tr("Size"), "ENUM", 1, MAKE_IMAGE_NODE_SIZE_ITEMS),
 	                        make_image_node_state_button(),
-	                        edge_detect_node_setting(_tr("Mode"), "ENUM", 0, "Gradient\nBoundary"),
-	                        edge_detect_node_setting(_tr("Wrap Edges"), "BOOL", 0, NULL),
+	                        make_image_node_setting(_tr("Mode"), "ENUM", 0, "Gradient\nBoundary"),
+	                        make_image_node_setting(_tr("Wrap Edges"), "BOOL", 0, NULL),
 	                    },
 	                    4),
 	                .width = 0,

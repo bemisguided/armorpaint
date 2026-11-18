@@ -1,13 +1,10 @@
 #include "../global.h"
 
-// Tile UV (Image menu): places an image on the uv, repeating. Image nodes work in image space and have no Vector
+// Tile UV (Pattern menu): places an image on the uv, repeating. Image nodes work in image space and have no Vector
 // input; this node goes at the end of the chain and decides where the final image lands on the mesh: Vector (unlinked:
 // the uv) is scaled, rotated and offset like a Mapping node and the Image is read there, wrapped, so Scale 4 repeats it
 // 4 x 4 times. It is an image node itself (render/make_image_node.c): its Image input is evaluated in image space,
 // baked at Size (32 bit float so colour and smooth gradients keep their precision) and sampled at the placed uv.
-// Chosen over evaluating the Image graph at the placed uv in the material shader: whatever sits between the image
-// nodes and Tile UV (Math, Mix, ...) then stays a plain image space graph, nothing is evaluated twice at a
-// different coordinate, and chained image nodes keep reading each other 1:1.
 // Filter: Linear reads bilinear, Cubic (default) a cubic B-spline whose slope is continuous (a Bump node on the result
 // shows no texel dashes), Nearest the nearest texel (ids, islands, anything that must not blend).
 
@@ -28,14 +25,9 @@ enum {
 	TILE_UV_BUTTON_FILTER = 2, // The state row is button 1
 };
 
-static f32 tile_uv_node_button(ui_node_t *node, i32 i) {
-	return node->buttons->buffer[i]->default_value->buffer[0];
-}
-
 // Width and height of the baked image: Size 512, 1024, 2048 or 4096
 static i32 tile_uv_node_size(ui_node_t *node) {
-	i32 i = (i32)tile_uv_node_button(node, TILE_UV_BUTTON_SIZE);
-	return 512 << (i < 0 ? 0 : i > 3 ? 3 : i);
+	return make_image_node_size(node, TILE_UV_BUTTON_SIZE);
 }
 
 // Captured per pixel: the Image input
@@ -94,7 +86,7 @@ static char *tile_uv_node_sample(ui_node_t *node) {
 		                      string_tmp("%s = float2(%s.x * cos(%s) - %s.y * sin(%s), %s.x * sin(%s) + %s.y * cos(%s));", p, p, a, p, a, p, a, p, a));
 		parser_material_write(parser_material_kong, string_tmp("%s = %s + float2(%s, %s);", p, p, ox, oy));
 	}
-	i32 setting = (i32)tile_uv_node_button(node, TILE_UV_BUTTON_FILTER); // 0 Linear, 1 Cubic, 2 Nearest
+	i32 setting = (i32)make_image_node_button(node, TILE_UV_BUTTON_FILTER); // 0 Linear, 1 Cubic, 2 Nearest
 	i32 filter  = setting == 0 ? IMAGE_FILTER_LINEAR : setting == 1 ? IMAGE_FILTER_CUBIC : IMAGE_FILTER_NEAREST;
 	return make_image_node_sample_at(node, p, filter);
 }
@@ -105,31 +97,6 @@ char *tile_uv_node_vector(ui_node_t *node, ui_node_socket_t *socket) {
 
 char *tile_uv_node_value(ui_node_t *node, ui_node_socket_t *socket) {
 	return string_tmp("%s.r", tile_uv_node_sample(node));
-}
-
-static ui_node_socket_t *tile_uv_node_socket(char *name, char *type, u32 color, f32_array_t *default_value, f32 min, f32 max, f32 precision) {
-	return ALLOC_INIT(ui_node_socket_t, {.id            = 0,
-	                                     .node_id       = 0,
-	                                     .name          = name,
-	                                     .type          = type,
-	                                     .color         = color,
-	                                     .default_value = default_value,
-	                                     .min           = min,
-	                                     .max           = max,
-	                                     .precision     = precision,
-	                                     .display       = 0});
-}
-
-static ui_node_button_t *tile_uv_node_setting(char *name, f32 default_value, char *data) {
-	return ALLOC_INIT(ui_node_button_t, {.name          = name,
-	                                     .type          = "ENUM",
-	                                     .output        = -1,
-	                                     .default_value = f32_array_create_x(default_value),
-	                                     .data          = u8_array_create_from_string(data),
-	                                     .min           = 0.0,
-	                                     .max           = 1.0,
-	                                     .precision     = 100,
-	                                     .height        = 0});
 }
 
 void tile_uv_node_init() {
@@ -146,25 +113,25 @@ void tile_uv_node_init() {
 	                .color  = NODES_MATERIAL_IMAGE_COLOR,
 	                .inputs = any_array_create_from_raw(
 	                    (void *[]){
-	                        tile_uv_node_socket(_tr("Image"), "RGBA", NODES_MATERIAL_IMAGE_COLOR, f32_array_create_xyzw(1.0, 1.0, 1.0, 1.0), 0.0, 1.0, 100),
-	                        tile_uv_node_socket(_tr("Scale X"), "VALUE", value_color, f32_array_create_x(1.0), 0.0, 32.0, 100),
-	                        tile_uv_node_socket(_tr("Scale Y"), "VALUE", value_color, f32_array_create_x(1.0), 0.0, 32.0, 100),
-	                        tile_uv_node_socket(_tr("Rotation"), "VALUE", value_color, f32_array_create_x(0.0), -180.0, 180.0, 10),
-	                        tile_uv_node_socket(_tr("Offset X"), "VALUE", value_color, f32_array_create_x(0.0), -1.0, 1.0, 100),
-	                        tile_uv_node_socket(_tr("Offset Y"), "VALUE", value_color, f32_array_create_x(0.0), -1.0, 1.0, 100),
-	                        tile_uv_node_socket(_tr("Vector"), "VECTOR", vector_color, f32_array_create_xyz(0.0, 0.0, 0.0), 0.0, 1.0, 100),
+	                        make_image_node_socket(_tr("Image"), "RGBA", NODES_MATERIAL_IMAGE_COLOR, f32_array_create_xyzw(1.0, 1.0, 1.0, 1.0), 0.0, 1.0, 100),
+	                        make_image_node_socket(_tr("Scale X"), "VALUE", value_color, f32_array_create_x(1.0), 0.0, 32.0, 100),
+	                        make_image_node_socket(_tr("Scale Y"), "VALUE", value_color, f32_array_create_x(1.0), 0.0, 32.0, 100),
+	                        make_image_node_socket(_tr("Rotation"), "VALUE", value_color, f32_array_create_x(0.0), -180.0, 180.0, 10),
+	                        make_image_node_socket(_tr("Offset X"), "VALUE", value_color, f32_array_create_x(0.0), -1.0, 1.0, 100),
+	                        make_image_node_socket(_tr("Offset Y"), "VALUE", value_color, f32_array_create_x(0.0), -1.0, 1.0, 100),
+	                        make_image_node_socket(_tr("Vector"), "VECTOR", vector_color, f32_array_create_xyz(0.0, 0.0, 0.0), 0.0, 1.0, 100),
 	                    },
 	                    7),
 	                .outputs = any_array_create_from_raw(
 	                    (void *[]){
-	                        tile_uv_node_socket(_tr("Image"), "RGBA", NODES_MATERIAL_IMAGE_COLOR, f32_array_create_xyzw(0.0, 0.0, 0.0, 1.0), 0.0, 1.0, 100),
+	                        make_image_node_socket(_tr("Image"), "RGBA", NODES_MATERIAL_IMAGE_COLOR, f32_array_create_xyzw(0.0, 0.0, 0.0, 1.0), 0.0, 1.0, 100),
 	                    },
 	                    1),
 	                .buttons = any_array_create_from_raw(
 	                    (void *[]){
-	                        tile_uv_node_setting(_tr("Size"), 1, "512\n1024\n2048\n4096"),
+	                        make_image_node_setting(_tr("Size"), "ENUM", 1, MAKE_IMAGE_NODE_SIZE_ITEMS),
 	                        make_image_node_state_button(),
-	                        tile_uv_node_setting(_tr("Filter"), 1, "Linear\nCubic\nNearest"),
+	                        make_image_node_setting(_tr("Filter"), "ENUM", 1, "Linear\nCubic\nNearest"),
 	                    },
 	                    3),
 	                .width = 0,

@@ -936,6 +936,59 @@ static void make_image_node_state_row(i32 node_id) {
 	g_theme->TEXT_COL = _TEXT_COL;
 }
 
+// Value of a setting of the node (the default value of button i)
+f32 make_image_node_button(ui_node_t *node, i32 i) {
+	return node->buttons->buffer[i]->default_value->buffer[0];
+}
+
+// Width and height of the image: the Size setting (button) 512, 1024, 2048 or 4096
+i32 make_image_node_size(ui_node_t *node, i32 button) {
+	i32 i = (i32)make_image_node_button(node, button);
+	return 512 << (i < 0 ? 0 : i > 3 ? 3 : i);
+}
+
+// Socket of an image node definition
+ui_node_socket_t *make_image_node_socket(char *name, char *type, u32 color, f32_array_t *default_value, f32 min, f32 max, f32 precision) {
+	return ALLOC_INIT(ui_node_socket_t, {.id            = 0,
+	                                     .node_id       = 0,
+	                                     .name          = name,
+	                                     .type          = type,
+	                                     .color         = color,
+	                                     .default_value = default_value,
+	                                     .min           = min,
+	                                     .max           = max,
+	                                     .precision     = precision,
+	                                     .display       = 0});
+}
+
+// Setting (button) of an image node definition, data holds the items of an ENUM
+ui_node_button_t *make_image_node_setting(char *name, char *type, f32 default_value, char *data) {
+	return ALLOC_INIT(ui_node_button_t, {.name          = name,
+	                                     .type          = type,
+	                                     .output        = -1,
+	                                     .default_value = f32_array_create_x(default_value),
+	                                     .data          = data != NULL ? u8_array_create_from_string(data) : NULL,
+	                                     .min           = 0.0,
+	                                     .max           = 1.0,
+	                                     .precision     = 100,
+	                                     .height        = 0});
+}
+
+// Bilinear sample of a single channel size x size image at pixel position (x, y), wrapping
+f32 make_image_node_sample_bilinear(f32 *img, i32 size, f32 x, f32 y) {
+	f32 fx = floorf(x);
+	f32 fy = floorf(y);
+	f32 tx = x - fx;
+	f32 ty = y - fy;
+	i32 x0 = ((i32)fx % size + size) % size;
+	i32 y0 = ((i32)fy % size + size) % size;
+	i32 x1 = (x0 + 1) % size;
+	i32 y1 = (y0 + 1) % size;
+	f32 a  = img[(size_t)y0 * size + x0] * (1.0f - tx) + img[(size_t)y0 * size + x1] * tx;
+	f32 b  = img[(size_t)y1 * size + x0] * (1.0f - tx) + img[(size_t)y1 * size + x1] * tx;
+	return a * (1.0f - ty) + b * ty;
+}
+
 // The state row button of an image node definition, placed right after the Size setting (Size first, then the state row, then the other settings)
 ui_node_button_t *make_image_node_state_button() {
 	return ALLOC_INIT(ui_node_button_t, {.name          = "make_image_node_state_row",
