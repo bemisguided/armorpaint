@@ -3,7 +3,7 @@
 // Advanced Blur (Image menu): blurs the Image input. An image node (render/make_image_node.c): Image and Mask are
 // evaluated in image space and captured in 32 bit float (R and B = Image, G = Mask, so a red/blue swap on readback
 // does not matter), the blur is computed on the cpu into one RGBA64 texture per node, R = the blurred image.
-// The texture is sampled like an Image Texture: at the Vector input or tex_coord, repeating. The image repeats, so
+// The texture is sampled like an Image Texture at tex_coord, repeating (Tile UV places it on the uv). The image repeats, so
 // the blur wraps around the edges.
 //
 // Modes: Gaussian and Box blur along the Angle direction by Radius times Aspect and then across it by Radius
@@ -21,7 +21,6 @@ enum {
 	ADVANCED_BLUR_INPUT_ANGLE  = 2,
 	ADVANCED_BLUR_INPUT_ASPECT = 3,
 	ADVANCED_BLUR_INPUT_MASK   = 4,
-	ADVANCED_BLUR_INPUT_VECTOR = 5,
 };
 
 // Node button indices (settings)
@@ -171,7 +170,7 @@ static image_node_type_t advanced_blur_node_image_type = {
 };
 
 char *advanced_blur_node_value(ui_node_t *node, ui_node_socket_t *socket) {
-	return string_tmp("%s.r", make_image_node_sample(node, ADVANCED_BLUR_INPUT_VECTOR));
+	return string_tmp("%s.r", make_image_node_sample(node));
 }
 
 char *advanced_blur_node_vector(ui_node_t *node, ui_node_socket_t *socket) {
@@ -205,7 +204,6 @@ static ui_node_button_t *advanced_blur_node_setting(char *name, char *type, f32 
 
 void advanced_blur_node_init() {
 	u32 value_color  = 0xffa1a1a1;
-	u32 vector_color = 0xff6363c7;
 
 	ui_node_t *advanced_blur_node_def =
 	    ALLOC_INIT(ui_node_t, {.id     = 0,
@@ -221,9 +219,8 @@ void advanced_blur_node_init() {
 	                                   advanced_blur_node_socket(_tr("Angle"), "VALUE", value_color, f32_array_create_x(0.0), 360.0, 10),
 	                                   advanced_blur_node_socket(_tr("Aspect"), "VALUE", value_color, f32_array_create_x(1.0), 10.0, 100),
 	                                   advanced_blur_node_socket(_tr("Mask"), "VALUE", value_color, f32_array_create_x(1.0), 1.0, 100),
-	                                   advanced_blur_node_socket(_tr("Vector"), "VECTOR", vector_color, f32_array_create_xyz(0.0, 0.0, 0.0), 1.0, 100),
 	                               },
-	                               6),
+	                               5),
 	                           .outputs = any_array_create_from_raw(
 	                               (void *[]){
 	                                   advanced_blur_node_socket(_tr("Image"), "VALUE", NODES_MATERIAL_IMAGE_COLOR, f32_array_create_x(0.0), 1.0, 100),

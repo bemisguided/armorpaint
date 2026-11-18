@@ -501,6 +501,8 @@ Informace o objektu
 Normála objektu
 Okluze
 Posun
+
+
 Stará barva
 Krytí
 Režim krytí
@@ -641,6 +643,7 @@ Ukládání projektu
 Pila
 Měřítko
 Měřítko X
+
 Obrazovka
 Skript
 Skriptové uzly
@@ -750,6 +753,7 @@ Dlaždice Y
 Dlaždicový
 Dlaždic X
 Dlaždic Y
+
 Dlaždicová mapa
 Animace dlaždicové mapy
 Čas

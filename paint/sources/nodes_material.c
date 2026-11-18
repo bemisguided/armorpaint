@@ -41,6 +41,7 @@ void nodes_material_init() {
 
 	nodes_material_image = any_array_create_from_raw((void *[]){}, 0); // Image nodes (make_image_node.c) add themselves
 	advanced_blur_node_init();
+	tile_uv_node_init();
 
 	nodes_material_color = any_array_create_from_raw((void *[]){}, 0);
 	blur_node_init();
