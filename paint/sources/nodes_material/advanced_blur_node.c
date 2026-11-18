@@ -26,8 +26,8 @@ enum {
 
 // Node button indices (settings)
 enum {
-	ADVANCED_BLUR_BUTTON_SIZE = 0,
-	ADVANCED_BLUR_BUTTON_MODE = 1,
+	ADVANCED_BLUR_BUTTON_SIZE = 0, // Button 1 is the state row
+	ADVANCED_BLUR_BUTTON_MODE = 2,
 };
 
 enum {
@@ -276,7 +276,7 @@ void advanced_blur_node_init() {
 	                           .type   = "TEX_ADVANCED_BLUR",
 	                           .x      = 0,
 	                           .y      = 0,
-	                           .color  = NODES_MATERIAL_FILTER_COLOR,
+	                           .color  = NODES_MATERIAL_IMAGE_COLOR,
 	                           .inputs = any_array_create_from_raw(
 	                               (void *[]){
 	                                   advanced_blur_node_socket(_tr("Image"), "VALUE", NODES_MATERIAL_IMAGE_COLOR, f32_array_create_x(0.0), 1.0, 100),
@@ -294,8 +294,8 @@ void advanced_blur_node_init() {
 	                           .buttons = any_array_create_from_raw(
 	                               (void *[]){
 	                                   advanced_blur_node_setting(_tr("Size"), "ENUM", 1, "512\n1024\n2048\n4096"),
-	                                   advanced_blur_node_setting(_tr("Mode"), "ENUM", 0, "Gaussian\nBox\nDirectional"),
 	                                   make_image_node_state_button(),
+	                                   advanced_blur_node_setting(_tr("Mode"), "ENUM", 0, "Gaussian\nBox\nDirectional"),
 	                               },
 	                               3),
 	                           .width = 0,
