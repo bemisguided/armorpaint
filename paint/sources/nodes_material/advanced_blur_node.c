@@ -161,23 +161,42 @@ static f32 advanced_blur_node_gauss(f32 *src, i32 size, i32 x, i32 y, f32 dx, f3
 	return sum / wsum;
 }
 
+typedef struct advanced_blur_stage_ctx {
+	f32 *src;
+	f32 *dst;
+	f32 *px;
+	i32  size;
+	f32  dx;
+	f32  dy;
+	f32  radius;
+	bool gaussian;
+	i32  stage;
+} advanced_blur_stage_ctx_t;
+
+// Rows [begin, end) of one stage of the blur
+static void advanced_blur_node_stage_rows(void *param, i32 begin, i32 end) {
+	advanced_blur_stage_ctx_t *c = param;
+	for (i32 y = begin; y < end; ++y) {
+		for (i32 x = 0; x < c->size; ++x) {
+			size_t i = (size_t)y * c->size + x;
+			f32    m = c->px[i * 4 + 1];
+			f32    r = c->radius * (m < 0.0f ? 0.0f : m);
+			c->dst[i] = c->gaussian ? advanced_blur_node_gauss(c->src, c->size, x, y, c->dx, c->dy, r, c->stage)
+			                        : advanced_blur_node_box(c->src, c->size, x, y, c->dx, c->dy, 2.0f * r, c->stage);
+		}
+	}
+}
+
 // One blur along (dx, dy) of radius pixels * the mask of each pixel (G of px), gaussian or box (box width 2 * radius), from
-// *cur into *cur again (the buffers are swapped between the stages)
+// *cur into *cur again (the buffers are swapped between the stages); every stage runs its rows on all hardware threads
 static void advanced_blur_node_run(f32 **cur, f32 **nxt, f32 *px, i32 size, f32 dx, f32 dy, f32 radius, bool gaussian) {
 	i32 stages = gaussian ? 7 : 2;
 	for (i32 st = 0; st < stages; ++st) {
+		advanced_blur_stage_ctx_t c = {.src = *cur, .dst = *nxt, .px = px, .size = size, .dx = dx, .dy = dy, .radius = radius, .gaussian = gaussian, .stage = st};
+		make_image_node_parallel(size, advanced_blur_node_stage_rows, &c);
 		f32 *src = *cur;
-		f32 *dst = *nxt;
-		for (i32 y = 0; y < size; ++y) {
-			for (i32 x = 0; x < size; ++x) {
-				size_t i = (size_t)y * size + x;
-				f32    m = px[i * 4 + 1];
-				f32    r = radius * (m < 0.0f ? 0.0f : m);
-				dst[i]   = gaussian ? advanced_blur_node_gauss(src, size, x, y, dx, dy, r, st) : advanced_blur_node_box(src, size, x, y, dx, dy, 2.0f * r, st);
-			}
-		}
-		*cur = dst;
-		*nxt = src;
+		*cur     = *nxt;
+		*nxt     = src;
 	}
 }
 
