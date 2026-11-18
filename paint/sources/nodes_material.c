@@ -1,6 +1,13 @@
 
 #include "global.h"
 
+// Orders the node lists of the Pattern and Filter menus by displayed name, whatever order the nodes registered in
+static int nodes_material_compare_names(const void *a, const void *b) {
+	ui_node_t *x = *(ui_node_t **)a;
+	ui_node_t *y = *(ui_node_t **)b;
+	return strcmp(tr(x->name), tr(y->name));
+}
+
 void nodes_material_init() {
 	if (nodes_material_list != NULL) {
 		return;
@@ -48,6 +55,9 @@ void nodes_material_init() {
 	advanced_blur_node_init();
 	tile_uv_node_init();
 	seamless_node_init();
+
+	array_sort(nodes_material_pattern, nodes_material_compare_names);
+	array_sort(nodes_material_filter, nodes_material_compare_names);
 
 	nodes_material_color = any_array_create_from_raw((void *[]){}, 0);
 	blur_node_init();
