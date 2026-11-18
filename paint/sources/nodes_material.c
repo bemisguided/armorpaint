@@ -45,6 +45,8 @@ void nodes_material_init() {
 	edge_detect_node_init();
 	tile_generator_node_init();
 	advanced_blur_node_init();
+	nodes_material_pattern = any_array_create_from_raw((void *[]){}, 0); // Image nodes that make a pattern (make_image_node.c): they add themselves
+	nodes_material_filter  = any_array_create_from_raw((void *[]){}, 0); // Image nodes that filter an image
 	tile_uv_node_init();
 
 	nodes_material_color = any_array_create_from_raw((void *[]){}, 0);
@@ -102,13 +104,14 @@ void nodes_material_init() {
 	    (void *[]){
 	        nodes_material_input,
 	        nodes_material_texture,
-	        nodes_material_image,
+	        nodes_material_pattern,
+	        nodes_material_filter,
 	        nodes_material_color,
 	        nodes_material_utilities,
 	        nodes_material_neural,
 	        nodes_material_group,
 	    },
-	    7);
+	    8);
 
 #else
 
@@ -116,12 +119,13 @@ void nodes_material_init() {
 	    (void *[]){
 	        nodes_material_input,
 	        nodes_material_texture,
-	        nodes_material_image,
+	        nodes_material_pattern,
+	        nodes_material_filter,
 	        nodes_material_color,
 	        nodes_material_utilities,
 	        nodes_material_group,
 	    },
-	    6);
+	    7);
 
 #endif
 }
