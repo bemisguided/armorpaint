@@ -329,6 +329,7 @@ static void export_texture_run_layers(char *path, slot_layer_t_array_t *layers, 
 			for (i32 i = 0; i < l1masks->length; ++i) {
 				layers_merge_layer(l1, l1masks->buffer[i], false);
 			}
+			free(l1);
 			mask = pipes_temp_mask_image;
 		}
 

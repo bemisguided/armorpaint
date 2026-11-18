@@ -1345,6 +1345,7 @@ slot_layer_t *layers_flatten(bool height_to_normal, slot_layer_t_array_t *layers
 			for (i32 i = 0; i < l1masks->length; ++i) {
 				layers_merge_layer(l1, layers_move_preview(l1masks->buffer[i]), false);
 			}
+			free(l1);
 			mask = pipes_temp_mask_image;
 		}
 
