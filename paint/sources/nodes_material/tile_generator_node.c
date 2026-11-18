@@ -6,6 +6,9 @@
 // into one RGBA64 texture per node:
 // R = Image (the composed pattern grey), G = Position x, B = Position y (the uv inside the tile),
 // A = ID (a random grey per tile, floored to 1/1024 so that Mask = A > 0).
+// Per tile maps (Mask, Scale Map, Rotation Map, Color Map, Pattern Map): images in image space read once per tile at the
+// centre of its grid cell, so they are captured at a small fixed size (TILE_GENERATOR_MAP_SIZE, two captures: the maps
+// are packed R = B = first, G = second, A = third, which survives a red/blue swap of the readback) and read bilinear.
 // Tiles are drawn in row order, a later tile covers an earlier one where they overlap (Scale above 1, jitter), and
 // nothing is clipped to the cell. The image wraps, so a tile leaving one side comes back on the other and the result
 // repeats seamlessly. The texture is sampled like an Image Texture at tex_coord, repeating (Tile UV places it on the uv).
@@ -13,19 +16,25 @@
 #define TILE_GENERATOR_ID_FLOOR  1024.0
 #define TILE_GENERATOR_MAX_TILES 64
 #define TILE_GENERATOR_MAX_PATTERNS 4
+#define TILE_GENERATOR_MAP_SIZE     64
 
 // Input socket indices
 enum {
 	TILE_GENERATOR_INPUT_IMAGE             = 0, // Image 2 to 4 follow
-	TILE_GENERATOR_INPUT_TILES_X           = 4,
-	TILE_GENERATOR_INPUT_TILES_Y           = 5,
-	TILE_GENERATOR_INPUT_SCALE             = 6,
-	TILE_GENERATOR_INPUT_SCALE_RANDOM      = 7,
-	TILE_GENERATOR_INPUT_ROTATION          = 8,
-	TILE_GENERATOR_INPUT_ROTATION_RANDOM   = 9,
-	TILE_GENERATOR_INPUT_OFFSET_RANDOM     = 10,
-	TILE_GENERATOR_INPUT_BRIGHTNESS_RANDOM = 11,
-	TILE_GENERATOR_INPUT_SEED              = 12,
+	TILE_GENERATOR_INPUT_MASK              = 4,
+	TILE_GENERATOR_INPUT_SCALE_MAP         = 5,
+	TILE_GENERATOR_INPUT_ROTATION_MAP      = 6,
+	TILE_GENERATOR_INPUT_COLOR_MAP         = 7,
+	TILE_GENERATOR_INPUT_PATTERN_MAP       = 8,
+	TILE_GENERATOR_INPUT_TILES_X           = 9,
+	TILE_GENERATOR_INPUT_TILES_Y           = 10,
+	TILE_GENERATOR_INPUT_SCALE             = 11,
+	TILE_GENERATOR_INPUT_SCALE_RANDOM      = 12,
+	TILE_GENERATOR_INPUT_ROTATION          = 13,
+	TILE_GENERATOR_INPUT_ROTATION_RANDOM   = 14,
+	TILE_GENERATOR_INPUT_OFFSET_RANDOM     = 15,
+	TILE_GENERATOR_INPUT_BRIGHTNESS_RANDOM = 16,
+	TILE_GENERATOR_INPUT_SEED              = 17,
 };
 
 // Node button indices (settings)
@@ -43,10 +52,17 @@ enum {
 	TILE_GENERATOR_OUTPUT_POSITION = 3,
 };
 
+// Pattern Mode
+enum {
+	TILE_GENERATOR_MODE_RANDOM = 0,
+	TILE_GENERATOR_MODE_CYCLE  = 1,
+	TILE_GENERATOR_MODE_BY_MAP = 2,
+};
+
 // Settings and scalar inputs of the processing, only 4 byte members (hashed as bytes)
 typedef struct tile_generator_params {
 	i32 patterns;
-	i32 cycle; // Pattern Mode: 0 Random, 1 Cycle
+	i32 mode; // Pattern Mode
 	i32 tiles_x;
 	i32 tiles_y;
 	f32 scale;
@@ -74,13 +90,36 @@ static i32 tile_generator_node_patterns(ui_node_t *node) {
 	return 1 + (i < 0 ? 0 : i > TILE_GENERATOR_MAX_PATTERNS - 1 ? TILE_GENERATOR_MAX_PATTERNS - 1 : i);
 }
 
+// The pattern captures, then two small captures of the per tile maps
 static i32 tile_generator_node_capture_count(ui_node_t *node) {
-	return tile_generator_node_patterns(node);
+	return tile_generator_node_patterns(node) + 2;
 }
 
-// Captured per pixel: the grey of the pattern input of the capture being written, over the whole image square
+static i32 tile_generator_node_capture_size(ui_node_t *node, i32 k) {
+	return k < tile_generator_node_patterns(node) ? tile_generator_node_size(node) : TILE_GENERATOR_MAP_SIZE;
+}
+
+static char *tile_generator_node_input(ui_node_t *node, i32 input) {
+	return parser_material_parse_value_input(node->inputs->buffer[input], false);
+}
+
+// Captured per pixel: the grey of the pattern input of the capture being written, over the whole image square.
+// The map captures pack three maps (R = B = a, G = b, A = c) so that a red/blue swap of the readback changes nothing.
 static char *tile_generator_node_capture(ui_node_t *node) {
-	char *v = parser_material_parse_value_input(node->inputs->buffer[TILE_GENERATOR_INPUT_IMAGE + make_image_node_capture_index()], false);
+	i32 k        = make_image_node_capture_index();
+	i32 patterns = tile_generator_node_patterns(node);
+	if (k == patterns) {
+		char *mask     = tile_generator_node_input(node, TILE_GENERATOR_INPUT_MASK);
+		char *scale    = tile_generator_node_input(node, TILE_GENERATOR_INPUT_SCALE_MAP);
+		char *rotation = tile_generator_node_input(node, TILE_GENERATOR_INPUT_ROTATION_MAP);
+		return string_tmp("float4(%s, %s, %s, %s)", mask, scale, mask, rotation);
+	}
+	if (k == patterns + 1) {
+		char *color   = tile_generator_node_input(node, TILE_GENERATOR_INPUT_COLOR_MAP);
+		char *pattern = tile_generator_node_input(node, TILE_GENERATOR_INPUT_PATTERN_MAP);
+		return string_tmp("float4(%s, %s, %s, 1.0)", color, pattern, color);
+	}
+	char *v = tile_generator_node_input(node, TILE_GENERATOR_INPUT_IMAGE + k);
 	return string_tmp("float4(%s, %s, %s, 1.0)", v, v, v);
 }
 
@@ -91,7 +130,8 @@ static f32 tile_generator_node_clamp(f32 v, f32 lo, f32 hi) {
 static void tile_generator_node_params(ui_node_t *node, void *params) {
 	tile_generator_params_t *p = params;
 	p->patterns                = tile_generator_node_patterns(node);
-	p->cycle                   = tile_generator_node_button(node, TILE_GENERATOR_BUTTON_PATTERN_MODE) != 0.0;
+	i32 mode                   = (i32)tile_generator_node_button(node, TILE_GENERATOR_BUTTON_PATTERN_MODE);
+	p->mode                    = mode < 0 ? 0 : mode > TILE_GENERATOR_MODE_BY_MAP ? TILE_GENERATOR_MODE_BY_MAP : mode;
 	f32 tx                     = make_image_node_input_value(node, TILE_GENERATOR_INPUT_TILES_X);
 	f32 ty                     = make_image_node_input_value(node, TILE_GENERATOR_INPUT_TILES_Y);
 	p->tiles_x                 = (i32)tile_generator_node_clamp(math_floor(tx + 0.5), 1.0, TILE_GENERATOR_MAX_TILES);
@@ -161,10 +201,30 @@ static void tile_generator_node_draw_tile(u8 *pattern, i32 size, f32 *result, f3
 	}
 }
 
+// Channel c (0 R, 1 G, 3 A) of a per tile map capture at the uv, bilinear, clamped at the border
+static f32 tile_generator_node_map(u8 *map, f32 u, f32 v, i32 c) {
+	i32 n  = TILE_GENERATOR_MAP_SIZE;
+	f32 x  = tile_generator_node_clamp(u * n - 0.5, 0.0, n - 1.0);
+	f32 y  = tile_generator_node_clamp(v * n - 0.5, 0.0, n - 1.0);
+	i32 x0 = (i32)math_floor(x);
+	i32 y0 = (i32)math_floor(y);
+	i32 x1 = x0 + 1 < n ? x0 + 1 : x0;
+	i32 y1 = y0 + 1 < n ? y0 + 1 : y0;
+	f32 fx = x - x0;
+	f32 fy = y - y0;
+	f32 a  = map[((size_t)y0 * n + x0) * 4 + c] / 255.0;
+	f32 b  = map[((size_t)y0 * n + x1) * 4 + c] / 255.0;
+	f32 d  = map[((size_t)y1 * n + x0) * 4 + c] / 255.0;
+	f32 e  = map[((size_t)y1 * n + x1) * 4 + c] / 255.0;
+	return (a * (1.0 - fx) + b * fx) * (1.0 - fy) + (d * (1.0 - fx) + e * fx) * fy;
+}
+
 // Draws the tiles over the captured patterns; returns the number of tiles
 static i32 tile_generator_node_process(u8 *pixels, i32 size, void *params, f32 *result) {
 	tile_generator_params_t *p   = params;
 	size_t                   one = (size_t)size * size * 4;
+	u8                      *maps_a = pixels + one * p->patterns;                                          // R = B Mask, G Scale Map, A Rotation Map
+	u8                      *maps_b = maps_a + (size_t)TILE_GENERATOR_MAP_SIZE * TILE_GENERATOR_MAP_SIZE * 4; // R = B Color Map, G Pattern Map
 	for (i32 cy = 0; cy < p->tiles_y; ++cy) {
 		for (i32 cx = 0; cx < p->tiles_x; ++cx) {
 			u32 h = tile_generator_node_mix(tile_generator_node_mix(tile_generator_node_mix(p->seed + 1, (u32)cx), (u32)cy), 7);
@@ -176,16 +236,29 @@ static i32 tile_generator_node_process(u8 *pixels, i32 size, void *params, f32 *
 			f32 r_pattern     = tile_generator_node_random(h, 5);
 			f32 r_id          = tile_generator_node_random(h, 6);
 
-			i32 k = p->cycle ? (cy * p->tiles_x + cx) % p->patterns : (i32)math_floor(r_pattern * p->patterns);
+			// The per tile maps at the centre of the grid cell
+			f32 mu         = (cx + 0.5) / p->tiles_x;
+			f32 mv         = (cy + 0.5) / p->tiles_y;
+			f32 mask       = tile_generator_node_map(maps_a, mu, mv, 0);
+			f32 scale_map  = tile_generator_node_map(maps_a, mu, mv, 1);
+			f32 rotate_map = tile_generator_node_map(maps_a, mu, mv, 3);
+			f32 color_map  = tile_generator_node_map(maps_b, mu, mv, 0);
+			f32 pattern_map = tile_generator_node_map(maps_b, mu, mv, 1);
+			if (mask < 0.5) {
+				continue; // A hole
+			}
+
+			i32 k = p->mode == TILE_GENERATOR_MODE_CYCLE ? (cy * p->tiles_x + cx) % p->patterns :
+			        p->mode == TILE_GENERATOR_MODE_BY_MAP ? (i32)math_floor(pattern_map * p->patterns) : (i32)math_floor(r_pattern * p->patterns);
 			k     = k < 0 ? 0 : k > p->patterns - 1 ? p->patterns - 1 : k;
 
 			f32 center_x   = (cx + 0.5 + (r_offset_x - 0.5) * p->offset_random) / p->tiles_x;
 			f32 center_y   = (cy + 0.5 + (r_offset_y - 0.5) * p->offset_random) / p->tiles_y;
-			f32 scale      = p->scale * (1.0 - p->scale_random * r_scale);
+			f32 scale      = p->scale * (1.0 - p->scale_random * r_scale) * scale_map;
 			f32 half_x     = 0.5 * scale / p->tiles_x;
 			f32 half_y     = 0.5 * scale / p->tiles_y;
-			f32 angle      = (p->rotation + p->rotation_random * (r_rotation * 2.0 - 1.0) * 0.5) * 2.0 * math_pi();
-			f32 brightness = 1.0 - p->brightness_random * r_brightness;
+			f32 angle      = (p->rotation + rotate_map + p->rotation_random * (r_rotation * 2.0 - 1.0) * 0.5) * 2.0 * math_pi();
+			f32 brightness = (1.0 - p->brightness_random * r_brightness) * color_map;
 			f32 id         = 1.0 / TILE_GENERATOR_ID_FLOOR + r_id * (1.0 - 1.0 / TILE_GENERATOR_ID_FLOOR);
 			if (half_x <= 0.0 || half_y <= 0.0) {
 				continue;
@@ -203,6 +276,7 @@ static image_node_type_t tile_generator_node_image_type = {
     .size          = tile_generator_node_size,
     .capture       = tile_generator_node_capture,
     .capture_count = tile_generator_node_capture_count,
+    .capture_size  = tile_generator_node_capture_size,
     .params        = tile_generator_node_params,
     .process       = tile_generator_node_process,
 };
@@ -275,6 +349,11 @@ void tile_generator_node_init() {
 	                        tile_generator_node_socket(_tr("Image 2"), "VALUE", image_color, f32_array_create_x(1.0), 1.0, 100),
 	                        tile_generator_node_socket(_tr("Image 3"), "VALUE", image_color, f32_array_create_x(1.0), 1.0, 100),
 	                        tile_generator_node_socket(_tr("Image 4"), "VALUE", image_color, f32_array_create_x(1.0), 1.0, 100),
+	                        tile_generator_node_socket(_tr("Mask"), "VALUE", image_color, f32_array_create_x(1.0), 1.0, 100),
+	                        tile_generator_node_socket(_tr("Scale Map"), "VALUE", image_color, f32_array_create_x(1.0), 1.0, 100),
+	                        tile_generator_node_socket(_tr("Rotation Map"), "VALUE", image_color, f32_array_create_x(0.0), 1.0, 100),
+	                        tile_generator_node_socket(_tr("Color Map"), "VALUE", image_color, f32_array_create_x(1.0), 1.0, 100),
+	                        tile_generator_node_socket(_tr("Pattern Map"), "VALUE", image_color, f32_array_create_x(0.0), 1.0, 100),
 	                        tile_generator_node_socket(_tr("Tiles X"), "VALUE", value_color, f32_array_create_x(4.0), TILE_GENERATOR_MAX_TILES, 1),
 	                        tile_generator_node_socket(_tr("Tiles Y"), "VALUE", value_color, f32_array_create_x(4.0), TILE_GENERATOR_MAX_TILES, 1),
 	                        tile_generator_node_socket(_tr("Scale"), "VALUE", value_color, f32_array_create_x(0.9), 2.0, 100),
@@ -285,7 +364,7 @@ void tile_generator_node_init() {
 	                        tile_generator_node_socket(_tr("Brightness Random"), "VALUE", value_color, f32_array_create_x(0.0), 1.0, 100),
 	                        tile_generator_node_socket(_tr("Seed"), "VALUE", value_color, f32_array_create_x(0.0), 1000.0, 1),
 	                    },
-	                    13),
+	                    18),
 	                .outputs = any_array_create_from_raw(
 	                    (void *[]){
 	                        tile_generator_node_socket(_tr("Image"), "VALUE", image_color, f32_array_create_x(0.0), 1.0, 100),
@@ -299,7 +378,7 @@ void tile_generator_node_init() {
 	                        tile_generator_node_setting(_tr("Size"), "ENUM", 1, "512\n1024\n2048\n4096"),
 	                        make_image_node_state_button(),
 	                        tile_generator_node_setting(_tr("Patterns"), "ENUM", 0, "1\n2\n3\n4"),
-	                        tile_generator_node_setting(_tr("Pattern Mode"), "ENUM", 0, "Random\nCycle"),
+	                        tile_generator_node_setting(_tr("Pattern Mode"), "ENUM", 0, "Random\nCycle\nBy Map"),
 	                    },
 	                    4),
 	                .width = 0,
