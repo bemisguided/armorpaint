@@ -764,8 +764,25 @@ void make_image_node_bake_now(ui_node_t *node) {
 // Writes the fetch of the node's baked result at its Vector input (unlinked: tex_coord, the triplanar projections
 // blended like Image Texture), once per node, and returns the float4 variable holding it. Repeating: the uv is wrapped
 // and snapped to the texel centre, so the one linear sampler never blends two texels. Black until the first bake.
-static void make_image_node_write_fetch(char *var, char *tex_name, char *uv) {
+static void make_image_node_write_fetch(char *var, char *tex_name, char *uv, bool smooth) {
 	parser_material_write(parser_material_kong, string_tmp("float2 %s_uv = %s;", var, uv));
+	if (smooth) {
+		// Bilinear by hand: four fetches, each exactly at a texel centre of the wrapped position, so the linear sampler
+		// never blends two texels itself and the blend wraps at the border
+		parser_material_write(parser_material_kong, string_tmp("float2 %s_p = %s_uv * constants.%s_size - 0.5;", var, var, tex_name));
+		parser_material_write(parser_material_kong, string_tmp("float2 %s_f = floor(%s_p);", var, var));
+		parser_material_write(parser_material_kong, string_tmp("float2 %s_t = %s_p - %s_f;", var, var, var));
+		for (i32 k = 0; k < 4; ++k) {
+			char *off = k == 0 ? "float2(0.0, 0.0)" : k == 1 ? "float2(1.0, 0.0)" : k == 2 ? "float2(0.0, 1.0)" : "float2(1.0, 1.0)";
+			parser_material_write(parser_material_kong, string_tmp("float2 %s_q%d = (%s_f + %s + 0.5) / constants.%s_size;", var, k, var, off, tex_name));
+			parser_material_write(parser_material_kong, string_tmp("%s_q%d = (floor((%s_q%d - floor(%s_q%d)) * constants.%s_size) + 0.5) / constants.%s_size;", var,
+			                                                       k, var, k, var, k, tex_name, tex_name));
+			parser_material_write(parser_material_kong, string_tmp("float4 %s_s%d = sample_lod(%s, sampler_linear, %s_q%d, 0.0);", var, k, tex_name, var, k));
+		}
+		parser_material_write(parser_material_kong, string_tmp("float4 %s = lerp(lerp(%s_s0, %s_s1, %s_t.x), lerp(%s_s2, %s_s3, %s_t.x), %s_t.y);", var, var, var,
+		                                                       var, var, var, var, var));
+		return;
+	}
 	parser_material_write(parser_material_kong, string_tmp("%s_uv = (floor((%s_uv - floor(%s_uv)) * constants.%s_size) + 0.5) / constants.%s_size;", var, var,
 	                                                       var, tex_name, tex_name));
 	parser_material_write(parser_material_kong, string_tmp("float4 %s = sample_lod(%s, sampler_linear, %s_uv, 0.0);", var, tex_name, var));
@@ -782,20 +799,22 @@ char *make_image_node_sample(ui_node_t *node, i32 vector_input) {
 	}
 	any_array_push(parser_material_parsed, var);
 
-	char *tex_name = string_tmp("teximage_%s", id);
+	image_node_type_t *type   = make_image_node_type_of(node->type);
+	bool               smooth = type != NULL && type->smooth_sample;
+	char              *tex_name = string_tmp("teximage_%s", id);
 	node_shader_add_texture(parser_material_kong, tex_name, string_tmp("_%s", tex_name));
 	node_shader_add_constant(parser_material_kong, string_tmp("float2 %s_size", tex_name), string_tmp("_size(_%s)", tex_name));
 
 	ui_node_socket_t *vector = node->inputs->buffer[vector_input];
 	if (parser_material_get_input_link(vector) != NULL) {
 		char *uv = parser_material_parse_vector_input(vector);
-		make_image_node_write_fetch(var, tex_name, string_tmp("%s.xy", uv));
+		make_image_node_write_fetch(var, tex_name, string_tmp("%s.xy", uv), smooth);
 	}
 	else if (parser_material_triplanar && !parser_material_image_space) { // Like Image Texture: one fetch per projection, blended
 		node_shader_context_add_elem(parser_material_kong->context, "tex", "short2norm");
-		make_image_node_write_fetch(string_tmp("%s0", var), tex_name, "tex_coord");
-		make_image_node_write_fetch(string_tmp("%s1", var), tex_name, "tex_coord1");
-		make_image_node_write_fetch(string_tmp("%s2", var), tex_name, "tex_coord2");
+		make_image_node_write_fetch(string_tmp("%s0", var), tex_name, "tex_coord", smooth);
+		make_image_node_write_fetch(string_tmp("%s1", var), tex_name, "tex_coord1", smooth);
+		make_image_node_write_fetch(string_tmp("%s2", var), tex_name, "tex_coord2", smooth);
 		parser_material_write(parser_material_kong,
 		                      string_tmp("float4 %s = %s0 * tex_coord_blend.x + %s1 * tex_coord_blend.y + %s2 * tex_coord_blend.z;", var, var, var, var));
 	}
@@ -803,7 +822,7 @@ char *make_image_node_sample(ui_node_t *node, i32 vector_input) {
 		if (!parser_material_image_space) {
 			node_shader_context_add_elem(parser_material_kong->context, "tex", "short2norm");
 		}
-		make_image_node_write_fetch(var, tex_name, "tex_coord");
+		make_image_node_write_fetch(var, tex_name, "tex_coord", smooth);
 	}
 	return var;
 }
