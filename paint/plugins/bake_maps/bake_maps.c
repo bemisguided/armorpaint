@@ -53,6 +53,7 @@ i32                util_udim_tile_res_x();
 i32                util_udim_tile_res_y();
 bool               util_udim_tile_used(i32 tile);
 extern bool        bake_texture_node_baking;
+extern i32         util_mesh_version;
 extern i32         render_path_raytrace_bake_current_sample;
 unsigned char     *stbi_load_from_memory(unsigned char const *buffer, int len, int *x, int *y, int *comp, int req_comp);
 void               stbi_image_free(void *p);
@@ -1710,7 +1711,7 @@ static minic_val_t bake_maps_set_low(minic_val_t *a, int n) {
 
 static u64 bake_maps_paint_objects_key() {
 	mesh_object_t_array_t *lows = g_project->_->paint_objects;
-	u64                    key  = lows->length;
+	u64                    key  = (u64)lows->length * 31 + (u64)util_mesh_version; // The version moves with every edit of the geometry or the uvs
 	for (i32 i = 0; i < lows->length; ++i) {
 		mesh_data_t *d = lows->buffer[i]->data;
 		key            = key * 31 + (u64)(uintptr_t)d;
@@ -1843,7 +1844,7 @@ static bool bake_rays_alloc_outs() {
 	}
 	bake_rays_outs_count = bake_rays_pair_count;
 	for (i32 i = 0; i < bake_rays_outs_count; ++i) {
-		bake_rays_outs[i] = malloc((size_t)bake_rays_w * bake_rays_h * 4);
+		bake_rays_outs[i] = calloc((size_t)bake_rays_w * bake_rays_h, 4);
 		if (bake_rays_outs[i] == NULL) {
 			bake_rays_free_outs();
 			return false;
@@ -2002,15 +2003,26 @@ static void bake_maps_gpu_done(void *_) {
 	}
 	gpu_texture_t *t      = bake_maps_gpu_rt->_image;
 	buffer_t      *pixels = gpu_get_texture_pixels(t);
+	size_t         bytes  = (size_t)t->width * (size_t)t->height * 4;
+	if (pixels == NULL || (size_t)pixels->length < bytes) {
+		console_error(vtr("The GPU bake result could not be read", NULL));
+		return;
+	}
 	if (bake_maps_gpu_w != t->width || bake_maps_gpu_h != t->height) {
 		free(bake_maps_gpu_out);
-		bake_maps_gpu_out = malloc(t->width * t->height * 4);
+		bake_maps_gpu_out = malloc(bytes);
 		bake_maps_gpu_w   = t->width;
 		bake_maps_gpu_h   = t->height;
+		if (bake_maps_gpu_out == NULL) {
+			bake_maps_gpu_w = 0;
+			bake_maps_gpu_h = 0;
+			console_error(vtr("Not enough memory for the GPU bake, lower the resolution", NULL));
+			return;
+		}
 	}
-	memcpy(bake_maps_gpu_out, pixels->buffer, t->width * t->height * 4);
+	memcpy(bake_maps_gpu_out, pixels->buffer, bytes);
 #ifdef IRON_BGRA
-	buffer_t out = {.buffer = bake_maps_gpu_out, .length = t->width * t->height * 4};
+	buffer_t out = {.buffer = bake_maps_gpu_out, .length = (u32)bytes};
 	buffer_bgra_swap(&out); // Render targets read back in the native order
 #endif
 	bake_maps_gpu_last = true;
