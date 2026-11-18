@@ -647,7 +647,6 @@ bool                   script_layer_all_objects(slot_layer_t *l);
 i32_array_t           *script_layer_objects(slot_layer_t *l);
 bool                   script_layer_all_tiles(slot_layer_t *l);
 i32_array_t           *script_layer_tiles(slot_layer_t *l);
-void                   script_layer_set_object_mask(slot_layer_t *l, i32 mask);
 void                   script_layer_set_name(slot_layer_t *l, char *name);
 void                   script_layer_update(slot_layer_t *l);
 slot_layer_t          *script_layer_duplicate(slot_layer_t *l);
