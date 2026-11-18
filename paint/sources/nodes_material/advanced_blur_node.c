@@ -109,6 +109,28 @@ static f32 advanced_blur_node_box(f32 *src, i32 size, i32 x, i32 y, f32 dx, f32 
 	return sum / (f32)n;
 }
 
+// Weight of tap k of n of the dense gaussian: the taps span -r to r with sigma = r / 3, so the weight is independent of r.
+// Filled once before the worker threads start (advanced_blur_node_init_weights).
+static f32  advanced_blur_node_weights[ADVANCED_BLUR_MAX_TAPS + 1][ADVANCED_BLUR_MAX_TAPS];
+static f32  advanced_blur_node_weight_sums[ADVANCED_BLUR_MAX_TAPS + 1];
+static bool advanced_blur_node_weights_ready = false;
+
+static void advanced_blur_node_init_weights() {
+	if (advanced_blur_node_weights_ready) {
+		return;
+	}
+	for (i32 n = 3; n <= ADVANCED_BLUR_MAX_TAPS; ++n) {
+		f32 sum = 0.0f;
+		for (i32 k = 0; k < n; ++k) {
+			f32 u = -1.0f + 2.0f * (f32)k / (f32)(n - 1);
+			advanced_blur_node_weights[n][k] = expf(-4.5f * u * u);
+			sum += advanced_blur_node_weights[n][k];
+		}
+		advanced_blur_node_weight_sums[n] = sum;
+	}
+	advanced_blur_node_weights_ready = true;
+}
+
 // Gaussian of radius r (3 sigma) at (x, y). Up to ADVANCED_BLUR_GAUSS_DENSE pixels: one dense pass (stage 0). Larger: three
 // boxes of width 2r / 3 (their sum is a Gaussian within a few percent, variance 3 * width^2 / 12 = sigma^2), each box
 // two stages, stages 1 to 6.
@@ -129,16 +151,12 @@ static f32 advanced_blur_node_gauss(f32 *src, i32 size, i32 x, i32 y, f32 dx, f3
 	i32 n     = (i32)(2.0f * r) + 1;
 	n         = n > ADVANCED_BLUR_MAX_TAPS ? ADVANCED_BLUR_MAX_TAPS : n;
 	n         = n < 3 ? 3 : n;
-	f32 sum   = 0.0f;
-	f32 wsum  = 0.0f;
-	f32 sigma = r / 3.0f;
+	f32 sum = 0.0f;
 	for (i32 k = 0; k < n; ++k) {
 		f32 t = -r + 2.0f * r * (f32)k / (f32)(n - 1);
-		f32 w = expf(-t * t / (2.0f * sigma * sigma));
-		sum += w * make_image_node_sample_bilinear(src, size, (f32)x + dx * t, (f32)y + dy * t);
-		wsum += w;
+		sum += advanced_blur_node_weights[n][k] * make_image_node_sample_bilinear(src, size, (f32)x + dx * t, (f32)y + dy * t);
 	}
-	return sum / wsum;
+	return sum / advanced_blur_node_weight_sums[n];
 }
 
 typedef struct advanced_blur_stage_ctx {
@@ -182,6 +200,7 @@ static void advanced_blur_node_run(f32 **cur, f32 **nxt, f32 *px, i32 size, f32 
 
 // Blurred image from the captured float pixels; returns 0, or -1 when memory runs out
 static i32 advanced_blur_node_process(u8 *pixels, i32 size, void *params, f32 *result) {
+	advanced_blur_node_init_weights();
 	advanced_blur_params_t p  = *(advanced_blur_params_t *)params;
 	f32                   *px = (f32 *)pixels;
 	size_t                 n  = (size_t)size * size;
