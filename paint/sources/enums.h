@@ -687,3 +687,5 @@ typedef enum {
 	MT_I32_ARRAY = 3,
 } meta_type_t;
 
+// Header color of the Image node category and color of every Image socket
+#define NODES_MATERIAL_IMAGE_COLOR 0xffc78a29

@@ -52,6 +52,8 @@ Hornear
 Hornear material...
 Hornear textura
 Hornear a texturas
+
+
 Bandas
 Base
 Color base
@@ -340,7 +342,9 @@ Tono/Saturación/Valor
 Coseno hiperbólico
 Seno hiperbólico
 Tangente hiperbólica
+
 Imagen
+
 Imagen a PBR
 Importar
 Importar malla
@@ -585,6 +589,7 @@ Reciente
 Rehacer {step}
 Reflejar
 Actualizar
+
 Reimportar
 Reimportar malla
 Reimportar texturas

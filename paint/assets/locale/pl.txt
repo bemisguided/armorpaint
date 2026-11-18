@@ -52,6 +52,8 @@ Wypalanie
 Wypalanie materiału...
 Wypalanie tekstury
 Wypal do tekstur
+
+
 Pasma
 Podstawowy
 Kolor bazowy
@@ -340,7 +342,9 @@ Odcień/Nasycenie/Wartość
 Cosinus hiperboliczny
 Sinus hiperboliczny
 Tangens hiperboliczny
+
 Tekstura obrazu
+
 Obraz do PBR
 Importuj
 Importuj model
@@ -585,6 +589,7 @@ Ostatnie
 Powtórz {step}
 Odbij
 Odśwież
+
 Zaimportuj ponownie
 Zaimportuj model ponownie
 Zaimportuj tekstury ponownie

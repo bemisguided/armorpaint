@@ -52,6 +52,8 @@ Rendu
 Exporter le matériau...
 Rendu de texture
 Rendu des textures
+
+
 Bandes
 Base
 Couleur de base
@@ -340,7 +342,9 @@ Teinte/Saturation/Valeur
 Cosinus hyperbolique
 Sinus hyperbolique
 Tangente hyperbolique
+
 Texture image
+
 Image vers PBR
 Importer
 Importer le maillage
@@ -585,6 +589,7 @@ Récent
 Refaire {step}
 Refléter
 Rafraîchir
+
 Ré-importer
 Ré-importer le maillage
 Ré-importer les textures

@@ -52,6 +52,8 @@ Bake
 Bake Material...
 Bake Texture
 Bake to Textures
+Baked
+Baking
 Bands
 Base
 Base Color
@@ -340,7 +342,9 @@ Hue/Saturation/Value
 Hyperbolic Cosine
 Hyperbolic Sine
 Hyperbolic Tangent
+Image
 Image Texture
+Image node bake: out of memory
 Image to PBR
 Import
 Import Mesh
@@ -585,6 +589,7 @@ Recent
 Redo {step}
 Reflect
 Refresh
+Regenerate Image Nodes
 Reimport
 Reimport Mesh
 Reimport Textures

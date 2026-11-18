@@ -52,6 +52,8 @@ Bake
 Bake Material...
 Bake Tekstur
 Bake ke Tekstur
+
+
 Pita
 Dasar
 Warna Dasar
@@ -340,7 +342,9 @@ Rona/Saturasi/Nilai
 Kosinus Hiperbolik
 Sinus Hiperbolik
 Tangen Hiperbolik
+
 Tekstur Gambar
+
 Gambar ke PBR
 Impor
 Impor Mesh
@@ -585,6 +589,7 @@ Terbaru
 Ulangi {step}
 Refleksikan
 Segarkan
+
 Impor Ulang
 Impor Ulang Mesh
 Impor Ulang Tekstur

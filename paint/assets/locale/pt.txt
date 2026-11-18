@@ -52,6 +52,8 @@ Cozinhar
 Cozinhar Material
 Cozinhar Textura
 Cozinhar para Texturas
+
+
 Faixas
 Base
 Cor Base
@@ -340,7 +342,9 @@ Matiz/Saturação/Valor
 Cosseno Hiperbólico
 Seno Hiperbólico
 Tangente Hiperbólica
+
 Textura de Imagem
+
 Imagem para PBR
 Importar
 Importar Malha
@@ -585,6 +589,7 @@ Recente
 Refazer {step}
 Refletir
 Atualizar
+
 Reimportar
 Reimportar Malha
 Reimportar Texturas

@@ -531,6 +531,16 @@ gpu_texture_t *uniforms_ext_tex_link(object_t *object, shader_data_t *mat, char 
 	if (starts_with(link, "_texslot_")) {
 		return texture_slot_resolve(parse_int(link + 9));
 	}
+	if (starts_with(link, "_teximage_")) {
+		// Image node result (make_image_node.c), black until the first bake
+		char          *id    = link + 10;
+		gpu_texture_t *image = g_context->node_previews != NULL ? any_map_get(g_context->node_previews, id) : NULL;
+		if (image == NULL) {
+			render_target_t *rt = any_map_get(render_path_render_targets, "empty_black");
+			image               = rt->_image;
+		}
+		return image;
+	}
 	if (starts_with(link, "_texbake_")) {
 		char *id = link + 9;
 		if (g_context->node_previews != NULL) {

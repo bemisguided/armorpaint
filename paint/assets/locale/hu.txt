@@ -52,6 +52,8 @@ Sütés (Bake)
 Anyag sütése...
 Textúra sütése
 Sütés textúrákra
+
+
 Sávok
 Alap
 Alapszín
@@ -340,7 +342,9 @@ Hogyan használd
 Hiperbolikus koszinusz
 Hiperbolikus szinusz
 Hiperbolikus tangens
+
 Kép textúra
+
 Képből PBR
 Importálás
 Háló importálása
@@ -585,6 +589,7 @@ Legutóbbi
 Mégsem von vissza: {step}
 Visszatükröződés
 Frissítés
+
 Újraimportálás
 Háló újraimportálása
 Textúrák újraimportálása

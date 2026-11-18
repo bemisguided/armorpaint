@@ -253,6 +253,7 @@ char                 *parser_material_tex_coord_atlas       = NULL; // Atlas uv 
 bool                  parser_material_transform_color_space = true;
 bool                  parser_material_blur_passthrough      = false;
 bool                  parser_material_warp_passthrough      = false;
+bool                  parser_material_image_space           = false; // Image space: over the square of tex_coord, no mesh (image nodes)
 ui_node_canvas_t     *parser_material_start_group           = NULL;
 ui_node_t_array_t    *parser_material_start_parents         = NULL;
 ui_node_t            *parser_material_start_node            = NULL;
@@ -320,6 +321,7 @@ any_map_t            *nodes_brush_creates;
 string_array_t       *nodes_material_categories;
 ui_node_t_array_t    *nodes_material_input;
 ui_node_t_array_t    *nodes_material_texture;
+ui_node_t_array_t    *nodes_material_image;
 ui_node_t_array_t    *nodes_material_color;
 ui_node_t_array_t    *nodes_material_utilities;
 ui_node_t_array_t    *nodes_material_neural;

@@ -391,6 +391,11 @@ void ui_menubar_draw_category_items() {
 		}
 
 		ui_menu_separator();
+		if (ui_menu_button(tr("Regenerate Image Nodes"), "", ICON_SYNC)) {
+			make_image_node_regenerate();
+		}
+
+		ui_menu_separator();
 		if (ui_menu_button(tr("Preferences..."), any_map_get(g_keymap, "edit_prefs"), ICON_COG)) {
 			box_preferences_show();
 		}
