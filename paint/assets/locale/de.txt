@@ -64,6 +64,7 @@ Abschrägung
 Bias
 Bits
 Schwarze Maske
+
 Blender Programm
 Blender Programmpfad nicht gesetzt
 Vermischen
@@ -650,6 +651,7 @@ Skript geöffnet
 Skripte
 Skulptur
 Skulpturebene
+
 Suchen
 Nach Nodes suchen
 Segmente

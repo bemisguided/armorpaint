@@ -64,6 +64,7 @@ Hajlított normál
 Eltérés (Bias)
 Bitek
 Fekete maszk
+
 Blender futtatható fájl
 A Blender elérési útja nincs beállítva
 Keverés
@@ -650,6 +651,7 @@ Szkript megnyitva
 Szkriptek
 Szobrászat
 Szobrász réteg
+
 Keresés
 Csomópontok keresése
 Szegmensek

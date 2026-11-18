@@ -64,6 +64,7 @@ Bisel
 Sesgo
 Bits
 Mascara negra
+
 Ejecutable de Blender
 Ruta al ejecutable de Blender no establecida
 Fusión
@@ -650,6 +651,7 @@ Script abierto
 Scripts
 Escultura
 Capa de escultura
+
 Buscar
 Buscar nodos
 Segmentos
