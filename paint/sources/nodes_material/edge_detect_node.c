@@ -2,8 +2,7 @@
 
 // Edge Detect (Image menu): edges of the Image input. An image node (render/make_image_node.c): the Image input is
 // evaluated in image space (grey in R, G and B, 32 bit float so smooth inputs do not band) and the edge image is computed on the cpu into one RGBA64 texture
-// per node, R = Image (the edge mask). The texture is sampled like an Image Texture: at the Vector input or
-// tex_coord, repeating.
+// per node, R = Image (the edge mask). The texture is sampled like an Image Texture at tex_coord, repeating (Tile UV places it on the uv).
 //
 // Per pixel the largest difference to the eight neighbours at distance Edge Width (a fraction of Size, at least
 // one pixel) is taken. Gradient mode: ramps from 0 at Tolerance to 1 at the largest difference of the image, so a
@@ -17,7 +16,6 @@ enum {
 	EDGE_DETECT_INPUT_IMAGE      = 0,
 	EDGE_DETECT_INPUT_EDGE_WIDTH = 1,
 	EDGE_DETECT_INPUT_TOLERANCE  = 2,
-	EDGE_DETECT_INPUT_VECTOR     = 3,
 };
 
 // Node button indices (settings)
@@ -126,7 +124,7 @@ static image_node_type_t edge_detect_node_image_type = {
 };
 
 char *edge_detect_node_value(ui_node_t *node, ui_node_socket_t *socket) {
-	return string_tmp("%s.r", make_image_node_sample(node, EDGE_DETECT_INPUT_VECTOR));
+	return string_tmp("%s.r", make_image_node_sample(node));
 }
 
 char *edge_detect_node_vector(ui_node_t *node, ui_node_socket_t *socket) {
@@ -160,7 +158,6 @@ static ui_node_button_t *edge_detect_node_setting(char *name, char *type, f32 de
 
 void edge_detect_node_init() {
 	u32 value_color  = 0xffa1a1a1;
-	u32 vector_color = 0xff6363c7;
 
 	ui_node_t *edge_detect_node_def =
 	    ALLOC_INIT(ui_node_t,
@@ -175,9 +172,8 @@ void edge_detect_node_init() {
 	                        edge_detect_node_socket(_tr("Image"), "VALUE", NODES_MATERIAL_IMAGE_COLOR, f32_array_create_x(0.0), 1.0, 100),
 	                        edge_detect_node_socket(_tr("Edge Width"), "VALUE", value_color, f32_array_create_x(0.005), 0.1, 1000),
 	                        edge_detect_node_socket(_tr("Tolerance"), "VALUE", value_color, f32_array_create_x(0.0), 1.0, 100),
-	                        edge_detect_node_socket(_tr("Vector"), "VECTOR", vector_color, f32_array_create_xyz(0.0, 0.0, 0.0), 1.0, 100),
 	                    },
-	                    4),
+	                    3),
 	                .outputs = any_array_create_from_raw(
 	                    (void *[]){
 	                        edge_detect_node_socket(_tr("Image"), "VALUE", NODES_MATERIAL_IMAGE_COLOR, f32_array_create_x(0.0), 1.0, 100),
