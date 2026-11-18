@@ -65,6 +65,7 @@ Wygięta normalna
 Odchylenie
 Bity
 Czarna maska
+
 Plik wykonywalny Blendera
 Ścieżka do pliku wykonywalnego Blendera nie ustawiona
 Mieszanie
@@ -664,6 +665,7 @@ Skrypt otwarty
 Skrypty
 Rzeźbienie
 Warstwa rzeźbienia
+
 Szukaj
 Szukaj węzłów
 

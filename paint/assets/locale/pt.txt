@@ -65,6 +65,7 @@ Chanfro
 Viés
 Bits
 Máscara Preta
+
 Executável do Blender
 Caminho do executável do Blender não definido
 Mistura
@@ -664,6 +665,7 @@ Script aberto
 Scripts
 Escultura
 Camada de Escultura
+
 Procurar
 Procurar por Nós
 

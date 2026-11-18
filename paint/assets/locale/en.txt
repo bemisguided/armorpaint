@@ -65,6 +65,7 @@ Bevel
 Bias
 Bits
 Black Mask
+Blend Width
 Blender Executable
 Blender executable path not set
 Blending
@@ -664,6 +665,7 @@ Script opened
 Scripts
 Sculpt
 Sculpt Layer
+Seamless
 Search
 Search for nodes
 Seed

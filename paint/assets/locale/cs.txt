@@ -65,6 +65,7 @@ Zkosení
 Odchylka
 Bity
 Černá maska
+
 Spustitelný soubor Blenderu
 Cesta ke spustitelnému souboru Blenderu není nastavena
 Míchání
@@ -664,6 +665,7 @@ Skript otevřen
 Skripty
 Sochání
 Sochařská vrstva
+
 Hledat
 Hledat uzly
 

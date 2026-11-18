@@ -65,6 +65,7 @@ Bevel
 Bias
 Bit
 Masker Hitam
+
 Eksekusi Blender
 Path eksekusi Blender belum diatur
 Pencampuran
@@ -664,6 +665,7 @@ Skrip dibuka
 Skrip
 Sculpt
 Lapisan Sculpt
+
 Cari
 Cari node
 
