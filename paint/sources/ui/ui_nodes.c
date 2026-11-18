@@ -427,6 +427,11 @@ void ui_viewnodes_on_canvas_context_menu() {
 			ui_dock_redraw(TAB_AREA_STATUS);
 		}
 	}
+	if (ui_nodes_canvas_type == CANVAS_TYPE_MATERIAL && selected != NULL && make_image_node_type_of(selected->type) != NULL) {
+		if (ui_menu_button(tr("Regenerate Image Nodes"), "", ICON_SYNC)) {
+			make_image_node_regenerate();
+		}
+	}
 	if (ui_nodes_canvas_type != CANVAS_TYPE_MESH && ui_menu_button(tr("Capture Output"), "", ICON_PHOTO)) {
 		sys_notify_on_next_frame(&ui_viewnodes_on_canvas_capture_output, NULL);
 	}

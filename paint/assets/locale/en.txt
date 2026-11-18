@@ -589,6 +589,7 @@ Recent
 Redo {step}
 Reflect
 Refresh
+Regenerate Image Nodes
 Reimport
 Reimport Mesh
 Reimport Textures

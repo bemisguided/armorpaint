@@ -742,6 +742,13 @@ i32 make_image_node_result_count(ui_node_t *node) {
 	return s != NULL && s->has_baked ? s->result_count : -1;
 }
 
+// Regenerate image nodes: captures and bakes every image node of the project on the next update, also the ones whose
+// signature did not change (an Image Texture whose file was reloaded)
+void make_image_node_regenerate() {
+	make_image_node_force_all = true;
+	make_image_node_schedule();
+}
+
 // Captures and bakes the node on the next update, even when nothing changed
 void make_image_node_bake_now(ui_node_t *node) {
 	make_image_node_state_t *s = make_image_node_state_of(node);
