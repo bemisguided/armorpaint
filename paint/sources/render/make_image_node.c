@@ -289,6 +289,44 @@ i32 make_image_node_capture_index() {
 	return make_image_node_capture_k;
 }
 
+#define MAKE_IMAGE_NODE_MAX_THREADS 32
+
+typedef struct make_image_node_rows_job {
+	void (*fn)(void *ctx, i32 begin, i32 end);
+	void *ctx;
+	i32   begin;
+	i32   end;
+} make_image_node_rows_job_t;
+
+static void make_image_node_rows_thread(void *param) {
+	make_image_node_rows_job_t *j = param;
+	j->fn(j->ctx, j->begin, j->end);
+}
+
+// Runs fn over [0, count) split into contiguous ranges, one per hardware thread (the calling thread takes the first), and waits for
+// all of them. For the cpu passes of the image nodes (rows or columns are independent): fn must only write inside its own range.
+void make_image_node_parallel(i32 count, void (*fn)(void *ctx, i32 begin, i32 end), void *ctx) {
+	i32 threads = iron_hardware_threads();
+	threads     = threads > MAKE_IMAGE_NODE_MAX_THREADS ? MAKE_IMAGE_NODE_MAX_THREADS : threads;
+	threads     = threads > count ? count : threads;
+	if (threads <= 1) {
+		fn(ctx, 0, count);
+		return;
+	}
+	make_image_node_rows_job_t jobs[MAKE_IMAGE_NODE_MAX_THREADS];
+	iron_thread_t              handles[MAKE_IMAGE_NODE_MAX_THREADS];
+	for (i32 i = 0; i < threads; ++i) {
+		jobs[i] = (make_image_node_rows_job_t){.fn = fn, .ctx = ctx, .begin = (i32)((i64)count * i / threads), .end = (i32)((i64)count * (i + 1) / threads)};
+	}
+	for (i32 i = 1; i < threads; ++i) {
+		iron_thread_init(&handles[i], make_image_node_rows_thread, &jobs[i]);
+	}
+	fn(ctx, jobs[0].begin, jobs[0].end);
+	for (i32 i = 1; i < threads; ++i) {
+		iron_thread_wait_and_destroy(&handles[i]);
+	}
+}
+
 // Value of a number input of the node being captured, for the whole image: the default value when unlinked,
 // else the linked graph evaluated once at the image centre. Called from the type's params callback.
 f32 make_image_node_input_value(ui_node_t *node, i32 input) {
