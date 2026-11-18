@@ -1,8 +1,8 @@
 #include "../global.h"
 
-// Advanced Blur (Image menu): blurs the Image input. An image node (render/make_image_node.c): Image and Mask are
+// Advanced Blur (Filter menu): blurs the Image input. An image node (render/make_image_node.c): Image and Mask are
 // evaluated in image space and captured in 32 bit float (R and B = Image, G = Mask, so a red/blue swap on readback
-// does not matter), the blur is computed on the cpu into one RGBA64 texture per node, R = the blurred image.
+// does not matter), the blur is computed on the cpu into one RGBA128 texture per node, R = the blurred image.
 // The texture is sampled like an Image Texture at tex_coord, repeating (Tile UV places it on the uv). The image repeats, so
 // the blur wraps around the edges.
 //
@@ -47,14 +47,9 @@ typedef struct advanced_blur_params {
 	f32 aspect;
 } advanced_blur_params_t;
 
-static f32 advanced_blur_node_button(ui_node_t *node, i32 i) {
-	return node->buttons->buffer[i]->default_value->buffer[0];
-}
-
 // Width and height of the image: Size 512, 1024, 2048 or 4096
 static i32 advanced_blur_node_size(ui_node_t *node) {
-	i32 i = (i32)advanced_blur_node_button(node, ADVANCED_BLUR_BUTTON_SIZE);
-	return 512 << (i < 0 ? 0 : i > 3 ? 3 : i);
+	return make_image_node_size(node, ADVANCED_BLUR_BUTTON_SIZE);
 }
 
 // Captured per pixel: Image in R and B, Mask in G
@@ -69,25 +64,10 @@ static char *advanced_blur_node_capture(ui_node_t *node) {
 
 static void advanced_blur_node_params(ui_node_t *node, void *params) {
 	advanced_blur_params_t *p = params;
-	p->mode                   = (i32)advanced_blur_node_button(node, ADVANCED_BLUR_BUTTON_MODE);
+	p->mode                   = (i32)make_image_node_button(node, ADVANCED_BLUR_BUTTON_MODE);
 	p->radius                 = make_image_node_input_value(node, ADVANCED_BLUR_INPUT_RADIUS);
 	p->angle                  = make_image_node_input_value(node, ADVANCED_BLUR_INPUT_ANGLE) * (f32)(3.14159265358979 / 180.0);
 	p->aspect                 = make_image_node_input_value(node, ADVANCED_BLUR_INPUT_ASPECT);
-}
-
-// Bilinear sample of a single channel image at pixel position (x, y), wrapping
-static f32 advanced_blur_node_sample(f32 *img, i32 size, f32 x, f32 y) {
-	f32 fx = floorf(x);
-	f32 fy = floorf(y);
-	f32 tx = x - fx;
-	f32 ty = y - fy;
-	i32 x0 = ((i32)fx % size + size) % size;
-	i32 y0 = ((i32)fy % size + size) % size;
-	i32 x1 = (x0 + 1) % size;
-	i32 y1 = (y0 + 1) % size;
-	f32 a  = img[(size_t)y0 * size + x0] * (1.0f - tx) + img[(size_t)y0 * size + x1] * tx;
-	f32 b  = img[(size_t)y1 * size + x0] * (1.0f - tx) + img[(size_t)y1 * size + x1] * tx;
-	return a * (1.0f - ty) + b * ty;
 }
 
 // Value of a box of the given width (pixels) along (dx, dy) at (x, y). Up to ADVANCED_BLUR_BOX_DENSE pixels wide it is one
@@ -124,9 +104,31 @@ static f32 advanced_blur_node_box(f32 *src, i32 size, i32 x, i32 y, f32 dx, f32 
 	f32 sum = 0.0f;
 	for (i32 j = 0; j < n; ++j) {
 		f32 t = ((f32)j - (f32)(n - 1) * 0.5f) * s;
-		sum += advanced_blur_node_sample(src, size, (f32)x + dx * t, (f32)y + dy * t);
+		sum += make_image_node_sample_bilinear(src, size, (f32)x + dx * t, (f32)y + dy * t);
 	}
 	return sum / (f32)n;
+}
+
+// Weight of tap k of n of the dense gaussian: the taps span -r to r with sigma = r / 3, so the weight is independent of r.
+// Filled once before the worker threads start (advanced_blur_node_init_weights).
+static f32  advanced_blur_node_weights[ADVANCED_BLUR_MAX_TAPS + 1][ADVANCED_BLUR_MAX_TAPS];
+static f32  advanced_blur_node_weight_sums[ADVANCED_BLUR_MAX_TAPS + 1];
+static bool advanced_blur_node_weights_ready = false;
+
+static void advanced_blur_node_init_weights() {
+	if (advanced_blur_node_weights_ready) {
+		return;
+	}
+	for (i32 n = 3; n <= ADVANCED_BLUR_MAX_TAPS; ++n) {
+		f32 sum = 0.0f;
+		for (i32 k = 0; k < n; ++k) {
+			f32 u = -1.0f + 2.0f * (f32)k / (f32)(n - 1);
+			advanced_blur_node_weights[n][k] = expf(-4.5f * u * u);
+			sum += advanced_blur_node_weights[n][k];
+		}
+		advanced_blur_node_weight_sums[n] = sum;
+	}
+	advanced_blur_node_weights_ready = true;
 }
 
 // Gaussian of radius r (3 sigma) at (x, y). Up to ADVANCED_BLUR_GAUSS_DENSE pixels: one dense pass (stage 0). Larger: three
@@ -149,16 +151,12 @@ static f32 advanced_blur_node_gauss(f32 *src, i32 size, i32 x, i32 y, f32 dx, f3
 	i32 n     = (i32)(2.0f * r) + 1;
 	n         = n > ADVANCED_BLUR_MAX_TAPS ? ADVANCED_BLUR_MAX_TAPS : n;
 	n         = n < 3 ? 3 : n;
-	f32 sum   = 0.0f;
-	f32 wsum  = 0.0f;
-	f32 sigma = r / 3.0f;
+	f32 sum = 0.0f;
 	for (i32 k = 0; k < n; ++k) {
 		f32 t = -r + 2.0f * r * (f32)k / (f32)(n - 1);
-		f32 w = expf(-t * t / (2.0f * sigma * sigma));
-		sum += w * advanced_blur_node_sample(src, size, (f32)x + dx * t, (f32)y + dy * t);
-		wsum += w;
+		sum += advanced_blur_node_weights[n][k] * make_image_node_sample_bilinear(src, size, (f32)x + dx * t, (f32)y + dy * t);
 	}
-	return sum / wsum;
+	return sum / advanced_blur_node_weight_sums[n];
 }
 
 typedef struct advanced_blur_stage_ctx {
@@ -202,6 +200,7 @@ static void advanced_blur_node_run(f32 **cur, f32 **nxt, f32 *px, i32 size, f32 
 
 // Blurred image from the captured float pixels; returns 0, or -1 when memory runs out
 static i32 advanced_blur_node_process(u8 *pixels, i32 size, void *params, f32 *result) {
+	advanced_blur_node_init_weights();
 	advanced_blur_params_t p  = *(advanced_blur_params_t *)params;
 	f32                   *px = (f32 *)pixels;
 	size_t                 n  = (size_t)size * size;
@@ -261,31 +260,6 @@ char *advanced_blur_node_vector(ui_node_t *node, ui_node_socket_t *socket) {
 	return parser_material_to_vec3(advanced_blur_node_value(node, socket));
 }
 
-static ui_node_socket_t *advanced_blur_node_socket(char *name, char *type, u32 color, f32_array_t *default_value, f32 max, f32 precision) {
-	return ALLOC_INIT(ui_node_socket_t, {.id            = 0,
-	                                     .node_id       = 0,
-	                                     .name          = name,
-	                                     .type          = type,
-	                                     .color         = color,
-	                                     .default_value = default_value,
-	                                     .min           = 0.0,
-	                                     .max           = max,
-	                                     .precision     = precision,
-	                                     .display       = 0});
-}
-
-static ui_node_button_t *advanced_blur_node_setting(char *name, char *type, f32 default_value, char *data) {
-	return ALLOC_INIT(ui_node_button_t, {.name          = name,
-	                                     .type          = type,
-	                                     .output        = -1,
-	                                     .default_value = f32_array_create_x(default_value),
-	                                     .data          = data != NULL ? u8_array_create_from_string(data) : NULL,
-	                                     .min           = 0.0,
-	                                     .max           = 1.0,
-	                                     .precision     = 100,
-	                                     .height        = 0});
-}
-
 void advanced_blur_node_init() {
 	u32 value_color  = 0xffa1a1a1;
 
@@ -298,23 +272,23 @@ void advanced_blur_node_init() {
 	                           .color  = NODES_MATERIAL_IMAGE_COLOR,
 	                           .inputs = any_array_create_from_raw(
 	                               (void *[]){
-	                                   advanced_blur_node_socket(_tr("Image"), "VALUE", NODES_MATERIAL_IMAGE_COLOR, f32_array_create_x(1.0), 1.0, 100),
-	                                   advanced_blur_node_socket(_tr("Radius"), "VALUE", value_color, f32_array_create_x(0.01), 0.25, 1000),
-	                                   advanced_blur_node_socket(_tr("Angle"), "VALUE", value_color, f32_array_create_x(0.0), 360.0, 10),
-	                                   advanced_blur_node_socket(_tr("Aspect"), "VALUE", value_color, f32_array_create_x(1.0), 10.0, 100),
-	                                   advanced_blur_node_socket(_tr("Mask"), "VALUE", value_color, f32_array_create_x(1.0), 1.0, 100),
+	                                   make_image_node_socket(_tr("Image"), "VALUE", NODES_MATERIAL_IMAGE_COLOR, f32_array_create_x(1.0), 0.0, 1.0, 100),
+	                                   make_image_node_socket(_tr("Radius"), "VALUE", value_color, f32_array_create_x(0.01), 0.0, 0.25, 1000),
+	                                   make_image_node_socket(_tr("Angle"), "VALUE", value_color, f32_array_create_x(0.0), 0.0, 360.0, 10),
+	                                   make_image_node_socket(_tr("Aspect"), "VALUE", value_color, f32_array_create_x(1.0), 0.0, 10.0, 100),
+	                                   make_image_node_socket(_tr("Mask"), "VALUE", value_color, f32_array_create_x(1.0), 0.0, 1.0, 100),
 	                               },
 	                               5),
 	                           .outputs = any_array_create_from_raw(
 	                               (void *[]){
-	                                   advanced_blur_node_socket(_tr("Image"), "VALUE", NODES_MATERIAL_IMAGE_COLOR, f32_array_create_x(0.0), 1.0, 100),
+	                                   make_image_node_socket(_tr("Image"), "VALUE", NODES_MATERIAL_IMAGE_COLOR, f32_array_create_x(0.0), 0.0, 1.0, 100),
 	                               },
 	                               1),
 	                           .buttons = any_array_create_from_raw(
 	                               (void *[]){
-	                                   advanced_blur_node_setting(_tr("Size"), "ENUM", 1, "512\n1024\n2048\n4096"),
+	                                   make_image_node_setting(_tr("Size"), "ENUM", 1, MAKE_IMAGE_NODE_SIZE_ITEMS),
 	                                   make_image_node_state_button(),
-	                                   advanced_blur_node_setting(_tr("Mode"), "ENUM", 0, "Gaussian\nBox\nDirectional"),
+	                                   make_image_node_setting(_tr("Mode"), "ENUM", 0, "Gaussian\nBox\nDirectional"),
 	                               },
 	                               3),
 	                           .width = 0,

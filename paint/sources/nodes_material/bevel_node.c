@@ -56,14 +56,9 @@ typedef struct bevel_params {
 	f32 smoothing;
 } bevel_params_t;
 
-static f32 bevel_node_button(ui_node_t *node, i32 i) {
-	return node->buttons->buffer[i]->default_value->buffer[0];
-}
-
 // Width and height of the image: Size 512, 1024, 2048 or 4096
 static i32 bevel_node_size(ui_node_t *node) {
-	i32 i = (i32)bevel_node_button(node, BEVEL_BUTTON_SIZE);
-	return 512 << (i < 0 ? 0 : i > 3 ? 3 : i);
+	return make_image_node_size(node, BEVEL_BUTTON_SIZE);
 }
 
 // Captured per pixel: the Image input (the mask) as grey
@@ -76,8 +71,8 @@ static char *bevel_node_capture(ui_node_t *node) {
 
 static void bevel_node_params(ui_node_t *node, void *params) {
 	bevel_params_t *p = params;
-	p->mode           = (i32)bevel_node_button(node, BEVEL_BUTTON_MODE);
-	p->wrap           = bevel_node_button(node, BEVEL_BUTTON_WRAP) != 0.0;
+	p->mode           = (i32)make_image_node_button(node, BEVEL_BUTTON_MODE);
+	p->wrap           = make_image_node_button(node, BEVEL_BUTTON_WRAP) != 0.0;
 	p->distance       = make_image_node_input_value(node, BEVEL_INPUT_DISTANCE);
 	p->smoothing      = make_image_node_input_value(node, BEVEL_INPUT_SMOOTHING);
 }
@@ -122,6 +117,7 @@ typedef struct bevel_edt_ctx {
 	f32      *dist;    // Result: the distance in pixels, size * size
 	i32       size;
 	bool      wrap;
+	bool      failed; // A worker could not allocate its lines, only ever set to true
 } bevel_edt_ctx_t;
 
 // One line of the transform: f has size samples, tripled when wrap (the middle copy is the result, so the distance
@@ -161,6 +157,9 @@ static void bevel_node_edt_columns(void *param, i32 begin, i32 end) {
 			}
 		}
 	}
+	else {
+		c->failed = true;
+	}
 	free(line);
 	free(work);
 	free(d);
@@ -192,6 +191,9 @@ static void bevel_node_edt_rows(void *param, i32 begin, i32 end) {
 			}
 		}
 	}
+	else {
+		c->failed = true;
+	}
 	free(line);
 	free(work);
 	free(d);
@@ -199,11 +201,13 @@ static void bevel_node_edt_rows(void *param, i32 begin, i32 end) {
 	free(z);
 }
 
-// Distance in pixels of every pixel to the nearest pixel where feature is set (BEVEL_FAR when there is none)
-static void bevel_node_distance(const u8 *feature, f32 *g, f32 *dist, i32 size, bool wrap) {
+// Distance in pixels of every pixel to the nearest pixel where feature is set (BEVEL_FAR when there is none).
+// Returns false when memory runs out, dist is not valid then.
+static bool bevel_node_distance(const u8 *feature, f32 *g, f32 *dist, i32 size, bool wrap) {
 	bevel_edt_ctx_t c = {.feature = feature, .g = g, .dist = dist, .size = size, .wrap = wrap};
 	make_image_node_parallel(size, bevel_node_edt_columns, &c);
 	make_image_node_parallel(size, bevel_node_edt_rows, &c);
+	return !c.failed;
 }
 
 // Shaped height of t in 0..1: a chamfer at smoothing 0, a quarter circle at 1
@@ -281,6 +285,7 @@ static i32 bevel_node_process(u8 *bytes, i32 size, void *params, f32 *result) {
 		free(outer);
 		return -1;
 	}
+	bool ok = true;
 	for (size_t i = 0; i < n; ++i) {
 		inside[i] = pixels[i * 4] >= 0.5f ? 1 : 0;
 	}
@@ -288,10 +293,18 @@ static i32 bevel_node_process(u8 *bytes, i32 size, void *params, f32 *result) {
 		for (size_t i = 0; i < n; ++i) {
 			edge[i] = inside[i] ? 0 : 1;
 		}
-		bevel_node_distance(edge, g, inner, size, p.wrap != 0);
+		ok = bevel_node_distance(edge, g, inner, size, p.wrap != 0);
 	}
 	if (outer != NULL) { // Outside pixels: the nearest inside pixel is the feature
-		bevel_node_distance(inside, g, outer, size, p.wrap != 0);
+		ok = ok && bevel_node_distance(inside, g, outer, size, p.wrap != 0);
+	}
+	if (!ok) {
+		free(inside);
+		free(edge);
+		free(g);
+		free(inner);
+		free(outer);
+		return -1;
 	}
 	f32 width_px = p.distance * (f32)size;
 	width_px     = width_px < 1.0f ? 1.0f : width_px;
@@ -330,31 +343,6 @@ char *bevel_node_vector(ui_node_t *node, ui_node_socket_t *socket) {
 	return parser_material_to_vec3(bevel_node_value(node, socket));
 }
 
-static ui_node_socket_t *bevel_node_socket(char *name, char *type, u32 color, f32_array_t *default_value, f32 max, f32 precision) {
-	return ALLOC_INIT(ui_node_socket_t, {.id            = 0,
-	                                     .node_id       = 0,
-	                                     .name          = name,
-	                                     .type          = type,
-	                                     .color         = color,
-	                                     .default_value = default_value,
-	                                     .min           = 0.0,
-	                                     .max           = max,
-	                                     .precision     = precision,
-	                                     .display       = 0});
-}
-
-static ui_node_button_t *bevel_node_setting(char *name, char *type, f32 default_value, char *data) {
-	return ALLOC_INIT(ui_node_button_t, {.name          = name,
-	                                     .type          = type,
-	                                     .output        = -1,
-	                                     .default_value = f32_array_create_x(default_value),
-	                                     .data          = data != NULL ? u8_array_create_from_string(data) : NULL,
-	                                     .min           = 0.0,
-	                                     .max           = 1.0,
-	                                     .precision     = 100,
-	                                     .height        = 0});
-}
-
 void bevel_node_init() {
 	u32 value_color = 0xffa1a1a1;
 
@@ -368,23 +356,23 @@ void bevel_node_init() {
 	                .color  = NODES_MATERIAL_IMAGE_COLOR,
 	                .inputs = any_array_create_from_raw(
 	                    (void *[]){
-	                        bevel_node_socket(_tr("Image"), "VALUE", NODES_MATERIAL_IMAGE_COLOR, f32_array_create_x(1.0), 1.0, 100),
-	                        bevel_node_socket(_tr("Distance"), "VALUE", value_color, f32_array_create_x(0.05), 0.5, 1000),
-	                        bevel_node_socket(_tr("Smoothing"), "VALUE", value_color, f32_array_create_x(0.5), 1.0, 100),
+	                        make_image_node_socket(_tr("Image"), "VALUE", NODES_MATERIAL_IMAGE_COLOR, f32_array_create_x(1.0), 0.0, 1.0, 100),
+	                        make_image_node_socket(_tr("Distance"), "VALUE", value_color, f32_array_create_x(0.05), 0.0, 0.5, 1000),
+	                        make_image_node_socket(_tr("Smoothing"), "VALUE", value_color, f32_array_create_x(0.5), 0.0, 1.0, 100),
 	                    },
 	                    3),
 	                .outputs = any_array_create_from_raw(
 	                    (void *[]){
-	                        bevel_node_socket(_tr("Image"), "VALUE", NODES_MATERIAL_IMAGE_COLOR, f32_array_create_x(0.0), 1.0, 100),
-	                        bevel_node_socket(_tr("Distance"), "VALUE", value_color, f32_array_create_x(0.0), 1.0, 100),
+	                        make_image_node_socket(_tr("Image"), "VALUE", NODES_MATERIAL_IMAGE_COLOR, f32_array_create_x(0.0), 0.0, 1.0, 100),
+	                        make_image_node_socket(_tr("Distance"), "VALUE", value_color, f32_array_create_x(0.0), 0.0, 1.0, 100),
 	                    },
 	                    2),
 	                .buttons = any_array_create_from_raw(
 	                    (void *[]){
-	                        bevel_node_setting(_tr("Size"), "ENUM", 1, "512\n1024\n2048\n4096"),
+	                        make_image_node_setting(_tr("Size"), "ENUM", 1, MAKE_IMAGE_NODE_SIZE_ITEMS),
 	                        make_image_node_state_button(),
-	                        bevel_node_setting(_tr("Mode"), "ENUM", 0, "Inner\nOuter\nBoth"),
-	                        bevel_node_setting(_tr("Wrap Edges"), "BOOL", 0, NULL),
+	                        make_image_node_setting(_tr("Mode"), "ENUM", 0, "Inner\nOuter\nBoth"),
+	                        make_image_node_setting(_tr("Wrap Edges"), "BOOL", 0, NULL),
 	                    },
 	                    4),
 	                .width = 0,
