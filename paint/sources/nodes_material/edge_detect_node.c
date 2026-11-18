@@ -1,13 +1,14 @@
 #include "../global.h"
 
 // Edge Detect (Image menu): edges of the Image input. An image node (render/make_image_node.c): the Image input is
-// evaluated in image space (grey in R, G and B) and the edge image is computed on the cpu into one RGBA64 texture
+// evaluated in image space (grey in R, G and B, 32 bit float so smooth inputs do not band) and the edge image is computed on the cpu into one RGBA64 texture
 // per node, R = Image (the edge mask). The texture is sampled like an Image Texture: at the Vector input or
 // tex_coord, repeating.
 //
 // Per pixel the largest difference to the eight neighbours at distance Edge Width (a fraction of Size, at least
-// one pixel) is taken. Gradient mode: ramps from 0 at Tolerance to 1 at a difference of 1. Boundary mode: 1 where
-// the difference exceeds Tolerance, else 0.
+// one pixel) is taken. Gradient mode: ramps from 0 at Tolerance to 1 at the largest difference of the image, so a
+// smooth input (noise, distance fields) still gives visible edges. Boundary mode: 1 where the difference exceeds
+// Tolerance, else 0.
 // Edge Width and Tolerance hold for the whole image (scalar, evaluated at the image centre when linked): the
 // neighbour distance has to be known per bake, and a per pixel link has no neighbours to compare in image space.
 
@@ -67,41 +68,47 @@ static i32 edge_detect_node_wrap_index(i32 i, i32 size, bool wrap) {
 }
 
 // Edge image from the captured grey (R of every pixel); returns 0
-static i32 edge_detect_node_process(u8 *pixels, i32 size, void *params, f32 *result) {
+static i32 edge_detect_node_process(u8 *bytes, i32 size, void *params, f32 *result) {
+	f32 *pixels = (f32 *)bytes; // Float capture
 	edge_detect_params_t p = *(edge_detect_params_t *)params;
 	f32 width_px           = p.edge_width * (f32)size;
 	i32 r                  = (i32)(width_px + 0.5);
 	r                      = r < 1 ? 1 : r > size / 2 ? size / 2 : r;
 	f32 tol                = p.tolerance < 0.0 ? 0.0 : p.tolerance > 1.0 ? 1.0 : p.tolerance;
-	f32 ramp               = 1.0 - tol;
 	static const i32 dx[8] = {-1, 0, 1, -1, 1, -1, 0, 1};
 	static const i32 dy[8] = {-1, -1, -1, 0, 0, 1, 1, 1};
+	f32 max_diff = 0.0;
 	for (i32 y = 0; y < size; ++y) {
 		for (i32 x = 0; x < size; ++x) {
-			i32 c    = pixels[((size_t)y * size + x) * 4];
-			i32 best = 0;
+			f32 c    = pixels[((size_t)y * size + x) * 4];
+			f32 best = 0.0;
 			for (i32 k = 0; k < 8; ++k) {
 				i32 nx = edge_detect_node_wrap_index(x + dx[k] * r, size, p.wrap);
 				i32 ny = edge_detect_node_wrap_index(y + dy[k] * r, size, p.wrap);
-				i32 d  = (i32)pixels[((size_t)ny * size + nx) * 4] - c;
-				d      = d < 0 ? -d : d;
+				f32 d  = pixels[((size_t)ny * size + nx) * 4] - c;
+				d      = d < 0.0 ? -d : d;
 				best   = d > best ? d : best;
 			}
-			f32 diff = (f32)best / 255.0;
-			f32 edge;
-			if (p.boundary) {
-				edge = diff > tol ? 1.0 : 0.0;
-			}
-			else {
-				edge = diff <= tol ? 0.0 : ramp > 0.0001 ? (diff - tol) / ramp : 1.0;
-				edge = edge > 1.0 ? 1.0 : edge;
-			}
-			f32 *out = &result[((size_t)y * size + x) * 4];
-			out[0]   = edge;
-			out[1]   = edge;
-			out[2]   = edge;
-			out[3]   = 1.0;
+			f32 diff                           = best;
+			result[((size_t)y * size + x) * 4] = diff; // The difference first, the edge value once the largest is known
+			max_diff                        = diff > max_diff ? diff : max_diff;
 		}
+	}
+	f32 ramp = max_diff - tol;
+	for (size_t i = 0; i < (size_t)size * size; ++i) {
+		f32 diff = result[i * 4];
+		f32 edge;
+		if (p.boundary) {
+			edge = diff > tol ? 1.0 : 0.0;
+		}
+		else {
+			edge = diff <= tol || ramp <= 0.0001 ? 0.0 : (diff - tol) / ramp;
+			edge = edge > 1.0 ? 1.0 : edge;
+		}
+		result[i * 4]     = edge;
+		result[i * 4 + 1] = edge;
+		result[i * 4 + 2] = edge;
+		result[i * 4 + 3] = 1.0;
 	}
 	return 0;
 }
@@ -112,6 +119,8 @@ static image_node_type_t edge_detect_node_image_type = {
     .params_size   = sizeof(edge_detect_params_t),
     .size          = edge_detect_node_size,
     .capture       = edge_detect_node_capture,
+    .capture_float = true,
+    .smooth_sample = true,
     .params        = edge_detect_node_params,
     .process       = edge_detect_node_process,
 };
@@ -165,7 +174,7 @@ void edge_detect_node_init() {
 	                    (void *[]){
 	                        edge_detect_node_socket(_tr("Image"), "VALUE", NODES_MATERIAL_IMAGE_COLOR, f32_array_create_x(0.0), 1.0, 100),
 	                        edge_detect_node_socket(_tr("Edge Width"), "VALUE", value_color, f32_array_create_x(0.005), 0.1, 1000),
-	                        edge_detect_node_socket(_tr("Tolerance"), "VALUE", value_color, f32_array_create_x(0.1), 1.0, 100),
+	                        edge_detect_node_socket(_tr("Tolerance"), "VALUE", value_color, f32_array_create_x(0.0), 1.0, 100),
 	                        edge_detect_node_socket(_tr("Vector"), "VECTOR", vector_color, f32_array_create_xyz(0.0, 0.0, 0.0), 1.0, 100),
 	                    },
 	                    4),
