@@ -221,6 +221,8 @@ Dupliquer la brosse
 Dupliquer le calque
 Dupliquer matériau
 Dupliquer l'échantillon
+
+
 Modifier
 Éditer image
 Modifier nœuds
@@ -764,6 +766,7 @@ Vers masque de peinture
 En radians
 Plein écran
 Basculer en-tête
+
 Outils
 Dessus
 Interface tactile
@@ -832,6 +835,7 @@ Fenêtre
 Fil de fer
 Espace de travail
 Monde
+
 Boucler la souris
 Boucler la souris autour des limites de la vue pendant le contrôle caméra
 X

@@ -221,6 +221,8 @@ Ecset duplikálása
 Réteg duplikálása
 Anyag duplikálása
 Színminta duplikálása
+
+
 Szerkesztés
 Kép szerkesztése
 Csomópontok szerkesztése
@@ -764,6 +766,7 @@ Festő maszkká
 Radiánra
 Teljes képernyő ki/be
 Fejléc ki/be
+
 Eszközök
 Fent
 Érintőképernyős UI
@@ -832,6 +835,7 @@ Ablak
 Drótváz
 Munkaterület
 Világ
+
 Egér átfordítása
 Kamera mozgatása közben az egér átfordul a képernyő szélein
 X

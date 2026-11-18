@@ -221,6 +221,8 @@ Duplikovat štětec
 Duplikovat vrstvu
 Duplikovat materiál
 Duplikovat vzorek
+
+
 Upravit
 Upravit obrázek
 Upravit uzly
@@ -764,6 +766,7 @@ Na malovací masku
 Na radiány
 Přepnout celou obrazovku
 Přepnout záhlaví
+
 Nástroje
 Horní
 Dotykové rozhraní
@@ -832,6 +835,7 @@ Okno
 Drátěný model
 Pracovní prostor
 Svět
+
 Obtáčet myš
 Obtáčet myš kolem hranic pohledu při ovládání kamery
 X

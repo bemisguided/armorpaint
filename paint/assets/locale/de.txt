@@ -221,6 +221,8 @@ Pinsel duplizieren
 Ebene duplizieren
 Material duplizieren
 Farbfeld duplizieren
+
+
 Bearbeiten
 Bild bearbeiten
 Nodes bearbeiten
@@ -764,6 +766,7 @@ Zu Zeichenmaske
 Nach Bogenmaß
 In Vollbild umschalten
 Werkzeugleiste umschalten
+
 Werkzeuge
 Oben
 Touch UI
@@ -832,6 +835,7 @@ Fenster
 Drahtgitter
 Arbeitsbereich
 Welt
+
 Maus herumführen
 Bei der Steuerung der Kamera die Maus um die Ansichtsgrenzen herumführen.
 X

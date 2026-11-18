@@ -221,6 +221,8 @@ Duplikuj pędzel
 Duplikuj warstwę
 Duplikuj materiał
 Duplikuj próbkę koloru
+
+
 Edytuj
 Edytuj obraz
 Edytuj węzły
@@ -764,6 +766,7 @@ Do maski malowania
 Do radianów
 Przełącz pełny ekran
 Przełącz nagłówek
+
 Narzędzia
 Góra
 Interfejs dotykowy
@@ -832,6 +835,7 @@ Okno
 Siatka
 Przestrzeń robocza
 Świat
+
 Zawijaj mysz
 Zawijaj mysz wokół granic widoku podczas sterowania kamerą
 X

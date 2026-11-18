@@ -221,6 +221,8 @@ Duplikat Kuas
 Duplikat Lapisan
 Duplikat Material
 Duplikat Contoh Warna
+
+
 Sunting
 Sunting Gambar
 Sunting Node
@@ -764,6 +766,7 @@ Ke Masker Lukis
 Ke Radian
 Alihkan Layar Penuh
 Alihkan header
+
 Alat
 Atas
 UI Sentuh
@@ -832,6 +835,7 @@ Jendela
 Wireframe
 Ruang Kerja
 Dunia
+
 Bungkus Mouse
 Bungkus mouse di sekitar batas tampilan saat mengontrol kamera
 X
