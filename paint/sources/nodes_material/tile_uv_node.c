@@ -64,7 +64,8 @@ static image_node_type_t tile_uv_node_image_type = {
     .process       = tile_uv_node_process,
 };
 
-// The image placed on the uv: Vector (unlinked: tex_coord) rotated around its centre, scaled, then offset
+// The image placed on the uv: Vector (unlinked: tex_coord) scaled from the uv origin (Scale 2 repeats the image twice with whole
+// tiles at the uv borders), rotated around the origin, then offset, like a Mapping node
 static char *tile_uv_node_sample(ui_node_t *node) {
 	char             *name   = parser_material_store_var_name(node);
 	char             *uv     = NULL;
@@ -87,11 +88,11 @@ static char *tile_uv_node_sample(ui_node_t *node) {
 	char *a   = string_tmp("%s_angle", name);
 	if (string_array_index_of(parser_material_parsed, p) == -1) {
 		any_array_push(parser_material_parsed, p);
-		parser_material_write(parser_material_kong, string_tmp("float2 %s = %s - 0.5;", p, uv));
+		parser_material_write(parser_material_kong, string_tmp("float2 %s = %s * float2(%s, %s);", p, uv, sx, sy));
 		parser_material_write(parser_material_kong, string_tmp("float %s = %s * (3.14159265 / 180.0);", a, rot));
 		parser_material_write(parser_material_kong,
 		                      string_tmp("%s = float2(%s.x * cos(%s) - %s.y * sin(%s), %s.x * sin(%s) + %s.y * cos(%s));", p, p, a, p, a, p, a, p, a));
-		parser_material_write(parser_material_kong, string_tmp("%s = %s * float2(%s, %s) + 0.5 + float2(%s, %s);", p, p, sx, sy, ox, oy));
+		parser_material_write(parser_material_kong, string_tmp("%s = %s + float2(%s, %s);", p, p, ox, oy));
 	}
 	i32 setting = (i32)tile_uv_node_button(node, TILE_UV_BUTTON_FILTER); // 0 Linear, 1 Cubic, 2 Nearest
 	i32 filter  = setting == 0 ? IMAGE_FILTER_LINEAR : setting == 1 ? IMAGE_FILTER_CUBIC : IMAGE_FILTER_NEAREST;
