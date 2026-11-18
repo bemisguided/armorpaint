@@ -1,12 +1,13 @@
 #include "../global.h"
 
-// Shared pass of the image nodes (Image menu).
+// Shared pass of the image nodes (Pattern and Filter menus).
 // An image node evaluates its inputs in image space: the graph above the node drawn over the node's own square
 // ([0, 1] of tex_coord, Size x Size pixels, no mesh, no uv layout, parser_material_image_space), read back and
 // processed on the cpu by the node's type (image_node_type_t, make_image_node_register). The result is uploaded into
 // g_context->node_previews under the node's preview id and sampled by the node like an Image Texture at the
 // current texture coordinate, repeating (make_image_node_sample; Tile UV places an image on the uv with
-// make_image_node_sample_at; bound as _teximage_<preview id>). Image nodes have no Vector input. Nothing is saved with the project.
+// make_image_node_sample_at; bound as _teximage_<preview id>). Image nodes have no Vector input.
+// Nothing is saved with the project.
 // Every node preview traversal captures the node; a changed capture or parameter set makes it pending, and 0.5 s
 // after the last change, with no mouse button held and no Bake Texture running, the pending nodes are baked:
 // chained image nodes in dependency order, the inner node first.
@@ -181,7 +182,7 @@ static u64 make_image_node_signature(u8 *pixels, size_t bytes, i32 size, void *p
 
 // Shader evaluating expr(node) over the image square: a full screen triangle with tex_coord = the image uv,
 // [0, 1] across the target, no mesh (parser_material_image_space gives mesh based inputs a neutral value).
-// The node writes the expression while make_image_node_capturing is set. NULL when it does not compile.
+// The node writes the expression while make_image_node_capturing is set.
 static shader_context_t *make_image_node_capture_shader(ui_node_t *node, char *(*expr)(ui_node_t *), char *format) {
 	shader_context_t      *props = ALLOC_INIT(shader_context_t, {.name            = "mesh",
 	                                                             .depth_write     = false,
@@ -243,12 +244,9 @@ static shader_context_t *make_image_node_capture_shader(ui_node_t *node, char *(
 }
 
 // Renders expr(node) over the image square into a size x size target of format and reads it back.
-// Returns the pixels (the caller frees them), or NULL when the shader does not compile.
+// Returns the pixels (the caller frees them), or NULL when the readback fails.
 static u8 *make_image_node_capture_pixels(ui_node_t *node, char *(*expr)(ui_node_t *), i32 size, gpu_texture_format_t format) {
 	shader_context_t *scon = make_image_node_capture_shader(node, expr, format == GPU_TEXTURE_FORMAT_RGBA128 ? "RGBA128" : "RGBA32");
-	if (scon == NULL) {
-		return NULL;
-	}
 	if (util_render_screen_aligned_full_vb == NULL) {
 		util_render_create_screen_aligned_full_data();
 	}
@@ -272,9 +270,13 @@ static u8 *make_image_node_capture_pixels(ui_node_t *node, char *(*expr)(ui_node
 	_mesh_object_last_pipeline = NULL; // Mesh draws set their pipeline again
 	make_material_delete_context(scon);
 
-	buffer_t *b      = gpu_get_texture_pixels(target);
-	u8       *pixels = b->buffer;
-	b->buffer        = NULL; // Kept, gpu_delete_texture frees the rest
+	buffer_t *b = gpu_get_texture_pixels(target);
+	if (b == NULL) {
+		gpu_delete_texture(target);
+		return NULL;
+	}
+	u8 *pixels = b->buffer;
+	b->buffer  = NULL; // Kept, gpu_delete_texture frees the rest
 	gpu_delete_texture(target);
 	return pixels;
 }
@@ -398,7 +400,7 @@ static bool make_image_node_capture(make_image_node_state_t *s, char *id, ui_nod
 	make_image_node_capture_group   = NULL;
 	make_image_node_capture_parents = NULL;
 	if (pixels == NULL) {
-		return false; // Shader error, keep what is baked
+		return false; // Capture failed, keep what is baked
 	}
 	u64 sig = make_image_node_signature(pixels, total, size, params, t->params_size);
 
@@ -841,10 +843,7 @@ void make_image_node_bake_now(ui_node_t *node) {
 static void make_image_node_write_fetch(char *var, char *tex_name, char *uv, i32 filter) {
 	parser_material_write(parser_material_kong, string_tmp("float2 %s_uv = %s;", var, uv));
 	if (filter == IMAGE_FILTER_CUBIC) {
-		// Cubic B-spline over 4 x 4 texel centres (wrapped, like the bilinear below). Chosen over Catmull-Rom: it is C2, so
-		// the slope of the result (ddx, ddy of a Bump node) has no jumps at texel borders, and it never overshoots, so no
-		// dark or bright halos at the steps of a mask. The price is a blur of about half a texel, below a screen pixel
-		// wherever the result is magnified, and 16 fetches per pixel.
+		// Cubic B-spline over 4 x 4 texel centres (wrapped, like the bilinear below): C2 and without overshoot, at the cost of 16 fetches
 		parser_material_write(parser_material_kong, string_tmp("float2 %s_p = %s_uv * constants.%s_size - 0.5;", var, var, tex_name));
 		parser_material_write(parser_material_kong, string_tmp("float2 %s_f = floor(%s_p);", var, var));
 		parser_material_write(parser_material_kong, string_tmp("float2 %s_t = %s_p - %s_f;", var, var, var));
