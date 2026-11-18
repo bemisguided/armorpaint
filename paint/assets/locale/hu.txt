@@ -40,6 +40,7 @@ Arkusz koszinusz
 Arkusz szinusz
 Arkusz tangens 2
 Arkusz tangens
+
 Tömb
 Asset
 Attribútum
@@ -137,6 +138,7 @@ Szín egyesítése
 XYZ egyesítése
 Iránytű
 Megerősítés
+
 Konzol
 Konzol modell
 Állandó
@@ -279,6 +281,7 @@ Textúrák szűrése
 Lapos
 Lapítás
 Float görbe
+
 Padló
 Lefelé kerekített modulo
 Repülés (Fly)
@@ -436,6 +439,7 @@ Hálók
 Fémes (Metallic)
 Min
 Min Max
+
 Minimum
 Tükrözés
 Keverés
@@ -646,6 +650,7 @@ Szobrászat
 Szobrász réteg
 Keresés
 Csomópontok keresése
+
 Szegmensek
 Kijelölés
 Összes kijelölése
@@ -739,6 +744,7 @@ Textúrák...
 Téma
 Téma importálva:
 Vastagság
+
 Mozaik
 Mozaik X
 Mozaik Y
@@ -828,6 +834,7 @@ Ablak
 Drótváz
 Munkaterület
 Világ
+
 Egér átfordítása
 Kamera mozgatása közben az egér átfordul a képernyő szélein
 X

@@ -40,6 +40,7 @@ Arcus cosinus
 Arcus sinus
 Arcus tangens 2
 Arcus tangens
+
 Szyk
 Zasób
 Atrybut
@@ -137,6 +138,7 @@ Połącz kolor
 Połącz XYZ
 Kompas
 Potwierdź
+
 Konsola
 Model konsoli
 Stała
@@ -279,6 +281,7 @@ Filtruj tekstury
 Płaski
 Spłaszcz
 Krzywa liczby
+
 Zaokrąglij w dół
 Modulo z podłogą
 Latanie
@@ -436,6 +439,7 @@ Modele
 Metaliczność
 Min
 Min Maks
+
 Minimum
 Lustro
 Mieszaj
@@ -646,6 +650,7 @@ Rzeźbienie
 Warstwa rzeźbienia
 Szukaj
 Szukaj węzłów
+
 Segmenty
 Zaznacz
 Zaznacz wszystko
@@ -739,6 +744,7 @@ Tekstury...
 Motyw
 Motyw zaimportowany:
 Grubość
+
 Kafelek
 Kafelek X
 Kafelek Y
@@ -828,6 +834,7 @@ Okno
 Siatka
 Przestrzeń robocza
 Świat
+
 Zawijaj mysz
 Zawijaj mysz wokół granic widoku podczas sterowania kamerą
 X
