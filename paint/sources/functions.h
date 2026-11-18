@@ -889,6 +889,7 @@ void                      asset_selection_sync_filter(asset_tray_t tray, char *s
 void                      asset_selection_select_all(asset_tray_t tray, i32_array_t *visible);
 i32                       asset_selection_drag_count();
 void                      asset_selection_update();
+void                      asset_selection_validate_drag();
 void                      asset_selection_reorder(any_array_t *items, any_array_t *moving, i32 drop_pos, void (*on_move)(i32, i32));
 u32                       asset_selection_highlight_color();
 char                     *asset_selection_unique_path(char *dir, char *name, char *ext, string_array_t *taken);

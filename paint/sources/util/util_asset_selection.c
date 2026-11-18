@@ -343,18 +343,23 @@ static void asset_selection_cancel_drag() {
 	base_is_dragging   = false;
 }
 
+// Stops the drag when the dragged item was deleted (delete key, undo). Called before the drop handling and again before the
+// drag image is drawn: a delete or an undo in the same frame (shortcut) frees the item's image after the first call
+void asset_selection_validate_drag() {
+	asset_tray_t drag_tray;
+	void        *dragged = asset_selection_dragged_item(&drag_tray);
+	if (dragged != NULL && array_index_of(asset_selection_tray_items(drag_tray), dragged) == -1) {
+		asset_selection_cancel_drag();
+	}
+}
+
 // Called every frame before the drop handling of base_update
 void asset_selection_update() {
 	if (asset_selection_items == NULL) {
 		asset_selection_clear();
 	}
 
-	// The dragged item was deleted (delete key, undo)
-	asset_tray_t drag_tray;
-	void        *dragged = asset_selection_dragged_item(&drag_tray);
-	if (dragged != NULL && array_index_of(asset_selection_tray_items(drag_tray), dragged) == -1) {
-		asset_selection_cancel_drag();
-	}
+	asset_selection_validate_drag();
 
 	// Plain click on a selected item without dragging
 	if (asset_selection_collapse_to != NULL && (mouse_released("left") || !mouse_down("left"))) {
