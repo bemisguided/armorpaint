@@ -1401,6 +1401,7 @@ void              wave_texture_node_init();
 void              clamp_node_init();
 void              curvature_bake_node_init();
 void              blur_node_init();
+void              tile_generator_node_init();
 void              text_texture_node_init();
 void              gradient_texture_node_init();
 void              object_info_node_init();

@@ -79,6 +79,7 @@ Pudełko
 Tekstura ceglana
 Szerokość cegły
 Jasność
+
 Jasność/Kontrast
 Przeglądarka
 Pędzel
@@ -164,6 +165,7 @@ Krzywa
 Wygięte
 Własne
 Wytnij
+
 Przyciemnienie
 Debugowanie
 Dekal
@@ -345,6 +347,7 @@ Cosinus hiperboliczny
 Sinus hiperboliczny
 Tangens hiperboliczny
 
+
 Tekstura obrazu
 
 Obraz do PBR
@@ -491,6 +494,7 @@ Mapa normalnych 2
 Normalizuj
 Niedostępne w kompilacji debugowania
 Nie zaimplementowano
+
 OK
 Obiekt
 ID obiektu
@@ -520,6 +524,8 @@ Orientacja 3D
 Ortograficzny
 Wyjście
 Nakładka
+
+
 PBR
 Spakuj zasoby
 Spakuj do projektu
@@ -618,12 +624,14 @@ Prawy
 Pierścienie
 Obracaj
 Obrót
+
 Szorstkość
 Zaokrąglij
 Wysokość rzędu
 Uruchom
 Uruchom w odtwarzaczu
 Uruchomiono...
+
 SSAO
 Próbki
 Nasycenie
@@ -648,6 +656,7 @@ Rzeźbienie
 Warstwa rzeźbienia
 Szukaj
 Szukaj węzłów
+
 Segmenty
 Zaznacz
 Zaznacz wszystko
@@ -743,6 +752,7 @@ Motyw
 Motyw zaimportowany:
 Grubość
 Kafelek
+
 Kafelek X
 Kafelek Y
 Kafelkowany

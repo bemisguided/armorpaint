@@ -79,6 +79,7 @@ Kotak
 Tekstur Bata
 Lebar Bata
 Kecerahan
+
 Kecerahan/Kontras
 Peramban
 Kuas
@@ -164,6 +165,7 @@ Kurva
 Melengkung
 Kustom
 Potong
+
 Gelapkan
 Debug
 Dekal
@@ -345,6 +347,7 @@ Kosinus Hiperbolik
 Sinus Hiperbolik
 Tangen Hiperbolik
 
+
 Tekstur Gambar
 
 Gambar ke PBR
@@ -491,6 +494,7 @@ Peta Normal 2
 Normalisasi
 Tidak tersedia di build debug
 Belum diimplementasikan
+
 OK
 Objek
 ID Objek
@@ -520,6 +524,8 @@ Origin ke Geometri
 Ortografis
 Keluar
 Hampar
+
+
 PBR
 Kemas Aset
 Kemas ke Proyek
@@ -618,12 +624,14 @@ Kanan
 Cincin
 Rotasi
 Rotasi
+
 Kekasaran
 Bulatkan
 Tinggi Baris
 Jalankan
 Jalankan di Pemutar
 Berjalan...
+
 SSAO
 Sampel
 Saturasi
@@ -648,6 +656,7 @@ Sculpt
 Lapisan Sculpt
 Cari
 Cari node
+
 Segmen
 Pilih
 Pilih Semua
@@ -743,6 +752,7 @@ Tema
 Tema diimpor:
 Ketebalan
 Petak
+
 Petak X
 Petak Y
 Diubin

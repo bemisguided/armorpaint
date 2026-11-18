@@ -79,6 +79,7 @@ Caja
 Ladrillo
 Ancho del ladrillo
 Brillo
+
 Brillo/Contraste
 Navegador
 Pincel
@@ -164,6 +165,7 @@ Curva
 Curva
 Personalizado
 Cortar
+
 Oscurecer
 Depuración
 Pegatina
@@ -345,6 +347,7 @@ Coseno hiperbólico
 Seno hiperbólico
 Tangente hiperbólica
 
+
 Imagen
 
 Imagen a PBR
@@ -491,6 +494,7 @@ Mapa de normales 2
 Normalizar
 No disponible en la compilación de depuración
 No implementado
+
 OK
 Objeto
 ID de objeto
@@ -520,6 +524,8 @@ Origen a la geometría
 Ortográfica
 Salida
 Superponer
+
+
 PBR
 Empaquetar recursos
 Empaquetar en proyecto
@@ -618,12 +624,14 @@ Derecha
 Anillos
 Rotar
 Rotación
+
 Rugosidad
 Redondear
 Altura de la fila
 Ejecutar
 Ejecutar en el reproductor
 Ejecutando...
+
 SSAO
 Muestras
 Saturación
@@ -648,6 +656,7 @@ Escultura
 Capa de escultura
 Buscar
 Buscar nodos
+
 Segmentos
 Seleccionar
 Seleccionar todo
@@ -743,6 +752,7 @@ Tema
 Tema importado:
 Grosor
 Mosaico
+
 Mosaico X
 Mosaico Y
 Tileado

@@ -79,6 +79,7 @@ Doboz
 Tégla textúra
 Tégla szélessége
 Fényerő
+
 Fényerő/Kontraszt
 Böngésző
 Ecset
@@ -164,6 +165,7 @@ Görbe
 Görbített
 Egyéni
 Kivágás
+
 Sötétítés
 Hibakeresés
 Matrica
@@ -345,6 +347,7 @@ Hiperbolikus koszinusz
 Hiperbolikus szinusz
 Hiperbolikus tangens
 
+
 Kép textúra
 
 Képből PBR
@@ -491,6 +494,7 @@ Normal Map 2
 Normalizálás
 Nem elérhető hibakereső változatban
 Nincs megvalósítva
+
 OK
 Objektum
 Objektum ID
@@ -520,6 +524,8 @@ Origó a geometriához
 Ortografikus
 Kimenet
 Átfedés (Overlay)
+
+
 PBR
 Assetek becsomagolása
 Csomagolás a projektbe
@@ -618,12 +624,14 @@ Jobbra
 Gyűrűk
 Forgatás
 Forgás
+
 Érdesség (Roughness)
 Kerekítés
 Sor magassága
 Futtatás
 Futtatás a Playerben
 Fut...
+
 SSAO
 Minták
 Telítettség
@@ -648,6 +656,7 @@ Szobrászat
 Szobrász réteg
 Keresés
 Csomópontok keresése
+
 Szegmensek
 Kijelölés
 Összes kijelölése
@@ -743,6 +752,7 @@ Téma
 Téma importálva:
 Vastagság
 Mozaik
+
 Mozaik X
 Mozaik Y
 Csempézett
