@@ -311,6 +311,7 @@ G
 Gaborova textura
 Gama
 Generováno
+
 Geometrie
 Geometrie do počátku
 Začít

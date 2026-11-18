@@ -193,7 +193,7 @@ void flood_fill_node_init() {
 	                           .type   = "TEX_FLOOD_FILL",
 	                           .x      = 0,
 	                           .y      = 0,
-	                           .color  = 0xff4982a0,
+	                           .color  = NODES_MATERIAL_GENERATORS_COLOR,
 	                           .inputs = any_array_create_from_raw(
 	                               (void *[]){
 	                                   flood_fill_node_socket(_tr("Mask"), "VALUE", value_color, f32_array_create_x(0.0)),
@@ -223,7 +223,7 @@ void flood_fill_node_init() {
 	                           .width = 0,
 	                           .flags = 0});
 
-	any_array_push(nodes_material_texture, flood_fill_node_def);
+	any_array_push(nodes_material_generators, flood_fill_node_def);
 	any_map_set(parser_material_node_values, "TEX_FLOOD_FILL", flood_fill_node_value);
 	any_map_set(parser_material_node_vectors, "TEX_FLOOD_FILL", flood_fill_node_vector);
 	any_map_set(ui_nodes_custom_buttons, "flood_fill_node_bake_button", flood_fill_node_bake_button);

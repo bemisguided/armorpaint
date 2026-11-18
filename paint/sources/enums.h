@@ -598,3 +598,6 @@ typedef enum {
 	HISTORY_ACTION_EDIT_SWATCH,
 	HISTORY_ACTION_OBJECT_TRANSFORM,
 } history_action_t;
+
+// Header color of the Generators node category: the yellow of color sockets
+#define NODES_MATERIAL_GENERATORS_COLOR 0xffc7c729

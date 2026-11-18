@@ -779,7 +779,7 @@ void ui_nodes_draw_menubar() {
 	string_array_t *cats = ui_nodes_get_categories();
 	for (i32 i = 0; i < cats->length; ++i) {
 
-		if (!full && i == 4) { // MATERIAL_NODE_CATEGORY_GROUP
+		if (!full && string_equals(cats->buffer[i], "Group")) {
 			break;
 		}
 

@@ -311,6 +311,7 @@ G
 Tekstur Gabor
 Gamma
 Dihasilkan
+
 Geometri
 Geometri ke Asal
 Mulai

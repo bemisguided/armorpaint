@@ -311,6 +311,7 @@ G
 Tekstura Gabora
 Gamma
 Wygenerowane
+
 Geometria
 Geometria do początku układu
 Rozpocznij

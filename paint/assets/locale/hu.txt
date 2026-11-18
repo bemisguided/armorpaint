@@ -311,6 +311,7 @@ G
 Gabor textúra
 Gamma
 Generált
+
 Geometria
 Geometria az origóba
 Kezdés

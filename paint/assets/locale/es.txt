@@ -311,6 +311,7 @@ V
 Textura Gabor
 Gama
 Generado
+
 Geometría
 Geometria al origen
 Comenzar
