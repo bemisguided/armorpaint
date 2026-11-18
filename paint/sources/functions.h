@@ -1198,6 +1198,7 @@ i32                       util_udim_tile_res_y();
 i32                       util_udim_res_x();
 i32                       util_udim_res_y();
 bool                      util_udim_clamped();
+int                       util_udim_compare_i32(const void *a, const void *b);
 void                      util_udim_set_tiles(i32_array_t *ids);
 void                      util_udim_apply_layout(mesh_data_t *md);
 void                      util_udim_ensure(mesh_data_t *md);

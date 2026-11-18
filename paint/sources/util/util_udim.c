@@ -14,8 +14,13 @@
 
 #define UTIL_UDIM_MAX_SIDE 16384
 
-static int _util_udim_compare_i32(const void *a, const void *b) {
-	return *(i32 *)a - *(i32 *)b;
+#define UTIL_UDIM_FIRST_TILE 1001
+#define UTIL_UDIM_LAST_TILE 2000
+
+int util_udim_compare_i32(const void *a, const void *b) {
+	i32 x = *(i32 *)a;
+	i32 y = *(i32 *)b;
+	return (x > y) - (x < y);
 }
 
 i32 util_udim_count() {
@@ -82,18 +87,19 @@ bool util_udim_clamped() {
 	return util_udim_tile_res_x() < config_get_texture_res_x() || util_udim_tile_res_y() < config_get_texture_res_y();
 }
 
-// Sets the project tile list (copied, sorted, distinct, NULL or empty gives {1001}), the layout is not changed
+// Sets the project tile list (copied, sorted, distinct, ids outside 1001..2000 dropped, NULL or empty gives {1001}), the layout is not changed
 void util_udim_set_tiles(i32_array_t *ids) {
 	i32_array_t *t = i32_array_create(0);
 	for (i32 i = 0; ids != NULL && i < ids->length; ++i) {
-		if (ids->buffer[i] > 0 && i32_array_index_of(t, ids->buffer[i]) < 0) {
+		i32 id = ids->buffer[i];
+		if (id >= UTIL_UDIM_FIRST_TILE && id <= UTIL_UDIM_LAST_TILE && i32_array_index_of(t, id) < 0) {
 			i32_array_push(t, ids->buffer[i]);
 		}
 	}
 	if (t->length == 0) {
 		i32_array_push(t, 1001);
 	}
-	i32_array_sort(t, _util_udim_compare_i32);
+	i32_array_sort(t, util_udim_compare_i32);
 	array_delete(g_project->_->udim_tiles);
 	g_project->_->udim_tiles = t;
 }
@@ -1094,7 +1100,7 @@ bool layer_write_coverage_test(node_shader_t *kong, slot_layer_t *l) {
 			i32_array_push(live, pid);
 		}
 	}
-	i32_array_sort(live, _util_udim_compare_i32);
+	i32_array_sort(live, util_udim_compare_i32);
 
 	node_shader_add_constant(kong, "int object_pid", "_object_pid");
 	node_shader_write_frag(kong, both ? "if ((" : "if (");
