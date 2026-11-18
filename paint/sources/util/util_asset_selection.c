@@ -260,6 +260,33 @@ void asset_selection_set(asset_tray_t tray, any_array_t *items, void *primary) {
 	asset_selection_set_primary(primary);
 }
 
+// Ctrl+A over a tray window selects every shown item. visible: tray indices of the shown items, NULL when all are shown.
+// Called every frame by the trays while their window is drawn. The active item stays the primary one.
+void asset_selection_select_all(asset_tray_t tray, i32_array_t *visible) {
+	if (!g_ui->is_ctrl_down || !g_ui->is_key_pressed || g_ui->key_code != KEY_CODE_A || g_ui->is_typing) {
+		return;
+	}
+	if (!ui_input_in_rect(g_ui->_window_x, g_ui->_window_y, g_ui->_window_w, g_ui->_window_h)) {
+		return;
+	}
+	any_array_t *items = asset_selection_tray_items(tray);
+	i32          count = visible != NULL ? visible->length : items->length;
+	if (count == 0) {
+		return;
+	}
+	g_ui->is_key_pressed = false;
+	void *active         = asset_selection_active(tray);
+	asset_selection_clear();
+	asset_selection_tray = tray;
+	for (i32 i = 0; i < count; ++i) {
+		any_array_push(asset_selection_items, items->buffer[visible != NULL ? visible->buffer[i] : i]);
+	}
+	void *primary = active != NULL && asset_selection_has(active) ? active : asset_selection_items->buffer[0];
+	asset_selection_anchor = primary;
+	asset_selection_set_primary(primary);
+	ui_dock_redraw(TAB_AREA_SIDEBAR1);
+}
+
 // Called every frame by the trays with a search field, a new search text collapses the selection
 void asset_selection_sync_filter(asset_tray_t tray, char *search) {
 	char *last = asset_selection_filters[tray];
