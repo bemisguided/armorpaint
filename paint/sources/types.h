@@ -1115,6 +1115,10 @@ typedef struct image_node_type {
 	// Number of captures of the node, NULL for one. Capture k (make_image_node_capture_index) calls capture again;
 	// the captures are handed to process one after the other (count * size * size pixels).
 	i32 (*capture_count)(ui_node_t *node);
+	// Width and height of capture k, NULL for the node size on every capture. A small capture is enough for inputs that are
+	// read at a few points (Tile Generator per tile maps). The captures follow each other in the pixels handed to process,
+	// each size * size pixels of its own size.
+	i32 (*capture_size)(ui_node_t *node, i32 k);
 	// false: the capture is 8 bit per channel (RGBA8), enough for masks. true: 32 bit float per channel (size * size * 16 bytes,
 	// 268 MB at 4096), for height maps and blurs that would band; process then gets the pixels as a f32 array (cast to f32 *).
 	bool capture_float;

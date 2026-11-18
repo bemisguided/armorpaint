@@ -361,10 +361,16 @@ static bool make_image_node_capture(make_image_node_state_t *s, char *id, ui_nod
 	i32   pixel_bytes               = t->capture_float ? 16 : 4;
 	gpu_texture_format_t format     = t->capture_float ? GPU_TEXTURE_FORMAT_RGBA128 : GPU_TEXTURE_FORMAT_RGBA32;
 	u8   *pixels                    = NULL;
-	size_t one                      = (size_t)size * size * pixel_bytes;
+	size_t total                    = 0; // Bytes of all captures, each of its own size
+	size_t offset                   = 0;
+	for (i32 k = 0; k < count; ++k) {
+		i32 ks = t->capture_size != NULL ? t->capture_size(node, k) : size;
+		total += (size_t)ks * ks * pixel_bytes;
+	}
 	for (i32 k = 0; k < count; ++k) {
 		make_image_node_capture_k = k;
-		u8 *p                     = make_image_node_capture_pixels(node, t->capture, size, format);
+		i32 ks                    = t->capture_size != NULL ? t->capture_size(node, k) : size;
+		u8 *p                     = make_image_node_capture_pixels(node, t->capture, ks, format);
 		if (p == NULL) {
 			free(pixels);
 			pixels = NULL;
@@ -375,9 +381,11 @@ static bool make_image_node_capture(make_image_node_state_t *s, char *id, ui_nod
 			break;
 		}
 		if (pixels == NULL) {
-			pixels = malloc(one * count);
+			pixels = malloc(total);
 		}
-		memcpy(pixels + one * k, p, one);
+		size_t one = (size_t)ks * ks * pixel_bytes;
+		memcpy(pixels + offset, p, one);
+		offset += one;
 		free(p);
 	}
 	make_image_node_capture_k = 0;
@@ -392,7 +400,7 @@ static bool make_image_node_capture(make_image_node_state_t *s, char *id, ui_nod
 	if (pixels == NULL) {
 		return false; // Shader error, keep what is baked
 	}
-	u64 sig = make_image_node_signature(pixels, one * count, size, params, t->params_size);
+	u64 sig = make_image_node_signature(pixels, total, size, params, t->params_size);
 
 	bool has_result = g_context->node_previews != NULL && any_map_get(g_context->node_previews, id) != NULL;
 	if (!force && has_result && s->has_baked && sig == s->baked_signature) {
