@@ -37,7 +37,7 @@ static void util_layer_draw_preview(slot_layer_t *l, gpu_texture_t *target) {
 	                         : type == PAINT_TEX_METALLIC  ? 3
 	                         : type == PAINT_TEX_NORMAL    ? 5
 	                                                       : 4; // Opacity, height
-	draw_begin(target, true, 0xff000000);                    // view2d pipe keeps dst alpha
+	draw_begin(target, true, 0xff000000);                       // view2d pipe keeps dst alpha
 	draw_set_pipeline(ui_view2d_pipe);
 	gpu_set_int(ui_view2d_channel_loc, channel);
 	draw_scaled_image(source, 0, 0, target->width, target->height);
@@ -86,8 +86,8 @@ void layers_init() {
 }
 
 void layers_resize_undo_steps() {
-	if (util_udim_res_x() >= 8192 || util_udim_res_y() >= 8192) { // Save memory for >=8k
-		g_config->undo_steps = util_udim_res_x() == 8192 ? 4 : 1;
+	if (config_get_texture_res_x() >= 8192 || config_get_texture_res_y() >= 8192) { // Save memory for >=8k
+		g_config->undo_steps = config_get_texture_res_x() == 8192 ? 4 : 1;
 		while (history_undo_layers != NULL && history_undo_layers->length > g_config->undo_steps) {
 			slot_layer_t *l = array_pop(history_undo_layers);
 			sys_notify_on_next_frame(&slot_layer_unload, l);
@@ -127,16 +127,16 @@ void layers_resize_targets() {
 	render_target_t *blend0           = any_map_get(rts, "texpaint_blend0");
 	gpu_texture_t   *_texpaint_blend0 = blend0->_image;
 	gpu_delete_texture(_texpaint_blend0);
-	blend0->width  = util_udim_res_x();
-	blend0->height = util_udim_res_y();
-	blend0->_image = gpu_create_render_target(util_udim_res_x(), util_udim_res_y(), GPU_TEXTURE_FORMAT_R8);
+	blend0->width  = config_get_texture_res_x();
+	blend0->height = config_get_texture_res_y();
+	blend0->_image = gpu_create_render_target(config_get_texture_res_x(), config_get_texture_res_y(), GPU_TEXTURE_FORMAT_R8);
 
 	render_target_t *blend1           = any_map_get(rts, "texpaint_blend1");
 	gpu_texture_t   *_texpaint_blend1 = blend1->_image;
 	gpu_delete_texture(_texpaint_blend1);
-	blend1->width  = util_udim_res_x();
-	blend1->height = util_udim_res_y();
-	blend1->_image = gpu_create_render_target(util_udim_res_x(), util_udim_res_y(), GPU_TEXTURE_FORMAT_R8);
+	blend1->width  = config_get_texture_res_x();
+	blend1->height = config_get_texture_res_y();
+	blend1->_image = gpu_create_render_target(config_get_texture_res_x(), config_get_texture_res_y(), GPU_TEXTURE_FORMAT_R8);
 
 	g_context->brush_blend_dirty = true;
 
@@ -144,8 +144,8 @@ void layers_resize_targets() {
 	if (blur != NULL) {
 		gpu_texture_t *_texpaint_blur = blur->_image;
 		gpu_delete_texture(_texpaint_blur);
-		f32 size_x   = math_floor(util_udim_res_x() * 0.95);
-		f32 size_y   = math_floor(util_udim_res_y() * 0.95);
+		f32 size_x   = math_floor(config_get_texture_res_x() * 0.95);
+		f32 size_y   = math_floor(config_get_texture_res_y() * 0.95);
 		blur->width  = size_x;
 		blur->height = size_y;
 		blur->_image = gpu_create_render_target(size_x, size_y, GPU_TEXTURE_FORMAT_RGBA32);
@@ -157,17 +157,17 @@ void layers_resize_targets() {
 	render_target_t *sculpt_ref = any_map_get(rts, "texpaint_sculpt_ref");
 	if (sculpt_ref != NULL) {
 		gpu_delete_texture(sculpt_ref->_image);
-		sculpt_ref->width  = config_get_texture_res_x();
-		sculpt_ref->height = config_get_texture_res_y();
-		sculpt_ref->_image = gpu_create_render_target(config_get_texture_res_x(), config_get_texture_res_y(), GPU_TEXTURE_FORMAT_RGBA128);
+		sculpt_ref->width  = config_get_tile_res_x();
+		sculpt_ref->height = config_get_tile_res_y();
+		sculpt_ref->_image = gpu_create_render_target(config_get_tile_res_x(), config_get_tile_res_y(), GPU_TEXTURE_FORMAT_RGBA128);
 	}
 
 	render_target_t *sculpt_base = any_map_get(rts, "texpaint_sculpt_base");
 	if (sculpt_base != NULL) {
 		gpu_delete_texture(sculpt_base->_image);
-		sculpt_base->width  = config_get_texture_res_x();
-		sculpt_base->height = config_get_texture_res_y();
-		sculpt_base->_image = gpu_create_render_target(config_get_texture_res_x(), config_get_texture_res_y(), GPU_TEXTURE_FORMAT_RGBA128);
+		sculpt_base->width  = config_get_tile_res_x();
+		sculpt_base->height = config_get_tile_res_y();
+		sculpt_base->_image = gpu_create_render_target(config_get_tile_res_x(), config_get_tile_res_y(), GPU_TEXTURE_FORMAT_RGBA128);
 		sculpt_pack_base();
 	}
 }
@@ -177,7 +177,7 @@ void layers_set_bits() {
 		slot_layer_t *l = g_project->_->layers->buffer[i];
 		slot_layer_resize_and_set_bits(l);
 	}
-	for (i32 i = 0; i < history_undo_layers->length; ++i) {
+	for (i32 i = 0; history_undo_layers != NULL && i < history_undo_layers->length; ++i) {
 		slot_layer_t *l = history_undo_layers->buffer[i];
 		slot_layer_resize_and_set_bits(l);
 	}
@@ -211,7 +211,7 @@ void layers_make_temp_img() {
 }
 
 void layers_make_temp_mask_img() {
-	if (pipes_temp_mask_image != NULL && (pipes_temp_mask_image->width != util_udim_res_x() || pipes_temp_mask_image->height != util_udim_res_y())) {
+	if (pipes_temp_mask_image != NULL && (pipes_temp_mask_image->width != config_get_texture_res_x() || pipes_temp_mask_image->height != config_get_texture_res_y())) {
 		gpu_texture_t *_temp_mask_image = pipes_temp_mask_image;
 		gpu_delete_texture(_temp_mask_image);
 		pipes_temp_mask_image = NULL;
@@ -219,7 +219,7 @@ void layers_make_temp_mask_img() {
 
 	if (pipes_temp_mask_image == NULL) {
 		// pipes_temp_mask_image = gpu_create_render_target(config_get_texture_res_x(), config_get_texture_res_y(), GPU_TEXTURE_FORMAT_R8);
-		pipes_temp_mask_image = gpu_create_render_target(util_udim_res_x(), util_udim_res_y(), GPU_TEXTURE_FORMAT_RGBA32);
+		pipes_temp_mask_image = gpu_create_render_target(config_get_texture_res_x(), config_get_texture_res_y(), GPU_TEXTURE_FORMAT_RGBA32);
 	}
 }
 
@@ -539,6 +539,34 @@ void layers_update_linked_layers() {
 	}
 	g_context->material = _material;
 	if (any_linked) {
+		make_material_parse_paint_material(false);
+	}
+}
+
+void layers_update_all_fill_layers() {
+	slot_material_t *_material = g_context->material;
+	tool_type_t      _tool     = g_context->tool;
+	bool             any_fill  = false;
+	for (i32 i = 0; i < g_project->_->materials->length; ++i) {
+		slot_material_t *m        = g_project->_->materials->buffer[i];
+		bool             has_fill = false;
+		for (i32 j = 0; j < g_project->_->layers->length; ++j) {
+			if (g_project->_->layers->buffer[j]->fill_material == m) {
+				has_fill = true;
+				break;
+			}
+		}
+		if (!has_fill) {
+			continue;
+		}
+		any_fill            = true;
+		g_context->material = m;
+		g_context->tool     = TOOL_TYPE_FILL;
+		layers_update_fill_layers();
+		g_context->tool = _tool;
+	}
+	g_context->material = _material;
+	if (any_fill) {
 		make_material_parse_paint_material(false);
 	}
 }
@@ -1337,7 +1365,7 @@ static void _layers_udim_copy_tiles(gpu_texture_t *dst, gpu_texture_t *src, gpu_
 
 // New atlas sized texture for the project layout, cleared to color, with the tiles of the old layout copied in
 static gpu_texture_t *_layers_udim_relayout_texture(gpu_texture_t *src, u32 color, gpu_pipeline_t *pipe, i32_array_t *old_tiles, i32 old_stride) {
-	gpu_texture_t *dst = gpu_create_render_target(util_udim_res_x(), util_udim_res_y(), src->format);
+	gpu_texture_t *dst = gpu_create_render_target(config_get_texture_res_x(), config_get_texture_res_y(), src->format);
 	_gpu_begin(dst, NULL, NULL, GPU_CLEAR_COLOR, color, 0.0);
 	gpu_end();
 	_layers_udim_copy_tiles(dst, src, pipe, old_tiles, old_stride);
@@ -1505,7 +1533,7 @@ static gpu_pipeline_t *_layers_coverage_pipe(mesh_data_t *md) {
 // recreated when the atlas size changes
 static render_target_t *_layers_coverage_target() {
 	render_target_t *rt = any_map_get(render_path_render_targets, "coverage_mask");
-	if (rt != NULL && (rt->_image->width != util_udim_res_x() || rt->_image->height != util_udim_res_y())) {
+	if (rt != NULL && (rt->_image->width != config_get_texture_res_x() || rt->_image->height != config_get_texture_res_y())) {
 		gpu_delete_texture(rt->_image);
 		map_delete(render_path_render_targets, "coverage_mask");
 		rt = NULL;
@@ -1513,8 +1541,8 @@ static render_target_t *_layers_coverage_target() {
 	if (rt == NULL) {
 		render_target_t *t = render_target_create();
 		t->name            = "coverage_mask";
-		t->width           = util_udim_res_x();
-		t->height          = util_udim_res_y();
+		t->width           = config_get_texture_res_x();
+		t->height          = config_get_texture_res_y();
 		t->format          = "R8";
 		rt                 = render_path_create_render_target(t);
 	}
@@ -1664,9 +1692,9 @@ gpu_texture_t *layers_coverage_merge_mask(slot_layer_t *l, slot_layer_t_array_t 
 		draw_begin(pipes_temp_mask_image, true, 0xffffffff);
 		draw_end();
 	}
-	slot_layer_t *target = ALLOC_INIT(slot_layer_t, {.texpaint = pipes_temp_mask_image});
+	slot_layer_t target = {.texpaint = pipes_temp_mask_image};
 	for (i32 i = 0; i < masks->length; ++i) {
-		layers_merge_layer(target, move_preview ? layers_move_preview(masks->buffer[i]) : masks->buffer[i], false); // Multiplies
+		layers_merge_layer(&target, move_preview ? layers_move_preview(masks->buffer[i]) : masks->buffer[i], false); // Multiplies
 	}
 	return pipes_temp_mask_image;
 }

@@ -444,6 +444,7 @@ void asset_selection_sync_filter(asset_tray_t tray, char *search) {
 		return;
 	}
 	asset_selection_filters[tray] = string_copy(search);
+	free(last);
 	if (last != NULL && asset_selection_tray == tray) {
 		asset_selection_clear();
 	}
@@ -579,7 +580,7 @@ u32 asset_selection_highlight_color() {
 	return (g_theme->HIGHLIGHT_COL & 0x00ffffff) | 0x80000000;
 }
 
-// dir/name.ext, or dir/name.001.ext and up when the file exists or is in taken; the result is added to taken
+// dir/name.ext, or dir/name.001.ext and up when the file exists or is in the taken list; the result is added to it
 char *asset_selection_unique_path(char *dir, char *name, char *ext, string_array_t *taken) {
 	char *path = string("%s%s%s.%s", dir, PATH_SEP, name, ext);
 	for (i32 i = 1; iron_file_exists(path) || (taken != NULL && string_array_index_of(taken, path) >= 0); ++i) {

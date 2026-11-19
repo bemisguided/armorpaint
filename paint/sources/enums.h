@@ -680,12 +680,5 @@ typedef enum {
 	BTP_CAVITY        = 15, // Bake Maps plugin cavity (cpu only)
 } bake_type_persistent_t;
 
-typedef enum {
-	MT_BOOL      = 0,
-	MT_I32       = 1,
-	MT_F32       = 2,
-	MT_I32_ARRAY = 3,
-} meta_type_t;
-
 // Header color of every baked image node (a node with a resolution whose result is baked after a debounce, Pattern and Filter menus) and color of every Image socket
 #define NODES_MATERIAL_IMAGE_COLOR 0xffc78a29
