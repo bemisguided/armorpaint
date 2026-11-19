@@ -5,7 +5,8 @@
 // Slots are the positions in the list, the atlas has stride x stride slots (see util_udim_stride).
 // The configured project resolution (base_res_x/y) is per tile, layers and targets use the atlas size config_get_texture_res_x/y.
 
-#define UTIL_UDIM_MAX_SIDE 16384
+// Side of the atlas of a project with several tiles, the per tile resolution is lowered to fit. One tile keeps the configured size.
+#define UTIL_UDIM_MAX_SIDE 8192
 
 #define UTIL_UDIM_FIRST_TILE 1001
 #define UTIL_UDIM_LAST_TILE 2000
@@ -51,17 +52,21 @@ bool util_udim_active() {
 	return util_udim_count() > 1 || util_udim_tile(0) != 1001;
 }
 
-// Per tile resolution, the configured one unless the atlas would pass the max side
-i32 util_udim_tile_res_x() {
+// Per tile resolution, the configured one unless the atlas of several tiles would pass the max side
+static i32 _util_udim_fit(i32 res) {
+	if (util_udim_count() < 2) {
+		return res;
+	}
 	i32 max = UTIL_UDIM_MAX_SIDE / util_udim_stride();
-	i32 res = config_get_tile_res_x();
 	return res < max ? res : max;
 }
 
+i32 util_udim_tile_res_x() {
+	return _util_udim_fit(config_get_tile_res_x());
+}
+
 i32 util_udim_tile_res_y() {
-	i32 max = UTIL_UDIM_MAX_SIDE / util_udim_stride();
-	i32 res = config_get_tile_res_y();
-	return res < max ? res : max;
+	return _util_udim_fit(config_get_tile_res_y());
 }
 
 // The per tile resolution was lowered to fit the atlas
@@ -346,7 +351,8 @@ void util_udim_tile_remove(i32 tile) {
 	array_delete(tiles);
 }
 
-static void _util_udim_warn_clamped() {
+// Console message when the tile resolution was lowered to keep the atlas within the max side
+void util_udim_warn_clamped() {
 	if (util_udim_count() < 2 || !util_udim_clamped()) {
 		return;
 	}
@@ -428,7 +434,7 @@ void util_udim_relayout(i32_array_t *tiles) {
 	history_reset();
 	sys_notify_on_next_frame(&_util_udim_update_fill_layers, NULL);
 	console_info(tr("Tile layout changed, undo history was cleared"));
-	_util_udim_warn_clamped();
+	util_udim_warn_clamped();
 }
 
 // Meshes just imported (tex tile-local, tile data or none for all in 1001) join the project layout.
@@ -490,7 +496,7 @@ void util_udim_import_meshes(any_array_t *mds, bool fresh) {
 		for (i32 i = 0; i < mds->length; ++i) {
 			util_udim_apply_layout(mds->buffer[i]);
 		}
-		_util_udim_warn_clamped();
+		util_udim_warn_clamped();
 	}
 	else {
 		i32 count = util_udim_count();
