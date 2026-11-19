@@ -892,22 +892,30 @@ static i32_array_t *_layer_stored_objects(slot_layer_t *l) {
 }
 
 // Paint object x project tile slot, whether the object has vertices on the tile (an object without tile data is on 1001), cached
-static i32 _layer_object_tiles_version = -1;
-static i32 _layer_object_tiles_key     = 0;
-static u8 *_layer_object_tiles         = NULL;
+static i32          _layer_object_tiles_version = -1;
+static i32          _layer_object_tiles_objects = -1;   // Number of objects the table was built for
+static i32_array_t *_layer_object_tiles_list    = NULL; // Project tile ids it was built for
+static u8          *_layer_object_tiles         = NULL;
 
 static void _layer_object_tiles_refresh() {
 	mesh_object_t_array_t *objects = g_project->_->paint_objects;
 	i32                    count   = util_udim_count();
-	i32                    key     = objects->length;
-	for (i32 i = 0; i < count; ++i) {
-		key = key * 31 + util_udim_tile(i);
+	// The table is indexed with the current object and tile counts, so both are compared exactly
+	bool same = _layer_object_tiles != NULL && _layer_object_tiles_version == util_mesh_version && _layer_object_tiles_objects == objects->length &&
+	            _layer_object_tiles_list->length == count;
+	for (i32 i = 0; same && i < count; ++i) {
+		same = _layer_object_tiles_list->buffer[i] == util_udim_tile(i);
 	}
-	if (_layer_object_tiles != NULL && _layer_object_tiles_version == util_mesh_version && _layer_object_tiles_key == key) {
+	if (same) {
 		return;
 	}
 	_layer_object_tiles_version = util_mesh_version;
-	_layer_object_tiles_key     = key;
+	_layer_object_tiles_objects = objects->length;
+	array_delete(_layer_object_tiles_list);
+	_layer_object_tiles_list = i32_array_create(count);
+	for (i32 i = 0; i < count; ++i) {
+		_layer_object_tiles_list->buffer[i] = util_udim_tile(i);
+	}
 	free(_layer_object_tiles);
 	_layer_object_tiles = calloc(objects->length * count + 1, 1);
 	for (i32 i = 0; i < objects->length; ++i) {
