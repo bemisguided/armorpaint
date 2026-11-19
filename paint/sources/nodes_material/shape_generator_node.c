@@ -5,8 +5,8 @@
 // cpu from the settings and the number inputs into one RGBA128 texture per node (float, so soft edges do not band).
 // Width and Height are the full extent of the shape as a fraction of the image (Circle: the two diameters of an ellipse,
 // Square: Width only). Per pixel the signed distance to the shape in pixels gives the value 1 - smoothstep(-w, w, d),
-// w = Edge Softness in pixels, at least 1 so the edge is antialiased. Wrap Edges takes the nearest of the nine image
-// copies of the shape, so a shape that crosses the image border continues on the other side (the centre is reduced into the image first, more
+// w = Edge Softness in pixels, at least 1 so the edge is antialiased. Wrap Edges adds up the coverage of the nine image
+// copies of the shape (clamped to 1, so a shape as large as the image stays 1 on its border), so a shape that crosses the image border continues on the other side (the centre is reduced into the image first, more
 // copies each way when the shape extent plus the softness reaches farther than one image).
 // The number inputs hold for the whole image (scalars, evaluated at the image centre when linked).
 // Rotation follows the rotation convention of all image nodes (armorpaint-admin specs/image-nodes/ROTATION_CONVENTION.md):
@@ -125,7 +125,7 @@ static f32 shape_generator_node_coverage(shape_generator_params_t *p, i32 size, 
 	n         = n < 1 ? 1 : n > 4 ? 4 : n;
 	i32 from  = p->wrap ? -n : 0;
 	i32 to    = p->wrap ? n : 0;
-	f32 d    = 1.0e30f;
+	f32 v    = 0.0f;
 	for (i32 oy = from; oy <= to; ++oy) {
 		for (i32 ox = from; ox <= to; ++ox) {
 			f32 dx = x - (cx + (f32)ox * s);
@@ -133,11 +133,11 @@ static f32 shape_generator_node_coverage(shape_generator_params_t *p, i32 size, 
 			f32 rx = dx * ca + dy * sa; // The pixel in the frame of the shape: inverse of the clockwise turn
 			f32 ry = -dx * sa + dy * ca;
 			f32 di = shape_generator_node_distance(p->shape, rx, ry, hx, hy, r);
-			d      = di < d ? di : d; // The nearest copy is the largest value
+			f32 t  = shape_generator_node_clamp((di + w) / (2.0f * w), 0.0f, 1.0f);
+			v += 1.0f - t * t * (3.0f - 2.0f * t); // The coverages of the copies add up: two copies that abut share one antialiased edge (0.84 + 0.16)
 		}
 	}
-	f32 t = shape_generator_node_clamp((d + w) / (2.0f * w), 0.0f, 1.0f);
-	f32 v = 1.0f - t * t * (3.0f - 2.0f * t);
+	v = v > 1.0f ? 1.0f : v;
 	return p->invert ? 1.0f - v : v;
 }
 
