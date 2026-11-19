@@ -45,6 +45,7 @@ Arco tangente
 Matriz
 
 Ativo
+Atlas
 Atributo
 Automático
 
@@ -557,6 +558,7 @@ Sobrepor
 
 
 
+Por Telha UDIM
 
 
 
@@ -674,6 +676,7 @@ Executar no Player
 Executando...
 
 
+Compartilhado
 
 SSAO
 Amostras
@@ -841,6 +844,7 @@ Confiar nos scripts do projeto?
 Interpolar
 Torcer
 Tipo
+Telha UDIM
 Escala da Interface
 UV
 Ilha UV

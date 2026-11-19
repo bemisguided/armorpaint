@@ -45,6 +45,7 @@ Arc tangente
 Réseau
 
 Asset
+Atlas
 Attributs
 Auto
 
@@ -557,6 +558,7 @@ Superposer
 
 
 
+Par tuile UDIM
 
 
 
@@ -674,6 +676,7 @@ Exécuter dans le lecteur
 En cours...
 
 
+Partagé
 
 SSAO
 Échantillons
@@ -841,6 +844,7 @@ Faire confiance aux scripts du projet ?
 Interpolation
 Torsion
 Type
+Tuile UDIM
 Échelle interface
 UV
 Îlot UV

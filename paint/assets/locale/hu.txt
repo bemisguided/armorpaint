@@ -45,6 +45,7 @@ Arkusz tangens
 Tömb
 
 Asset
+Atlaszok
 Attribútum
 Auto
 
@@ -557,6 +558,7 @@ Kimenet
 
 
 
+UDIM csempénként
 
 
 
@@ -674,6 +676,7 @@ Futtatás a Playerben
 Fut...
 
 
+Megosztott
 
 SSAO
 Minták
@@ -841,6 +844,7 @@ Megbízik a projekt szkriptjeiben?
 Átmenet
 Csavarás
 Típus
+UDIM Csempe
 UI méretezés
 UV
 UV sziget

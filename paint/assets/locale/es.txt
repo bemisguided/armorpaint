@@ -45,6 +45,7 @@ Arc tangente
 Matriz
 
 Recurso
+Atlas
 Atributo
 Automático
 
@@ -557,6 +558,7 @@ Superponer
 
 
 
+Por tile UDIM
 
 
 
@@ -674,6 +676,7 @@ Ejecutar en el reproductor
 Ejecutando...
 
 
+Compartido
 
 SSAO
 Muestras
@@ -841,6 +844,7 @@ Módulo truncado
 Interpolar
 Torcer
 Tipo
+Cuadro UDIM
 Escala de Interfaz
 UV
 Isla UV

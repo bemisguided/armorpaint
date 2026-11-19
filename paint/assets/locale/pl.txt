@@ -45,6 +45,7 @@ Arcus tangens
 Szyk
 
 Zasób
+Atlasy
 Atrybut
 Automatyczny
 
@@ -557,6 +558,7 @@ Nakładka
 
 
 
+Na kafel UDIM
 
 
 
@@ -674,6 +676,7 @@ Uruchom w odtwarzaczu
 Uruchomiono...
 
 
+Współdzielone
 
 SSAO
 Próbki
@@ -841,6 +844,7 @@ Zaufać skryptom projektu?
 Interpolacja
 Skręć
 Typ
+Kafel UDIM
 Skala UI
 UV
 Wyspa UV

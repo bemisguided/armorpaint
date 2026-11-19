@@ -45,6 +45,7 @@ Arktangens
 Pole
 
 Asset
+Atlasy
 Atribut
 Automaticky
 
@@ -557,6 +558,7 @@ Překrytí
 
 
 
+Na UDIM dlaždici
 
 
 
@@ -674,6 +676,7 @@ Spustit v přehrávači
 Probíhá...
 
 
+Sdílené
 
 SSAO
 Vzorky
@@ -841,6 +844,7 @@ Důvěřovat skriptům projektu?
 Prolnutí
 Zkroutit
 Typ
+UDIM dlaždice
 Měřítko rozhraní
 UV
 UV ostrov

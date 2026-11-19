@@ -45,6 +45,7 @@ Arkutangen
 Array
 
 Aset
+Atlas
 Atribut
 Otomatis
 
@@ -557,6 +558,7 @@ Hampar
 
 
 
+Per Tile UDIM
 
 
 
@@ -674,6 +676,7 @@ Jalankan di Pemutar
 Berjalan...
 
 
+Berbagi
 
 SSAO
 Sampel
@@ -841,6 +844,7 @@ Percayai skrip proyek?
 Tween
 Puntir
 Jenis
+Tile UDIM
 Skala UI
 UV
 Pulau UV

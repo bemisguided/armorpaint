@@ -45,6 +45,7 @@ Area
 Array
 Aspect
 Asset
+Atlases
 Attribute
 Auto
 Auto uses tiles when the UVs span more than one tile and no triangle crosses a tile border
@@ -557,6 +558,7 @@ Pattern Mode
 By Map
 Color Map
 Pattern Map
+Per Udim Tile
 Pivot X
 Pivot Y
 Position X
@@ -674,6 +676,7 @@ Run in Player
 Running...
 Scale Random
 Shape Generator
+Shared
 Smoothing
 SSAO
 Samples
@@ -841,6 +844,7 @@ Trust project scripts?
 Tween
 Twist
 Type
+UDIM Tile
 UI Scale
 UV
 UV Island
