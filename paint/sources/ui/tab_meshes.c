@@ -1798,7 +1798,8 @@ static void tab_meshes_tile_remove_box_draw() {
 	if (ui_icon_button(tr("Cancel"), ICON_CLOSE, UI_ALIGN_CENTER)) {
 		ui_box_hide();
 	}
-	if (ui_icon_button(tr("Remove"), ICON_CHECK, UI_ALIGN_CENTER)) {
+	// Return confirms like the other boxes (Append, Import, New project), Escape and a click outside cancel
+	if (ui_icon_button(tr("Remove"), ICON_CHECK, UI_ALIGN_CENTER) || g_ui->is_return_down) {
 		ui_box_hide();
 		sys_notify_on_next_frame(&tab_meshes_tile_remove_next_frame, NULL);
 	}
