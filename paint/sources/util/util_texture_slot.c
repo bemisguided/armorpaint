@@ -438,6 +438,7 @@ static void texture_slot_invalidate() {
 // Per frame from base_update: rebuilds the atlases whose textures changed, then refreshes the layers and previews once.
 // One check when no Slot Texture node was ever parsed.
 void texture_slot_update() {
+	util_uv_overlap_poll();
 	if (texture_slot_count == 0 || gpu_in_use || _draw_current != NULL) {
 		return;
 	}
