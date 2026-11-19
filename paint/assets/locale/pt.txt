@@ -348,9 +348,6 @@ Seno Hiperbólico
 Tangente Hiperbólica
 
 
-
-
-
 Textura de Imagem
 
 
@@ -552,6 +549,10 @@ Colar
 Caminho
 Traçado de Caminho
 Traçador de Caminho
+
+
+
+
 
 Pausar
 Caneta

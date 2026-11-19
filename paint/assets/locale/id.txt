@@ -348,9 +348,6 @@ Sinus Hiperbolik
 Tangen Hiperbolik
 
 
-
-
-
 Tekstur Gambar
 
 
@@ -552,6 +549,10 @@ Tempel
 Jalur
 Jejak Jalur
 Pelacak Jalur
+
+
+
+
 
 Jeda
 Pena

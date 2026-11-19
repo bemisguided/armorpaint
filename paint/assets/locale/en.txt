@@ -348,9 +348,6 @@ Hyperbolic Sine
 Hyperbolic Tangent
 ID
 Image
-Image 2
-Image 3
-Image 4
 Image Texture
 Image node bake: out of memory
 Image node loop: looped input reads black
@@ -553,6 +550,10 @@ Path
 Path Traced
 Path Tracer
 Pattern
+Pattern 1
+Pattern 2
+Pattern 3
+Pattern 4
 Pause
 Pen
 Pencil

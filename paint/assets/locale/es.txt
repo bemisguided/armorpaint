@@ -348,9 +348,6 @@ Seno hiperbólico
 Tangente hiperbólica
 
 
-
-
-
 Imagen
 
 
@@ -552,6 +549,10 @@ Pegar
 Ruta
 Trazado de ruta
 Trazador de rutas
+
+
+
+
 
 Pausar
 Stylus

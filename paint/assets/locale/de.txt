@@ -348,9 +348,6 @@ Sinus Hyperbolicus
 Tangens Hyperbolicus
 
 
-
-
-
 Bild Textur
 
 
@@ -552,6 +549,10 @@ Einfügen
 Pfad
 Pfadverfolgung
 Pfadverfolger
+
+
+
+
 
 Pause
 Stift

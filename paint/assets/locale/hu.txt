@@ -348,9 +348,6 @@ Hiperbolikus szinusz
 Hiperbolikus tangens
 
 
-
-
-
 Kép textúra
 
 
@@ -552,6 +549,10 @@ Beillesztés
 Útvonal
 Path Traced
 Path Tracer
+
+
+
+
 
 Szünet
 Toll
