@@ -445,16 +445,12 @@ void util_mesh_merge(mesh_object_t_array_t *paint_objects) {
 	_util_mesh_merge(paint_objects, true);
 }
 
-static int _util_mesh_compare_i32(const void *a, const void *b) {
-	return *(i32 *)a - *(i32 *)b;
-}
-
 static i32_array_t *_util_mesh_sorted_ids(mesh_object_t_array_t *objects) {
 	i32_array_t *ids = i32_array_create(objects->length);
 	for (i32 i = 0; i < objects->length; ++i) {
 		ids->buffer[i] = objects->buffer[i]->paint_id;
 	}
-	i32_array_sort(ids, _util_mesh_compare_i32);
+	i32_array_sort(ids, util_udim_compare_i32);
 	return ids;
 }
 
