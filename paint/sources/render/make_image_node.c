@@ -23,6 +23,8 @@ typedef struct make_image_node_state {
 	i32                material_id;
 	bool               has_baked;
 	u64                baked_signature;
+	bool               failed;           // The last bake of failed_signature failed (upload or out of memory), not retried for it
+	u64                failed_signature;
 	bool               pending;      // pending_pixels wait for the debounce
 	u64                pending_signature;
 	u8                *pending_pixels; // pending_size * pending_size RGBA8
@@ -525,6 +527,11 @@ static bool make_image_node_capture(make_image_node_state_t *s, char *id, ui_nod
 		free(params);
 		return false;
 	}
+	if (!force && s->failed && sig == s->failed_signature) {
+		free(pixels); // Failed already, retried after a change or Regenerate Image Nodes
+		free(params);
+		return false;
+	}
 	if (!force && s->pending && sig == s->pending_signature) {
 		free(pixels); // Already waiting for this one
 		free(params);
@@ -611,11 +618,14 @@ static void make_image_node_bake(make_image_node_state_t *s, char *id) {
 	}
 	if (status < 0) {
 		console_error(tr("Image node bake: out of memory"));
-		s->has_baked = false; // Black result, the next traversal tries again
+		s->has_baked        = false; // Black result
+		s->failed           = true;
+		s->failed_signature = s->pending_signature;
 	}
 	else {
 		s->has_baked       = true;
 		s->baked_signature = s->pending_signature;
+		s->failed          = false;
 	}
 	make_image_node_clear_pending(s);
 }
