@@ -317,8 +317,12 @@ i32 parser_material_socket_index(ui_node_t *node, ui_node_socket_t *socket) {
 }
 
 char *parser_material_parse_group(ui_node_t *node, ui_node_socket_t *socket) {
+	ui_node_canvas_t *group = parser_material_get_group(node->name);
+	if (group == NULL) { // Group was deleted or renamed
+		return NULL;
+	}
 	any_array_push(parser_material_parents, node); // Entering group
-	parser_material_push_group(parser_material_get_group(node->name));
+	parser_material_push_group(group);
 	ui_node_t *output_node = parser_material_node_by_type(parser_material_nodes, "GROUP_OUTPUT");
 	if (output_node == NULL) {
 		return NULL;
