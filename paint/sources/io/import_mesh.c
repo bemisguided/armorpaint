@@ -76,8 +76,7 @@ static void import_mesh_take_over_id(mesh_object_t *o, bool first) {
 		}
 	}
 	if (id > 0) {
-		o->paint_id = id;
-		util_mesh_changed();
+		project_set_object_id(o, id);
 	}
 	else {
 		project_assign_object_id(o);
@@ -363,7 +362,6 @@ void import_mesh_make_mesh(raw_mesh_t *mesh) {
 	}
 
 	mesh_object_set_data(g_context->paint_object, md);
-	util_mesh_changed();
 	g_context->paint_object->base->name = mesh->name;
 
 	mesh_object_t_array_t *old_paint_objects = g_project->_->paint_objects;
