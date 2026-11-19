@@ -54,6 +54,7 @@ Hátul
 Sütés (Bake)
 Anyag sütése...
 Textúra sütése
+
 Sütés textúrákra
 Sávok
 Alap
@@ -688,6 +689,7 @@ Bejelentkezés folyamatban...
 Szinusz
 Méret
 Hely
+
 Simítás
 Elkenés
 Illesztés
@@ -738,6 +740,7 @@ Szöveg textúra
 Szövegből Kép
 Textúra
 Textúra koordináta
+
 Textúra importálva:
 Textúra...
 Textúrák

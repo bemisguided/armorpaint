@@ -54,6 +54,7 @@ Arrière
 Rendu
 Exporter le matériau...
 Rendu de texture
+
 Rendu des textures
 Bandes
 Base
@@ -688,6 +689,7 @@ Connexion en cours...
 Sinus
 Taille
 Emplacement
+
 Adoucir
 Étaler
 Accrocher
@@ -738,6 +740,7 @@ Texture texte
 Texte vers image
 Texture
 Coordonnées de texture
+
 Texture importée :
 Texture...
 Textures

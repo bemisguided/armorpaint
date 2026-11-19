@@ -54,6 +54,7 @@ Back
 Bake
 Bake Material...
 Bake Texture
+Bake Type
 Bake to Textures
 Bands
 Base
@@ -688,6 +689,7 @@ Signing in...
 Sine
 Size
 Slot
+Slot Texture
 Smooth
 Smudge
 Snap
@@ -738,6 +740,7 @@ Text Texture
 Text to Image
 Texture
 Texture Coordinate
+Texture Slot
 Texture imported:
 Texture...
 Textures

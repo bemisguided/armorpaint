@@ -54,6 +54,7 @@ Hinten
 Baken
 Material baken...
 Textur baken
+
 Auf Textur backen
 Bänder
 Basis
@@ -688,6 +689,7 @@ Anmeldung läuft...
 Sinus
 Größe
 Slot
+
 Glatt
 Verwischen
 Snap
@@ -738,6 +740,7 @@ Text Textur
 Text zu Bild
 Textur
 Texturkoordinate
+
 Textur importiert:
 Textur...
 Texturen

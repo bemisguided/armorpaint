@@ -54,6 +54,7 @@ Belakang
 Bake
 Bake Material...
 Bake Tekstur
+
 Bake ke Tekstur
 Pita
 Dasar
@@ -688,6 +689,7 @@ Sedang masuk...
 Sinus
 Ukuran
 Slot
+
 Haluskan
 Oleskan
 Snap
@@ -738,6 +740,7 @@ Tekstur Teks
 Teks ke Gambar
 Tekstur
 Koordinat Tekstur
+
 Tekstur diimpor:
 Tekstur...
 Tekstur

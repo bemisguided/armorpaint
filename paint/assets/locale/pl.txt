@@ -54,6 +54,7 @@ Tył
 Wypalanie
 Wypalanie materiału...
 Wypalanie tekstury
+
 Wypal do tekstur
 Pasma
 Podstawowy
@@ -688,6 +689,7 @@ Logowanie...
 Sinus
 Rozmiar
 Slot
+
 Wygładzanie
 Rozmazanie
 Przyciągaj
@@ -738,6 +740,7 @@ Tekstura tekstu
 Tekst do obrazu
 Tekstura
 Współrzędne tekstury
+
 Tekstura zaimportowana:
 Tekstura...
 Tekstury

@@ -54,6 +54,7 @@ Trasera
 Hornear
 Hornear material...
 Hornear textura
+
 Hornear a texturas
 Bandas
 Base
@@ -688,6 +689,7 @@ Iniciando sesión...
 Seno
 Tamaño
 Ranura
+
 Suavizar
 Difuminar
 Adherir
@@ -738,6 +740,7 @@ Textura de texto
 Texto a imagen
 Textura
 Coordenada de textura
+
 Textura importada:
 Textura...
 Texturas

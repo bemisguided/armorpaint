@@ -36,6 +36,7 @@ void nodes_material_init() {
 	magic_texture_node_init();
 	noise_texture_node_init();
 	text_texture_node_init();
+	texture_slot_node_init();
 	voronoi_texture_node_init();
 	wave_texture_node_init();
 

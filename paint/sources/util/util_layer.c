@@ -396,6 +396,7 @@ void layers_update_fill_layers() {
 						make_material_parse_paint_material(false);
 					}
 					layers_update_paint_set();
+					texture_slot_prepare(l); // Slot Texture atlas of the objects this layer covers
 					if (l->texpaint_sculpt != NULL) {
 						i32 tid = l->id;
 						i32 hid = history_undo_i - 1 < 0 ? g_config->undo_steps - 1 : history_undo_i - 1;
@@ -426,6 +427,7 @@ void layers_update_fill_layers() {
 						make_material_parse_paint_material(false);
 					}
 					layers_update_paint_set();
+					texture_slot_prepare(l);
 					slot_layer_clear(l, 0x00000000, NULL, 1.0, layers_default_rough, 0.0);
 					render_path_paint_commands_paint(false);
 					render_path_paint_dilate(true, true);
@@ -495,6 +497,7 @@ void layers_update_fill_layer(bool parse_paint) {
 		render_path_sculpt_commands();
 	}
 	else {
+		texture_slot_prepare(g_context->layer); // Slot Texture atlas of the objects this layer covers
 		slot_layer_clear(g_context->layer, 0x00000000, NULL, 1.0, layers_default_rough, 0.0);
 		if (parse_paint) {
 			make_material_parse_paint_material(false);
@@ -1526,6 +1529,26 @@ static gpu_pipeline_t *_layers_coverage_pipe(mesh_data_t *md) {
 	return _layers_coverage_pipes[key];
 }
 
+// R8 scratch, also bound by name for the dilate pass. Kept between calls (flatten runs every frame in path trace mode),
+// recreated when the atlas size changes
+static render_target_t *_layers_coverage_target() {
+	render_target_t *rt = any_map_get(render_path_render_targets, "coverage_mask");
+	if (rt != NULL && (rt->_image->width != config_get_texture_res_x() || rt->_image->height != config_get_texture_res_y())) {
+		gpu_delete_texture(rt->_image);
+		map_delete(render_path_render_targets, "coverage_mask");
+		rt = NULL;
+	}
+	if (rt == NULL) {
+		render_target_t *t = render_target_create();
+		t->name            = "coverage_mask";
+		t->width           = config_get_texture_res_x();
+		t->height          = config_get_texture_res_y();
+		t->format          = "R8";
+		rt                 = render_path_create_render_target(t);
+	}
+	return rt;
+}
+
 bool layers_coverage_mask(slot_layer_t *l, i32 object_filter, i32 tile_filter) {
 	// An object list holding every live object restricts nothing
 	bool objects = object_filter > 0;
@@ -1556,22 +1579,7 @@ bool layers_coverage_mask(slot_layer_t *l, i32 object_filter, i32 tile_filter) {
 		return true;
 	}
 
-	// R8 scratch, also bound by name for the dilate pass. Kept between calls (flatten runs every frame in path trace mode),
-	// recreated when the atlas size changes
-	render_target_t *rt = any_map_get(render_path_render_targets, "coverage_mask");
-	if (rt != NULL && (rt->_image->width != config_get_texture_res_x() || rt->_image->height != config_get_texture_res_y())) {
-		gpu_delete_texture(rt->_image);
-		map_delete(render_path_render_targets, "coverage_mask");
-		rt = NULL;
-	}
-	if (rt == NULL) {
-		render_target_t *t = render_target_create();
-		t->name            = "coverage_mask";
-		t->width           = config_get_texture_res_x();
-		t->height          = config_get_texture_res_y();
-		t->format          = "R8";
-		rt                 = render_path_create_render_target(t);
-	}
+	render_target_t *rt = _layers_coverage_target();
 	bool all = covered == count;
 
 	// Uv triangles of the covered objects, clipped to the covered slots (a triangle never crosses a cell)
@@ -1630,6 +1638,43 @@ bool layers_coverage_mask(slot_layer_t *l, i32 object_filter, i32 tile_filter) {
 		util_uv_dilatemap = dilatemap;
 	}
 
+	return true;
+}
+
+// Writes the uv islands of one object on one udim slot into pipes_temp_mask_image, white inside (dilated by the dilate radius
+// like layers_coverage_mask, kept inside the slot), black elsewhere. Returns false and writes nothing when the object has no mesh.
+bool layers_object_slot_mask(mesh_object_t *o, i32 slot) {
+	if (o == NULL || o->data == NULL || o->data->_->vertex_buffer == NULL || o->data->_->index_buffer == NULL || slot < 0 || slot >= util_udim_count()) {
+		return false;
+	}
+	layers_make_temp_mask_img();
+	render_target_t *rt = _layers_coverage_target();
+	_gpu_begin(rt->_image, NULL, NULL, GPU_CLEAR_COLOR, 0x00000000, 0.0);
+	gpu_set_pipeline(_layers_coverage_pipe(o->data));
+	gpu_set_vertex_buffer(o->data->_->vertex_buffer);
+	gpu_set_index_buffer(o->data->_->index_buffer);
+	_layers_coverage_scissor(slot);
+	gpu_draw();
+	gpu_disable_scissor();
+	gpu_end();
+
+	draw_begin(pipes_temp_mask_image, true, 0xff000000);
+	draw_set_pipeline(pipes_copy);
+	draw_image(rt->_image, 0, 0);
+	draw_set_pipeline(NULL);
+	draw_end();
+
+	if (g_config->dilate_radius > 0) {
+		gpu_texture_t *dilatemap = util_uv_dilatemap;
+		util_uv_dilatemap        = rt->_image;
+		_gpu_begin(pipes_temp_mask_image, NULL, NULL, GPU_CLEAR_NONE, 0, 0.0);
+		_layers_coverage_scissor(slot);
+		render_path_bind_target("coverage_mask", "tex");
+		render_path_draw_shader_keep_target("Scene/dilate_pass/dilate_pass");
+		gpu_disable_scissor();
+		gpu_end();
+		util_uv_dilatemap = dilatemap;
+	}
 	return true;
 }
 

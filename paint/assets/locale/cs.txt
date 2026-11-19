@@ -54,6 +54,7 @@ Zadní
 Zapékat
 Zapékat materiál...
 Zapékání textury
+
 Zapékat do textur
 Pásy
 Základní
@@ -688,6 +689,7 @@ Přihlašování...
 Sinus
 Velikost
 Slot
+
 Vyhladit
 Rozmazat
 Přichytit
@@ -738,6 +740,7 @@ Textová textura
 Text na obrázek
 Textura
 Souřadnice textury
+
 Textura importována:
 Textura...
 Textury
