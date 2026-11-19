@@ -801,6 +801,7 @@ void                   make_picking_run(node_shader_t *kong);
 ui_node_t             *parser_material_get_node(i32 id);
 ui_node_link_t        *parser_material_get_input_link(ui_node_socket_t *inp);
 void                   parser_material_init();
+void                   parser_material_set_parents(ui_node_t_array_t *parents);
 shader_out_t          *parser_material_parse(ui_node_canvas_t *canvas, node_shader_context_t *_con, node_shader_t *_kong);
 void                   parser_material_finalize(node_shader_context_t *con);
 void                   parser_material_push_group(ui_node_canvas_t *g);

@@ -41,6 +41,15 @@ static void parser_material_free_scratch() {
 	parser_material_canvases = NULL;
 }
 
+// The parents array of a group being parsed is owned by the caller, init must not free it
+void parser_material_set_parents(ui_node_t_array_t *parents) {
+	if (parser_material_owns_parents) {
+		array_delete(parser_material_parents);
+	}
+	parser_material_parents      = parents;
+	parser_material_owns_parents = false;
+}
+
 void parser_material_init() {
 	parser_material_free_scratch();
 
