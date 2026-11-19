@@ -4,7 +4,7 @@
 // node (render/make_image_node.c): Image and Map are evaluated in image space and captured together in 32 bit float (R and B =
 // Image, G = Map, so a red/blue swap on readback does not matter), the warp is computed on the cpu into one RGBA128 texture
 // per node, R = the warped image. The texture is sampled like an Image Texture at tex_coord, repeating (Tile UV places it on
-// the uv). The image repeats, so the warp wraps around the edges. This is Directional Warp and Slope Blur in one node.
+// the uv). With Wrap Edges on (the default) the image repeats, so the warp wraps around the edges; off, samples outside the image (the warp tap and the Map reads) clamp to the nearest edge pixel. This is Directional Warp and Slope Blur in one node.
 //
 // Every output pixel reads the image at p - d (the content moves along d, a negative Strength moves it the other way):
 //   Direction Angle:        d = (cos Angle, sin Angle) * Strength * Size * Map(p), Map clamped to 0..1.
@@ -30,6 +30,7 @@ enum {
 enum {
 	IMAGE_WARP_BUTTON_SIZE      = 0, // Button 1 is the state row
 	IMAGE_WARP_BUTTON_DIRECTION = 2,
+	IMAGE_WARP_BUTTON_WRAP      = 3, // Wrap Edges
 };
 
 enum {
@@ -44,6 +45,7 @@ typedef struct image_warp_params {
 	f32 strength; // Fraction of Size
 	f32 angle;    // Radians
 	f32 blur;     // 0 to 1
+	i32 wrap;     // Wrap Edges: samples outside the image wrap around (1) or clamp to the edge (0); part of the node signature
 } image_warp_params_t;
 
 // Width and height of the image: Size 512, 1024, 2048 or 4096
@@ -67,6 +69,32 @@ static void image_warp_node_params(ui_node_t *node, void *params) {
 	p->strength            = make_image_node_input_value(node, IMAGE_WARP_INPUT_STRENGTH);
 	p->angle               = make_image_node_input_value(node, IMAGE_WARP_INPUT_ANGLE) * (f32)(3.14159265358979 / 180.0);
 	p->blur                = make_image_node_input_value(node, IMAGE_WARP_INPUT_BLUR);
+	p->wrap                = make_image_node_button(node, IMAGE_WARP_BUTTON_WRAP) != 0.0f ? 1 : 0;
+}
+
+typedef f32 (*image_warp_sample_t)(f32 *img, i32 size, f32 x, f32 y);
+
+// Bilinear sample at pixel position (x, y), positions outside the image clamp to the nearest edge pixel
+static f32 image_warp_node_sample_clamp(f32 *img, i32 size, f32 x, f32 y) {
+	f32 fx = floorf(x);
+	f32 fy = floorf(y);
+	f32 tx = x - fx;
+	f32 ty = y - fy;
+	f32 hi = (f32)size;
+	fx     = fx < -1.0f ? -1.0f : fx > hi ? hi : fx; // Keeps the cast in range
+	fy     = fy < -1.0f ? -1.0f : fy > hi ? hi : fy;
+	i32 mx = size - 1;
+	i32 x0 = (i32)fx;
+	i32 y0 = (i32)fy;
+	i32 x1 = x0 + 1;
+	i32 y1 = y0 + 1;
+	x0     = x0 < 0 ? 0 : x0 > mx ? mx : x0;
+	y0     = y0 < 0 ? 0 : y0 > mx ? mx : y0;
+	x1     = x1 < 0 ? 0 : x1 > mx ? mx : x1;
+	y1     = y1 < 0 ? 0 : y1 > mx ? mx : y1;
+	f32 a  = img[(size_t)y0 * size + x0] * (1.0f - tx) + img[(size_t)y0 * size + x1] * tx;
+	f32 b  = img[(size_t)y1 * size + x0] * (1.0f - tx) + img[(size_t)y1 * size + x1] * tx;
+	return a * (1.0f - ty) + b * ty;
 }
 
 typedef struct image_warp_ctx {
@@ -77,12 +105,21 @@ typedef struct image_warp_ctx {
 	image_warp_params_t p;
 	f32                 ux; // Angle direction
 	f32                 uy;
+	image_warp_sample_t sample; // Wrap or clamp, picked once
 } image_warp_ctx_t;
 
-// Map value at a pixel, wrapping, clamped to 0..1
+// Map value at a pixel, wrapping or clamping the position per Wrap Edges, the value clamped to 0..1
 static f32 image_warp_node_map(image_warp_ctx_t *c, i32 x, i32 y) {
-	i32 xx = (x % c->size + c->size) % c->size;
-	i32 yy = (y % c->size + c->size) % c->size;
+	i32 xx;
+	i32 yy;
+	if (c->p.wrap) {
+		xx = (x % c->size + c->size) % c->size;
+		yy = (y % c->size + c->size) % c->size;
+	}
+	else {
+		xx = x < 0 ? 0 : x >= c->size ? c->size - 1 : x;
+		yy = y < 0 ? 0 : y >= c->size ? c->size - 1 : y;
+	}
 	f32 m  = c->px[((size_t)yy * c->size + xx) * 4 + 1];
 	return m < 0.0f ? 0.0f : m > 1.0f ? 1.0f : m;
 }
@@ -118,7 +155,7 @@ static void image_warp_node_rows(void *param, i32 begin, i32 end) {
 			f32 len  = blur * sqrtf(dx * dx + dy * dy);
 			f32 v;
 			if (len < 0.5f) {
-				v = make_image_node_sample_bilinear(c->img, c->size, (f32)x - dx, (f32)y - dy);
+				v = c->sample(c->img, c->size, (f32)x - dx, (f32)y - dy);
 			}
 			else {
 				i32 n = (i32)ceilf(len) + 1;
@@ -127,7 +164,7 @@ static void image_warp_node_rows(void *param, i32 begin, i32 end) {
 				for (i32 j = 0; j < n; ++j) {
 					f32 t = (f32)j / (f32)(n - 1); // 0 to 1 along the segment from p - d * (1 - blur) to p - d
 					f32 s = 1.0f - blur + blur * t;
-					sum += make_image_node_sample_bilinear(c->img, c->size, (f32)x - dx * s, (f32)y - dy * s);
+					sum += c->sample(c->img, c->size, (f32)x - dx * s, (f32)y - dy * s);
 				}
 				v = sum / (f32)n;
 			}
@@ -153,6 +190,7 @@ static i32 image_warp_node_process(u8 *pixels, i32 size, void *params, f32 *resu
 	image_warp_ctx_t c = {.px = px, .img = img, .dst = dst, .size = size, .p = *(image_warp_params_t *)params};
 	c.ux               = cosf(c.p.angle);
 	c.uy               = sinf(c.p.angle);
+	c.sample           = c.p.wrap ? make_image_node_sample_bilinear : image_warp_node_sample_clamp;
 	make_image_node_parallel(size, image_warp_node_rows, &c);
 	for (size_t i = 0; i < n; ++i) {
 		f32 v             = dst[i] < 0.0f ? 0.0f : dst[i] > 1.0f ? 1.0f : dst[i];
@@ -215,8 +253,9 @@ void image_warp_node_init() {
 	                                   make_image_node_setting(_tr("Size"), "ENUM", 1, MAKE_IMAGE_NODE_SIZE_ITEMS),
 	                                   make_image_node_state_button(),
 	                                   make_image_node_setting(_tr("Direction"), "ENUM", 0, "Angle\nSlope of Map"),
+	                                   make_image_node_setting(_tr("Wrap Edges"), "BOOL", 1, NULL),
 	                               },
-	                               3),
+	                               4),
 	                           .width = 0,
 	                           .flags = 0});
 
