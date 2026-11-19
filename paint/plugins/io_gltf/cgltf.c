@@ -10,6 +10,12 @@
 static bool  has_next     = false;
 static int   current_node = 0;
 static float scale_pos    = 1.0;
+static bool  udim_tiles   = false; // Udim tiles for the loaded scene, decided over all of its meshes
+
+void util_udim_scan_begin();
+void util_udim_scan(float *uv, int corners);
+bool util_udim_scan_end();
+void util_udim_split_raw(raw_mesh_t *raw, float *uv, int corners, bool tiles);
 
 static cgltf_size io_gltf_index_count(cgltf_primitive *prim) {
 	if (prim->indices != NULL) {
@@ -25,6 +31,61 @@ static cgltf_size io_gltf_index_count(cgltf_primitive *prim) {
 
 static uint32_t io_gltf_read_index(cgltf_primitive *prim, cgltf_size i) {
 	return prim->indices != NULL ? (uint32_t)cgltf_accessor_read_index(prim->indices, i) : (uint32_t)i;
+}
+
+// The primitive io_gltf_parse_mesh imports (the last one, see its TODO)
+static cgltf_primitive *io_gltf_mesh_primitive(cgltf_mesh *mesh) {
+	return mesh->primitives_count > 0 ? &mesh->primitives[mesh->primitives_count - 1] : NULL;
+}
+
+static cgltf_accessor *io_gltf_texcoord(cgltf_primitive *prim) {
+	for (cgltf_size i = 0; prim != NULL && i < prim->attributes_count; ++i) {
+		if (prim->attributes[i].type == cgltf_attribute_type_texcoord && prim->attributes[i].data != NULL) {
+			return prim->attributes[i].data;
+		}
+	}
+	return NULL;
+}
+
+// Per corner uvs of the triangles in the convention of the obj importer (v up, glTF has v down), three corners per
+// triangle. NULL without uvs. The caller frees it.
+static float *io_gltf_corner_uvs(cgltf_primitive *prim, cgltf_size *corners) {
+	cgltf_accessor *tex = io_gltf_texcoord(prim);
+	*corners            = 0;
+	if (tex == NULL) {
+		return NULL;
+	}
+	cgltf_size count = io_gltf_index_count(prim) / 3 * 3;
+	float     *uv    = malloc(sizeof(float) * (count > 0 ? count : 1) * 2);
+	for (cgltf_size i = 0; i < count; ++i) {
+		cgltf_size k = io_gltf_read_index(prim, i);
+		float      t[2] = {0.0f, 0.0f};
+		if (k < tex->count) {
+			cgltf_accessor_read_float(tex, k, t, 2);
+		}
+		uv[i * 2]     = t[0];
+		uv[i * 2 + 1] = 1.0f - t[1];
+	}
+	*corners = count;
+	return uv;
+}
+
+// Udim tiles of the scene: any triangle of any mesh with uvs in a tile other than 1001
+static bool io_gltf_udim_decide(cgltf_data *data) {
+	util_udim_scan_begin();
+	for (cgltf_size i = 0; i < data->nodes_count; ++i) {
+		cgltf_node *n = &data->nodes[i];
+		if (n->mesh == NULL) {
+			continue;
+		}
+		cgltf_size corners;
+		float     *uv = io_gltf_corner_uvs(io_gltf_mesh_primitive(n->mesh), &corners);
+		if (uv != NULL) {
+			util_udim_scan(uv, (int)corners);
+			free(uv);
+		}
+	}
+	return util_udim_scan_end();
 }
 
 void io_gltf_parse_mesh(raw_mesh_t *raw, cgltf_mesh *mesh, float *to_world, float *scale) {
@@ -78,6 +139,31 @@ void io_gltf_parse_mesh(raw_mesh_t *raw, cgltf_mesh *mesh, float *to_world, floa
 
 	if (vertex_count == -1) {
 		return;
+	}
+
+	// Udim tiles are per triangle: every corner gets its own vertex so a position shared by triangles of two tiles can be in both
+	if (udim_tiles && texa32 != NULL) {
+		int    corners = index_count / 3 * 3;
+		float *pos     = malloc(sizeof(float) * (corners > 0 ? corners : 1) * 3);
+		float *nor     = nora32 != NULL ? malloc(sizeof(float) * (corners > 0 ? corners : 1) * 3) : NULL;
+		float *tex     = malloc(sizeof(float) * (corners > 0 ? corners : 1) * 2);
+		for (int i = 0; i < corners; ++i) {
+			int k = (int)inda[i];
+			memcpy(pos + i * 3, posa32 + k * 3, sizeof(float) * 3);
+			if (nor != NULL) {
+				memcpy(nor + i * 3, nora32 + k * 3, sizeof(float) * 3);
+			}
+			memcpy(tex + i * 2, texa32 + k * 2, sizeof(float) * 2);
+			inda[i] = i;
+		}
+		free(posa32);
+		free(nora32);
+		free(texa32);
+		posa32       = pos;
+		nora32       = nor;
+		texa32       = tex;
+		index_count  = corners;
+		vertex_count = corners;
 	}
 
 	float *m = to_world;
@@ -198,7 +284,15 @@ void io_gltf_parse_mesh(raw_mesh_t *raw, cgltf_mesh *mesh, float *to_world, floa
 	}
 
 	short *texa = NULL;
-	if (texa32 != NULL) {
+	bool   tile = udim_tiles && texa32 != NULL;
+	if (tile) {
+		// Tile-local uvs and the tile of each vertex, in the convention of the obj importer
+		for (int i = 0; i < vertex_count; ++i) {
+			texa32[i * 2 + 1] = 1.0f - texa32[i * 2 + 1];
+		}
+		util_udim_split_raw(raw, texa32, vertex_count, true);
+	}
+	else if (texa32 != NULL) {
 		texa = malloc(sizeof(short) * vertex_count * 2);
 		for (int i = 0; i < vertex_count; ++i) {
 			texa[i * 2]     = texa32[i * 2] * 32767;
@@ -238,6 +332,10 @@ void *io_gltf_parse(char *buf, size_t size, const char *path) {
 	cgltf_load_buffers(&options, data, path);
 
 	raw_mesh_t *raw = (raw_mesh_t *)calloc(sizeof(raw_mesh_t), 1);
+
+	if (current_node == 0) {
+		udim_tiles = io_gltf_udim_decide(data);
+	}
 
 	for (; current_node < data->nodes_count; ++current_node) {
 		cgltf_node *n = &data->nodes[current_node];

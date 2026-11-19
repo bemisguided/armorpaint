@@ -70,6 +70,7 @@ int  inpaint_mode   = 0;     // Copy, Smooth
 int  inpaint_target = 0;     // 0: every baked map, n: the n-th of them
 bool inpaint_ready  = false; // Mask layout prepared for the current stroke
 bool inpaint_tried  = false; // One attempt per stroke
+bool inpaint_reached = false; // The stroke reached the mesh
 
 void add_map(int i, char *name, char *suffix, int type, bool enabled) {
 	map_names[i]    = name;
@@ -346,39 +347,77 @@ void inpaint_stroke() {
 			console_error("Inpaint: no baked maps found for this mesh, bake them first");
 			return;
 		}
-		if (!bake_maps_inpaint_begin(map_path(targets[0]), map_per_object(targets[0]))) {
+		int begin = bake_maps_inpaint_begin(map_path(targets[0]), map_per_object(targets[0]));
+		if (begin == 1) {
+			console_error("Inpaint: the baked maps are not loaded in the project, bake them again");
+			return;
+		}
+		if (begin == 2) {
+			console_error("Inpaint is not available while baking");
+			return;
+		}
+		if (begin == 3) {
 			console_error("Inpaint needs a mesh with a UV map");
+			return;
+		}
+		if (begin == 4) {
+			console_error("Inpaint: the per object bake result is not available, bake the maps again");
 			return;
 		}
 		inpaint_ready = true;
 	}
-	bake_maps_inpaint_stroke();
+	if (bake_maps_inpaint_stroke()) {
+		inpaint_reached = true;
+	}
 	plugin_tool_set_overlay(inpaint_tool, bake_maps_inpaint_mask(), 0xa6ff0d0d);
 }
 
-void inpaint_stroke_end() {
-	if (inpaint_ready) {
-		int targets[13];
-		int count = inpaint_targets(targets);
-		int done  = 0;
-		for (int k = 0; k < count; ++k) {
-			if (inpaint_target > 0 && inpaint_target != k + 1) {
-				continue;
-			}
-			int  i      = targets[k];
-			bool vector = string_index_of(map_suffixes[i], "normal") >= 0;
-			if (bake_maps_inpaint_apply(map_path(i), inpaint_mode, vector, map_per_object(i))) {
-				done = done + 1;
-			}
+// Repairs the maps of one result (or the atlas maps when atlas is true), returns the number of maps repaired
+int inpaint_apply_maps(bool atlas) {
+	int targets[13];
+	int count = inpaint_targets(targets);
+	int done  = 0;
+	for (int k = 0; k < count; ++k) {
+		if (inpaint_target > 0 && inpaint_target != k + 1) {
+			continue;
 		}
-		if (done > 0) { // A stroke outside the maps leaves them as they are
+		int  i          = targets[k];
+		bool per_object = map_per_object(i);
+		if (per_object == atlas) {
+			continue;
+		}
+		bool vector = string_index_of(map_suffixes[i], "normal") >= 0;
+		if (bake_maps_inpaint_apply(map_path(i), inpaint_mode, vector, per_object)) {
+			done = done + 1;
+		}
+	}
+	return done;
+}
+
+void inpaint_stroke_end() {
+	if (inpaint_ready && !inpaint_reached) {
+		console_info("Inpaint: the stroke missed the mesh, nothing repaired");
+	}
+	else if (inpaint_ready) {
+		// The stroke repairs every result it touched (object and tile), then the maps of the whole layout
+		int done = 0;
+		for (int r = bake_maps_inpaint_next_result(-1); r >= 0; r = bake_maps_inpaint_next_result(r)) {
+			bake_maps_inpaint_set_result(r);
+			done = done + inpaint_apply_maps(false);
+		}
+		done = done + inpaint_apply_maps(true);
+		if (done > 0) {
 			console_info(string("Inpaint: %d maps repaired", done));
+		}
+		else { // The maps hold no texel of the object and tile the stroke is on
+			console_info("Inpaint: the stroke covers no texel of the baked maps, nothing repaired");
 		}
 	}
 	bake_maps_inpaint_clear();
 	plugin_tool_set_overlay(inpaint_tool, NULL, 0);
-	inpaint_ready = false;
-	inpaint_tried = false;
+	inpaint_ready   = false;
+	inpaint_tried   = false;
+	inpaint_reached = false;
 }
 
 void inpaint_header() {

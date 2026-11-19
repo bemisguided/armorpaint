@@ -725,7 +725,7 @@ typedef struct project {
 	struct timeline_mesh_keyframe_data_t_array  *timeline_meshes;
 	struct stage_t_array                        *stages;
 	struct ui_node_canvas_t_array               *mesh_nodes;
-	struct i32_array                            *mesh_nodes_objects; // Object index for each mesh_nodes canvas
+	struct i32_array                            *mesh_nodes_objects; // Object paint id (mesh_object_t.paint_id) for each mesh_nodes canvas
 	struct f32_array_t_array                    *mesh_paths;         // Path and curve tool points
 	struct ui_node_canvas_t_array               *mesh_groups;
 	struct meta_t_array                         *metas;          // Item metadata, sparse entries, see io/project_format.c
