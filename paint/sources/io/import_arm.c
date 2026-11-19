@@ -1049,7 +1049,6 @@ void import_arm_run_project(char *path) {
 		any_array_push(g_project->_->paint_objects, object);
 	}
 	project_format_load_object_ids(g_project);
-	project_format_load_mesh_metas(g_project);
 	project_format_load_mesh_tiles(g_project);
 	util_udim_apply_layout_loaded(); // Saved uvs are tile-local, the list and per tile resolution are set above
 
