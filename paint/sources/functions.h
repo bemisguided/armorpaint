@@ -805,6 +805,7 @@ shader_out_t          *parser_material_parse(ui_node_canvas_t *canvas, node_shad
 void                   parser_material_finalize(node_shader_context_t *con);
 void                   parser_material_push_group(ui_node_canvas_t *g);
 char                  *parser_material_parse_group(ui_node_t *node, ui_node_socket_t *socket);
+ui_node_canvas_t      *parser_material_get_group(char *name);
 void                   parser_material_write(node_shader_t *raw, char *s);
 char                  *parser_material_parse_vector_input(ui_node_socket_t *inp);
 char                  *parser_material_parse_value_input(ui_node_socket_t *inp, bool vector_as_grayscale);

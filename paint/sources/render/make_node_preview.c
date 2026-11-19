@@ -42,6 +42,10 @@ node_shader_context_t *make_node_preview_run(material_t *data, ui_node_t *node, 
 	parser_material_nodes = g_context->material->canvas->nodes;
 	parser_material_links = g_context->material->canvas->links;
 	if (group != NULL) {
+		// One canvas per parent level, outermost first, like parser_material_parse_group: a group input pops one of each
+		for (i32 i = 0; parents != NULL && i < parents->length - 1; ++i) {
+			parser_material_push_group(parser_material_get_group(parents->buffer[i]->name));
+		}
 		parser_material_push_group(group);
 		parser_material_parents = parents;
 	}
