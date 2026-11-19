@@ -274,15 +274,16 @@ static i32 bevel_node_process(u8 *bytes, i32 size, void *params, f32 *result) {
 	size_t         n      = (size_t)size * size;
 	u8            *inside = malloc(n);
 	u8            *edge   = malloc(n);
-	f32           *g      = malloc(n * sizeof(f32));
-	f32           *inner  = p.mode != BEVEL_MODE_OUTER ? malloc(n * sizeof(f32)) : NULL;
-	f32           *outer  = p.mode != BEVEL_MODE_INNER ? malloc(n * sizeof(f32)) : NULL;
+	size_t         plane_bytes = n * sizeof(f32);
+	f32           *g           = make_image_node_plane_alloc(plane_bytes);
+	f32           *inner       = p.mode != BEVEL_MODE_OUTER ? make_image_node_plane_alloc(plane_bytes) : NULL;
+	f32           *outer       = p.mode != BEVEL_MODE_INNER ? make_image_node_plane_alloc(plane_bytes) : NULL;
 	if (inside == NULL || edge == NULL || g == NULL || (p.mode != BEVEL_MODE_OUTER && inner == NULL) || (p.mode != BEVEL_MODE_INNER && outer == NULL)) {
 		free(inside);
 		free(edge);
-		free(g);
-		free(inner);
-		free(outer);
+		make_image_node_plane_free(g, plane_bytes);
+		make_image_node_plane_free(inner, plane_bytes);
+		make_image_node_plane_free(outer, plane_bytes);
 		return -1;
 	}
 	bool ok = true;
@@ -301,9 +302,9 @@ static i32 bevel_node_process(u8 *bytes, i32 size, void *params, f32 *result) {
 	if (!ok) {
 		free(inside);
 		free(edge);
-		free(g);
-		free(inner);
-		free(outer);
+		make_image_node_plane_free(g, plane_bytes);
+		make_image_node_plane_free(inner, plane_bytes);
+		make_image_node_plane_free(outer, plane_bytes);
 		return -1;
 	}
 	f32 width_px = p.distance * (f32)size;
@@ -313,15 +314,15 @@ static i32 bevel_node_process(u8 *bytes, i32 size, void *params, f32 *result) {
 	make_image_node_parallel(size, bevel_node_shape_rows, &sc);
 	free(inside);
 	free(edge);
-	free(g);
-	free(inner);
-	free(outer);
+	make_image_node_plane_free(g, plane_bytes);
+	make_image_node_plane_free(inner, plane_bytes);
+	make_image_node_plane_free(outer, plane_bytes);
 	return 0;
 }
 
 static image_node_type_t bevel_node_image_type = {
     .type          = "TEX_BEVEL",
-    .result_format = GPU_TEXTURE_FORMAT_RGBA128,
+    .result_format = GPU_TEXTURE_FORMAT_RGBA128, // RGBA128 on purpose: the result is a height, a Bump node reads its slope, half floats would band at 4096
     .params_size   = sizeof(bevel_params_t),
     .size          = bevel_node_size,
     .capture       = bevel_node_capture,
