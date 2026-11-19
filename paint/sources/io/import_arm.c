@@ -662,6 +662,7 @@ static void import_arm_import_materials(project_t *project, char *path, i32_arra
 }
 
 void import_arm_run_material_from_project(project_t *project, char *path) {
+	util_version_graph_bump(NULL); // Imported groups and materials
 	import_arm_import_materials(project, path, NULL, true);
 }
 
