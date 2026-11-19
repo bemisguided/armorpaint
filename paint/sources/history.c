@@ -760,7 +760,9 @@ void history_redo() {
 				slot_layer_t         *group  = g_context->layer->parent;
 				slot_layer_t_array_t *layers = slot_layer_get_children(group);
 				array_insert(layers, 0, g_context->layer);
-				history_copy_merging_layers2(layers);
+				if (!history_copy_merging_layers2(layers)) {
+					return; // Like history_apply_mask: no undo copy, nothing is applied and the redo stays pending
+				}
 			}
 			else {
 				slot_layer_t_array_t *layers = any_array_create_from_raw(
@@ -769,7 +771,9 @@ void history_redo() {
 				        g_context->layer->parent,
 				    },
 				    2);
-				history_copy_merging_layers2(layers);
+				if (!history_copy_merging_layers2(layers)) {
+					return;
+				}
 			}
 
 			sys_notify_on_next_frame(&history_redo_apply_mask, NULL);
