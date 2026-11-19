@@ -6,7 +6,7 @@
 #include <iron.h>
 
 char *manifest_title           = "ArmorPaint";
-char *manifest_version         = "1.1rc2";
+char *manifest_version         = "1.1";
 char *manifest_version_project = "99"; // Fork save format, see io/project_format.c
 char *manifest_version_config  = "4";
 char *manifest_url             = "https://armorpaint.org";
@@ -253,6 +253,7 @@ char                 *parser_material_tex_coord_atlas       = NULL; // Atlas uv 
 bool                  parser_material_transform_color_space = true;
 bool                  parser_material_blur_passthrough      = false;
 bool                  parser_material_warp_passthrough      = false;
+bool                  parser_material_atlas_uv              = false; // tex_coord_atlas holds the udim atlas uv
 ui_node_canvas_t     *parser_material_start_group           = NULL;
 ui_node_t_array_t    *parser_material_start_parents         = NULL;
 ui_node_t            *parser_material_start_node            = NULL;
@@ -279,6 +280,8 @@ extern i32            ui_files_selected;
 extern i32            path_point_dragging;
 extern i32            path_layer_last_active;
 extern float          util_uv_unwrap_margin;
+extern int            util_uv_unwrap_rotation;
+extern float          util_uv_unwrap_angle;
 i32                   ui_header_default_h = 30;
 i32                   ui_header_h;
 ui_window_t          *ui_header_handle;

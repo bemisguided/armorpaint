@@ -199,7 +199,7 @@ mesh_data_t *util_mesh_data_duplicate(mesh_data_t *source) {
 		vertex_array_t *src = source->vertex_arrays->buffer[i];
 		vertex_array_t *va =
 		    ALLOC_INIT(vertex_array_t,
-		               {.attrib = string_copy(src->attrib), .data = string_copy(src->data), .values = i16_array_create_from_array(src->values)});
+			           {.attrib = string_copy(src->attrib), .data = string_copy(src->data), .values = i16_array_create_from_array(src->values)});
 		any_array_push(raw->vertex_arrays, va);
 	}
 
@@ -426,6 +426,10 @@ static void _util_mesh_merge(mesh_object_t_array_t *paint_objects, bool paintabl
 	if (!was_merged) {
 		util_mesh_merged_toggled();
 	}
+}
+
+mesh_object_t_array_t *util_mesh_get_merged_objects() {
+	return util_mesh_merged_objects;
 }
 
 bool util_mesh_merged_partial() {
@@ -1214,6 +1218,7 @@ void util_mesh_uv_unwrap(mesh_object_t_array_t *objects) {
 	util_mesh_merge(NULL);
 	util_uv_uvmap_cached = false;
 	util_udim_unwrap_done();
+	layers_update_all_fill_layers();
 }
 
 static i32 *_cc_he_vlo;
@@ -2499,12 +2504,12 @@ static void _util_mesh_bevel(mesh_object_t *o, f32 amount) {
 
 	mesh_data_t *raw         = ALLOC_INIT(mesh_data_t, {.name          = string("%s_beveled", o->base->name),
 	                                                    .vertex_arrays = any_array_create_from_raw(
-                                                    (void *[]){
-                                                        ALLOC_INIT(vertex_array_t, {.values = new_va0, .attrib = "pos", .data = "short4norm"}),
-                                                        ALLOC_INIT(vertex_array_t, {.values = new_va1, .attrib = "nor", .data = "short2norm"}),
-                                                        ALLOC_INIT(vertex_array_t, {.values = new_va2, .attrib = "tex", .data = "short2norm"}),
-                                                    },
-                                                    3),
+	                                                        (void *[]){
+	                                                            ALLOC_INIT(vertex_array_t, {.values = new_va0, .attrib = "pos", .data = "short4norm"}),
+	                                                            ALLOC_INIT(vertex_array_t, {.values = new_va1, .attrib = "nor", .data = "short2norm"}),
+	                                                            ALLOC_INIT(vertex_array_t, {.values = new_va2, .attrib = "tex", .data = "short2norm"}),
+	                                                        },
+	                                                        3),
 	                                                    .index_array = new_inda,
 	                                                    .scale_pos   = o->data->scale_pos,
 	                                                    .scale_tex   = 1.0});
@@ -2622,12 +2627,12 @@ static void _util_mesh_subdivide(mesh_object_t *o) {
 
 	mesh_data_t *raw          = ALLOC_INIT(mesh_data_t, {.name          = string("%s_subdivided", o->base->name),
 	                                                     .vertex_arrays = any_array_create_from_raw(
-                                                    (void *[]){
-                                                        ALLOC_INIT(vertex_array_t, {.values = new_va0, .attrib = "pos", .data = "short4norm"}),
-                                                        ALLOC_INIT(vertex_array_t, {.values = new_va1, .attrib = "nor", .data = "short2norm"}),
-                                                        ALLOC_INIT(vertex_array_t, {.values = new_va2, .attrib = "tex", .data = "short2norm"}),
-                                                    },
-                                                    3),
+	                                                         (void *[]){
+	                                                             ALLOC_INIT(vertex_array_t, {.values = new_va0, .attrib = "pos", .data = "short4norm"}),
+	                                                             ALLOC_INIT(vertex_array_t, {.values = new_va1, .attrib = "nor", .data = "short2norm"}),
+	                                                             ALLOC_INIT(vertex_array_t, {.values = new_va2, .attrib = "tex", .data = "short2norm"}),
+	                                                         },
+	                                                         3),
 	                                                     .index_array = new_inda,
 	                                                     .scale_pos   = o->data->scale_pos,
 	                                                     .scale_tex   = o->data->scale_tex});
