@@ -838,6 +838,7 @@ Okno
 Siatka
 Przestrzeń robocza
 Świat
+
 Zawijaj mysz
 Zawijaj mysz wokół granic widoku podczas sterowania kamerą
 X

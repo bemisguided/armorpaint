@@ -838,6 +838,7 @@ Ablak
 Drótváz
 Munkaterület
 Világ
+
 Egér átfordítása
 Kamera mozgatása közben az egér átfordul a képernyő szélein
 X

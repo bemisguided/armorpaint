@@ -838,6 +838,7 @@ Janela
 Aramado
 Área de Trabalho
 Mundo
+
 Envolver Mouse
 Envolver mouse nas bordas da visualização durante controle da câmera
 X

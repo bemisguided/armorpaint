@@ -838,6 +838,7 @@ Okno
 Drátěný model
 Pracovní prostor
 Svět
+
 Obtáčet myš
 Obtáčet myš kolem hranic pohledu při ovládání kamery
 X
