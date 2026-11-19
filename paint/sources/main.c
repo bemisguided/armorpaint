@@ -205,6 +205,7 @@
 
 #include "util/edit_uvmap.c"
 #include "util/util_asset_selection.c"
+#include "util/util_asset_tray.c"
 #include "util/util_brush.c"
 #include "util/util_clone.c"
 #include "util/util_csg.c"

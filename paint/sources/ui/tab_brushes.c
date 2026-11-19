@@ -35,35 +35,24 @@ void tab_brushes_draw_make_selected_preview(void *_) {
 	}
 }
 
-// Copies of the selected brushes become the selection, the copy of the active brush stays active
+static void *tab_brushes_duplicate(void *source) {
+	g_context->brush = slot_brush_create(NULL);
+	any_array_push(g_project->_->brushes, g_context->brush);
+	ui_node_canvas_t *cloned = util_clone_canvas(((slot_brush_t *)source)->canvas);
+	cloned->name             = string_copy(slot_brush_unique_name(cloned, cloned->name));
+	g_context->brush->canvas = cloned;
+	context_set_brush(g_context->brush);
+	util_render_make_brush_preview();
+	history_duplicate_brush();
+	return g_context->brush;
+}
+
+static void tab_brushes_set_active(void *brush) {
+	context_set_brush(brush);
+}
+
 void tab_brushes_duplicate_selected(void *_) {
-	any_array_t  *sources = asset_selection_get(ASSET_TRAY_BRUSHES);
-	any_array_t  *copies  = any_array_create_from_raw((void *[]){}, 0);
-	slot_brush_t *active  = g_context->brush;
-	slot_brush_t *primary = NULL;
-	history_group_begin();
-	for (i32 i = 0; i < sources->length; ++i) {
-		slot_brush_t *source = sources->buffer[i];
-		g_context->brush     = slot_brush_create(NULL);
-		any_array_push(g_project->_->brushes, g_context->brush);
-		ui_node_canvas_t *cloned = util_clone_canvas(source->canvas);
-		cloned->name             = string_copy(slot_brush_unique_name(cloned, cloned->name));
-		g_context->brush->canvas = cloned;
-		context_set_brush(g_context->brush);
-		util_render_make_brush_preview();
-		history_duplicate_brush();
-		any_array_push(copies, g_context->brush);
-		if (source == active) {
-			primary = g_context->brush;
-		}
-	}
-	history_group_end();
-	if (primary != NULL && primary != g_context->brush) {
-		context_set_brush(primary);
-	}
-	if (copies->length > 1) {
-		asset_selection_set(ASSET_TRAY_BRUSHES, copies, g_context->brush);
-	}
+	asset_tray_duplicate_selected(ASSET_TRAY_BRUSHES, &tab_brushes_duplicate, &tab_brushes_set_active);
 }
 
 void tab_brushes_delete_brush(slot_brush_t *b) {
@@ -75,14 +64,13 @@ void tab_brushes_delete_brush(slot_brush_t *b) {
 	ui_dock_redraw(1);
 }
 
+static void tab_brushes_delete_one(void *brush) {
+	tab_brushes_delete_brush(brush);
+}
+
 // At least one brush always stays, one undo step for all
 void tab_brushes_delete_selected() {
-	any_array_t *brushes = asset_selection_get(ASSET_TRAY_BRUSHES);
-	history_group_begin();
-	for (i32 i = 0; i < brushes->length && g_project->_->brushes->length > 1; ++i) {
-		tab_brushes_delete_brush(brushes->buffer[i]);
-	}
-	history_group_end();
+	asset_tray_delete_selected(ASSET_TRAY_BRUSHES, &tab_brushes_delete_one, NULL, 1, true);
 }
 
 void tab_brushes_draw_context_menu() {
@@ -149,8 +137,7 @@ void tab_brushes_draw(i32 *htab) {
 			return;
 		}
 
-		asset_selection_select_all(ASSET_TRAY_BRUSHES, NULL);
-		asset_selection_marquee_begin();
+		asset_tray_begin(ASSET_TRAY_BRUSHES, NULL, NULL);
 
 		bool drag_pos_set = false;
 		f32  uix          = 0.0;
@@ -185,11 +172,11 @@ void tab_brushes_draw(i32 *htab) {
 				gpu_texture_t *img_full = g_project->_->brushes->buffer[i]->image;
 
 				slot_brush_t *brush     = g_project->_->brushes->buffer[i];
-				bool          is_active = g_context->brush == brush;
-				if (is_active || asset_selection_contains(ASSET_TRAY_BRUSHES, brush)) {
+				u32           color     = asset_tray_frame_color(ASSET_TRAY_BRUSHES, brush);
+				if (color != 0) {
 					// ui_fill(1, -2, img.width + 3, img.height + 3, ui.ops.theme.HIGHLIGHT_COL); // TODO
 					i32 w = 50 * a;
-					ui_rect_round(-1, -1, w + 2, w + 2, is_active ? g_theme->HIGHLIGHT_COL : asset_selection_highlight_color(), 2 * UI_SCALE());
+					ui_rect_round(-1, -1, w + 2, w + 2, color, 2 * UI_SCALE());
 				}
 
 				uix      = g_ui->_x;
@@ -213,21 +200,19 @@ void tab_brushes_draw(i32 *htab) {
 				}
 
 				if (state == UI_STATE_STARTED) {
-					bool          can_drag = asset_selection_press(ASSET_TRAY_BRUSHES, brush, NULL);
-					slot_brush_t *primary  = asset_selection_primary_item();
+					bool          can_drag;
+					slot_brush_t *primary = asset_tray_press(ASSET_TRAY_BRUSHES, brush, NULL, &can_drag);
 					if (g_context->brush != primary) {
 						context_set_brush(primary);
 					}
 					if (can_drag) {
-						base_drag_off_x = -(mouse_x - uix - g_ui->_window_x - 3);
-						base_drag_off_y = -(mouse_y - uiy - g_ui->_window_y + 1);
-						base_drag_brush = g_context->brush;
-						if (sys_time() - g_context->select_time < 0.2) {
+						bool double_click = asset_tray_drag_begin(uix, uiy);
+						base_drag_brush   = g_context->brush;
+						if (double_click) {
 							ui_base_show_brush_nodes();
 							base_drag_brush  = NULL;
 							base_is_dragging = false;
 						}
-						g_context->select_time = sys_time();
 					}
 				}
 				if (g_ui->is_hovered && g_ui->input_released_r) {
@@ -272,7 +257,7 @@ void tab_brushes_draw(i32 *htab) {
 			ui_fill(imgw_val + 1, -2, 2, imgw_val + 4, g_theme->HIGHLIGHT_COL);
 		}
 
-		asset_selection_marquee_end(ASSET_TRAY_BRUSHES);
+		asset_tray_end(ASSET_TRAY_BRUSHES);
 
 		if (!drag_pos_set) {
 			tab_brushes_drag_pos = -1;

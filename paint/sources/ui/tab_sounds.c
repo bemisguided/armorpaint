@@ -19,11 +19,12 @@ void tab_sounds_delete_sound(slot_sound_t *sound) {
 	ui_dock_redraw(2);
 }
 
+static void tab_sounds_delete_one(void *sound) {
+	tab_sounds_delete_sound(sound);
+}
+
 void tab_sounds_delete_selected() {
-	any_array_t *sounds = asset_selection_get(ASSET_TRAY_SOUNDS);
-	for (i32 i = 0; i < sounds->length; ++i) {
-		tab_sounds_delete_sound(sounds->buffer[i]);
-	}
+	asset_tray_delete_selected(ASSET_TRAY_SOUNDS, &tab_sounds_delete_one, NULL, 0, false);
 }
 
 static any_array_t *_tab_sounds_export_sounds; // Selected when Export was picked
@@ -146,7 +147,6 @@ void tab_sounds_draw(i32 *htab) {
 		ui_separator(3, false);
 
 		char *search = to_lower_case(tab_sounds_search);
-		asset_selection_sync_filter(ASSET_TRAY_SOUNDS, search);
 
 		f32 a     = ui_base_asset_scale();
 		i32 slotw = math_floor((50 * a + 1) * UI_SCALE());
@@ -155,14 +155,8 @@ void tab_sounds_draw(i32 *htab) {
 			return;
 		}
 
-		i32_array_t *filtered = i32_array_create_from_raw((i32[]){}, 0);
-		for (i32 i = 0; i < g_project->_->sounds->length; ++i) {
-			if (string_equals(search, "") || string_index_of(to_lower_case(g_project->_->sounds->buffer[i]->name), search) >= 0) {
-				i32_array_push(filtered, i);
-			}
-		}
-		asset_selection_select_all(ASSET_TRAY_SOUNDS, filtered);
-		asset_selection_marquee_begin();
+		i32_array_t *filtered = asset_tray_filter(ASSET_TRAY_SOUNDS, search);
+		asset_tray_begin(ASSET_TRAY_SOUNDS, search, filtered);
 
 		bool drag_pos_set = false;
 		f32  uix          = 0.0;
@@ -198,11 +192,11 @@ void tab_sounds_draw(i32 *htab) {
 				gpu_texture_t *img = g_project->_->sounds->buffer[i]->image;
 
 				slot_sound_t *sound     = g_project->_->sounds->buffer[i];
-				bool          is_active = g_context->sound == sound;
-				if (is_active || asset_selection_contains(ASSET_TRAY_SOUNDS, sound)) {
+				u32           color     = asset_tray_frame_color(ASSET_TRAY_SOUNDS, sound);
+				if (color != 0) {
 					// ui_fill(1, -2, img.width + 3, img.height + 3, ui.ops.theme.HIGHLIGHT_COL); // TODO
 					i32 w = 50 * a;
-					ui_rect_round(-1, -1, w + 2, w + 2, is_active ? g_theme->HIGHLIGHT_COL : asset_selection_highlight_color(), 2 * UI_SCALE());
+					ui_rect_round(-1, -1, w + 2, w + 2, color, 2 * UI_SCALE());
 				}
 
 				uix                       = g_ui->_x;
@@ -235,22 +229,20 @@ void tab_sounds_draw(i32 *htab) {
 				}
 
 				if (state == UI_STATE_STARTED) {
-					bool          can_drag = asset_selection_press(ASSET_TRAY_SOUNDS, sound, filtered);
-					slot_sound_t *primary  = asset_selection_primary_item();
+					bool          can_drag;
+					slot_sound_t *primary = asset_tray_press(ASSET_TRAY_SOUNDS, sound, filtered, &can_drag);
 					if (g_context->sound != primary) {
 						_tab_sounds_draw_i = array_index_of(g_project->_->sounds, primary);
 						sys_notify_on_next_frame(&tab_sounds_draw_select_sound, NULL);
 					}
 					if (can_drag) {
-						base_drag_off_x = -(mouse_x - uix - g_ui->_window_x - 3);
-						base_drag_off_y = -(mouse_y - uiy - g_ui->_window_y + 1);
-						base_drag_sound = sound;
-						if (sys_time() - g_context->select_time < 0.2) {
+						bool double_click = asset_tray_drag_begin(uix, uiy);
+						base_drag_sound   = sound;
+						if (double_click) {
 							ui_base_show_2d_view(VIEW_2D_TYPE_SOUND);
 							base_drag_sound  = NULL;
 							base_is_dragging = false;
 						}
-						g_context->select_time = sys_time();
 					}
 				}
 				if (g_ui->is_hovered && g_ui->input_released_r) {
@@ -291,7 +283,7 @@ void tab_sounds_draw(i32 *htab) {
 			ui_fill(imgw_val + 1, -2, 2, imgw_val + 4, g_theme->HIGHLIGHT_COL);
 		}
 
-		asset_selection_marquee_end(ASSET_TRAY_SOUNDS);
+		asset_tray_end(ASSET_TRAY_SOUNDS);
 
 		if (!drag_pos_set) {
 			tab_sounds_drag_pos = -1;

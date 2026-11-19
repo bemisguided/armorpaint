@@ -175,11 +175,12 @@ void tab_textures_delete_texture(asset_t *asset) {
 	}
 }
 
+static void tab_textures_delete_one(void *asset) {
+	tab_textures_delete_texture(asset);
+}
+
 void tab_textures_delete_selected() {
-	any_array_t *assets = asset_selection_get(ASSET_TRAY_TEXTURES);
-	for (i32 i = 0; i < assets->length; ++i) {
-		tab_textures_delete_texture(assets->buffer[i]);
-	}
+	asset_tray_delete_selected(ASSET_TRAY_TEXTURES, &tab_textures_delete_one, NULL, 0, false);
 }
 
 void tab_textures_draw_context_menu() {
@@ -413,7 +414,6 @@ void tab_textures_draw(i32 *htab) {
 		ui_end_sticky();
 
 		char *search = to_lower_case(tab_textures_search);
-		asset_selection_sync_filter(ASSET_TRAY_TEXTURES, search);
 
 		if (g_project->_->assets->length > 0) {
 
@@ -425,15 +425,8 @@ void tab_textures_draw(i32 *htab) {
 			}
 
 			// Indices of the assets passing the search filter
-			i32_array_t *filtered = i32_array_create_from_raw((i32[]){}, 0);
-			for (i32 i = 0; i < g_project->_->assets->length; ++i) {
-				if (string_equals(search, "") || string_index_of(to_lower_case(g_project->_->assets->buffer[i]->name), search) >= 0) {
-					i32_array_push(filtered, i);
-				}
-			}
-
-			asset_selection_select_all(ASSET_TRAY_TEXTURES, filtered);
-			asset_selection_marquee_begin();
+			i32_array_t *filtered = asset_tray_filter(ASSET_TRAY_TEXTURES, search);
+			asset_tray_begin(ASSET_TRAY_TEXTURES, search, filtered);
 
 			bool drag_pos_set = false;
 			f32  uix          = 0.0;
@@ -490,28 +483,26 @@ void tab_textures_draw(i32 *htab) {
 					}
 
 					if (_state == UI_STATE_STARTED && g_ui->input_y > g_ui->_window_y) {
-						bool can_drag      = asset_selection_press(ASSET_TRAY_TEXTURES, asset, filtered);
-						g_context->texture = asset_selection_primary_item();
+						bool can_drag;
+						g_context->texture = asset_tray_press(ASSET_TRAY_TEXTURES, asset, filtered, &can_drag);
 						if (can_drag) {
-							base_drag_off_x = -(mouse_x - uix - g_ui->_window_x - 3);
-							base_drag_off_y = -(mouse_y - uiy - g_ui->_window_y + 1);
-							base_drag_asset = asset;
-							if (sys_time() - g_context->select_time < 0.2) {
+							bool double_click = asset_tray_drag_begin(uix, uiy);
+							base_drag_asset   = asset;
+							if (double_click) {
 								ui_base_show_2d_view(VIEW_2D_TYPE_ASSET);
 							}
-							g_context->select_time = sys_time();
 						}
 						ui_view2d_hwnd->redraws = 2;
 					}
 
-					bool is_active = asset == g_context->texture;
-					if (is_active || asset_selection_contains(ASSET_TRAY_TEXTURES, asset)) {
+					u32 color = asset_tray_frame_color(ASSET_TRAY_TEXTURES, asset);
+					if (color != 0) {
 						f32 _uix = g_ui->_x;
 						f32 _uiy = g_ui->_y;
 						g_ui->_x = uix;
 						g_ui->_y = uiy;
 						i32 w    = 50 * a;
-						ui_rect_round(1, 1, w + 2, w + 2, is_active ? g_theme->HIGHLIGHT_COL : asset_selection_highlight_color(), 2 * UI_SCALE());
+						ui_rect_round(1, 1, w + 2, w + 2, color, 2 * UI_SCALE());
 						g_ui->_x = _uix;
 						g_ui->_y = _uiy;
 					}
@@ -563,7 +554,7 @@ void tab_textures_draw(i32 *htab) {
 				ui_fill(imgw_val + 1, -2, 2, imgw_val + 4, g_theme->HIGHLIGHT_COL);
 			}
 
-			asset_selection_marquee_end(ASSET_TRAY_TEXTURES);
+			asset_tray_end(ASSET_TRAY_TEXTURES);
 
 			if (!drag_pos_set) {
 				tab_textures_drag_pos = -1;
