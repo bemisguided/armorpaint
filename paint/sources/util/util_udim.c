@@ -10,12 +10,17 @@
 
 // Project tile list (g_project->_->udim_tiles): sorted, distinct, never empty, {1001} by default.
 // Slots are the positions in the list, the atlas has stride x stride slots (see util_udim_stride).
-// The configured project resolution (base_res_x/y) is per tile, layers and targets use the atlas size util_udim_res_x/y.
+// The configured project resolution (base_res_x/y) is per tile, layers and targets use the atlas size config_get_texture_res_x/y.
 
 #define UTIL_UDIM_MAX_SIDE 16384
 
-static int _util_udim_compare_i32(const void *a, const void *b) {
-	return *(i32 *)a - *(i32 *)b;
+#define UTIL_UDIM_FIRST_TILE 1001
+#define UTIL_UDIM_LAST_TILE 2000
+
+int util_udim_compare_i32(const void *a, const void *b) {
+	i32 x = *(i32 *)a;
+	i32 y = *(i32 *)b;
+	return (x > y) - (x < y);
 }
 
 i32 util_udim_count() {
@@ -61,46 +66,38 @@ i32 util_udim_tile_side(i32 res, i32 max_side) {
 
 // Per tile resolution, the configured one unless the atlas would pass the max side
 i32 util_udim_tile_res_x() {
-	return util_udim_tile_side(config_get_texture_res_x(), UTIL_UDIM_MAX_SIDE);
+	return util_udim_tile_side(config_get_tile_res_x(), UTIL_UDIM_MAX_SIDE);
 }
 
 i32 util_udim_tile_res_y() {
-	return util_udim_tile_side(config_get_texture_res_y(), UTIL_UDIM_MAX_SIDE);
-}
-
-// Atlas size, the configured resolution when the project has one slot
-i32 util_udim_res_x() {
-	return util_udim_tile_res_x() * util_udim_stride();
-}
-
-i32 util_udim_res_y() {
-	return util_udim_tile_res_y() * util_udim_stride();
+	return util_udim_tile_side(config_get_tile_res_y(), UTIL_UDIM_MAX_SIDE);
 }
 
 // The per tile resolution was lowered to fit the atlas
 bool util_udim_clamped() {
-	return util_udim_tile_res_x() < config_get_texture_res_x() || util_udim_tile_res_y() < config_get_texture_res_y();
+	return util_udim_tile_res_x() < config_get_tile_res_x() || util_udim_tile_res_y() < config_get_tile_res_y();
 }
 
 // Bytes of the layer textures (3 per layer) at the atlas size
 f64 util_udim_memory_estimate() {
 	i32 layers = g_project->_->layers != NULL && g_project->_->layers->length > 0 ? g_project->_->layers->length : 1;
 	i32 bytes  = base_bits == TEXTURE_BITS_BITS8 ? 4 : base_bits == TEXTURE_BITS_BITS16 ? 8 : 16;
-	return (f64)layers * 3.0 * (f64)util_udim_res_x() * (f64)util_udim_res_y() * (f64)bytes;
+	return (f64)layers * 3.0 * (f64)config_get_texture_res_x() * (f64)config_get_texture_res_y() * (f64)bytes;
 }
 
-// Sets the project tile list (copied, sorted, distinct, NULL or empty gives {1001}), the layout is not changed
+// Sets the project tile list (copied, sorted, distinct, ids outside 1001..2000 dropped, NULL or empty gives {1001}), the layout is not changed
 void util_udim_set_tiles(i32_array_t *ids) {
 	i32_array_t *t = i32_array_create(0);
 	for (i32 i = 0; ids != NULL && i < ids->length; ++i) {
-		if (ids->buffer[i] > 0 && i32_array_index_of(t, ids->buffer[i]) < 0) {
+		i32 id = ids->buffer[i];
+		if (id >= UTIL_UDIM_FIRST_TILE && id <= UTIL_UDIM_LAST_TILE && i32_array_index_of(t, id) < 0) {
 			i32_array_push(t, ids->buffer[i]);
 		}
 	}
 	if (t->length == 0) {
 		i32_array_push(t, 1001);
 	}
-	i32_array_sort(t, _util_udim_compare_i32);
+	i32_array_sort(t, util_udim_compare_i32);
 	array_delete(g_project->_->udim_tiles);
 	g_project->_->udim_tiles = t;
 }
@@ -365,7 +362,7 @@ static void _util_udim_warn_clamped() {
 	any_map_t *vars = any_map_create();
 	any_map_set(vars, "tiles", i32_to_string(util_udim_count()));
 	any_map_set(vars, "res", i32_to_string(util_udim_tile_res_x()));
-	any_map_set(vars, "atlas", i32_to_string(util_udim_res_x()));
+	any_map_set(vars, "atlas", i32_to_string(config_get_texture_res_x()));
 	console_info(vtr("UDIM atlas too large: {tiles} tiles use {res} px per tile ({atlas} px atlas)", vars));
 	map_free(vars);
 }
@@ -488,7 +485,7 @@ void util_udim_import_meshes(any_array_t *mds, bool fresh) {
 		}
 		// The layers were just cleared to a single color, resizing them loses nothing
 		slot_layer_t *l0 = g_project->_->layers->length > 0 ? g_project->_->layers->buffer[0] : NULL;
-		if (l0 != NULL && l0->texpaint != NULL && (l0->texpaint->width != util_udim_res_x() || l0->texpaint->height != util_udim_res_y())) {
+		if (l0 != NULL && l0->texpaint != NULL && (l0->texpaint->width != config_get_texture_res_x() || l0->texpaint->height != config_get_texture_res_y())) {
 			gpu_texture_t *current = _draw_current;
 			bool           in_use  = gpu_in_use;
 			if (in_use) {
@@ -976,7 +973,7 @@ bool layer_write_coverage_test(node_shader_t *kong, slot_layer_t *l) {
 			i32_array_push(live, pid);
 		}
 	}
-	i32_array_sort(live, _util_udim_compare_i32);
+	i32_array_sort(live, util_udim_compare_i32);
 
 	node_shader_add_constant(kong, "int object_pid", "_object_pid");
 	node_shader_write_frag(kong, both ? "if ((" : "if (");
@@ -1313,8 +1310,8 @@ static i32_array_t *_layer_overlap_make_key(slot_layer_t *l) {
 			i32_array_push(covered, o->paint_id);
 		}
 	}
-	i32_array_sort(covered, _util_udim_compare_i32);
-	i32_array_sort(live, _util_udim_compare_i32);
+	i32_array_sort(covered, util_udim_compare_i32);
+	i32_array_sort(live, util_udim_compare_i32);
 	i32_array_t *key = i32_array_create(0);
 	i32_array_push(key, covered->length);
 	for (i32 i = 0; i < covered->length; ++i) {
