@@ -207,7 +207,7 @@ buffer_t *util_encode_project(project_t *raw) {
 	buffer_t *encoded = buffer_create(size);
 
 	armpack_encode_start(encoded->buffer);
-	armpack_encode_map(49);
+	armpack_encode_map(51);
 
 	armpack_encode_string("version");
 	armpack_encode_string(raw->version);
