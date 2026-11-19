@@ -78,7 +78,7 @@ typedef struct slot_layer {
 	struct slot_material *fill_material;
 	bool                  show_panel;
 	blend_type_t          blending;
-	struct meta          *meta; // NULL = none, covers every object and tile (coverage keys, see util_udim.c)
+	struct meta          *meta; // NULL = none, covers every object and tile (coverage keys, see util_layer_coverage.c)
 	f32                   scale;
 	f32                   angle;
 	uv_type_t             uv_type;
@@ -732,6 +732,8 @@ typedef struct project {
 	struct i32_array                            *udim_tiles;     // Sorted project udim tile ids
 	struct any_array                            *mesh_tiles;     // i16 tile index (id - 1001) per vertex for each mesh, empty = all 1001
 	struct meta_t_array                         *metas;          // Item metadata, sparse entries, see io/project_format.c
+	i32                                          tile_res_x;     // Requested per tile resolution, the udim atlas can clamp it
+	i32                                          tile_res_y;
 	project_runtime_t                           *_;
 } project_t;
 
