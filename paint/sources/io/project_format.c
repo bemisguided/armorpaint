@@ -172,8 +172,8 @@ void project_format_save_prep(project_t *raw) {
 	}
 	raw->next_object_id = raw->_->next_object_id;
 	project_format_reset_tiles(raw, objects->length);
-	raw->tile_res_x = config_get_texture_res_x(); // The requested resolution, layers are saved at the clamped atlas size
-	raw->tile_res_y = config_get_texture_res_y();
+	raw->tile_res_x = config_get_tile_res_x(); // The requested resolution, layers are saved at the clamped atlas size
+	raw->tile_res_y = config_get_tile_res_y();
 
 	// Copies, so project_t never points into runtime arrays that are freed with their mesh
 	for (i32 i = 0; project_format_saved_tiles != NULL && i < project_format_saved_tiles->length; ++i) {
@@ -230,7 +230,7 @@ void project_format_load_object_ids(project_t *raw) {
 	}
 	i32 max_id = raw->next_object_id;
 	for (i32 i = 0; i < objects->length; ++i) {
-		objects->buffer[i]->paint_id = raw->mesh_ids->buffer[i];
+		project_set_object_id(objects->buffer[i], raw->mesh_ids->buffer[i]);
 		if (raw->mesh_ids->buffer[i] > max_id) {
 			max_id = raw->mesh_ids->buffer[i];
 		}

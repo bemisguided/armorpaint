@@ -399,6 +399,10 @@ static void lightmap_dispatch() {
 // Neighbours are taken from the same udim tile slot (ts per tile side) only
 static void lightmap_blur(f32 *px, u8 *m, i32 res, i32 ts) {
 	f32 *tmp = malloc(sizeof(f32) * 4 * res * res);
+	f32  inv[10]; // 1 / neighbour count, one division per count instead of three per texel
+	for (i32 n = 1; n < 10; ++n) {
+		inv[n] = 1.0f / n;
+	}
 	for (i32 pass = 0; pass < 2; ++pass) {
 		memcpy(tmp, px, sizeof(f32) * 4 * res * res);
 		for (i32 y = 0; y < res; ++y) {
@@ -407,12 +411,14 @@ static void lightmap_blur(f32 *px, u8 *m, i32 res, i32 ts) {
 					continue;
 				}
 				f32 r = 0.0, g = 0.0, b = 0.0;
-				i32 n = 0;
+				i32 n  = 0;
+				i32 tx = x / ts; // Tile slot of the texel
+				i32 ty = y / ts;
 				for (i32 dy = -1; dy <= 1; ++dy) {
 					for (i32 dx = -1; dx <= 1; ++dx) {
 						i32 sx = x + dx;
 						i32 sy = y + dy;
-						if (sx < 0 || sy < 0 || sx >= res || sy >= res || !m[sy * res + sx] || sx / ts != x / ts || sy / ts != y / ts) {
+						if (sx < 0 || sy < 0 || sx >= res || sy >= res || !m[sy * res + sx] || sx / ts != tx || sy / ts != ty) {
 							continue;
 						}
 						f32 *s = tmp + (sy * res + sx) * 4;
@@ -423,9 +429,9 @@ static void lightmap_blur(f32 *px, u8 *m, i32 res, i32 ts) {
 					}
 				}
 				f32 *d = px + (y * res + x) * 4;
-				d[0]   = r / n;
-				d[1]   = g / n;
-				d[2]   = b / n;
+				d[0]   = r * inv[n];
+				d[1]   = g * inv[n];
+				d[2]   = b * inv[n];
 			}
 		}
 	}
@@ -490,6 +496,10 @@ static void lightmap_write(lightmap_job_t *job) {
 		}
 	}
 	u8 *m2 = malloc((size_t)res * res);
+	f32 inv[10]; // 1 / neighbour count, one division per count instead of three per texel
+	for (i32 n = 1; n < 10; ++n) {
+		inv[n] = 1.0f / n;
+	}
 	for (i32 pass = 0; pass < LIGHTMAP_MARGIN; ++pass) {
 		memcpy(m2, m, (size_t)res * res);
 		for (i32 y = 0; y < res; ++y) {
@@ -498,12 +508,14 @@ static void lightmap_write(lightmap_job_t *job) {
 					continue;
 				}
 				f32 r = 0.0, g = 0.0, bl = 0.0;
-				i32 n = 0;
+				i32 n  = 0;
+				i32 tx = x / ts; // Tile slot of the texel
+				i32 ty = y / ts;
 				for (i32 dy = -1; dy <= 1; ++dy) {
 					for (i32 dx = -1; dx <= 1; ++dx) {
 						i32 sx = x + dx;
 						i32 sy = y + dy;
-						if (sx < 0 || sy < 0 || sx >= res || sy >= res || !m[sy * res + sx] || sx / ts != x / ts || sy / ts != y / ts) {
+						if (sx < 0 || sy < 0 || sx >= res || sy >= res || !m[sy * res + sx] || sx / ts != tx || sy / ts != ty) {
 							continue;
 						}
 						f32 *s = px + (sy * res + sx) * 4;
@@ -515,9 +527,9 @@ static void lightmap_write(lightmap_job_t *job) {
 				}
 				if (n > 0) {
 					f32 *d          = px + (y * res + x) * 4;
-					d[0]            = r / n;
-					d[1]            = g / n;
-					d[2]            = bl / n;
+					d[0]            = r * inv[n];
+					d[1]            = g * inv[n];
+					d[2]            = bl * inv[n];
 					m2[y * res + x] = 1;
 				}
 			}

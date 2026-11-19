@@ -55,6 +55,7 @@ bool               util_udim_active();
 i32                util_udim_tile_res_x();
 i32                util_udim_tile_res_y();
 bool               util_udim_tile_used(i32 tile);
+char              *export_texture_file_label(char *name);
 extern bool        bake_texture_node_baking;
 extern i32         util_mesh_version;
 extern i32         render_path_raytrace_bake_current_sample;
@@ -738,18 +739,32 @@ static i32 bake_rays_current_pair() {
 	return bake_rays_current >= 0 && bake_rays_current < bake_rays_pair_count ? bake_rays_current : 0;
 }
 
-// File name of a per object result, <object>_<map>_<tile>.png
-static char *bake_rays_pair_file(i32 k, char *suffix) {
+// Object name as a file name part (the export sanitiser), objects without a name are called object<index>
+static char *bake_rays_object_label(i32 obj) {
 	mesh_object_t_array_t *lows = g_project->_->paint_objects;
-	i32                    obj  = bake_rays_pairs[k].object;
-	char                  *name = obj < lows->length && lows->buffer[obj]->base->name != NULL ? lows->buffer[obj]->base->name : "";
-	name                        = name[0] != '\0' ? string("%s", name) : string("object%d", obj);
-	for (char *c = name; *c != '\0'; ++c) {
-		if (strchr("/\\:*?\"<>|", *c) != NULL) {
-			*c = '_'; // Not allowed in file names
-		}
+	char                  *name = obj < lows->length ? lows->buffer[obj]->base->name : NULL;
+	return name != NULL && name[0] != '\0' ? export_texture_file_label(name) : string("object%d", obj);
+}
+
+// File name of a per object result, <object>_<map>_<tile>.png. Objects whose names are the same once sanitised would
+// overwrite each other's files, the later ones are numbered.
+static char *bake_rays_pair_file(i32 k, char *suffix) {
+	i32   obj   = bake_rays_pairs[k].object;
+	char *name  = bake_rays_object_label(obj);
+	i32   count = 1;
+	for (i32 i = 0; i < obj; ++i) {
+		char *other = bake_rays_object_label(i);
+		count += string_equals(other, name) ? 1 : 0;
+		free(other);
 	}
-	return string("%s_%s_%d.png", name, suffix, util_udim_tile(bake_rays_pairs[k].slot));
+	if (count > 1) {
+		char *numbered = string("%s_%d", name, count);
+		free(name);
+		name = numbered;
+	}
+	char *file = string("%s_%s_%d.png", name, suffix, util_udim_tile(bake_rays_pairs[k].slot));
+	free(name);
+	return file;
 }
 
 // Low poly triangles with uvs, read from the paint objects
@@ -1658,8 +1673,22 @@ static char *bake_maps_arg_s(minic_val_t *a, int n, int i) {
 	return i < n ? minic_val_to_ptr(a[i]) : NULL;
 }
 
+bool bake_gpu_object_running();
+
+// A GPU per object bake reads the low poly, the pairs and the result buffers every poll, natives that replace them wait
+static bool bake_maps_gpu_object_busy() {
+	if (!bake_gpu_object_running()) {
+		return false;
+	}
+	console_error(vtr("A GPU bake is running, wait for it or cancel it", NULL));
+	return true;
+}
+
 // int bake_maps_load_high(char *path): high poly triangle count, 0 when the file failed to load
 static minic_val_t bake_maps_load_high(minic_val_t *a, int n) {
+	if (bake_maps_gpu_object_busy()) {
+		return minic_val_int(0);
+	}
 	char *path = bake_maps_arg_s(a, n, 0);
 	bake_rays_set_high_raw(NULL);
 	if (path == NULL || path[0] == '\0') {
@@ -1704,6 +1733,9 @@ static minic_val_t bake_maps_high_fit(minic_val_t *a, int n) {
 
 // int bake_maps_set_low(): reads the paint objects, low poly triangle count, 0 without uvs
 static minic_val_t bake_maps_set_low(minic_val_t *a, int n) {
+	if (bake_maps_gpu_object_busy()) {
+		return minic_val_int(0);
+	}
 	bake_rays_free_images();
 	bool ok = bake_rays_set_low();
 	bake_maps_update_dist();
@@ -1729,6 +1761,9 @@ static u64 bake_maps_paint_objects_key() {
 // void bake_maps_set_cage(float dist, bool average): ray search distance relative to the low poly size,
 // and rays along normals averaged over hard edges
 static minic_val_t bake_maps_set_cage(minic_val_t *a, int n) {
+	if (bake_maps_gpu_object_busy()) {
+		return minic_val_int(0);
+	}
 	bake_maps_cage_dist = bake_maps_arg_f(a, n, 0);
 	bool average        = bake_maps_arg_i(a, n, 1) != 0;
 	if (average != bake_rays_average) {
@@ -1919,6 +1954,9 @@ static i32 bake_maps_atlas_side(i32 tile_side) {
 }
 
 static minic_val_t bake_maps_start(minic_val_t *a, int n) {
+	if (bake_maps_gpu_object_busy()) {
+		return minic_val_int(0);
+	}
 	bake_maps_gpu_last = false;
 	i32  type          = bake_maps_arg_i(a, n, 0);
 	bool use_high      = bake_maps_arg_i(a, n, 4) != 0 && bake_rays_hp.count > 0;
@@ -2046,6 +2084,9 @@ static minic_val_t bake_maps_gpu_res(minic_val_t *a, int n) {
 // bool bake_maps_gpu_start(int type, int samples, float ao_strength, float ao_radius, float ao_offset):
 // starts a raytraced map (occlusion, bent normal, thickness) on the gpu, 64 rays per sample
 static minic_val_t bake_maps_gpu_start(minic_val_t *a, int n) {
+	if (bake_maps_gpu_object_busy()) {
+		return minic_val_int(0);
+	}
 	if (bake_texture_node_baking || bake_rays_working || !gpu_raytrace_supported()) {
 		return minic_val_int(0);
 	}
