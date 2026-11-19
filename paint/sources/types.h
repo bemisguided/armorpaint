@@ -6,6 +6,17 @@
 #include "minic.h"
 #include "minic_tcc.h"
 
+// Metadata of an item, see util/util_meta.c. Saved as the entries of project_t.metas by io/project_format.c, decoded by field
+// position: keep the order. tags are user strings. Keys (meta_key_t) are parallel key / value arrays of i32.
+// NULL arrays mean empty, a NULL meta_t pointer on an item means no metadata.
+typedef struct meta {
+	i32             category; // meta_category_t, only set on the entries of project_t.metas
+	i32             index;    // Position of the item in its own list, only set on the entries of project_t.metas
+	string_array_t *tags;     // User tags
+	i32_array_t    *i32_keys;
+	i32_array_t    *i32_values;
+} meta_t;
+
 typedef struct slot_brush {
 	struct ui_nodes       *nodes;
 	struct ui_node_canvas *canvas;
@@ -14,6 +25,7 @@ typedef struct slot_brush {
 	struct gpu_texture    *image_wave; // Stroke preview, generated at runtime
 	bool                   preview_ready;
 	i32                    id;
+	struct meta           *meta; // NULL = empty
 } slot_brush_t;
 
 typedef struct mesh_nodes {
@@ -97,6 +109,7 @@ typedef struct slot_font {
 	struct draw_font   *font;
 	char               *name;
 	char               *file;
+	struct meta        *meta; // NULL = empty
 } slot_font_t;
 
 typedef struct slot_sound {
@@ -105,6 +118,7 @@ typedef struct slot_sound {
 	sound_t            *sound;
 	char               *name;
 	char               *file;
+	struct meta        *meta; // NULL = empty
 } slot_sound_t;
 
 typedef struct config {
@@ -209,6 +223,7 @@ typedef struct slot_material {
 	bool                   paint_height;
 	bool                   paint_emis;
 	bool                   paint_subs;
+	struct meta           *meta; // NULL = empty
 } slot_material_t;
 
 typedef struct tab_draw {
@@ -709,6 +724,7 @@ typedef struct asset {
 	char          *name;
 	char          *file;
 	gpu_texture_t *image;
+	struct meta   *meta; // NULL = empty
 } asset_t;
 
 typedef struct packed_asset {

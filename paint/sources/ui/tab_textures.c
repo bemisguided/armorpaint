@@ -151,6 +151,8 @@ void tab_textures_delete_texture(asset_t *asset) {
 	}
 
 	data_delete_texture(asset->file);
+	meta_free(asset->meta);
+	asset->meta = NULL;
 	array_splice(g_project->_->assets, index, 1);
 	sys_notify_on_next_frame(&tab_textures_delete_texture_on_next_frame, NULL);
 

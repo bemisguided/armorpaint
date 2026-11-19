@@ -11,6 +11,8 @@ void tab_sounds_delete_sound_on_next_frame(slot_sound_t *sound) {
 	}
 	context_select_sound(i == g_project->_->sounds->length - 1 ? i - 1 : i + 1);
 	data_delete_sound(g_project->_->sounds->buffer[i]->file);
+	meta_free(g_project->_->sounds->buffer[i]->meta);
+	g_project->_->sounds->buffer[i]->meta = NULL;
 	array_splice(g_project->_->sounds, i, 1);
 }
 
