@@ -92,6 +92,9 @@ void layers_resize() {
 			slot_layer_t *l = array_pop(history_undo_layers);
 			sys_notify_on_next_frame(&slot_layer_unload, l);
 		}
+		if (history_undo_i >= g_config->undo_steps) {
+			history_undo_i %= g_config->undo_steps; // The slot it pointed at was popped
+		}
 	}
 	for (i32 i = 0; i < g_project->_->layers->length; ++i) {
 		slot_layer_t *l = g_project->_->layers->buffer[i];
