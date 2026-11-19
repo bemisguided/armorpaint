@@ -7,7 +7,7 @@
 // Upstream compares versions by exact string and has converters for 0..22 only, so "99" files cleanly fail to load there.
 // Upstream "23" files load through import_arm_from_version_23 below, older ones chain into it from import_legacy.c.
 // Projects decode by field position (armpack), so these types.h fields must stay in the order written here:
-// - project_t: next_object_id, mesh_ids, udim_tiles, mesh_tiles, metas, tile_res_x, tile_res_y (after mesh_groups, before _)
+// - project_t: metas, next_object_id, mesh_ids, udim_tiles, mesh_tiles, tile_res_x, tile_res_y (after mesh_groups, before _)
 // - meta_t:    category, index, tags, bool_keys, bool_values, i32_keys, i32_values, i32_array_keys,
 //              i32_array_values (the entry maps of metas, every field written in this order)
 // layer_data_t has the upstream layout, its object_mask is written as 0 (layer coverage is in metas).
@@ -17,9 +17,9 @@
 // Metadata (meta_t, see util_meta.c): one list of sparse entries, one per item that has metadata. category says which list
 // the item is in, index its position there when the project was saved: layers (MC_LAYER) by their position in layer_datas,
 // groups, masks and filters counted; textures in assets, fonts in font_assets (the default font is not saved, so runtime font
-// index + 1), sounds in sound_assets, meshes in mesh_datas / mesh_ids (paint object order, the Meshes tray), materials in
-// material_nodes and brushes in brush_nodes. Save rebuilds the list from the live items, load copies each entry onto its item
-// and ignores entries of unknown categories or out of range indices. Unknown key ids are kept as they are, tags are plain strings.
+// index + 1), sounds in sound_assets, materials in material_nodes and brushes in brush_nodes. Save rebuilds the list from the live
+// items, load copies each entry onto its item and ignores entries of unknown categories or out of range indices. Unknown key ids
+// are kept as they are, tags are plain strings.
 // An empty list is written as an empty array. Entry maps always list every meta_t field in order (armpack sizes an array of
 // maps from its first element), NULL arrays encode as null and i32 array values as an array of arrays.
 // Udim: udim_tiles is the project tile list, mesh_tiles[i] the tile index per vertex of paint object i (empty = none, linked
@@ -65,6 +65,11 @@ static void project_format_encode_meta(meta_t *m) {
 
 // util_encode_project, after mesh_groups
 void project_format_encode_project(project_t *raw) {
+	armpack_encode_string("metas");
+	armpack_encode_array(raw->metas != NULL ? raw->metas->length : 0);
+	for (i32 i = 0; raw->metas != NULL && i < raw->metas->length; ++i) {
+		project_format_encode_meta(raw->metas->buffer[i]);
+	}
 	armpack_encode_string("next_object_id");
 	armpack_encode_i32(raw->next_object_id);
 	armpack_encode_string("mesh_ids");
@@ -82,11 +87,6 @@ void project_format_encode_project(project_t *raw) {
 	}
 	else {
 		armpack_encode_null();
-	}
-	armpack_encode_string("metas");
-	armpack_encode_array(raw->metas != NULL ? raw->metas->length : 0);
-	for (i32 i = 0; raw->metas != NULL && i < raw->metas->length; ++i) {
-		project_format_encode_meta(raw->metas->buffer[i]);
 	}
 	armpack_encode_string("tile_res_x");
 	armpack_encode_i32(raw->tile_res_x);
@@ -143,14 +143,14 @@ void project_format_add_entry(meta_t_array_t *metas, meta_t *m, i32 category, i3
 	any_array_push(metas, m);
 }
 
-// The metas list of the live items: layers, then the asset categories (they follow MC_LAYER)
+// The metas list of the live items: layers, then the asset categories
 static void project_format_build_metas(project_t *raw) {
 	array_delete(project_format_saved_metas);
 	project_format_saved_metas = any_array_create(0);
 	for (i32 i = 0; i < raw->_->layers->length; ++i) {
 		project_format_add_entry(project_format_saved_metas, raw->_->layers->buffer[i]->meta, MC_LAYER, i);
 	}
-	for (i32 category = MC_TEXTURE; category < MC_COUNT; ++category) {
+	for (i32 category = MC_TEXTURE; category < MC_LAYER; ++category) {
 		i32 first = category == MC_FONT ? 1 : 0; // The default font is not saved, saved font i is runtime font i + 1
 		for (i32 i = first; i < meta_count(category); ++i) {
 			project_format_add_entry(project_format_saved_metas, meta_peek(category, i), category, i - first);
@@ -251,6 +251,18 @@ void project_format_load_layer_metas(project_t *raw) {
 	}
 }
 
+// Load, metadata of item index of a category as saved (font index is the font_assets one), a copy the caller owns,
+// NULL when the item has none (decoded entries live in the file blob)
+meta_t *project_format_load_meta(project_t *raw, i32 category, i32 index) {
+	for (i32 i = 0; raw->metas != NULL && i < raw->metas->length; ++i) {
+		meta_t *m = raw->metas->buffer[i];
+		if (m->category == category && m->index == index && !meta_is_empty(m)) {
+			return meta_copy(m);
+		}
+	}
+	return NULL;
+}
+
 project_t *project_format_decode(buffer_t *b) {
 	return armpack_decode(b);
 }
@@ -293,25 +305,6 @@ void project_format_set_defaults(project_t *raw) {
 	raw->metas      = any_array_create(0); // Every layer covers all objects and tiles
 	raw->tile_res_x = 0;                   // Taken from the layer size on load
 	raw->tile_res_y = 0;
-}
-
-// Load, metadata of item index of a category as saved (font index is the font_assets one), a copy the caller owns,
-// NULL when the item has none (decoded entries live in the file blob)
-meta_t *project_format_load_meta(project_t *raw, i32 category, i32 index) {
-	for (i32 i = 0; raw->metas != NULL && i < raw->metas->length; ++i) {
-		meta_t *m = raw->metas->buffer[i];
-		if (m->category == category && m->index == index && !meta_is_empty(m)) {
-			return meta_copy(m);
-		}
-	}
-	return NULL;
-}
-
-// After the paint objects of a loaded project exist and have their ids, one per mesh_datas entry
-void project_format_load_mesh_metas(project_t *raw) {
-	for (i32 i = 0; i < raw->_->paint_objects->length; ++i) {
-		meta_set(MC_MESH, i, project_format_load_meta(raw, MC_MESH, i));
-	}
 }
 
 // Load, before the layer textures are created. The runtime list is the saved one ({1001} when missing), the project resolution

@@ -1,18 +1,16 @@
-
 #include "../global.h"
 
 // Metadata (meta_t): user tags and typed app keys (meta_key_t) of an item of a category (meta_category_t).
-// Keys are parallel key / value arrays per kind (bool, i32, f32, i32 array), bools are stored as 0 / 1. NULL arrays are empty.
+// Keys are parallel key / value arrays per kind (bool, i32, i32 array), bools are stored as 0 / 1. NULL arrays are empty.
 // The metadata lives on the runtime item (slot_layer_t, asset_t, slot_font_t, slot_sound_t, slot_material_t, slot_brush_t) so it
-// follows deletes, reorders and duplicates; a NULL meta pointer means empty. Layers keep their coverage here (see util_udim.c).
-// Meshes are paint objects (the Meshes tray lists g_project->_->paint_objects) and the engine type has no field for it: their
-// metadata is kept here by paint_id, which is never reused. Runtime metas are owned by their item and never shared: copy them
-// with meta_copy, layers free theirs with meta_free. All helpers accept NULL.
-// Saved as the entries of project_t.metas by io/project_format.c, decoded entries point into the file blob,
-// so copy them (meta_copy) and never free them.
-
-static i32_array_t *meta_mesh_ids    = NULL; // paint_id of meta_mesh_values[i]
-static any_array_t *meta_mesh_values = NULL;
+// follows deletes, reorders and duplicates; a NULL meta pointer means empty. Layers keep their coverage here (see util_layer_coverage.c).
+// All helpers accept NULL.
+// Ownership: a live item owns its meta and frees it when it leaves its list (a duplicate gets a meta_copy, never a shared pointer;
+// layers free theirs with the layer).
+// A history step owns a private meta of its own or none: material and brush slots hand their meta over to the step when they are
+// removed and take it back when the step puts the slot back, edits swap the two pointers (meta_swap), history_step_free frees what is left.
+// Saved as the entries of project_t.metas by io/project_format.c, decoded entries point into the file blob, so copy them (meta_copy)
+// and never free them.
 
 meta_t *meta_create() {
 	return calloc(1, sizeof(meta_t));
@@ -53,6 +51,9 @@ meta_t *meta_copy(meta_t *m) {
 void meta_free(meta_t *m) {
 	if (m == NULL) {
 		return;
+	}
+	for (i32 i = 0; m->tags != NULL && i < m->tags->length; ++i) {
+		free(m->tags->buffer[i]);
 	}
 	array_delete(m->tags);
 	array_delete(m->bool_keys);
@@ -228,43 +229,14 @@ void meta_remove_tag(meta_t *m, char *tag) {
 	if (i < 0) {
 		return;
 	}
+	free(m->tags->buffer[i]);
 	for (i32 j = i; j + 1 < m->tags->length; ++j) {
 		m->tags->buffer[j] = m->tags->buffer[j + 1];
 	}
 	m->tags->length--;
 }
 
-// Mesh metadata by paint_id, NULL when none (or the id is not a paint object)
-static meta_t **meta_mesh_slot(i32 paint_id, bool create) {
-	if (paint_id <= 0) {
-		return NULL;
-	}
-	for (i32 i = 0; meta_mesh_ids != NULL && i < meta_mesh_ids->length; ++i) {
-		if (meta_mesh_ids->buffer[i] == paint_id) {
-			return (meta_t **)&meta_mesh_values->buffer[i];
-		}
-	}
-	if (!create) {
-		return NULL;
-	}
-	if (meta_mesh_ids == NULL) {
-		meta_mesh_ids    = i32_array_create(0);
-		meta_mesh_values = any_array_create(0);
-	}
-	i32_array_push(meta_mesh_ids, paint_id);
-	any_array_push(meta_mesh_values, NULL);
-	return (meta_t **)&meta_mesh_values->buffer[meta_mesh_values->length - 1];
-}
-
-// Forget all mesh metadata, on project cleanup
-void meta_mesh_reset() {
-	array_delete(meta_mesh_ids);
-	array_delete(meta_mesh_values);
-	meta_mesh_ids    = NULL;
-	meta_mesh_values = NULL;
-}
-
-// Items of a category, the Meshes tray lists the paint objects
+// Items of a category
 i32 meta_count(i32 category) {
 	switch (category) {
 	case MC_TEXTURE:
@@ -273,8 +245,6 @@ i32 meta_count(i32 category) {
 		return g_project->_->fonts->length;
 	case MC_SOUND:
 		return g_project->_->sounds->length;
-	case MC_MESH:
-		return g_project->_->paint_objects != NULL ? g_project->_->paint_objects->length : 0;
 	case MC_MATERIAL:
 		return g_project->_->materials->length;
 	case MC_BRUSH:
@@ -284,7 +254,7 @@ i32 meta_count(i32 category) {
 }
 
 // Where the item keeps its metadata pointer, NULL when out of range
-static meta_t **meta_slot(i32 category, i32 index, bool create) {
+static meta_t **meta_slot(i32 category, i32 index) {
 	if (index < 0 || index >= meta_count(category)) {
 		return NULL;
 	}
@@ -295,8 +265,6 @@ static meta_t **meta_slot(i32 category, i32 index, bool create) {
 		return index > 0 ? &g_project->_->fonts->buffer[index]->meta : NULL;
 	case MC_SOUND:
 		return &g_project->_->sounds->buffer[index]->meta;
-	case MC_MESH:
-		return meta_mesh_slot(g_project->_->paint_objects->buffer[index]->paint_id, create);
 	case MC_MATERIAL:
 		return &g_project->_->materials->buffer[index]->meta;
 	case MC_BRUSH:
@@ -307,13 +275,13 @@ static meta_t **meta_slot(i32 category, i32 index, bool create) {
 
 // Metadata of a runtime item, NULL when it has none or the index is out of range
 meta_t *meta_peek(i32 category, i32 index) {
-	meta_t **slot = meta_slot(category, index, false);
+	meta_t **slot = meta_slot(category, index);
 	return slot != NULL ? *slot : NULL;
 }
 
 // Metadata of a runtime item, created when missing, NULL when the index is out of range
 meta_t *meta_get(i32 category, i32 index) {
-	meta_t **slot = meta_slot(category, index, true);
+	meta_t **slot = meta_slot(category, index);
 	if (slot == NULL) {
 		return NULL;
 	}
@@ -323,11 +291,13 @@ meta_t *meta_get(i32 category, i32 index) {
 	return *slot;
 }
 
-// Replaces the metadata of a runtime item, takes ownership of m
-void meta_set(i32 category, i32 index, meta_t *m) {
-	meta_t **slot = meta_slot(category, index, m != NULL);
+// Exchanges the metadata of a runtime item with *other (either may be NULL), no copy
+void meta_swap(i32 category, i32 index, meta_t **other) {
+	meta_t **slot = meta_slot(category, index);
 	if (slot != NULL) {
-		*slot = m;
+		meta_t *t = *slot;
+		*slot     = *other;
+		*other    = t;
 	}
 }
 
@@ -347,9 +317,6 @@ char *meta_item_name(i32 category, i32 index) {
 	case MC_SOUND:
 		name = g_project->_->sounds->buffer[index]->name;
 		break;
-	case MC_MESH:
-		name = g_project->_->paint_objects->buffer[index]->base->name;
-		break;
 	case MC_MATERIAL:
 		name = g_project->_->materials->buffer[index]->canvas != NULL ? g_project->_->materials->buffer[index]->canvas->name : NULL;
 		break;
@@ -360,9 +327,43 @@ char *meta_item_name(i32 category, i32 index) {
 	return name != NULL ? name : "";
 }
 
+// The item (asset_t, slot_font_t, slot_sound_t, slot_material_t, slot_brush_t) at index of a category, NULL when out of range
+void *meta_item(i32 category, i32 index) {
+	if (index < 0 || index >= meta_count(category)) {
+		return NULL;
+	}
+	switch (category) {
+	case MC_TEXTURE:
+		return g_project->_->assets->buffer[index];
+	case MC_FONT:
+		return g_project->_->fonts->buffer[index];
+	case MC_SOUND:
+		return g_project->_->sounds->buffer[index];
+	case MC_MATERIAL:
+		return g_project->_->materials->buffer[index];
+	case MC_BRUSH:
+		return g_project->_->brushes->buffer[index];
+	}
+	return NULL;
+}
+
+// Index of an item in the live list of a category, -1 when it is not there any more (deleted)
+i32 meta_item_index(i32 category, void *item) {
+	if (item == NULL) {
+		return -1;
+	}
+	i32 count = meta_count(category);
+	for (i32 i = 0; i < count; ++i) {
+		if (meta_item(category, i) == item) {
+			return i;
+		}
+	}
+	return -1;
+}
+
 // Built-in bake types in display order (after None)
-static i32 asset_bake_types[] = {BTP_AO,       BTP_CURVATURE,  BTP_THICKNESS, BTP_HEIGHT,      BTP_NORMAL,    BTP_NORMAL_OBJECT, BTP_BENT_NORMAL,
-                                 BTP_DERIVATIVE, BTP_POSITION, BTP_TEXCOORD,  BTP_MATERIAL_ID, BTP_OBJECT_ID, BTP_VERTEX_COLOR,  BTP_LIGHTMAP,  BTP_CAVITY};
+static i32 asset_bake_types[] = {BTP_AO,         BTP_CURVATURE, BTP_THICKNESS, BTP_HEIGHT,       BTP_NORMAL,    BTP_NORMAL_OBJECT, BTP_BENT_NORMAL,
+                                 BTP_DERIVATIVE, BTP_POSITION,  BTP_TEXCOORD,  BTP_MATERIAL_ID,  BTP_OBJECT_ID, BTP_VERTEX_COLOR,  BTP_LIGHTMAP,  BTP_CAVITY};
 
 i32 asset_bake_type_count() {
 	return sizeof(asset_bake_types) / sizeof(asset_bake_types[0]);
@@ -507,42 +508,6 @@ bool asset_brush_rename(slot_brush_t *b, char *name) {
 	}
 	b->canvas->name = string_copy(n);
 	return true;
-}
-
-// The item (asset_t, slot_font_t, slot_sound_t, mesh_object_t, slot_material_t, slot_brush_t) at index of a category, NULL when out of range
-void *meta_item(i32 category, i32 index) {
-	if (index < 0 || index >= meta_count(category)) {
-		return NULL;
-	}
-	switch (category) {
-	case MC_TEXTURE:
-		return g_project->_->assets->buffer[index];
-	case MC_FONT:
-		return g_project->_->fonts->buffer[index];
-	case MC_SOUND:
-		return g_project->_->sounds->buffer[index];
-	case MC_MESH:
-		return g_project->_->paint_objects->buffer[index];
-	case MC_MATERIAL:
-		return g_project->_->materials->buffer[index];
-	case MC_BRUSH:
-		return g_project->_->brushes->buffer[index];
-	}
-	return NULL;
-}
-
-// Index of an item in the live list of a category, -1 when it is not there any more (deleted)
-i32 meta_item_index(i32 category, void *item) {
-	if (item == NULL) {
-		return -1;
-	}
-	i32 count = meta_count(category);
-	for (i32 i = 0; i < count; ++i) {
-		if (meta_item(category, i) == item) {
-			return i;
-		}
-	}
-	return -1;
 }
 
 // Renames the material or brush at index of a category (MC_MATERIAL, MC_BRUSH) and pushes one undo step.

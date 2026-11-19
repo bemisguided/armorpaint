@@ -242,7 +242,7 @@ void history_new_material_slot(history_step_t *step) {
 	step->meta                  = NULL;
 	ui_nodes_canvas_changed();
 	ui_nodes_hwnd->redraws = 2;
-	// The new slot has a blank preview and no shader yet
+	// The restored slot has a blank preview and no shader yet
 	tab_materials_update_material();
 }
 
@@ -318,7 +318,7 @@ void history_swap_swatch(history_step_t *step) {
 
 // Live index of the item of a Rename or Edit Details step, -1 when it is gone (the step then does nothing).
 // Materials and brushes are found by index: their new, duplicate and delete are undo steps, so whenever this step is undone or redone the list is
-// as it was when the step was made, and undoing a delete puts a new item at the old index. Textures, fonts, sounds and meshes are found by pointer:
+// as it was when the step was made, and undoing a delete puts a new item at the old index. Textures, fonts and sounds are found by pointer:
 // their deletes are not undo steps, so an item that left the list is gone for good and the indices after it moved.
 // Either way the item must still have the expected name, so a list changed outside the history never gets the step applied to another item.
 static i32 history_asset_index(history_step_t *step) {
@@ -338,11 +338,11 @@ void history_swap_asset_name(history_step_t *step) {
 	}
 	ui_node_canvas_t *canvas =
 	    step->asset_category == MC_MATERIAL ? g_project->_->materials->buffer[index]->canvas : g_project->_->brushes->buffer[index]->canvas;
-	char             *t      = canvas->name;
-	canvas->name             = step->asset_name;
-	step->asset_name         = t;
-	step->asset_item_name    = canvas->name;
-	ui_nodes_hwnd->redraws   = 2;
+	char *t                = canvas->name;
+	canvas->name           = step->asset_name;
+	step->asset_name       = t;
+	step->asset_item_name  = canvas->name;
+	ui_nodes_hwnd->redraws = 2;
 	base_redraw_ui();
 }
 
@@ -352,9 +352,7 @@ void history_swap_meta(history_step_t *step) {
 	if (index < 0) {
 		return;
 	}
-	meta_t *current = meta_copy(meta_peek(step->asset_category, index));
-	meta_set(step->asset_category, index, step->meta);
-	step->meta           = current;
+	meta_swap(step->asset_category, index, &step->meta);
 	ui_box_hwnd->redraws = 2;
 	base_redraw_ui();
 }
@@ -671,6 +669,7 @@ slot_layer_t *history_undo_slot(i32 i) {
 
 static i32 history_pending_undo_slots = 0; // Undo layers written for the next pushed step
 
+// Returns false when the copy was skipped, the caller must then not push a history step
 bool history_copy_to_undo(i32 from_id, i32 to_id, bool is_mask) {
 	char *to_id_s   = i32_to_string(to_id);
 	char *from_id_s = i32_to_string(from_id);
@@ -1047,7 +1046,6 @@ history_step_t *history_push(history_action_t action) {
 	                                .brush          = bpos,
 	                                .layer_opacity  = g_context->layer->mask_opacity,
 	                                .layer_blending = g_context->layer->blending});
-	step->layer_meta = g_context->layer->meta != NULL ? meta_copy(g_context->layer->meta) : NULL;
 
 	if (history_grouping) {
 		step->with_prev      = history_group_pushed;
@@ -1259,7 +1257,8 @@ void history_layer_name(slot_layer_t *l, char *prev_name) {
 }
 
 void history_layer_coverage() {
-	history_push(HISTORY_ACTION_LAYER_COVERAGE);
+	history_step_t *step = history_push(HISTORY_ACTION_LAYER_COVERAGE);
+	step->layer_meta     = g_context->layer->meta != NULL ? meta_copy(g_context->layer->meta) : NULL; // Swapped back by undo and redo
 }
 
 void history_layer_scale() {

@@ -618,14 +618,14 @@ typedef struct history_step {
 	i32_array_t                 *merge_parents;
 	i32                          merge_start;
 	i32                          merge_length;
-	i32                          undo_slots;      // Undo layers written for this step
-	bool                         with_prev;       // Undone and redone together with the previous step
+	i32                          undo_slots; // Undo layers written for this step
+	bool                         with_prev;  // Undone and redone together with the previous step
 	i32                          asset_category;  // Rename or Edit Details: meta_category_t of the item, found again by history_asset_index
 	i32                          asset_index;     // Index of the item in its category list when the step was made
-	void                        *asset_ref;       // The item (asset_t, slot_font_t, slot_sound_t, mesh_object_t, slot_material_t, slot_brush_t) when the step was made
+	void                        *asset_ref;       // The item (asset_t, slot_font_t, slot_sound_t, slot_material_t, slot_brush_t) when the step was made
 	char                        *asset_item_name; // Name the item has whenever the step is undone or redone
 	char                        *asset_name;      // Rename of a material or brush: the name on the other side of the step
-	meta_t *meta; // Edit of tags or bake keys: the metadata on the other side of the step. Material or brush slot removed by a step: its metadata
+	meta_t                      *meta; // Edit of tags or bake keys: the metadata on the other side of the step. Material or brush slot removed by a step: its metadata
 } history_step_t;
 
 typedef struct logic_node {
@@ -728,11 +728,11 @@ typedef struct project {
 	struct i32_array                            *mesh_nodes_objects; // Object index for each mesh_nodes canvas
 	struct f32_array_t_array                    *mesh_paths;         // Path and curve tool points
 	struct ui_node_canvas_t_array               *mesh_groups;
+	struct meta_t_array                         *metas;          // Item metadata, sparse entries, see io/project_format.c
 	i32                                          next_object_id; // Saved by io/project_format.c, see there
 	struct i32_array                            *mesh_ids;       // Persistent paint id per mesh_datas entry
 	struct i32_array                            *udim_tiles;     // Sorted project udim tile ids
 	struct any_array                            *mesh_tiles;     // i16 tile index (id - 1001) per vertex for each mesh, empty = all 1001
-	struct meta_t_array                         *metas;          // Item metadata, sparse entries, see io/project_format.c
 	i32                                          tile_res_x;     // Requested per tile resolution, the udim atlas can clamp it
 	i32                                          tile_res_y;
 	project_runtime_t                           *_;

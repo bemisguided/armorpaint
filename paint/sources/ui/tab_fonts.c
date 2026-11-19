@@ -16,6 +16,8 @@ void tab_fonts_delete_font_on_next_frame(slot_font_t *font) {
 	i32 i = array_index_of(g_project->_->fonts, font);
 	context_select_font(i == g_project->_->fonts->length - 1 ? i - 1 : i + 1);
 	data_delete_font(g_project->_->fonts->buffer[i]->file);
+	meta_free(g_project->_->fonts->buffer[i]->meta);
+	g_project->_->fonts->buffer[i]->meta = NULL;
 	array_splice(g_project->_->fonts, i, 1);
 }
 

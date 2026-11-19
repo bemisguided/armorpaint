@@ -1,7 +1,7 @@
 
 #include "../global.h"
 
-// Tags of assets (meta_t tags), shared by the Textures, Materials, Brushes, Fonts, Sounds and Meshes trays:
+// Tags of assets (meta_t tags), shared by the Textures, Materials, Brushes, Fonts and Sounds trays:
 // the tag filter combo of a tray. The tags of an item are edited in the Details dialog (ui_asset_details.c).
 
 static char *ui_asset_tags_selected[MC_COUNT]; // Selected filter tag per category, NULL = All

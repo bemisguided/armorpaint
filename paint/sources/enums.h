@@ -626,31 +626,31 @@ typedef enum {
 } layer_coverage_empty_t;
 
 // Kinds of items that carry metadata (meta_t.category), saved in project files: explicit numbers, never renumber or reuse.
-// The asset categories follow the project arrays (assets, fonts, sounds, meshes, materials, brushes), see util_meta.c
+// The asset categories follow the project arrays (assets, fonts, sounds, materials, brushes), see util_meta.c
 typedef enum {
-	MC_LAYER    = 0,
-	MC_TEXTURE  = 1,
-	MC_FONT     = 2,
-	MC_SOUND    = 3,
-	MC_MESH     = 4,
-	MC_MATERIAL = 5,
-	MC_BRUSH    = 6,
-	MC_COUNT    = 7,
+	MC_TEXTURE  = 0,
+	MC_FONT     = 1,
+	MC_SOUND    = 2,
+	MC_MATERIAL = 3,
+	MC_BRUSH    = 4,
+	MC_LAYER    = 5,
+	MC_COUNT    = 6,
 } meta_category_t;
 
 // Keys of meta_t, saved in project files: explicit numbers, never renumber or reuse. Unknown ids are kept as they are.
+// Asset bake keys, all i32: bake type (bake_type_persistent_t), encoding (asset_encoding_t), object (mesh paint_id), tile (udim id, absent = any).
 // Layer coverage (util_layer_coverage.c): all objects (bool, absent = true), objects (i32 array of paint ids, absent = empty),
 // all tiles (bool, absent = true), tiles (i32 array of udim tile ids, absent = empty).
 // Asset bake keys, all i32: bake type (bake_type_persistent_t), encoding (asset_encoding_t), object (mesh paint_id), tile (udim id, absent = any).
 typedef enum {
-	META_ALL_OBJECTS = 0,
-	META_OBJECTS     = 1,
-	META_ALL_TILES   = 2,
-	META_TILES       = 3,
-	META_BAKE_TYPE   = 4,
-	META_ENCODING    = 5,
-	META_OBJECT      = 6,
-	META_TILE        = 7,
+	META_BAKE_TYPE   = 0,
+	META_ENCODING    = 1,
+	META_OBJECT      = 2,
+	META_TILE        = 3,
+	META_ALL_OBJECTS = 4,
+	META_OBJECTS     = 5,
+	META_ALL_TILES   = 6,
+	META_TILES       = 7,
 } meta_key_t;
 
 typedef enum {
