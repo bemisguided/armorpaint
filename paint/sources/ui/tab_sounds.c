@@ -191,16 +191,16 @@ void tab_sounds_draw(i32 *htab) {
 
 				gpu_texture_t *img = g_project->_->sounds->buffer[i]->image;
 
-				slot_sound_t *sound     = g_project->_->sounds->buffer[i];
-				u32           color     = asset_tray_frame_color(ASSET_TRAY_SOUNDS, sound);
+				slot_sound_t *sound = g_project->_->sounds->buffer[i];
+				u32           color = asset_tray_frame_color(ASSET_TRAY_SOUNDS, sound);
 				if (color != 0) {
 					// ui_fill(1, -2, img.width + 3, img.height + 3, ui.ops.theme.HIGHLIGHT_COL); // TODO
 					i32 w = 50 * a;
 					ui_rect_round(-1, -1, w + 2, w + 2, color, 2 * UI_SCALE());
 				}
 
-				uix                       = g_ui->_x;
-				uiy                       = g_ui->_y;
+				uix = g_ui->_x;
+				uiy = g_ui->_y;
 				asset_selection_marquee_cell(sound, uix, uiy, imgw_val, imgw_val);
 				gpu_texture_t *tile_icons = resource_get("icons.k");
 				i32            tile       = UI_SCALE() > 1 ? 100 : 50;

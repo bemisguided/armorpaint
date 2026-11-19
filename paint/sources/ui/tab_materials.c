@@ -284,8 +284,8 @@ void tab_materials_draw_slots(bool mini) {
 			gpu_texture_t *img_full = g_project->_->materials->buffer[i]->image;
 
 			// Highligh selected
-			slot_material_t *material  = g_project->_->materials->buffer[i];
-			u32              color     = asset_tray_frame_color(ASSET_TRAY_MATERIALS, material);
+			slot_material_t *material = g_project->_->materials->buffer[i];
+			u32              color    = asset_tray_frame_color(ASSET_TRAY_MATERIALS, material);
 			if (color != 0) {
 				if (mini) {
 					f32 w = g_ui->_w / (float)UI_SCALE();
