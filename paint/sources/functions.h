@@ -1097,6 +1097,7 @@ bool                      util_udim_active();
 i32                       util_udim_tile_res_x();
 i32                       util_udim_tile_res_y();
 bool                      util_udim_clamped();
+void                      util_udim_warn_clamped();
 f64                       util_udim_memory_estimate();
 int                       util_udim_compare_i32(const void *a, const void *b);
 void                      util_udim_set_tiles(i32_array_t *ids);
