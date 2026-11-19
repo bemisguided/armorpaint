@@ -879,7 +879,7 @@ Objects and tiles this layer applies to
 Remove tile {id}? Its pixels are deleted and undo history is cleared.
 Remove tile
 Objects this layer applies to
-Clamped to {res} px per tile (atlas limit 16384)
+Clamped to {res} px per tile (atlas limit 8192)
 Per Object & Tile
 Default
 Atlas
