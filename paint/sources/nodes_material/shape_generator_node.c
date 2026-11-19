@@ -9,6 +9,9 @@
 // copies of the shape, so a shape that crosses the image border continues on the other side (the centre is reduced into the image first, more
 // copies each way when the shape extent plus the softness reaches farther than one image).
 // The number inputs hold for the whole image (scalars, evaluated at the image centre when linked).
+// Rotation follows the rotation convention of all image nodes (armorpaint-admin specs/image-nodes/ROTATION_CONVENTION.md):
+// degrees, a positive angle turns the shape clockwise as seen in the editor view (y down), about the shape centre, after
+// the Width and Height and before Position.
 
 // Input socket indices
 enum {
@@ -132,8 +135,8 @@ static f32 shape_generator_node_coverage(shape_generator_params_t *p, i32 size, 
 		for (i32 ox = from; ox <= to; ++ox) {
 			f32 dx = x - (cx + (f32)ox * s);
 			f32 dy = y - (cy + (f32)oy * s);
-			f32 rx = dx * ca - dy * sa;
-			f32 ry = dx * sa + dy * ca;
+			f32 rx = dx * ca + dy * sa; // The pixel in the frame of the shape: inverse of the clockwise turn
+			f32 ry = -dx * sa + dy * ca;
 			f32 di = shape_generator_node_distance(p->shape, rx, ry, hx, hy, r);
 			d      = di < d ? di : d; // The nearest copy is the largest value
 		}
@@ -231,7 +234,7 @@ void shape_generator_node_init() {
 	                        shape_generator_node_socket(_tr("Height"), value_color, 0.5, 0.0, 1.0, 100),
 	                        shape_generator_node_socket(_tr("Position X"), value_color, 0.0, -1.0, 1.0, 100),
 	                        shape_generator_node_socket(_tr("Position Y"), value_color, 0.0, -1.0, 1.0, 100),
-	                        shape_generator_node_socket(_tr("Rotation"), value_color, 0.0, -180.0, 180.0, 10),
+	                        shape_generator_node_socket(_tr("Rotation"), value_color, 0.0, 0.0, 360.0, 10),
 	                        shape_generator_node_socket(_tr("Corner Radius"), value_color, 0.0, 0.0, 0.5, 100),
 	                        shape_generator_node_socket(_tr("Edge Softness"), value_color, 0.0, 0.0, 1.0, 100),
 	                    },
