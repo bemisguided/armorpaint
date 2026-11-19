@@ -103,7 +103,7 @@ project_t *import_arm_decode_project(buffer_t *b) {
 	}
 	if (!import_arm_has_version(b)) { // Mesh only
 		scene_t *scene = armpack_decode(b);
-		return ALLOC_INIT(project_t, {.mesh_datas = scene->mesh_datas});
+		return scene != NULL ? ALLOC_INIT(project_t, {.mesh_datas = scene->mesh_datas}) : NULL;
 	}
 	if (import_arm_is_old(b)) {
 		return import_arm_from_old(b);
@@ -790,7 +790,7 @@ void import_arm_run_project(char *path) {
 	if (!import_arm_has_version(b)) {
 		import_as_mesh     = true;
 		scene_t *scene_raw = armpack_decode(b);
-		project            = ALLOC_INIT(project_t, {.mesh_datas = scene_raw->mesh_datas});
+		project            = scene_raw != NULL ? ALLOC_INIT(project_t, {.mesh_datas = scene_raw->mesh_datas}) : NULL;
 	}
 	else if (import_arm_is_old(b)) {
 		project = import_arm_from_old(b);
@@ -1431,6 +1431,11 @@ void import_arm_run_swatches(char *path, bool replace_existing) {
 		return;
 	}
 	project_t *project = armpack_decode(b);
+	if (project == NULL) { // Damaged data
+		console_error(string("Could not read %s.", path));
+		data_delete_blob(path);
+		return;
+	}
 	if (project->version == NULL) {
 		data_delete_blob(path);
 		return;
