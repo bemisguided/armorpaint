@@ -144,17 +144,18 @@ static i32 edge_detect_node_process(u8 *bytes, i32 size, void *params, f32 *resu
 	width_px               = width_px > (f32)size ? (f32)size : width_px; // The box width is capped to the size below anyway, keeps huge linked values out of the int cast
 	f32 tol                = p.tolerance < 0.0 ? 0.0 : p.tolerance > 1.0 ? 1.0 : p.tolerance;
 	size_t n               = (size_t)size * size;
-	f32 *e                 = malloc(n * sizeof(f32));
-	f32 *t                 = malloc(n * sizeof(f32));
+	size_t plane_bytes     = n * sizeof(f32);
+	f32 *e                 = make_image_node_plane_alloc(plane_bytes);
+	f32 *t                 = make_image_node_plane_alloc(plane_bytes);
 	if (e == NULL || t == NULL) {
-		free(e);
-		free(t);
+		make_image_node_plane_free(e, plane_bytes);
+		make_image_node_plane_free(t, plane_bytes);
 		return -1;
 	}
 	f32 *max_rows = malloc((size_t)size * sizeof(f32));
 	if (max_rows == NULL) {
-		free(e);
-		free(t);
+		make_image_node_plane_free(e, plane_bytes);
+		make_image_node_plane_free(t, plane_bytes);
 		return -1;
 	}
 	edge_detect_sobel_ctx_t sc = {.pixels = pixels, .e = e, .max_rows = max_rows, .size = size, .wrap = p.wrap};
@@ -196,7 +197,7 @@ static i32 edge_detect_node_process(u8 *bytes, i32 size, void *params, f32 *resu
 			e[i] = v;
 		}
 	}
-	free(t);
+	make_image_node_plane_free(t, plane_bytes);
 	for (size_t i = 0; i < n; ++i) {
 		f32 v = e[i];
 		result[i * 4]     = v;
@@ -204,13 +205,13 @@ static i32 edge_detect_node_process(u8 *bytes, i32 size, void *params, f32 *resu
 		result[i * 4 + 2] = v;
 		result[i * 4 + 3] = 1.0;
 	}
-	free(e);
+	make_image_node_plane_free(e, plane_bytes);
 	return 0;
 }
 
 static image_node_type_t edge_detect_node_image_type = {
     .type          = "TEX_EDGE_DETECT",
-    .result_format = GPU_TEXTURE_FORMAT_RGBA128,
+    .result_format = GPU_TEXTURE_FORMAT_RGBA64, // A mask in 0..1 with ramps no wider than the blur: half floats keep at least a pixel per step
     .params_size   = sizeof(edge_detect_params_t),
     .size          = edge_detect_node_size,
     .capture       = edge_detect_node_capture,
