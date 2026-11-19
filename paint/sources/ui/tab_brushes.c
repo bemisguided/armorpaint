@@ -171,16 +171,16 @@ void tab_brushes_draw(i32 *htab) {
 				gpu_texture_t *img      = UI_SCALE() > 1 ? g_project->_->brushes->buffer[i]->image : g_project->_->brushes->buffer[i]->image_icon;
 				gpu_texture_t *img_full = g_project->_->brushes->buffer[i]->image;
 
-				slot_brush_t *brush     = g_project->_->brushes->buffer[i];
-				u32           color     = asset_tray_frame_color(ASSET_TRAY_BRUSHES, brush);
+				slot_brush_t *brush = g_project->_->brushes->buffer[i];
+				u32           color = asset_tray_frame_color(ASSET_TRAY_BRUSHES, brush);
 				if (color != 0) {
 					// ui_fill(1, -2, img.width + 3, img.height + 3, ui.ops.theme.HIGHLIGHT_COL); // TODO
 					i32 w = 50 * a;
 					ui_rect_round(-1, -1, w + 2, w + 2, color, 2 * UI_SCALE());
 				}
 
-				uix      = g_ui->_x;
-				uiy      = g_ui->_y;
+				uix = g_ui->_x;
+				uiy = g_ui->_y;
 				asset_selection_marquee_cell(brush, uix, uiy, imgw_val, imgw_val);
 				i32 tile = UI_SCALE() > 1 ? 100 : 50;
 

@@ -465,8 +465,8 @@ void tab_textures_draw(i32 *htab) {
 						render_target_t *empty_rt = any_map_get(render_path_render_targets, "empty_black");
 						img                       = empty_rt->_image;
 					}
-					uix    = g_ui->_x;
-					uiy    = g_ui->_y;
+					uix = g_ui->_x;
+					uiy = g_ui->_y;
 					asset_selection_marquee_cell(asset, uix, uiy, imgw_val, imgw_val);
 					i32 sw = img->height < img->width ? img->height : 0;
 
