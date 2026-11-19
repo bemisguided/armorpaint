@@ -2,6 +2,16 @@
 #pragma once
 
 typedef enum {
+	ASSET_TRAY_NONE,
+	ASSET_TRAY_TEXTURES,
+	ASSET_TRAY_MATERIALS,
+	ASSET_TRAY_BRUSHES,
+	ASSET_TRAY_FONTS,
+	ASSET_TRAY_SOUNDS,
+	ASSET_TRAY_COUNT,
+} asset_tray_t;
+
+typedef enum {
 	SHORTCUT_TYPE_STARTED,
 	SHORTCUT_TYPE_REPEAT,
 	SHORTCUT_TYPE_DOWN,
@@ -603,6 +613,8 @@ typedef enum {
 	HISTORY_ACTION_REPLACE_SWATCHES,
 	HISTORY_ACTION_EDIT_SWATCH,
 	HISTORY_ACTION_OBJECT_TRANSFORM,
+	HISTORY_ACTION_RENAME_ASSET,
+	HISTORY_ACTION_EDIT_META,
 } history_action_t;
 
 typedef enum {
@@ -612,17 +624,55 @@ typedef enum {
 	LAYER_COVERAGE_NO_TILES,
 } layer_coverage_empty_t;
 
-// Kinds of items that carry metadata (meta_t.category), saved in project files: explicit numbers, never renumber or reuse
+// Kinds of items that carry metadata (meta_t.category), saved in project files: explicit numbers, never renumber or reuse.
+// The asset categories follow the project arrays (assets, fonts, sounds, materials, brushes), see util_meta.c
 typedef enum {
-	MC_LAYER = 0,
+	MC_TEXTURE  = 0,
+	MC_FONT     = 1,
+	MC_SOUND    = 2,
+	MC_MATERIAL = 3,
+	MC_BRUSH    = 4,
+	MC_LAYER    = 5,
+	MC_COUNT    = 6,
 } meta_category_t;
 
 // Keys of meta_t, saved in project files: explicit numbers, never renumber or reuse. Unknown ids are kept as they are.
+// Asset bake keys, all i32: bake type (bake_type_persistent_t), encoding (asset_encoding_t), object (mesh paint_id), tile (udim id, absent = any).
 // Layer coverage (util_layer_coverage.c): all objects (bool, absent = true), objects (i32 array of paint ids, absent = empty),
 // all tiles (bool, absent = true), tiles (i32 array of udim tile ids, absent = empty).
 typedef enum {
-	META_ALL_OBJECTS = 0,
-	META_OBJECTS     = 1,
-	META_ALL_TILES   = 2,
-	META_TILES       = 3,
+	META_BAKE_TYPE   = 0,
+	META_ENCODING    = 1,
+	META_OBJECT      = 2,
+	META_TILE        = 3,
+	META_ALL_OBJECTS = 4,
+	META_OBJECTS     = 5,
+	META_ALL_TILES   = 6,
+	META_TILES       = 7,
 } meta_key_t;
+
+typedef enum {
+	AE_NONE   = 0,
+	AE_COLOR  = 1,
+	AE_LINEAR = 2,
+	AE_NORMAL = 3,
+} asset_encoding_t;
+
+// Bake types as saved in project files: append-only, explicit numbers, NOT the order of bake_type_t (that one is the UI order).
+typedef enum {
+	BTP_NONE          = 0,
+	BTP_AO            = 1,
+	BTP_CURVATURE     = 2,
+	BTP_NORMAL        = 3,
+	BTP_NORMAL_OBJECT = 4,
+	BTP_HEIGHT        = 5,
+	BTP_DERIVATIVE    = 6,
+	BTP_POSITION      = 7,
+	BTP_TEXCOORD      = 8,
+	BTP_MATERIAL_ID   = 9,
+	BTP_OBJECT_ID     = 10,
+	BTP_VERTEX_COLOR  = 11,
+	BTP_LIGHTMAP      = 12,
+	BTP_BENT_NORMAL   = 13,
+	BTP_THICKNESS     = 14,
+} bake_type_persistent_t;
