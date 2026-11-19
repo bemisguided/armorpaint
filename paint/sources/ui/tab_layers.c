@@ -208,6 +208,7 @@ static bool tab_layers_coverage_fill(slot_layer_t *l, i32 i) {
 
 // Fills only reach the objects they cover, refill them on the next frame
 static void tab_layers_coverage_refill(slot_layer_t *l) {
+	slot_material_t *material = g_context->material;
 	for (i32 i = 0; i < g_project->_->layers->length; ++i) {
 		if (tab_layers_coverage_fill(l, i)) {
 			slot_layer_t *m     = g_project->_->layers->buffer[i];
@@ -216,6 +217,7 @@ static void tab_layers_coverage_refill(slot_layer_t *l) {
 			layers_update_fill_layers();
 		}
 	}
+	g_context->material = material;
 }
 
 // After the coverage of l (a layer or a group) changed, l is the context layer
@@ -359,53 +361,22 @@ static char *tab_layers_coverage_text(bool multi_tile, bool all_objects, i32 obj
 	return string_tmp("%s / %s", tab_layers_objects_text(all_objects, object_count, object_name), tab_layers_tiles_text(all_tiles, tile_count, tile_id));
 }
 
-// A side reads All when its flag is set. The ticks are followed literally: a list holding every object still reads as that list.
-static bool tab_layers_objects_all(slot_layer_t *l) {
-	return slot_layer_all_objects(l);
-}
-
-static bool tab_layers_tiles_all(slot_layer_t *l) {
-	return slot_layer_all_tiles(l);
-}
-
 static char *tab_layers_coverage_label(slot_layer_t *l) {
 	bool  multi    = util_udim_count() > 1;
 	char *first    = NULL;
 	char *second   = NULL;
 	i32   t_first  = 0;
 	i32   t_second = 0;
-	bool  ao       = tab_layers_objects_all(l);
-	bool  at       = multi && tab_layers_tiles_all(l);
+	bool  ao       = slot_layer_all_objects(l); // The ticks are followed literally: a list holding every object still reads as that list
+	bool  at       = multi && slot_layer_all_tiles(l);
 	i32   o        = ao ? 0 : tab_layers_label_objects(l, &first, &second);
 	i32   t        = !multi || at ? 0 : tab_layers_label_tiles(l, &t_first, &t_second);
 	return tab_layers_coverage_text(multi, ao, o, first, at, t, t_first);
 }
 
-// Fixed text for the Applies to button, issues are appended by the caller
+// Fixed text for the Applies to button
 static char *tab_layers_coverage_tip() {
 	return util_udim_count() > 1 ? tr("Objects and tiles this layer applies to") : tr("Objects this layer applies to");
-}
-
-// "X shares UV space with Y on tile T..." when a covered object overlaps an uncovered one in uv space, NULL otherwise
-static char *tab_layers_objects_overlap_note(slot_layer_t *l) {
-	i32 object;
-	i32 other;
-	i32 tile;
-	if (!layer_uv_overlap(l, &object, &other, &tile)) {
-		return NULL;
-	}
-	mesh_object_t *a = project_object_by_id(object);
-	mesh_object_t *b = project_object_by_id(other);
-	if (a == NULL || b == NULL) {
-		return NULL;
-	}
-	any_map_t *vars = any_map_create();
-	any_map_set(vars, "object", a->base->name);
-	any_map_set(vars, "other", b->base->name);
-	any_map_set(vars, "tile", string_tmp("%d", tile));
-	char *note = vtr("{object} shares UV space with {other} on tile {tile}. In exports and path tracing this layer also applies to {other}.", vars);
-	map_free(vars);
-	return note;
 }
 
 // One history step per toggle, taken before the change
@@ -525,10 +496,7 @@ static void tab_layers_coverage_buttons(slot_layer_t *l) {
 		ui_menu_draw(&tab_layers_coverage_menu_draw, -1, -1);
 	}
 	else if (g_ui->is_hovered) {
-		// Fixed text, only the UV overlap problem is added to it
-		char *tip   = tab_layers_coverage_tip();
-		char *issue = tab_layers_objects_overlap_note(l);
-		ui_tooltip(issue != NULL ? string_tmp("%s\n%s", tip, issue) : tip);
+		ui_tooltip(tab_layers_coverage_tip());
 	}
 }
 
