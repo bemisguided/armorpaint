@@ -52,6 +52,7 @@ bool               util_udim_active();
 i32                util_udim_tile_res_x();
 i32                util_udim_tile_res_y();
 bool               util_udim_tile_used(i32 tile);
+char              *export_texture_file_label(char *name);
 extern bool        bake_texture_node_baking;
 extern i32         render_path_raytrace_bake_current_sample;
 unsigned char     *stbi_load_from_memory(unsigned char const *buffer, int len, int *x, int *y, int *comp, int req_comp);
@@ -734,18 +735,32 @@ static i32 bake_rays_current_pair() {
 	return bake_rays_current >= 0 && bake_rays_current < bake_rays_pair_count ? bake_rays_current : 0;
 }
 
-// File name of a per object result, <object>_<map>_<tile>.png
-static char *bake_rays_pair_file(i32 k, char *suffix) {
+// Object name as a file name part (the export sanitiser), objects without a name are called object<index>
+static char *bake_rays_object_label(i32 obj) {
 	mesh_object_t_array_t *lows = g_project->_->paint_objects;
-	i32                    obj  = bake_rays_pairs[k].object;
-	char                  *name = obj < lows->length && lows->buffer[obj]->base->name != NULL ? lows->buffer[obj]->base->name : "";
-	name                        = name[0] != '\0' ? string("%s", name) : string("object%d", obj);
-	for (char *c = name; *c != '\0'; ++c) {
-		if (strchr("/\\:*?\"<>|", *c) != NULL) {
-			*c = '_'; // Not allowed in file names
-		}
+	char                  *name = obj < lows->length ? lows->buffer[obj]->base->name : NULL;
+	return name != NULL && name[0] != '\0' ? export_texture_file_label(name) : string("object%d", obj);
+}
+
+// File name of a per object result, <object>_<map>_<tile>.png. Objects whose names are the same once sanitised would
+// overwrite each other's files, the later ones are numbered.
+static char *bake_rays_pair_file(i32 k, char *suffix) {
+	i32   obj   = bake_rays_pairs[k].object;
+	char *name  = bake_rays_object_label(obj);
+	i32   count = 1;
+	for (i32 i = 0; i < obj; ++i) {
+		char *other = bake_rays_object_label(i);
+		count += string_equals(other, name) ? 1 : 0;
+		free(other);
 	}
-	return string("%s_%s_%d.png", name, suffix, util_udim_tile(bake_rays_pairs[k].slot));
+	if (count > 1) {
+		char *numbered = string("%s_%d", name, count);
+		free(name);
+		name = numbered;
+	}
+	char *file = string("%s_%s_%d.png", name, suffix, util_udim_tile(bake_rays_pairs[k].slot));
+	free(name);
+	return file;
 }
 
 // Low poly triangles with uvs, read from the paint objects
