@@ -1238,4 +1238,3 @@ void layers_coverage_add_alias(i32 from, i32 to) {
 		}
 	}
 }
-// Sets the project tile list (copied, sorted, distinct, ids outside 1001..2000 dropped, NULL or empty gives {1001}), the layout is not changed
