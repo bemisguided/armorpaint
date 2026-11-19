@@ -243,7 +243,7 @@ static void sculpt_build_weld() {
 	free(tri);
 	free(fill);
 
-	i32       w  = config_get_texture_res_x();
+	i32       w  = config_get_tile_res_x();
 	i32       h  = texels > 0 ? (texels + w - 1) / w : 1;
 	buffer_t *a0 = buffer_create(w * h * 16);
 	buffer_t *a1 = buffer_create(w * h * 16);
@@ -303,7 +303,7 @@ static void sculpt_coverage_tiles(u8 *texels, i32 o, i32 voff, u8 *tile_key, i32
 static void sculpt_update_coverage_texture() {
 	slot_layer_t *l     = g_context->layer;
 	i32           count = sculpt_object_count;
-	i32           w     = config_get_texture_res_x();
+	i32           w     = config_get_tile_res_x();
 	// Per vertex tiles are read only when the layer leaves out one of several tiles
 	bool tiles  = layer_tiles_tested(l);
 	bool tile   = tiles || layer_covers_tile(l, util_udim_tile(0));
@@ -355,8 +355,8 @@ gpu_texture_t *sculpt_get_coverage_texture() {
 static void sculpt_ensure_texture_res() {
 	i32  required = sculpt_texel_count;
 	bool changed  = false;
-	while (config_get_texture_res_x() * config_get_texture_res_y() < required && config_get_texture_res_x() < 8192) {
-		i32 next = config_get_texture_res_x() < 2048 ? 2048 : config_get_texture_res_x() < 4096 ? 4096 : 8192;
+	while (config_get_tile_res_x() * config_get_tile_res_y() < required && config_get_tile_res_x() < 8192) {
+		i32 next = config_get_tile_res_x() < 2048 ? 2048 : config_get_tile_res_x() < 4096 ? 4096 : 8192;
 		i32 pos  = config_get_texture_res_pos(next);
 		config_set_texture_res(pos);
 		base_res = pos;
@@ -394,7 +394,7 @@ static bool sculpt_storage_matches_objects() {
 
 static buffer_t *sculpt_pack_rest() {
 	// Pack positions and normals into texture
-	u32       capacity = config_get_texture_res_x() * config_get_texture_res_y();
+	u32       capacity = config_get_tile_res_x() * config_get_tile_res_y();
 	buffer_t *b        = buffer_create(capacity * 4 * 4);
 	if (!sculpt_storage_matches_objects()) {
 		memset(b->buffer, 0, b->length);
@@ -441,12 +441,12 @@ static buffer_t *sculpt_pack_rest() {
 
 void sculpt_import_mesh_pack_to_texture(gpu_texture_t *target) {
 	buffer_t      *b       = sculpt_pack_rest();
-	gpu_texture_t *imgmesh = gpu_create_texture_from_bytes(b, config_get_texture_res_x(), config_get_texture_res_y(), GPU_TEXTURE_FORMAT_RGBA128);
+	gpu_texture_t *imgmesh = gpu_create_texture_from_bytes(b, config_get_tile_res_x(), config_get_tile_res_y(), GPU_TEXTURE_FORMAT_RGBA128);
 	array_free(b);
 	free(b);
 	draw_begin(target, false, 0);
 	draw_set_pipeline(pipes_copy128);
-	draw_scaled_image(imgmesh, 0, 0, config_get_texture_res_x(), config_get_texture_res_y());
+	draw_scaled_image(imgmesh, 0, 0, config_get_tile_res_x(), config_get_tile_res_y());
 	draw_set_pipeline(NULL);
 	draw_end();
 	gpu_delete_texture(imgmesh);
@@ -1469,8 +1469,8 @@ void sculpt_init_sculpt_texture(slot_layer_t *l) {
 	{
 		render_target_t *t = render_target_create();
 		t->name            = string("texpaint_sculpt%s", i32_to_string(id));
-		t->width           = config_get_texture_res_x();
-		t->height          = config_get_texture_res_y();
+		t->width           = config_get_tile_res_x();
+		t->height          = config_get_tile_res_y();
 		t->format          = "RGBA128";
 		l->texpaint_sculpt = render_path_create_render_target(t)->_image;
 	}
@@ -1498,8 +1498,8 @@ void sculpt_pack_base() {
 	if (rt == NULL) {
 		render_target_t *t = render_target_create();
 		t->name            = "texpaint_sculpt_base";
-		t->width           = config_get_texture_res_x();
-		t->height          = config_get_texture_res_y();
+		t->width           = config_get_tile_res_x();
+		t->height          = config_get_tile_res_y();
 		t->format          = "RGBA128";
 		rt                 = render_path_create_render_target(t);
 	}
@@ -1621,8 +1621,8 @@ void sculpt_init() {
 		// Holds the previous-frame sculpt state during a stroke
 		render_target_t *t = render_target_create();
 		t->name            = "texpaint_sculpt_ref";
-		t->width           = config_get_texture_res_x();
-		t->height          = config_get_texture_res_y();
+		t->width           = config_get_tile_res_x();
+		t->height          = config_get_tile_res_y();
 		t->format          = "RGBA128";
 		render_path_create_render_target(t);
 	}
@@ -1634,8 +1634,8 @@ void sculpt_init() {
 		slot_layer_t    *ul  = history_undo_layers->buffer[i];
 		render_target_t *t   = render_target_create();
 		t->name              = string("texpaint_sculpt%s", ext);
-		t->width             = config_get_texture_res_x();
-		t->height            = config_get_texture_res_y();
+		t->width             = config_get_tile_res_x();
+		t->height            = config_get_tile_res_y();
 		t->format            = "RGBA128";
 		ul->texpaint_sculpt  = render_path_create_render_target(t)->_image;
 	}
@@ -1653,7 +1653,7 @@ void sculpt_layers_create_sculpt_layer() {
 
 void render_path_sculpt_displace_pass(char *texpaint_sculpt) {
 	// The adjacency texture is addressed with the sculpt texture width
-	if (sculpt_mode_uses_adjacency() && (sculpt_adj_texture0 == NULL || sculpt_adj_texture0->width != config_get_texture_res_x())) {
+	if (sculpt_mode_uses_adjacency() && (sculpt_adj_texture0 == NULL || sculpt_adj_texture0->width != config_get_tile_res_x())) {
 		sculpt_build_weld();
 	}
 	if (layer_is_restricted(g_context->layer)) {

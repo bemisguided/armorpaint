@@ -962,16 +962,6 @@ void script_layer_set_object(slot_layer_t *l, object_t *object) {
 	}
 }
 
-// Compatibility with the old positional object mask: 0 covers all objects, k covers paint object k
-void script_layer_set_object_mask(slot_layer_t *l, i32 mask) {
-	if (mask <= 0) {
-		script_layer_set_coverage(l, false, NULL, 0, true);
-	}
-	else if (mask <= g_project->_->paint_objects->length) {
-		script_layer_set_object(l, g_project->_->paint_objects->buffer[mask - 1]->base);
-	}
-}
-
 // Layer context menu operations
 
 static void script_layer_op_end(gpu_texture_t *current, bool in_use) {

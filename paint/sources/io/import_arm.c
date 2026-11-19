@@ -1023,7 +1023,7 @@ void import_arm_run_project(char *path) {
 	context_select_paint_object(context_main_object());
 
 	gpu_texture_t *tex = g_project->_->layers->buffer[0]->texpaint;
-	if (tex->width != util_udim_res_x() || tex->height != util_udim_res_y()) {
+	if (tex->width != config_get_texture_res_x() || tex->height != config_get_texture_res_y()) {
 		layers_resize_targets();
 	}
 
@@ -1085,7 +1085,7 @@ void import_arm_run_project(char *path) {
 					render_target_t *t = render_target_create();
 					t->name            = string("texpaint_sculpt%s", l->ext);
 					// Sculpt textures are per vertex at the per tile resolution, not atlas sized like the layer textures
-					i32 sculpt_res     = config_get_texture_res_x();
+					i32 sculpt_res     = config_get_tile_res_x();
 					t->width           = sculpt_res;
 					t->height          = sculpt_res;
 					t->format          = "RGBA128";
