@@ -511,6 +511,7 @@ static void script_paint_at(f32 x, f32 y) {
 	g_context->prev_paint_vec_y = prev_y;
 	g_context->pdirty           = 1;
 
+	render_path_paint_commands_symmetry();
 	render_path_paint_commands_paint(false);
 
 	script_paint_first = false;
@@ -959,16 +960,6 @@ void script_layer_set_object(slot_layer_t *l, object_t *object) {
 			script_layer_set_coverage(l, false, &o->paint_id, 1, false);
 			return;
 		}
-	}
-}
-
-// Compatibility with the old positional object mask: 0 covers all objects, k covers paint object k
-void script_layer_set_object_mask(slot_layer_t *l, i32 mask) {
-	if (mask <= 0) {
-		script_layer_set_coverage(l, false, NULL, 0, true);
-	}
-	else if (mask <= g_project->_->paint_objects->length) {
-		script_layer_set_object(l, g_project->_->paint_objects->buffer[mask - 1]->base);
 	}
 }
 

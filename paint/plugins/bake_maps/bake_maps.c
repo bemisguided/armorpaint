@@ -41,6 +41,8 @@ void               console_error(char *s);
 buffer_t          *iron_load_blob(char *file);
 bool               bake_to_target(render_target_t *rt, bake_type_t bake_type, void (*done)(void *), void *data);
 gpu_texture_t     *gpu_create_render_target(i32 width, i32 height, i32 format);
+i32                config_get_texture_res_x();
+i32                config_get_texture_res_y();
 void               console_info(char *s);
 char              *vtr(char *id, any_map_t *vars);
 i32                util_udim_count();
@@ -49,8 +51,6 @@ i32                util_udim_stride();
 bool               util_udim_active();
 i32                util_udim_tile_res_x();
 i32                util_udim_tile_res_y();
-i32                util_udim_res_x();
-i32                util_udim_res_y();
 bool               util_udim_tile_used(i32 tile);
 extern bool        bake_texture_node_baking;
 extern i32         render_path_raytrace_bake_current_sample;
@@ -2033,8 +2033,8 @@ static minic_val_t bake_maps_gpu_start(minic_val_t *a, int n) {
 		return minic_val_int(0);
 	}
 	// The core bake draws the whole udim atlas at the layer size
-	i32 w = util_udim_res_x();
-	i32 h = util_udim_res_y();
+	i32 w = config_get_texture_res_x();
+	i32 h = config_get_texture_res_y();
 	if (bake_maps_gpu_rt == NULL) {
 		bake_maps_gpu_rt         = render_target_create();
 		bake_maps_gpu_rt->name   = "bake_maps_gpu";
