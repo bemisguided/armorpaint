@@ -15,6 +15,9 @@
 //                           d = g / |g| * min(|g|, 1) * Strength * Size. So a Map that rises by 1 across the image moves the
 //                           content by exactly Strength of the image, steeper slopes are clamped to that, flat areas do not move.
 // Strength is a fraction of the image (the whole image is 1), Angle is in degrees (0 along x, y down like the uv).
+// Angle follows the rotation convention of all image nodes (armorpaint-admin specs/image-nodes/ROTATION_CONVENTION.md):
+// the direction is (cos Angle, sin Angle) on the y down image, 90 points down the image (the same direction as Advanced
+// Blur's Angle) and the pixels move along it.
 // Blur smears along the path: 0 is a pure warp (one tap at p - d); above 0 the output averages taps on the segment from
 // p - d * (1 - Blur) to p - d, so Blur 1 smears over the whole displacement (Slope Blur, Directional Blur along a map).
 // Taps are one pixel apart or closer, up to WARP_MAX_TAPS; a smear longer than that aliases (spacing above one pixel).
