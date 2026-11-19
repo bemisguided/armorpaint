@@ -860,3 +860,4 @@ jenis
 tanpa judul
 x
 {shortcut} dan gerakkan mouse
+

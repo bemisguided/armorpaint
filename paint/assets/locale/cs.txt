@@ -860,3 +860,4 @@ typ
 bez názvu
 x
 {shortcut} a pohyb myší
+
