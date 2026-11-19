@@ -8,7 +8,7 @@
 // Upstream "23" files load through import_arm_from_version_23 below, older ones chain into it from import_legacy.c.
 // Projects decode by field position (armpack), so these types.h fields must stay in the order written here:
 // - project_t: next_object_id, mesh_ids, udim_tiles, mesh_tiles, metas (after mesh_groups, before _)
-// - meta_t:    category, index, tags, bool_keys, bool_values, i32_keys, i32_values, f32_keys, f32_values, i32_array_keys,
+// - meta_t:    category, index, tags, bool_keys, bool_values, i32_keys, i32_values, i32_array_keys,
 //              i32_array_values (the entry maps of metas, every field written in this order)
 // layer_data_t has the upstream layout, its object_mask is written as 0 (layer coverage is in metas).
 // project_t atlas_objects / atlas_names of upstream "23" are only read to convert atlas group object masks (Export > Atlases was removed).
@@ -32,7 +32,7 @@ static meta_t_array_t *project_format_saved_metas = NULL; // List project_t.meta
 
 // One metas entry, fields in declaration order
 static void project_format_encode_meta(meta_t *m) {
-	armpack_encode_map(11);
+	armpack_encode_map(9);
 	armpack_encode_string("category");
 	armpack_encode_i32(m->category);
 	armpack_encode_string("index");
@@ -47,10 +47,6 @@ static void project_format_encode_meta(meta_t *m) {
 	armpack_encode_array_i32(m->i32_keys);
 	armpack_encode_string("i32_values");
 	armpack_encode_array_i32(m->i32_values);
-	armpack_encode_string("f32_keys");
-	armpack_encode_array_i32(m->f32_keys);
-	armpack_encode_string("f32_values");
-	armpack_encode_array_f32(m->f32_values);
 	armpack_encode_string("i32_array_keys");
 	armpack_encode_array_i32(m->i32_array_keys);
 	armpack_encode_string("i32_array_values");
@@ -102,8 +98,7 @@ i32 project_format_encode_size(project_t *raw) {
 		for (i32 j = 0; m->tags != NULL && j < m->tags->length; ++j) {
 			size += 8 + string_length(m->tags->buffer[j]);
 		}
-		size += 8 * ((m->bool_keys != NULL ? m->bool_keys->length : 0) + (m->i32_keys != NULL ? m->i32_keys->length : 0) +
-		             (m->f32_keys != NULL ? m->f32_keys->length : 0));
+		size += 8 * ((m->bool_keys != NULL ? m->bool_keys->length : 0) + (m->i32_keys != NULL ? m->i32_keys->length : 0));
 		for (i32 j = 0; m->i32_array_values != NULL && j < m->i32_array_values->length; ++j) {
 			i32_array_t *values = m->i32_array_values->buffer[j];
 			size += 16 + 4 * (values != NULL ? values->length : 0);
@@ -250,103 +245,7 @@ void project_format_load_layer_metas(project_t *raw) {
 	}
 }
 
-// Skips one encoded armpack value (see traverse in iron_armpack.c), returns the offset after it, len + 1 when it does not fit
-static u64 project_format_skip(u8 *p, u64 i, u64 len) {
-	if (i >= len) {
-		return len + 1;
-	}
-	u8  flag = p[i++];
-	u32 n    = 0;
-	switch (flag) {
-	case 0xc0:
-	case 0xc2:
-	case 0xc3:
-		return i;
-	case 0xca:
-	case 0xd2:
-		return i + 4 > len ? len + 1 : i + 4;
-	case 0xdb:
-		if (i + 4 > len) {
-			return len + 1;
-		}
-		memcpy(&n, p + i, 4);
-		return i + 4 + n > len ? len + 1 : i + 4 + n;
-	case 0xdd: {
-		if (i + 4 > len) {
-			return len + 1;
-		}
-		memcpy(&n, p + i, 4);
-		i += 4;
-		if (n == 0) {
-			return i;
-		}
-		if (i >= len) {
-			return len + 1;
-		}
-		u8  flag2 = p[i];
-		u64 size  = flag2 == 0xca || flag2 == 0xd2 ? 4 : flag2 == 0xd1 ? 2 : flag2 == 0xc4 ? 1 : 0;
-		if (size > 0) {
-			return i + 1 + size * n > len ? len + 1 : i + 1 + size * n;
-		}
-		for (u32 j = 0; j < n && i <= len; ++j) { // Dynamic, every element has its own flag
-			i = project_format_skip(p, i, len);
-		}
-		return i;
-	}
-	case 0xdf: {
-		if (i + 4 > len) {
-			return len + 1;
-		}
-		memcpy(&n, p + i, 4);
-		i += 4;
-		for (u32 j = 0; j < n && i <= len; ++j) {
-			if (i + 5 > len || p[i] != 0xdb) {
-				return len + 1;
-			}
-			u32 key_len;
-			memcpy(&key_len, p + i + 1, 4);
-			i = project_format_skip(p, i + 5 + key_len > len ? len : i + 5 + key_len, len);
-		}
-		return i;
-	}
-	}
-	return len + 1;
-}
-
-// Whether the top level map of an encoded project has the key
-static bool project_format_has_key(buffer_t *b, char *key) {
-	u8 *p   = b->buffer;
-	u64 len = b->length;
-	u32 n   = string_length(key);
-	if (len <= 5 || p[0] != 0xdf) {
-		return false;
-	}
-	i32 count;
-	memcpy(&count, p + 1, 4);
-	u64 i = 5;
-	for (i32 k = 0; k < count && i <= len; ++k) {
-		if (i + 5 > len || p[i] != 0xdb) {
-			return false;
-		}
-		u32 key_len;
-		memcpy(&key_len, p + i + 1, 4);
-		if (i + 5 + key_len > len) {
-			return false;
-		}
-		if (key_len == n && memcmp(p + i + 5, key, n) == 0) {
-			return true;
-		}
-		i = project_format_skip(p, i + 5 + key_len, len);
-	}
-	return false;
-}
-
-// Decodes a project file. A "99" file of an earlier build of the fork has no metas key and another layout, armpack would
-// decode it with shifted fields, so it is refused: NULL, the caller reports an unsupported version. Older versions decode as before.
 project_t *project_format_decode(buffer_t *b) {
-	if (!import_arm_is_old(b) && !project_format_has_key(b, "metas")) {
-		return NULL;
-	}
 	return armpack_decode(b);
 }
 
@@ -592,7 +491,7 @@ static void project_format_migrate_udim_names(any_map_t *old, project_t *project
 		array_delete(ids);
 		return;
 	}
-	i32_array_sort(ids, NULL);
+	i32_array_sort(ids, util_udim_compare_i32);
 	if (ids->length > 64) {
 		console_info(string("Project uses %d udim tiles, tiles past the 64th shared one atlas slot in older versions and start empty", ids->length));
 	}
