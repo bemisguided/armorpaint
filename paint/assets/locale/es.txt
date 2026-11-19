@@ -18,16 +18,19 @@ Añadir animación
 Añadir muestra
 Añadir nueva muestra
 Añadir color seleccionado a muestras
+
 Todo
 Todo el procesamiento se realiza localmente en el dispositivo
 Permitir cámara invertida
 Alfa
 Descartar alfa
+
 Cantidad
 Ángulo
 Rechazar por ángulo
 Animación
 Anisotropía
+
 Adjuntar
 Aplicar
 Aplicar desplazamiento
@@ -185,6 +188,8 @@ Destino
 Detalle
 Rugosidad del detalle
 Escala del detalle
+
+
 Diagonal
 Diferencia
 Expandir radio
@@ -218,6 +223,7 @@ Duplicar capa
 Duplicar material
 Duplicar muestra
 Editar
+
 Editar imagen
 Editar nodos
 Editar script
@@ -229,6 +235,7 @@ Editar en la pestaña de Script
 Editar en el editor de textos
 Emisión
 Vacío
+
 Fotograma final
 Entorno
 Ángulo de entorno
@@ -437,6 +444,7 @@ Espejo
 Mezcla
 Mezclar color
 Mezclar mapas de normales
+
 Móvil
 Modo
 Modelo
@@ -590,6 +598,7 @@ Reimportar malla
 Reimportar texturas
 Desplazamiento relativo
 Eliminar
+
 Renombrar capa
 Renderizar
 Reorientado
@@ -714,6 +723,8 @@ Supermuestreado
 Muestras
 Muestras...
 Simetría
+
+
 Tangente
 Destino
 Plantilla
@@ -781,6 +792,7 @@ Mapa UV
 No se pudo buscar actualizaciones.\nVisita {url}.
 Deshacer pasos
 Deshacer {step}
+
 Desenvolver
 Desenvolver malla
 Desenvolviendo malla
@@ -855,8 +867,8 @@ Triángulos
 tipo
 Sin título
 x
-{shortcut} y mover ratón
 
+{shortcut} y mover ratón
 
 
 

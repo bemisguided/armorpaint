@@ -7,8 +7,8 @@
 // Upstream compares versions by exact string and has converters for 0..22 only, so "99" files cleanly fail to load there.
 // Upstream "23" files load through import_arm_from_version_23 below, older ones chain into it from import_legacy.c.
 // Projects decode by field position (armpack), so these types.h fields must stay in the order written here:
-// - project_t: next_object_id, mesh_ids, udim_tiles, mesh_tiles, metas (after mesh_groups, before _)
-// - meta_t:    category, index, bool_keys, bool_values, i32_keys, i32_values, f32_keys, f32_values, i32_array_keys,
+// - project_t: metas, next_object_id, mesh_ids, udim_tiles, mesh_tiles (after mesh_groups, before _)
+// - meta_t:    category, index, tags, bool_keys, bool_values, i32_keys, i32_values, i32_array_keys,
 //              i32_array_values (the entry maps of metas, every field written in this order)
 // layer_data_t has the upstream layout, its object_mask is written as 0 (layer coverage is in metas).
 // project_t atlas_objects / atlas_names of upstream "23" are only read to convert atlas group object masks (Export > Atlases was removed).
@@ -16,8 +16,10 @@
 // History steps are not saved.
 // Metadata (meta_t, see util_meta.c): one list of sparse entries, one per item that has metadata. category says which list
 // the item is in, index its position there when the project was saved: layers (MC_LAYER) by their position in layer_datas,
-// groups, masks and filters counted. Save rebuilds the list from the live items, load copies each entry onto its item and
-// ignores entries of unknown categories or out of range indices. Unknown key ids are kept as they are.
+// groups, masks and filters counted; textures in assets, fonts in font_assets (the default font is not saved, so runtime font
+// index + 1), sounds in sound_assets, materials in material_nodes and brushes in brush_nodes. Save rebuilds the list from the live
+// items, load copies each entry onto its item and ignores entries of unknown categories or out of range indices. Unknown key ids
+// are kept as they are, tags are plain strings.
 // An empty list is written as an empty array. Entry maps always list every meta_t field in order (armpack sizes an array of
 // maps from its first element), NULL arrays encode as null and i32 array values as an array of arrays.
 // Udim: udim_tiles is the project tile list, mesh_tiles[i] the tile index per vertex of paint object i (empty = none, linked
@@ -30,11 +32,13 @@ static meta_t_array_t *project_format_saved_metas = NULL; // List project_t.meta
 
 // One metas entry, fields in declaration order
 static void project_format_encode_meta(meta_t *m) {
-	armpack_encode_map(10);
+	armpack_encode_map(9);
 	armpack_encode_string("category");
 	armpack_encode_i32(m->category);
 	armpack_encode_string("index");
 	armpack_encode_i32(m->index);
+	armpack_encode_string("tags");
+	armpack_encode_array_string(m->tags);
 	armpack_encode_string("bool_keys");
 	armpack_encode_array_i32(m->bool_keys);
 	armpack_encode_string("bool_values");
@@ -43,10 +47,6 @@ static void project_format_encode_meta(meta_t *m) {
 	armpack_encode_array_i32(m->i32_keys);
 	armpack_encode_string("i32_values");
 	armpack_encode_array_i32(m->i32_values);
-	armpack_encode_string("f32_keys");
-	armpack_encode_array_i32(m->f32_keys);
-	armpack_encode_string("f32_values");
-	armpack_encode_array_f32(m->f32_values);
 	armpack_encode_string("i32_array_keys");
 	armpack_encode_array_i32(m->i32_array_keys);
 	armpack_encode_string("i32_array_values");
@@ -65,6 +65,11 @@ static void project_format_encode_meta(meta_t *m) {
 
 // util_encode_project, after mesh_groups
 void project_format_encode_project(project_t *raw) {
+	armpack_encode_string("metas");
+	armpack_encode_array(raw->metas != NULL ? raw->metas->length : 0);
+	for (i32 i = 0; raw->metas != NULL && i < raw->metas->length; ++i) {
+		project_format_encode_meta(raw->metas->buffer[i]);
+	}
 	armpack_encode_string("next_object_id");
 	armpack_encode_i32(raw->next_object_id);
 	armpack_encode_string("mesh_ids");
@@ -83,20 +88,17 @@ void project_format_encode_project(project_t *raw) {
 	else {
 		armpack_encode_null();
 	}
-	armpack_encode_string("metas");
-	armpack_encode_array(raw->metas != NULL ? raw->metas->length : 0);
-	for (i32 i = 0; raw->metas != NULL && i < raw->metas->length; ++i) {
-		project_format_encode_meta(raw->metas->buffer[i]);
-	}
 }
 
 i32 project_format_encode_size(project_t *raw) {
-	i32 size = 16;
+	i32 size = 64;
 	for (i32 i = 0; raw->metas != NULL && i < raw->metas->length; ++i) {
 		meta_t *m = raw->metas->buffer[i];
 		size += 256; // Map, keys and array headers
-		size += 8 * ((m->bool_keys != NULL ? m->bool_keys->length : 0) + (m->i32_keys != NULL ? m->i32_keys->length : 0) +
-		             (m->f32_keys != NULL ? m->f32_keys->length : 0));
+		for (i32 j = 0; m->tags != NULL && j < m->tags->length; ++j) {
+			size += 8 + string_length(m->tags->buffer[j]);
+		}
+		size += 8 * ((m->bool_keys != NULL ? m->bool_keys->length : 0) + (m->i32_keys != NULL ? m->i32_keys->length : 0));
 		for (i32 j = 0; m->i32_array_values != NULL && j < m->i32_array_values->length; ++j) {
 			i32_array_t *values = m->i32_array_values->buffer[j];
 			size += 16 + 4 * (values != NULL ? values->length : 0);
@@ -126,16 +128,28 @@ static void project_format_reset_tiles(project_t *raw, i32 mesh_count) {
 	}
 }
 
-// The metas list of the live items, the entries are the items' own metas with category and index set (the encoder only reads)
+// Adds the metadata of an item to a metas list being saved, nothing when it has none. The entry is the item's own meta with
+// category and index set (the encoder only reads it).
+void project_format_add_entry(meta_t_array_t *metas, meta_t *m, i32 category, i32 index) {
+	if (meta_is_empty(m)) {
+		return;
+	}
+	m->category = category;
+	m->index    = index;
+	any_array_push(metas, m);
+}
+
+// The metas list of the live items: layers, then the asset categories
 static void project_format_build_metas(project_t *raw) {
 	array_delete(project_format_saved_metas);
 	project_format_saved_metas = any_array_create(0);
 	for (i32 i = 0; i < raw->_->layers->length; ++i) {
-		meta_t *m = raw->_->layers->buffer[i]->meta;
-		if (!meta_is_empty(m)) {
-			m->category = MC_LAYER;
-			m->index    = i;
-			any_array_push(project_format_saved_metas, m);
+		project_format_add_entry(project_format_saved_metas, raw->_->layers->buffer[i]->meta, MC_LAYER, i);
+	}
+	for (i32 category = MC_TEXTURE; category < MC_LAYER; ++category) {
+		i32 first = category == MC_FONT ? 1 : 0; // The default font is not saved, saved font i is runtime font i + 1
+		for (i32 i = first; i < meta_count(category); ++i) {
+			project_format_add_entry(project_format_saved_metas, meta_peek(category, i), category, i - first);
 		}
 	}
 	raw->metas = project_format_saved_metas;
@@ -229,6 +243,18 @@ void project_format_load_layer_metas(project_t *raw) {
 			l->meta = meta_copy(m);
 		}
 	}
+}
+
+// Load, metadata of item index of a category as saved (font index is the font_assets one), a copy the caller owns,
+// NULL when the item has none (decoded entries live in the file blob)
+meta_t *project_format_load_meta(project_t *raw, i32 category, i32 index) {
+	for (i32 i = 0; raw->metas != NULL && i < raw->metas->length; ++i) {
+		meta_t *m = raw->metas->buffer[i];
+		if (m->category == category && m->index == index && !meta_is_empty(m)) {
+			return meta_copy(m);
+		}
+	}
+	return NULL;
 }
 
 project_t *project_format_decode(buffer_t *b) {

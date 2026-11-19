@@ -18,16 +18,19 @@ Animáció hozzáadása
 Színminta hozzáadása
 Új színminta hozzáadása
 Kiválasztott szín hozzáadása a mintákhoz
+
 Összes
 Minden feldolgozás helyben történik
 Fejjel lefelé álló kamera engedélyezése
 Alfa
 Alfa eldobása
+
 Mennyiség
 Szög
 Szög elvetése
 Animáció
 Anizotrópia
+
 Hozzáfűzés
 Alkalmazás
 Eltolás alkalmazása
@@ -185,6 +188,8 @@ Cél
 Részletesség
 Részletesség érdessége
 Részletesség méretezése
+
+
 Átlós
 Különbség
 Tágítás sugara
@@ -218,6 +223,7 @@ Réteg duplikálása
 Anyag duplikálása
 Színminta duplikálása
 Szerkesztés
+
 Kép szerkesztése
 Csomópontok szerkesztése
 Szkript szerkesztése
@@ -229,6 +235,7 @@ Szerkesztés a Szkript lapon
 Szerkesztés a Szövegszerkesztőben
 Kibocsátás (Emission)
 Üres
+
 Vég képkocka
 Környezet
 Környezet szöge
@@ -437,6 +444,7 @@ Tükrözés
 Keverés
 Szín keverése
 Normal Map keverése
+
 Mobil
 Mód
 Modell
@@ -590,6 +598,7 @@ Háló újraimportálása
 Textúrák újraimportálása
 Relatív eltolás
 Eltávolítás
+
 Réteg átnevezése
 Renderelő
 Áttájolt
@@ -714,6 +723,8 @@ Szuperminta (Super Sample)
 Színminták
 Színminták...
 Szimmetria
+
+
 Tangens
 Cél
 Sablon
@@ -781,6 +792,7 @@ UV térkép
 Nem sikerült ellenőrizni a frissítéseket.\nKérjük látogasson el a {url} oldalra.
 Visszavonási lépések
 Visszavonás: {step}
+
 Kibontás
 Háló kibontása
 Háló kibontása...
@@ -855,8 +867,8 @@ Háromszögek
 típus
 Névtelen
 x
-{shortcut} és egér mozgatása
 
+{shortcut} és egér mozgatása
 
 
 

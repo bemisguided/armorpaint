@@ -18,16 +18,19 @@ Dodaj animację
 Dodaj próbkę
 Dodaj nową próbkę
 Dodaj wybrany kolor do próbek
+
 Wszystkie
 Wszystkie przetwarzanie odbywa się lokalnie na urządzeniu
 Zezwól na odwróconą kamerę
 Alfa
 Odrzucenie alfy
+
 Ilość
 Kąt
 Odrzucenie kątu
 Animacja
 Anizotropia
+
 Dołącz
 Zatwierdź
 Zatwierdź Przemieszczenie
@@ -185,6 +188,8 @@ Cel
 Szczegóły
 Szorstkość szczegółów
 Skala szczegółów
+
+
 Ukośny
 Różnica
 Promień rozszerzenia
@@ -218,6 +223,7 @@ Duplikuj warstwę
 Duplikuj materiał
 Duplikuj próbkę koloru
 Edytuj
+
 Edytuj obraz
 Edytuj węzły
 Edytuj skrypt
@@ -229,6 +235,7 @@ Edytuj w zakładce skryptów
 Edytuj w edytorze tekstu
 Emisja
 Pusty
+
 Klatka końcowa
 Środowisko
 Kąt środowiska
@@ -437,6 +444,7 @@ Lustro
 Mieszaj
 Mieszaj kolor
 Mieszaj mapę normalnych
+
 Mobilny
 Tryb
 Model
@@ -590,6 +598,7 @@ Zaimportuj model ponownie
 Zaimportuj tekstury ponownie
 Przesunięcie względne
 Usuń
+
 Zmień nazwę warstwy
 Renderer
 Przeorientowany
@@ -714,6 +723,8 @@ Superpróbkowanie
 Próbki kolorów
 Próbki...
 Symetria
+
+
 Tangens
 Cel
 Szablon
@@ -781,6 +792,7 @@ Mapa UV
 Nie można sprawdzić aktualizacji.\nOdwiedź {url}.
 Kroki cofania
 Cofnij {step}
+
 Rozwiń
 Rozwiń model
 Rozwijanie modelu
@@ -855,8 +867,8 @@ trójkąty
 typ
 bez tytułu
 x
-{shortcut} i poruszaj myszą
 
+{shortcut} i poruszaj myszą
 
 
 
