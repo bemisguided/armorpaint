@@ -640,6 +640,7 @@ static void make_image_node_bake(make_image_node_state_t *s, char *id) {
 	if (status < 0) {
 		console_error(tr("Image node bake: out of memory"));
 		make_image_node_delete_result(id); // Black result, not the previous texture
+		make_image_node_delete_result(string_tmp("%s_2", id)); // The second result of a node that has one
 		s->has_baked        = false;
 		s->failed           = true;
 		s->failed_signature = s->pending_signature;
