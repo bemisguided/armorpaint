@@ -13,6 +13,8 @@
 // chained image nodes in dependency order, the inner node first.
 
 #define MAKE_IMAGE_NODE_DEBOUNCE 0.5
+static bool make_image_node_trace = false; // ARMORPAINT_IMAGE_NODE_TRACE in the environment: every capture is logged with its time
+static i32 make_image_node_captures = 0; // Captures made since the start, see make_image_node_capture_count
 #define MAKE_IMAGE_NODE_BIG_PLANE ((size_t)64 << 20) // A 4096 x 4096 float plane is exactly this
 
 #if !defined(IRON_WINDOWS)
@@ -65,6 +67,10 @@ typedef struct make_image_node_state {
 	void              *pending_params;
 	bool               needs_capture; // Graph changed while busy, capture when the debounce fires
 	string_array_t    *upstream;      // Preview ids of the image nodes the last capture sampled
+	bool               captured;      // The versions below are those of the last capture, see make_image_node_unchanged
+	ui_node_canvas_t  *captured_canvas;
+	u32                captured_graph_version;
+	u32                captured_asset_version;
 	bool               cycle_seen;    // The running capture sampled a node that depends on this node, see make_image_node_edge_cyclic
 	bool               cycle_told;    // The Console told about the loop this node is in
 } make_image_node_state_t;
@@ -95,6 +101,7 @@ static void make_image_node_state_row(i32 node_id);
 void make_image_node_register(image_node_type_t *type) {
 	if (make_image_node_types == NULL) {
 		make_image_node_types = any_array_create_from_raw((void *[]){}, 0);
+		make_image_node_trace = getenv("ARMORPAINT_IMAGE_NODE_TRACE") != NULL;
 		any_map_set(ui_nodes_custom_buttons, "make_image_node_state_row", make_image_node_state_row);
 	}
 	any_array_push(make_image_node_types, type);
@@ -457,6 +464,15 @@ f32 make_image_node_input_value(ui_node_t *node, i32 input) {
 	return v; // Huge finite values stay, the nodes clamp them
 }
 
+// True when nothing that a capture reads has changed since the node's last capture: the graph of the material (util_version_graph,
+// bumped by every canvas change: editor, undo, groups, scripts, imports), its canvas object and the image assets. The node is
+// not captured again then, a capture is a render, a readback of up to 268 MB and a hash. An image node upstream that just baked
+// is not covered here: make_image_node_run_material captures the nodes downstream of a bake itself.
+static bool make_image_node_unchanged(make_image_node_state_t *s) {
+	return s->captured && !s->needs_capture && s->captured_canvas == g_context->material->canvas &&
+	       s->captured_graph_version == util_version_graph(g_context->material) && s->captured_asset_version == util_version_assets();
+}
+
 // Captures the node in image space. A new capture or parameter set makes the node pending, returns true then.
 // force keeps it pending even when it matches the baked result.
 static bool make_image_node_capture(make_image_node_state_t *s, char *id, ui_node_t *node, ui_node_canvas_t *group, ui_node_t_array_t *parents, bool force) {
@@ -466,6 +482,10 @@ static bool make_image_node_capture(make_image_node_state_t *s, char *id, ui_nod
 		return false;
 	}
 	make_image_node_clear_upstream(s);
+	make_image_node_captures++;
+	if (make_image_node_trace) {
+		iron_log("[image node] capture %d %s time %.3f", make_image_node_captures, id, sys_time());
+	}
 	s->cycle_seen                   = false;
 	make_image_node_capturing       = s;
 	make_image_node_capture_group   = group;
@@ -494,6 +514,10 @@ static bool make_image_node_capture(make_image_node_state_t *s, char *id, ui_nod
 	if (pixels == NULL) {
 		return false; // Capture failed, keep what is baked
 	}
+	s->captured               = true;
+	s->captured_canvas        = g_context->material->canvas;
+	s->captured_graph_version = util_version_graph(g_context->material);
+	s->captured_asset_version = util_version_assets();
 	u64 sig = make_image_node_signature(pixels, pixel_bytes, size, params, t->params_size);
 
 	bool has_result = g_context->node_previews != NULL && any_map_get(g_context->node_previews, id) != NULL;
@@ -927,6 +951,9 @@ void make_image_node_on_traverse(ui_node_t *node, ui_node_canvas_t *group, ui_no
 	if (linked) {
 		return; // A stroke changes layers, never the image space input (Layer nodes are neutral there)
 	}
+	if (make_image_node_unchanged(s)) {
+		return; // Selecting a layer or any other re-parse of an unchanged graph does not capture
+	}
 	if (make_image_node_busy()) {
 		// No readback per frame of a slider drag, or while Bake Texture runs
 		s->needs_capture = true;
@@ -983,6 +1010,11 @@ static make_image_node_state_t *make_image_node_state_of(ui_node_t *node, char *
 	parents.length = depth;
 	*id            = make_material_node_preview_id(node, &parents);
 	return any_map_get(make_image_node_states, *id);
+}
+
+// Captures made since the start (a capture is a render, a readback and a hash of the node's inputs)
+i32 make_image_node_capture_count() {
+	return make_image_node_captures;
 }
 
 // Regenerate image nodes: captures and bakes every image node of the project on the next update, also the ones whose
