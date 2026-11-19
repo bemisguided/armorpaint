@@ -40,6 +40,9 @@ enum {
 #define ADVANCED_BLUR_MAX_TAPS 65
 #define ADVANCED_BLUR_BOX_DENSE 64   // A box up to this width (pixels) is one dense pass, wider ones two
 #define ADVANCED_BLUR_GAUSS_DENSE 32 // A gaussian up to this radius (pixels) is one dense pass, larger ones three boxes
+#define ADVANCED_BLUR_MAX_RADIUS_SIZES 4.0f // Largest radius of a pass in sizes: the sliders reach 0.25 * 10 = 2.5, this bounds huge linked values
+#define ADVANCED_BLUR_MAX_RADIUS 1.0f       // Largest Radius (fraction of Size)
+#define ADVANCED_BLUR_MAX_ASPECT 100.0f
 
 typedef struct advanced_blur_params {
 	i32 mode;
@@ -211,6 +214,8 @@ static void advanced_blur_node_stage_rows(void *param, i32 begin, i32 end) {
 			size_t i = (size_t)y * c->size + x;
 			f32    m = c->px[i * 4 + 1];
 			f32    r = c->radius * (m < 0.0f ? 0.0f : m);
+			f32    rmax = ADVANCED_BLUR_MAX_RADIUS_SIZES * (f32)c->size;
+			r    = r > rmax ? rmax : r;
 			c->dst[i] = c->gaussian ? advanced_blur_node_gauss(c->src, c->size, x, y, c->dx, c->dy, r, c->stage, sample)
 			                        : advanced_blur_node_box(c->src, c->size, x, y, c->dx, c->dy, 2.0f * r, c->stage, sample);
 		}
@@ -245,8 +250,8 @@ static i32 advanced_blur_node_process(u8 *pixels, i32 size, void *params, f32 *r
 	for (size_t i = 0; i < n; ++i) {
 		a[i] = px[i * 4];
 	}
-	f32  radius   = (p.radius < 0.0f ? 0.0f : p.radius) * (f32)size;
-	f32  aspect   = p.aspect < 1.0f ? 1.0f : p.aspect;
+	f32  radius   = (p.radius < 0.0f ? 0.0f : p.radius > ADVANCED_BLUR_MAX_RADIUS ? ADVANCED_BLUR_MAX_RADIUS : p.radius) * (f32)size;
+	f32  aspect   = p.aspect < 1.0f ? 1.0f : p.aspect > ADVANCED_BLUR_MAX_ASPECT ? ADVANCED_BLUR_MAX_ASPECT : p.aspect;
 	f32  ux       = cosf(p.angle);
 	f32  uy       = sinf(p.angle);
 	bool gaussian = p.mode == ADVANCED_BLUR_MODE_GAUSSIAN;
