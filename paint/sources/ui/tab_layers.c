@@ -1507,7 +1507,7 @@ void tab_layers_draw_edit() {
 			vars = any_map_create();
 			any_map_set(vars, "res", string_tmp("%d", util_udim_tile_res_x()));
 			ui_menu_align();
-			ui_menu_label(vtr("Clamped to {res} px per tile (atlas limit 16384)", vars), NULL);
+			ui_menu_label(vtr("Clamped to {res} px per tile (atlas limit 8192)", vars), NULL);
 			map_free(vars);
 		}
 	}

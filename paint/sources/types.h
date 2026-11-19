@@ -78,7 +78,7 @@ typedef struct slot_layer {
 	struct slot_material *fill_material;
 	bool                  show_panel;
 	blend_type_t          blending;
-	struct meta          *meta; // NULL = none, covers every object and tile (coverage keys, see util_udim.c)
+	struct meta          *meta; // NULL = none, covers every object and tile (coverage keys, see util_layer_coverage.c)
 	f32                   scale;
 	f32                   angle;
 	uv_type_t             uv_type;

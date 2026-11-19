@@ -919,7 +919,7 @@ Objects and tiles this layer applies to
 Remove tile {id}? Its pixels are deleted and undo history is cleared.
 Remove tile
 Objects this layer applies to
-Clamped to {res} px per tile (atlas limit 16384)
+Clamped to {res} px per tile (atlas limit 8192)
 Per Object & Tile
 Default
 Atlas
@@ -937,6 +937,7 @@ CPU bake of {size} px tiles needs a lot of memory, consider a lower resolution
 Not enough memory for the CPU bake, lower the resolution
 The GPU bake needs ray tracing, baking on the CPU
 Another GPU bake is running, baking on the CPU
+A GPU bake is running, wait for it or cancel it
 The GPU bake takes up to {count} objects, baking on the CPU
 Not enough memory for the GPU bake, baking on the CPU
 The meshes changed during the GPU bake, baking on the CPU
