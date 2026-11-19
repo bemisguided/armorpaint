@@ -62,25 +62,35 @@ void base_save_and_quit_callback(bool save) {
 	}
 }
 
-void base_material_dropped_export(char *path) {
-	export_arm_run_material(path);
+static any_array_t *_base_dropped_materials;
+static char        *_base_dropped_folder;
+
+void base_material_dropped_export(void *_) {
+	for (i32 i = 0; i < _base_dropped_materials->length; ++i) {
+		slot_material_t *m = _base_dropped_materials->buffer[i];
+		export_arm_material(m, asset_selection_unique_path(_base_dropped_folder, m->canvas->name, "arm", NULL));
+	}
 	tab_browser_refresh = true;
 }
 
 void base_material_dropped() {
-	// Material drag and dropped onto viewport or layers tab
+	// Material drag and dropped onto viewport or layers tab, the selection holding it when there is one
+	any_array_t *materials = asset_selection_drag_items(ASSET_TRAY_MATERIALS, base_drag_material, false);
 	if (context_in_3d_view()) {
 		uv_type_t uv_type   = keyboard_down("control") ? UV_TYPE_PROJECT : UV_TYPE_UVMAP;
 		mat4_t    decal_mat = uv_type == UV_TYPE_PROJECT ? util_render_get_decal_mat() : mat4_nan();
-		layers_create_fill_layer(uv_type, decal_mat, -1);
+		layers_create_fill_layers(materials, uv_type, decal_mat, -1);
 	}
 	if (context_in_layers() && tab_layers_can_drop_new_layer(g_context->drag_dest)) {
 		uv_type_t uv_type   = keyboard_down("control") ? UV_TYPE_PROJECT : UV_TYPE_UVMAP;
 		mat4_t    decal_mat = uv_type == UV_TYPE_PROJECT ? util_render_get_decal_mat() : mat4_nan();
-		layers_create_fill_layer(uv_type, decal_mat, g_context->drag_dest);
+		layers_create_fill_layers(materials, uv_type, decal_mat, g_context->drag_dest);
 	}
 	else if (context_in_nodes()) {
-		ui_nodes_accept_material_drop(array_index_of(g_project->_->materials, base_drag_material));
+		i32_array_t *indices = asset_selection_drag_indices(ASSET_TRAY_MATERIALS, base_drag_material);
+		if (indices->length > 0) {
+			ui_nodes_accept_material_drops(indices);
+		}
 	}
 	else if (context_in_materials()) {
 		tab_materials_accept_material_drop(base_drag_material);
@@ -89,13 +99,10 @@ void base_material_dropped() {
 		tab_meshes_accept_material_drop(base_drag_material);
 	}
 	else if (context_in_browser() && iron_is_directory(tab_browser_path)) {
-		// Export material into the browser directory
-		char *name = base_drag_material->canvas->name;
-		char *path = string("%s%s%s.arm", tab_browser_path, PATH_SEP, name);
-		for (i32 i = 1; iron_file_exists(path); ++i) {
-			path = string("%s%s%s.%03d.arm", tab_browser_path, PATH_SEP, name, i);
-		}
-		sys_notify_on_next_frame(&base_material_dropped_export, path);
+		// Export materials into the browser directory
+		_base_dropped_materials = materials;
+		_base_dropped_folder    = string_copy(tab_browser_path);
+		sys_notify_on_next_frame(&base_material_dropped_export, NULL);
 	}
 	base_drag_material = NULL;
 }
@@ -277,12 +284,16 @@ void base_update(void *_) {
 	if (has_drag && (mouse_movement_x != 0 || mouse_movement_y != 0)) {
 		base_is_dragging = true;
 	}
+	asset_selection_update();
 	if (mouse_released("left") && has_drag) {
 		if (base_drag_asset != NULL) {
 
 			// Create image texture
 			if (context_in_nodes()) {
-				ui_nodes_accept_asset_drop(array_index_of(g_project->_->assets, base_drag_asset));
+				i32_array_t *indices = asset_selection_drag_indices(ASSET_TRAY_TEXTURES, base_drag_asset);
+				if (indices->length > 0) {
+					ui_nodes_accept_asset_drops(indices);
+				}
 			}
 			else if (context_in_3d_view()) {
 				if (path_has_ext(base_drag_asset->file, "hdr")) {
@@ -468,6 +479,7 @@ void base_update(void *_) {
 
 	g_context->frame++;
 
+	asset_selection_validate_drag(); // A shortcut of this frame (undo, delete) may have removed the dragged item
 	if (base_is_dragging) {
 		iron_mouse_set_cursor(IRON_CURSOR_HAND);
 		gpu_texture_t *img          = base_get_drag_image();
@@ -489,6 +501,21 @@ void base_update(void *_) {
 		base_drag_rect == NULL ? draw_scaled_image(img, mouse_x + base_drag_off_x, mouse_y + base_drag_off_y + inv, size, h - inv * 2)
 		                       : draw_scaled_sub_image(img, base_drag_rect->x, base_drag_rect->y, base_drag_rect->w, base_drag_rect->h,
 		                                               mouse_x + base_drag_off_x, mouse_y + base_drag_off_y + inv, size, h - inv * 2);
+
+		// Number of dragged items
+		i32 count = asset_selection_drag_count();
+		if (count > 1) {
+			char *text = i32_to_string(count);
+			draw_set_font(g_font, math_floor(UI_FONT_SIZE()));
+			f32 badge_w = draw_string_width(draw_font, draw_font_size, text) + 8 * scale_factor;
+			f32 badge_h = draw_font_height(draw_font, draw_font_size);
+			f32 badge_x = mouse_x + base_drag_off_x + size - badge_w;
+			f32 badge_y = mouse_y + base_drag_off_y;
+			draw_set_color(g_theme->HIGHLIGHT_COL);
+			draw_filled_rect(badge_x, badge_y, badge_w, badge_h);
+			draw_set_color(g_theme->TEXT_COL);
+			draw_string(text, badge_x + 4 * scale_factor, badge_y);
+		}
 		draw_set_color(0xffffffff);
 		draw_end();
 	}

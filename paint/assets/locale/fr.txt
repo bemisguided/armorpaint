@@ -18,16 +18,19 @@ Ajouter une animation
 Ajouter l'échantillon
 Ajouter nouvel échantillon
 Ajouter la couleur sélectionnée aux échantillons
+
 Tout
 Tout le traitement est effectué localement sur l'appareil
 Autoriser la caméra à l'envers
 Alpha
 Rejeter Alpha
+
 Quantité
 Angle
 Rejet par angle
 Animation
 Anisotropie
+
 Ajouter
 Appliquer
 Appliquer déplacement
@@ -185,6 +188,8 @@ Destination
 Détail
 Rugosité du détail
 Échelle du détail
+
+
 Diagonale
 Différence
 Rayon de dilatation
@@ -218,6 +223,7 @@ Dupliquer le calque
 Dupliquer matériau
 Dupliquer l'échantillon
 Modifier
+
 Éditer image
 Modifier nœuds
 Modifier le script
@@ -229,6 +235,7 @@ Modifier dans l'onglet Scripts
 Modifier dans l'éditeur de texte
 Émission
 Vide
+
 Image de fin
 Environnement
 Rotation de l'environnement
@@ -437,6 +444,7 @@ Miroir
 Mélanger
 Mélanger couleur
 Mélange de carte de normales
+
 Mobile
 Mode
 Modèle
@@ -590,6 +598,7 @@ Ré-importer le maillage
 Ré-importer les textures
 Décalage relatif
 Supprimer
+
 Renommer le calque
 Rendu
 Réorienté
@@ -714,6 +723,8 @@ Superéchantillonnage
 Échantillons
 Échantillons...
 Symétrie
+
+
 Tangente
 Cible
 Modèle
@@ -781,6 +792,7 @@ Carte UV
 Impossible de vérifier les mises à jour.\nVeuillez visiter {url}.
 Étapes d'annulation
 Annuler {step}
+
 Déplier
 Déplier maillage
 Dépliage du maillage
@@ -855,8 +867,8 @@ triangles
 type
 sans titre
 x
-{shortcut} et déplacer la souris
 
+{shortcut} et déplacer la souris
 
 
 
