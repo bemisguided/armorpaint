@@ -13,6 +13,38 @@
 // chained image nodes in dependency order, the inner node first.
 
 #define MAKE_IMAGE_NODE_DEBOUNCE 0.5
+#define MAKE_IMAGE_NODE_BIG_PLANE ((size_t)64 << 20) // A 4096 x 4096 float plane is exactly this
+
+#if !defined(IRON_WINDOWS)
+#include <sys/mman.h>
+#endif
+
+// Zeroed memory for the planes of an image node (captured pixels, results, scratch planes of the cpu passes). Planes of 64 MB and
+// up (4096 x 4096 floats and more) are mapped straight from the OS, so make_image_node_plane_free returns them to it at once: malloc
+// keeps blocks that big cached and resident (measured at 4096: about 1.3 GB stayed after the nodes went back to 1024).
+// Smaller planes use calloc. Returns NULL when memory runs out. Free with make_image_node_plane_free and the same size.
+void *make_image_node_plane_alloc(size_t bytes) {
+#if !defined(IRON_WINDOWS)
+	if (bytes >= MAKE_IMAGE_NODE_BIG_PLANE) {
+		void *p = mmap(NULL, bytes, PROT_READ | PROT_WRITE, MAP_ANON | MAP_PRIVATE, -1, 0);
+		return p == MAP_FAILED ? NULL : p;
+	}
+#endif
+	return calloc(1, bytes > 0 ? bytes : 1);
+}
+
+void make_image_node_plane_free(void *p, size_t bytes) {
+	if (p == NULL) {
+		return;
+	}
+#if !defined(IRON_WINDOWS)
+	if (bytes >= MAKE_IMAGE_NODE_BIG_PLANE) {
+		munmap(p, bytes);
+		return;
+	}
+#endif
+	free(p);
+}
 
 extern ui_node_t    *ui_nodes_node_changed;
 extern gpu_buffer_t *util_render_screen_aligned_full_vb;
@@ -28,6 +60,7 @@ typedef struct make_image_node_state {
 	bool               pending;      // pending_pixels wait for the debounce
 	u64                pending_signature;
 	u8                *pending_pixels; // pending_size * pending_size RGBA8
+	size_t             pending_bytes;  // Size of pending_pixels, for make_image_node_plane_free
 	i32                pending_size;
 	void              *pending_params;
 	bool               needs_capture; // Graph changed while busy, capture when the debounce fires
@@ -134,9 +167,10 @@ static void make_image_node_clear_upstream(make_image_node_state_t *s) {
 }
 
 static void make_image_node_clear_pending(make_image_node_state_t *s) {
-	free(s->pending_pixels);
+	make_image_node_plane_free(s->pending_pixels, s->pending_bytes);
 	free(s->pending_params);
 	s->pending_pixels = NULL;
+	s->pending_bytes  = 0;
 	s->pending_params = NULL;
 	s->pending        = false;
 }
@@ -166,26 +200,86 @@ static bool make_image_node_busy() {
 	return bake_texture_node_baking || g_ui->input_down;
 }
 
-static u64 make_image_node_hash(u64 h, u8 *bytes, size_t n) {
-	size_t i = 0;
-	for (; i + 8 <= n; i += 8) {
-		u64 w;
-		memcpy(&w, bytes + i, 8);
-		h ^= w;
-		h *= 1099511628211ull;
-	}
-	for (; i < n; ++i) {
-		h ^= bytes[i];
-		h *= 1099511628211ull;
-	}
-	return h;
+// xxh64 begin
+// xxHash64 (Yann Collet, BSD 2 clause), single pass, public algorithm: 32 byte stripes in four lanes, then a final avalanche
+static inline u64 make_image_node_rotl64(u64 x, int r) {
+	return (x << r) | (x >> (64 - r));
 }
 
-// 64 bit FNV-1a over the captured pixels (bytes), the size and the processing parameters
+static inline u64 make_image_node_read64(const u8 *p) {
+	u64 v;
+	memcpy(&v, p, 8);
+	return v; // Little endian hosts only (every supported target)
+}
+
+static inline u64 make_image_node_xxh_round(u64 acc, u64 input) {
+	acc += input * 14029467366897019727ull;
+	acc = make_image_node_rotl64(acc, 31);
+	return acc * 11400714785074694791ull;
+}
+
+static inline u64 make_image_node_xxh_merge(u64 acc, u64 val) {
+	acc ^= make_image_node_xxh_round(0, val);
+	return acc * 11400714785074694791ull + 9650029242287828579ull;
+}
+
+// 64 bit xxHash64 of n bytes with a seed, the seed chains calls (the output of one call is the seed of the next)
+static u64 make_image_node_hash(u64 seed, const void *data, size_t n) {
+	const u8 *p   = data;
+	const u8 *end = p + n;
+	u64       h;
+	if (n >= 32) {
+		u64       v1    = seed + 11400714785074694791ull + 14029467366897019727ull;
+		u64       v2    = seed + 14029467366897019727ull;
+		u64       v3    = seed;
+		u64       v4    = seed - 11400714785074694791ull;
+		const u8 *limit = end - 32;
+		do {
+			v1 = make_image_node_xxh_round(v1, make_image_node_read64(p));
+			v2 = make_image_node_xxh_round(v2, make_image_node_read64(p + 8));
+			v3 = make_image_node_xxh_round(v3, make_image_node_read64(p + 16));
+			v4 = make_image_node_xxh_round(v4, make_image_node_read64(p + 24));
+			p += 32;
+		} while (p <= limit);
+		h = make_image_node_rotl64(v1, 1) + make_image_node_rotl64(v2, 7) + make_image_node_rotl64(v3, 12) + make_image_node_rotl64(v4, 18);
+		h = make_image_node_xxh_merge(h, v1);
+		h = make_image_node_xxh_merge(h, v2);
+		h = make_image_node_xxh_merge(h, v3);
+		h = make_image_node_xxh_merge(h, v4);
+	}
+	else {
+		h = seed + 2870177450012600261ull;
+	}
+	h += (u64)n;
+	while (p + 8 <= end) {
+		h ^= make_image_node_xxh_round(0, make_image_node_read64(p));
+		h = make_image_node_rotl64(h, 27) * 11400714785074694791ull + 9650029242287828579ull;
+		p += 8;
+	}
+	if (p + 4 <= end) {
+		u32 w;
+		memcpy(&w, p, 4);
+		h ^= (u64)w * 11400714785074694791ull;
+		h = make_image_node_rotl64(h, 23) * 14029467366897019727ull + 1609587929392839161ull;
+		p += 4;
+	}
+	while (p < end) {
+		h ^= (u64)(*p++) * 2870177450012600261ull;
+		h = make_image_node_rotl64(h, 11) * 11400714785074694791ull;
+	}
+	h ^= h >> 33;
+	h *= 14029467366897019727ull;
+	h ^= h >> 29;
+	h *= 1609587929392839161ull;
+	h ^= h >> 32;
+	return h;
+}
+// xxh64 end
+
+// 64 bit signature over the captured pixels (bytes), the size and the processing parameters: xxHash64 chained over the three
 static u64 make_image_node_signature(u8 *pixels, size_t bytes, i32 size, void *params, i32 params_size) {
-	u64 h = 14695981039346656037ull;
-	h     = make_image_node_hash(h, pixels, bytes);
-	h     = make_image_node_hash(h, (u8 *)&size, sizeof(size));
+	u64 h = make_image_node_hash(0, pixels, bytes);
+	h     = make_image_node_hash(h, &size, sizeof(size));
 	return make_image_node_hash(h, params, params_size);
 }
 
@@ -278,8 +372,20 @@ static u8 *make_image_node_capture_pixels(ui_node_t *node, char *(*expr)(ui_node
 	_mesh_object_last_pipeline = NULL; // Mesh draws set their pipeline again
 	make_material_delete_context(scon);
 
-	buffer_t *b = gpu_get_texture_pixels(target);
+	// The readback fills a plane of ours (gpu_get_texture_pixels uses the buffer of the texture when it has one), mapped from the OS
+	// when big, so freeing it gives the memory back. gpu_delete_texture frees the buffer struct and the NULL buffer pointer.
+	size_t bytes  = (size_t)size * size * gpu_texture_format_size(format);
+	u8    *plane  = make_image_node_plane_alloc(bytes);
+	target->buffer = plane != NULL ? calloc(1, sizeof(buffer_t)) : NULL;
+	if (target->buffer != NULL) {
+		target->buffer->buffer = plane;
+	}
+	buffer_t *b = target->buffer != NULL ? gpu_get_texture_pixels(target) : NULL;
 	if (b == NULL) {
+		if (target->buffer != NULL) {
+			target->buffer->buffer = NULL;
+		}
+		make_image_node_plane_free(plane, bytes);
 		gpu_delete_texture(target);
 		return NULL;
 	}
@@ -449,7 +555,7 @@ f32 make_image_node_input_value(ui_node_t *node, i32 input) {
 		return socket->default_value->buffer[0];
 	}
 	f32 v = pixels[0]; // A 1 x 1 target: its pixel centre is the image centre
-	free(pixels);
+	make_image_node_plane_free(pixels, 16);
 	if (!isfinite(v)) {
 		return socket->default_value->buffer[0]; // A NaN (Square Root of a negative value) or infinity would turn the whole result into one
 	}
@@ -482,10 +588,11 @@ static bool make_image_node_capture(make_image_node_state_t *s, char *id, ui_nod
 	}
 	for (i32 k = 0; k < count; ++k) {
 		make_image_node_capture_k = k;
-		i32 ks                    = t->capture_size != NULL ? t->capture_size(node, k) : size;
-		u8 *p                     = make_image_node_capture_pixels(node, t->capture, ks, format);
+		i32    ks                 = t->capture_size != NULL ? t->capture_size(node, k) : size;
+		size_t one                = (size_t)ks * ks * pixel_bytes;
+		u8    *p                  = make_image_node_capture_pixels(node, t->capture, ks, format);
 		if (p == NULL) {
-			free(pixels);
+			make_image_node_plane_free(pixels, total);
 			pixels = NULL;
 			break;
 		}
@@ -494,23 +601,22 @@ static bool make_image_node_capture(make_image_node_state_t *s, char *id, ui_nod
 			break;
 		}
 		if (pixels == NULL) {
-			pixels = malloc(total);
+			pixels = make_image_node_plane_alloc(total);
 			if (pixels == NULL) {
-				free(p);
+				make_image_node_plane_free(p, one);
 				break;
 			}
 		}
-		size_t one = (size_t)ks * ks * pixel_bytes;
 		memcpy(pixels + offset, p, one);
 		offset += one;
-		free(p);
+		make_image_node_plane_free(p, one);
 	}
 	make_image_node_capture_k = 0;
 	void *params              = NULL;
 	if (pixels != NULL) {
 		params = calloc(1, t->params_size > 0 ? t->params_size : 1);
 		if (params == NULL) {
-			free(pixels);
+			make_image_node_plane_free(pixels, total);
 			pixels = NULL;
 		}
 		else {
@@ -531,22 +637,23 @@ static bool make_image_node_capture(make_image_node_state_t *s, char *id, ui_nod
 	bool has_result = g_context->node_previews != NULL && any_map_get(g_context->node_previews, id) != NULL;
 	if (!force && has_result && s->has_baked && sig == s->baked_signature) {
 		make_image_node_clear_pending(s); // Back to what is baked, e.g. a change undone within the debounce
-		free(pixels);
+		make_image_node_plane_free(pixels, total);
 		free(params);
 		return false;
 	}
 	if (!force && s->failed && sig == s->failed_signature) {
-		free(pixels); // Failed already, retried after a change or Regenerate Image Nodes
+		make_image_node_plane_free(pixels, total); // Failed already, retried after a change or Regenerate Image Nodes
 		free(params);
 		return false;
 	}
 	if (!force && s->pending && sig == s->pending_signature) {
-		free(pixels); // Already waiting for this one
+		make_image_node_plane_free(pixels, total); // Already waiting for this one
 		free(params);
 		return false;
 	}
 	make_image_node_clear_pending(s);
 	s->pending_pixels    = pixels;
+	s->pending_bytes     = total;
 	s->pending_params    = params;
 	s->pending_size      = size;
 	s->pending_signature = sig;
@@ -555,31 +662,32 @@ static bool make_image_node_capture(make_image_node_state_t *s, char *id, ui_nod
 }
 
 // Uploads size * size * 4 floats as the node's result, in the type's format. Returns false when memory runs out.
+// A half float result (RGBA64) is converted in place: result is not usable after this call (no staging copy of half the size).
 static bool make_image_node_upload(char *id, f32 *result, i32 size, gpu_texture_format_t format) {
-	size_t         n   = (size_t)size * size * 4;
-	gpu_texture_t *tmp = NULL;
-	if (format == GPU_TEXTURE_FORMAT_RGBA128) {
-		buffer_t b = {.buffer = (u8 *)result, .length = (i32)(n * sizeof(f32))};
-		tmp        = gpu_create_texture_from_bytes_raw(&b, size, size, GPU_TEXTURE_FORMAT_RGBA128);
-	}
-	else {
-		format  = GPU_TEXTURE_FORMAT_RGBA64;
-		u16 *hb = malloc(n * sizeof(u16));
-		if (hb == NULL) {
-			return false;
-		}
+	size_t n = (size_t)size * size * 4;
+	if (format != GPU_TEXTURE_FORMAT_RGBA128) {
+		format = GPU_TEXTURE_FORMAT_RGBA64;
 		for (size_t i = 0; i < n; ++i) {
-			hb[i] = float_to_half_fast(result[i]);
+			u16 h = float_to_half_fast(result[i]); // The write at byte 2i never reaches the read at byte 4i of a later texel
+			memcpy((u8 *)result + 2 * i, &h, sizeof(h));
 		}
-		buffer_t b = {.buffer = (u8 *)hb, .length = (i32)(n * sizeof(u16))};
-		tmp        = gpu_create_texture_from_bytes_raw(&b, size, size, GPU_TEXTURE_FORMAT_RGBA64);
-		free(hb);
 	}
+	buffer_t       b   = {.buffer = (u8 *)result, .length = (i32)(n * (format == GPU_TEXTURE_FORMAT_RGBA128 ? sizeof(f32) : sizeof(u16)))};
+	gpu_texture_t *tmp = gpu_create_texture_from_bytes_raw(&b, size, size, format);
 	if (tmp == NULL) {
 		return false;
 	}
 
 	gpu_texture_t *image = any_map_get(g_context->node_previews, id);
+#ifdef IRON_METAL
+	// Metal samples the uploaded texture as it is and reads back from it like from a render target: it becomes the result,
+	// no render target of the same size next to it and no copy (the other backends flip the uv of a texture from bytes, see below)
+	if (image != NULL) {
+		gpu_delete_texture(image);
+	}
+	any_map_set(g_context->node_previews, string_copy(id), tmp);
+	return true;
+#else
 	if (image == NULL || image->width != size || image->height != size || image->format != format) {
 		if (image != NULL) {
 			gpu_delete_texture(image);
@@ -595,6 +703,7 @@ static bool make_image_node_upload(char *id, f32 *result, i32 size, gpu_texture_
 	draw_end();
 	gpu_delete_texture(tmp);
 	return true;
+#endif
 }
 
 // Deletes the result texture of an image node and its map entry, the node renders black again
@@ -629,14 +738,16 @@ static void make_image_node_bake(make_image_node_state_t *s, char *id) {
 	}
 	image_node_type_t *t      = s->type;
 	i32                size   = s->pending_size;
-	size_t             plane  = (size_t)size * size * 4;
-	f32               *result = calloc(plane * (t->second_result ? 2 : 1), sizeof(f32));
-	i32                status = -1;
+	size_t             plane        = (size_t)size * size * 4;
+	size_t             result_bytes = plane * (t->second_result ? 2 : 1) * sizeof(f32);
+	f32               *result       = make_image_node_plane_alloc(result_bytes);
+	i32                status       = -1;
 	if (result != NULL) {
 		status = t->process(s->pending_pixels, size, s->pending_params, result);
-		free(s->pending_pixels); // The capture is not needed during the upload
+		make_image_node_plane_free(s->pending_pixels, s->pending_bytes); // The capture is not needed during the upload
 		free(s->pending_params);
 		s->pending_pixels = NULL;
+		s->pending_bytes  = 0;
 		s->pending_params = NULL;
 		if (!make_image_node_upload(id, result, size, t->result_format)) {
 			status = -1;
@@ -644,7 +755,7 @@ static void make_image_node_bake(make_image_node_state_t *s, char *id) {
 		else if (t->second_result && !make_image_node_upload(string_tmp("%s_2", id), result + plane, size, GPU_TEXTURE_FORMAT_RGBA64)) {
 			status = -1;
 		}
-		free(result);
+		make_image_node_plane_free(result, result_bytes);
 	}
 	if (status < 0) {
 		console_error(tr("Image node bake: out of memory"));
