@@ -95,19 +95,14 @@ typedef struct tile_generator_params {
 	u32 seed;
 } tile_generator_params_t;
 
-static f32 tile_generator_node_button(ui_node_t *node, i32 i) {
-	return node->buttons->buffer[i]->default_value->buffer[0];
-}
-
 // Width and height of the image: Size 512, 1024, 2048 or 4096
 static i32 tile_generator_node_size(ui_node_t *node) {
-	i32 i = (i32)tile_generator_node_button(node, TILE_GENERATOR_BUTTON_SIZE);
-	return 512 << (i < 0 ? 0 : i > 3 ? 3 : i);
+	return make_image_node_size(node, TILE_GENERATOR_BUTTON_SIZE);
 }
 
 // Patterns 1 to 4
 static i32 tile_generator_node_patterns(ui_node_t *node) {
-	i32 i = (i32)tile_generator_node_button(node, TILE_GENERATOR_BUTTON_PATTERNS);
+	i32 i = (i32)make_image_node_button(node, TILE_GENERATOR_BUTTON_PATTERNS);
 	return 1 + (i < 0 ? 0 : i > TILE_GENERATOR_MAX_PATTERNS - 1 ? TILE_GENERATOR_MAX_PATTERNS - 1 : i);
 }
 
@@ -151,10 +146,10 @@ static f32 tile_generator_node_clamp(f32 v, f32 lo, f32 hi) {
 static void tile_generator_node_params(ui_node_t *node, void *params) {
 	tile_generator_params_t *p = params;
 	p->patterns                = tile_generator_node_patterns(node);
-	i32 mode                   = (i32)tile_generator_node_button(node, TILE_GENERATOR_BUTTON_PATTERN_MODE);
+	i32 mode                   = (i32)make_image_node_button(node, TILE_GENERATOR_BUTTON_PATTERN_MODE);
 	p->mode                    = mode < 0 ? 0 : mode > TILE_GENERATOR_MODE_BY_MAP ? TILE_GENERATOR_MODE_BY_MAP : mode;
-	p->wrap                    = tile_generator_node_button(node, TILE_GENERATOR_BUTTON_WRAP_EDGES) != 0.0 ? 1 : 0;
-	i32 filter                 = (i32)tile_generator_node_button(node, TILE_GENERATOR_BUTTON_FILTER);
+	p->wrap                    = make_image_node_button(node, TILE_GENERATOR_BUTTON_WRAP_EDGES) != 0.0 ? 1 : 0;
+	i32 filter                 = (i32)make_image_node_button(node, TILE_GENERATOR_BUTTON_FILTER);
 	p->filter                  = filter == TILE_GENERATOR_FILTER_CUBIC ? IMAGE_FILTER_CUBIC : filter == TILE_GENERATOR_FILTER_NEAREST ? IMAGE_FILTER_NEAREST : IMAGE_FILTER_LINEAR;
 	f32 tx                     = make_image_node_input_value(node, TILE_GENERATOR_INPUT_TILES_X);
 	f32 ty                     = make_image_node_input_value(node, TILE_GENERATOR_INPUT_TILES_Y);
@@ -345,31 +340,6 @@ char *tile_generator_node_vector(ui_node_t *node, ui_node_socket_t *socket) {
 	return parser_material_to_vec3(tile_generator_node_value(node, socket));
 }
 
-static ui_node_socket_t *tile_generator_node_socket(char *name, char *type, u32 color, f32_array_t *default_value, f32 max, f32 precision) {
-	return ALLOC_INIT(ui_node_socket_t, {.id            = 0,
-	                                     .node_id       = 0,
-	                                     .name          = name,
-	                                     .type          = type,
-	                                     .color         = color,
-	                                     .default_value = default_value,
-	                                     .min           = 0.0,
-	                                     .max           = max,
-	                                     .precision     = precision,
-	                                     .display       = 0});
-}
-
-static ui_node_button_t *tile_generator_node_setting(char *name, char *type, f32 default_value, char *data) {
-	return ALLOC_INIT(ui_node_button_t, {.name          = name,
-	                                     .type          = type,
-	                                     .output        = -1,
-	                                     .default_value = f32_array_create_x(default_value),
-	                                     .data          = data != NULL ? u8_array_create_from_string(data) : NULL,
-	                                     .min           = 0.0,
-	                                     .max           = 1.0,
-	                                     .precision     = 100,
-	                                     .height        = 0});
-}
-
 void tile_generator_node_init() {
 	u32 value_color  = 0xffa1a1a1;
 	u32 vector_color = 0xff6363c7;
@@ -386,42 +356,42 @@ void tile_generator_node_init() {
 	                .color  = NODES_MATERIAL_IMAGE_COLOR,
 	                .inputs = any_array_create_from_raw(
 	                    (void *[]){
-	                        tile_generator_node_socket(_tr("Image"), "RGBA", image_color, f32_array_create_xyzw(1.0, 1.0, 1.0, 1.0), 1.0, 100),
-	                        tile_generator_node_socket(_tr("Image 2"), "RGBA", image_color, f32_array_create_xyzw(1.0, 1.0, 1.0, 1.0), 1.0, 100),
-	                        tile_generator_node_socket(_tr("Image 3"), "RGBA", image_color, f32_array_create_xyzw(1.0, 1.0, 1.0, 1.0), 1.0, 100),
-	                        tile_generator_node_socket(_tr("Image 4"), "RGBA", image_color, f32_array_create_xyzw(1.0, 1.0, 1.0, 1.0), 1.0, 100),
-	                        tile_generator_node_socket(_tr("Mask"), "VALUE", image_color, f32_array_create_x(1.0), 1.0, 100),
-	                        tile_generator_node_socket(_tr("Scale Map"), "VALUE", image_color, f32_array_create_x(1.0), 1.0, 100),
-	                        tile_generator_node_socket(_tr("Rotation Map"), "VALUE", image_color, f32_array_create_x(0.0), 1.0, 100),
-	                        tile_generator_node_socket(_tr("Color Map"), "VALUE", image_color, f32_array_create_x(1.0), 1.0, 100),
-	                        tile_generator_node_socket(_tr("Pattern Map"), "VALUE", image_color, f32_array_create_x(0.0), 1.0, 100),
-	                        tile_generator_node_socket(_tr("Tiles X"), "VALUE", value_color, f32_array_create_x(4.0), TILE_GENERATOR_MAX_TILES, 1),
-	                        tile_generator_node_socket(_tr("Tiles Y"), "VALUE", value_color, f32_array_create_x(4.0), TILE_GENERATOR_MAX_TILES, 1),
-	                        tile_generator_node_socket(_tr("Scale"), "VALUE", value_color, f32_array_create_x(0.9), 2.0, 100),
-	                        tile_generator_node_socket(_tr("Scale Random"), "VALUE", value_color, f32_array_create_x(0.0), 1.0, 100),
-	                        tile_generator_node_socket(_tr("Rotation"), "VALUE", value_color, f32_array_create_x(0.0), 360.0, 10), // Degrees
-	                        tile_generator_node_socket(_tr("Rotation Random"), "VALUE", value_color, f32_array_create_x(0.0), 1.0, 100),
-	                        tile_generator_node_socket(_tr("Offset Random"), "VALUE", value_color, f32_array_create_x(0.0), 1.0, 100),
-	                        tile_generator_node_socket(_tr("Brightness Random"), "VALUE", value_color, f32_array_create_x(0.0), 1.0, 100),
-	                        tile_generator_node_socket(_tr("Seed"), "VALUE", value_color, f32_array_create_x(0.0), 1000.0, 1),
+	                        make_image_node_socket(_tr("Image"), "RGBA", image_color, f32_array_create_xyzw(1.0, 1.0, 1.0, 1.0), 0.0, 1.0, 100),
+	                        make_image_node_socket(_tr("Image 2"), "RGBA", image_color, f32_array_create_xyzw(1.0, 1.0, 1.0, 1.0), 0.0, 1.0, 100),
+	                        make_image_node_socket(_tr("Image 3"), "RGBA", image_color, f32_array_create_xyzw(1.0, 1.0, 1.0, 1.0), 0.0, 1.0, 100),
+	                        make_image_node_socket(_tr("Image 4"), "RGBA", image_color, f32_array_create_xyzw(1.0, 1.0, 1.0, 1.0), 0.0, 1.0, 100),
+	                        make_image_node_socket(_tr("Mask"), "VALUE", image_color, f32_array_create_x(1.0), 0.0, 1.0, 100),
+	                        make_image_node_socket(_tr("Scale Map"), "VALUE", image_color, f32_array_create_x(1.0), 0.0, 1.0, 100),
+	                        make_image_node_socket(_tr("Rotation Map"), "VALUE", image_color, f32_array_create_x(0.0), 0.0, 1.0, 100),
+	                        make_image_node_socket(_tr("Color Map"), "VALUE", image_color, f32_array_create_x(1.0), 0.0, 1.0, 100),
+	                        make_image_node_socket(_tr("Pattern Map"), "VALUE", image_color, f32_array_create_x(0.0), 0.0, 1.0, 100),
+	                        make_image_node_socket(_tr("Tiles X"), "VALUE", value_color, f32_array_create_x(4.0), 0.0, TILE_GENERATOR_MAX_TILES, 1),
+	                        make_image_node_socket(_tr("Tiles Y"), "VALUE", value_color, f32_array_create_x(4.0), 0.0, TILE_GENERATOR_MAX_TILES, 1),
+	                        make_image_node_socket(_tr("Scale"), "VALUE", value_color, f32_array_create_x(0.9), 0.0, 2.0, 100),
+	                        make_image_node_socket(_tr("Scale Random"), "VALUE", value_color, f32_array_create_x(0.0), 0.0, 1.0, 100),
+	                        make_image_node_socket(_tr("Rotation"), "VALUE", value_color, f32_array_create_x(0.0), 0.0, 360.0, 10), // Degrees
+	                        make_image_node_socket(_tr("Rotation Random"), "VALUE", value_color, f32_array_create_x(0.0), 0.0, 1.0, 100),
+	                        make_image_node_socket(_tr("Offset Random"), "VALUE", value_color, f32_array_create_x(0.0), 0.0, 1.0, 100),
+	                        make_image_node_socket(_tr("Brightness Random"), "VALUE", value_color, f32_array_create_x(0.0), 0.0, 1.0, 100),
+	                        make_image_node_socket(_tr("Seed"), "VALUE", value_color, f32_array_create_x(0.0), 0.0, 1000.0, 1),
 	                    },
 	                    18),
 	                .outputs = any_array_create_from_raw(
 	                    (void *[]){
-	                        tile_generator_node_socket(_tr("Image"), "RGBA", image_color, f32_array_create_xyzw(0.0, 0.0, 0.0, 1.0), 1.0, 100),
-	                        tile_generator_node_socket(_tr("Mask"), "VALUE", value_color, f32_array_create_x(0.0), 1.0, 100),
-	                        tile_generator_node_socket(_tr("ID"), "VALUE", value_color, f32_array_create_x(0.0), 1.0, 100),
-	                        tile_generator_node_socket(_tr("Position"), "VECTOR", vector_color, f32_array_create_xyz(0.0, 0.0, 0.0), 1.0, 100),
+	                        make_image_node_socket(_tr("Image"), "RGBA", image_color, f32_array_create_xyzw(0.0, 0.0, 0.0, 1.0), 0.0, 1.0, 100),
+	                        make_image_node_socket(_tr("Mask"), "VALUE", value_color, f32_array_create_x(0.0), 0.0, 1.0, 100),
+	                        make_image_node_socket(_tr("ID"), "VALUE", value_color, f32_array_create_x(0.0), 0.0, 1.0, 100),
+	                        make_image_node_socket(_tr("Position"), "VECTOR", vector_color, f32_array_create_xyz(0.0, 0.0, 0.0), 0.0, 1.0, 100),
 	                    },
 	                    4),
 	                .buttons = any_array_create_from_raw(
 	                    (void *[]){
-	                        tile_generator_node_setting(_tr("Size"), "ENUM", 1, "512\n1024\n2048\n4096"),
+	                        make_image_node_setting(_tr("Size"), "ENUM", 1, MAKE_IMAGE_NODE_SIZE_ITEMS),
 	                        make_image_node_state_button(),
-	                        tile_generator_node_setting(_tr("Patterns"), "ENUM", 0, "1\n2\n3\n4"),
-	                        tile_generator_node_setting(_tr("Pattern Mode"), "ENUM", 0, "Random\nCycle\nBy Map"),
-	                        tile_generator_node_setting(_tr("Wrap Edges"), "BOOL", 1, NULL),
-	                        tile_generator_node_setting(_tr("Filter"), "ENUM", TILE_GENERATOR_FILTER_LINEAR, "Linear\nCubic\nNearest"),
+	                        make_image_node_setting(_tr("Patterns"), "ENUM", 0, "1\n2\n3\n4"),
+	                        make_image_node_setting(_tr("Pattern Mode"), "ENUM", 0, "Random\nCycle\nBy Map"),
+	                        make_image_node_setting(_tr("Wrap Edges"), "BOOL", 1, NULL),
+	                        make_image_node_setting(_tr("Filter"), "ENUM", TILE_GENERATOR_FILTER_LINEAR, "Linear\nCubic\nNearest"),
 	                    },
 	                    6),
 	                .width = 0,
