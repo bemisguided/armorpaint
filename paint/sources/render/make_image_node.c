@@ -570,6 +570,12 @@ static ui_node_t *make_image_node_run_material(slot_material_t *m, bool force_al
 			bool force = s->force || force_all;
 			if (force || s->needs_capture || upstream_baked) {
 				make_image_node_capture(s, e->id, e->node, e->group, e->parents, force);
+				if (!cycle && make_image_node_waits(e, entries)) {
+					// The capture just recorded the upstream of a node never captured before: wait for it and capture again.
+					// Not progress, so a cycle still trips the cycle flag at the end of a pass without a finished node.
+					s->needs_capture = true;
+					continue;
+				}
 			}
 			if (s->pending) {
 				make_image_node_bake(s, e->id);
