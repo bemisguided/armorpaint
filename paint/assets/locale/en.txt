@@ -23,6 +23,7 @@ All processing is done locally on device
 Allow Upside Down Camera
 Alpha
 Alpha Discard
+Ambient Occlusion
 Amount
 Angle
 Angle Reject
@@ -187,6 +188,8 @@ Destination
 Detail
 Detail Roughness
 Detail Scale
+Details
+Details...
 Diagonal
 Difference
 Dilate Radius
@@ -232,6 +235,7 @@ Edit in Script Tab
 Edit in Text Editor
 Emission
 Empty
+Encoding
 End Frame
 Environment
 Environment Angle
@@ -719,6 +723,7 @@ Super Sample
 Swatches
 Swatches...
 Symmetry
+Tag
 Tags
 Tangent
 Target
@@ -788,6 +793,7 @@ UVMap
 Unable to check for updates.\nPlease visit {url}.
 Undo Steps
 Undo {step}
+Unknown ({n})
 Unwrap
 Unwrap Mesh
 Unwrapping mesh

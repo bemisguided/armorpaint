@@ -23,6 +23,7 @@ Todo o processamento é feito localmente no dispositivo
 Permitir Câmera Invertida
 Alfa
 Descartar Alfa
+
 Quantidade
 Ângulo
 Rejeição de Ângulo
@@ -187,6 +188,8 @@ Destino
 Detalhe
 Rugosidade do Detalhe
 Escala do Detalhe
+
+
 Diagonal
 Diferença
 Dilatar Raio
@@ -232,6 +235,7 @@ Editar na Aba de Script
 Editar em Editor de Texto
 Emissão
 Vazio
+
 Quadro Final
 Ambiente
 Ângulo do Ambiente
@@ -720,6 +724,7 @@ Amostras
 Amostras...
 Simetria
 
+
 Tangente
 Destino
 Modelo
@@ -788,6 +793,7 @@ Mapa UV
 Não foi possível verificar atualizações.\nPor favor visite {url}.
 Passos de Desfazer
 Desfazer {step}
+
 Desenrolar
 Desenrolar Malha
 Desenrolando malha

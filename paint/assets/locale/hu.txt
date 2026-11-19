@@ -23,6 +23,7 @@ Minden feldolgozás helyben történik
 Fejjel lefelé álló kamera engedélyezése
 Alfa
 Alfa eldobása
+
 Mennyiség
 Szög
 Szög elvetése
@@ -187,6 +188,8 @@ Cél
 Részletesség
 Részletesség érdessége
 Részletesség méretezése
+
+
 Átlós
 Különbség
 Tágítás sugara
@@ -232,6 +235,7 @@ Szerkesztés a Szkript lapon
 Szerkesztés a Szövegszerkesztőben
 Kibocsátás (Emission)
 Üres
+
 Vég képkocka
 Környezet
 Környezet szöge
@@ -720,6 +724,7 @@ Színminták
 Színminták...
 Szimmetria
 
+
 Tangens
 Cél
 Sablon
@@ -788,6 +793,7 @@ UV térkép
 Nem sikerült ellenőrizni a frissítéseket.\nKérjük látogasson el a {url} oldalra.
 Visszavonási lépések
 Visszavonás: {step}
+
 Kibontás
 Háló kibontása
 Háló kibontása...

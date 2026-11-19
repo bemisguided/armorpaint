@@ -212,6 +212,9 @@ void tab_textures_draw_context_menu() {
 			g_context->ddirty         = 2;
 		}
 	}
+	if (ui_menu_button(tr("Details..."), "", ICON_EDIT)) {
+		ui_asset_details_show(MC_TEXTURE, _tab_textures_draw_i);
+	}
 	if (ui_menu_button(tr("Delete"), "delete", ICON_DELETE)) {
 		tab_textures_delete_selected();
 	}

@@ -23,6 +23,7 @@ Alle Verarbeitung erfolgt lokal auf dem Gerät
 Kamera über Kopf erlauben
 Alpha
 Alpha verwerfen
+
 Stärke
 Winkel
 Winkel verwerfen
@@ -187,6 +188,8 @@ Ziel
 Detail
 Detail Roughness
 Detail Skalierung
+
+
 Diagonal
 Unterschied
 Radius erweitern
@@ -232,6 +235,7 @@ Im Script Tab bearbeiten
 Im Texteditor bearbeiten
 Emission
 Leer
+
 Endbild
 Umgebung
 Umgebungswinkel
@@ -720,6 +724,7 @@ Farbfelder
 Farbfelder...
 Symmetrie
 
+
 Tangente
 Ziel
 Vorlage
@@ -788,6 +793,7 @@ UV Map
 Konnte nicht nach Updates suchen.\nBitte {url} aufsuchen.
 Schritte rückgängig
 Rückgängig {step}
+
 Unwrap
 Unwrap Mesh
 Mesh wird unwrapped

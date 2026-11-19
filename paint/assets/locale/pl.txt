@@ -23,6 +23,7 @@ Wszystkie przetwarzanie odbywa się lokalnie na urządzeniu
 Zezwól na odwróconą kamerę
 Alfa
 Odrzucenie alfy
+
 Ilość
 Kąt
 Odrzucenie kątu
@@ -187,6 +188,8 @@ Cel
 Szczegóły
 Szorstkość szczegółów
 Skala szczegółów
+
+
 Ukośny
 Różnica
 Promień rozszerzenia
@@ -232,6 +235,7 @@ Edytuj w zakładce skryptów
 Edytuj w edytorze tekstu
 Emisja
 Pusty
+
 Klatka końcowa
 Środowisko
 Kąt środowiska
@@ -720,6 +724,7 @@ Próbki kolorów
 Próbki...
 Symetria
 
+
 Tangens
 Cel
 Szablon
@@ -788,6 +793,7 @@ Mapa UV
 Nie można sprawdzić aktualizacji.\nOdwiedź {url}.
 Kroki cofania
 Cofnij {step}
+
 Rozwiń
 Rozwiń model
 Rozwijanie modelu

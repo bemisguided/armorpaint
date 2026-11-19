@@ -23,6 +23,7 @@ Veškeré zpracování probíhá lokálně na zařízení
 Povolit převrácenou kameru
 Alfa
 Zahodit alfa
+
 Množství
 Úhel
 Odmítnout úhel
@@ -187,6 +188,8 @@ Cíl
 Detail
 Drsnost detailu
 Měřítko detailu
+
+
 Diagonála
 Rozdíl
 Rozšířit poloměr
@@ -232,6 +235,7 @@ Upravit v záložce skriptu
 Upravit v textovém editoru
 Emise
 Prázdný
+
 Koncový snímek
 Okolí
 Úhel okolí
@@ -720,6 +724,7 @@ Vzorky
 Vzorky...
 Symetrie
 
+
 Tangenta
 Cíl
 Šablona
@@ -788,6 +793,7 @@ UV mapa
 Nelze zkontrolovat aktualizace.\nNavštivte prosím {url}.
 Kroky zpět
 Zpět {step}
+
 Rozbalit
 Rozbalit síť
 Rozbalování sítě

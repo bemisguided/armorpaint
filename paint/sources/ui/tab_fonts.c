@@ -41,6 +41,9 @@ void tab_fonts_delete_selected() {
 
 void tab_fonts_draw_context_menu_draw() {
 	i32 i = _tab_fonts_draw_i;
+	if (i > 0 && ui_menu_button(tr("Details..."), "", ICON_EDIT)) { // The default font takes no metadata
+		ui_asset_details_show(MC_FONT, i);
+	}
 	if (g_project->_->fonts->length > 1 && ui_menu_button(tr("Delete"), "delete", ICON_DELETE) && !string_equals(g_project->_->fonts->buffer[i]->file, "")) {
 		tab_fonts_delete_selected();
 	}

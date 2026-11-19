@@ -279,6 +279,119 @@ i32 meta_item_index(i32 category, void *item) {
 	return -1;
 }
 
+// Built-in bake types in display order (after None)
+static i32 asset_bake_types[] = {BTP_AO,         BTP_CURVATURE, BTP_THICKNESS, BTP_HEIGHT,       BTP_NORMAL,    BTP_NORMAL_OBJECT, BTP_BENT_NORMAL,
+                                 BTP_DERIVATIVE, BTP_POSITION,  BTP_TEXCOORD,  BTP_MATERIAL_ID,  BTP_OBJECT_ID, BTP_VERTEX_COLOR,  BTP_LIGHTMAP};
+
+i32 asset_bake_type_count() {
+	return sizeof(asset_bake_types) / sizeof(asset_bake_types[0]);
+}
+
+// Built-in bake type at display position i, BTP_NONE when out of range
+i32 asset_bake_type_at(i32 i) {
+	return i >= 0 && i < asset_bake_type_count() ? asset_bake_types[i] : BTP_NONE;
+}
+
+// Encoding a bake of this type is usually read with, unknown types have none
+i32 asset_bake_default_encoding(i32 btp) {
+	switch (btp) {
+	case BTP_AO:
+	case BTP_CURVATURE:
+	case BTP_THICKNESS:
+	case BTP_HEIGHT:
+	case BTP_DERIVATIVE:
+	case BTP_POSITION:
+	case BTP_TEXCOORD:
+		return AE_LINEAR;
+	case BTP_NORMAL:
+	case BTP_NORMAL_OBJECT:
+	case BTP_BENT_NORMAL:
+		return AE_NORMAL;
+	case BTP_MATERIAL_ID:
+	case BTP_OBJECT_ID:
+	case BTP_VERTEX_COLOR:
+	case BTP_LIGHTMAP:
+		return AE_COLOR;
+	}
+	return AE_NONE;
+}
+
+char *asset_unknown_label(i32 id) {
+	any_map_t *vars = any_map_create();
+	any_map_set(vars, "n", string_tmp("%d", id));
+	char *s = vtr("Unknown ({n})", vars);
+	map_free(vars);
+	return s;
+}
+
+char *asset_bake_type_label(i32 btp) {
+	switch (btp) {
+	case BTP_NONE:
+		return tr("None");
+	case BTP_AO:
+		return tr("Ambient Occlusion");
+	case BTP_CURVATURE:
+		return tr("Curvature");
+	case BTP_NORMAL:
+		return tr("Normal");
+	case BTP_NORMAL_OBJECT:
+		return tr("Object Normal");
+	case BTP_HEIGHT:
+		return tr("Height");
+	case BTP_DERIVATIVE:
+		return tr("Derivative");
+	case BTP_POSITION:
+		return tr("Position");
+	case BTP_TEXCOORD:
+		return tr("TexCoord");
+	case BTP_MATERIAL_ID:
+		return tr("Material ID");
+	case BTP_OBJECT_ID:
+		return tr("Object ID");
+	case BTP_VERTEX_COLOR:
+		return tr("Vertex Color");
+	case BTP_LIGHTMAP:
+		return tr("Lightmap");
+	case BTP_BENT_NORMAL:
+		return tr("Bent Normal");
+	case BTP_THICKNESS:
+		return tr("Thickness");
+	}
+	return asset_unknown_label(btp);
+}
+
+char *asset_encoding_label(i32 enc) {
+	switch (enc) {
+	case AE_NONE:
+		return tr("None");
+	case AE_COLOR:
+		return tr("Color");
+	case AE_LINEAR:
+		return tr("Linear");
+	case AE_NORMAL:
+		return tr("Normal");
+	}
+	return asset_unknown_label(enc);
+}
+
+// Sets the bake properties, BTP_NONE clears them all
+void meta_set_bake(meta_t *m, i32 btp, i32 enc) {
+	if (m == NULL) {
+		return;
+	}
+	if (btp == BTP_NONE) {
+		meta_clear_bake(m);
+		return;
+	}
+	meta_set_i32(m, META_BAKE_TYPE, btp);
+	meta_set_i32(m, META_ENCODING, enc);
+}
+
+void meta_clear_bake(meta_t *m) {
+	meta_remove(m, META_BAKE_TYPE);
+	meta_remove(m, META_ENCODING);
+}
+
 // Renames a material, the name gets the .001 style suffix when taken. An empty or whitespace-only name is rejected and the old name stays.
 // Returns true when the name changed.
 bool asset_material_rename(slot_material_t *m, char *name) {

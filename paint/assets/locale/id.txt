@@ -23,6 +23,7 @@ Semua pemrosesan dilakukan secara lokal di perangkat
 Izinkan Kamera Terbalik
 Alfa
 Buang Alfa
+
 Jumlah
 Sudut
 Tolak Sudut
@@ -187,6 +188,8 @@ Tujuan
 Detail
 Kekasaran Detail
 Skala Detail
+
+
 Diagonal
 Perbedaan
 Perluas Radius
@@ -232,6 +235,7 @@ Sunting di Tab Skrip
 Sunting di Editor Teks
 Emisi
 Kosong
+
 Bingkai Akhir
 Lingkungan
 Sudut Lingkungan
@@ -720,6 +724,7 @@ Contoh Warna
 Contoh Warna...
 Simetri
 
+
 Tangen
 Target
 Templat
@@ -788,6 +793,7 @@ Peta UV
 Tidak dapat memeriksa pembaruan.\nSilakan kunjungi {url}.
 Langkah Batal
 Batal {step}
+
 Buka Lipatan
 Buka Lipatan Mesh
 Membuka lipatan mesh

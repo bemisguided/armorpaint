@@ -621,3 +621,36 @@ typedef enum {
 	MC_BRUSH    = 4,
 	MC_COUNT    = 5,
 } meta_category_t;
+
+// Keys of meta_t (i32 values), saved in project files: explicit numbers, never renumber or reuse. Unknown ids are kept as they are.
+// Asset bake keys: bake type (bake_type_persistent_t), encoding (asset_encoding_t).
+typedef enum {
+	META_BAKE_TYPE = 0,
+	META_ENCODING  = 1,
+} meta_key_t;
+
+typedef enum {
+	AE_NONE   = 0,
+	AE_COLOR  = 1,
+	AE_LINEAR = 2,
+	AE_NORMAL = 3,
+} asset_encoding_t;
+
+// Bake types as saved in project files: append-only, explicit numbers, NOT the order of bake_type_t (that one is the UI order).
+typedef enum {
+	BTP_NONE          = 0,
+	BTP_AO            = 1,
+	BTP_CURVATURE     = 2,
+	BTP_NORMAL        = 3,
+	BTP_NORMAL_OBJECT = 4,
+	BTP_HEIGHT        = 5,
+	BTP_DERIVATIVE    = 6,
+	BTP_POSITION      = 7,
+	BTP_TEXCOORD      = 8,
+	BTP_MATERIAL_ID   = 9,
+	BTP_OBJECT_ID     = 10,
+	BTP_VERTEX_COLOR  = 11,
+	BTP_LIGHTMAP      = 12,
+	BTP_BENT_NORMAL   = 13,
+	BTP_THICKNESS     = 14,
+} bake_type_persistent_t;

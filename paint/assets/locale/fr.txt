@@ -23,6 +23,7 @@ Tout le traitement est effectué localement sur l'appareil
 Autoriser la caméra à l'envers
 Alpha
 Rejeter Alpha
+
 Quantité
 Angle
 Rejet par angle
@@ -187,6 +188,8 @@ Destination
 Détail
 Rugosité du détail
 Échelle du détail
+
+
 Diagonale
 Différence
 Rayon de dilatation
@@ -232,6 +235,7 @@ Modifier dans l'onglet Scripts
 Modifier dans l'éditeur de texte
 Émission
 Vide
+
 Image de fin
 Environnement
 Rotation de l'environnement
@@ -720,6 +724,7 @@ Superéchantillonnage
 Échantillons...
 Symétrie
 
+
 Tangente
 Cible
 Modèle
@@ -788,6 +793,7 @@ Carte UV
 Impossible de vérifier les mises à jour.\nVeuillez visiter {url}.
 Étapes d'annulation
 Annuler {step}
+
 Déplier
 Déplier maillage
 Dépliage du maillage
