@@ -618,7 +618,7 @@ typedef enum {
 } meta_category_t;
 
 // Keys of meta_t, saved in project files: explicit numbers, never renumber or reuse. Unknown ids are kept as they are.
-// Layer coverage (util_udim.c): all objects (bool, absent = true), objects (i32 array of paint ids, absent = empty),
+// Layer coverage (util_layer_coverage.c): all objects (bool, absent = true), objects (i32 array of paint ids, absent = empty),
 // all tiles (bool, absent = true), tiles (i32 array of udim tile ids, absent = empty).
 typedef enum {
 	META_ALL_OBJECTS = 0,
