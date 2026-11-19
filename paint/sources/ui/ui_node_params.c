@@ -98,6 +98,9 @@ static void ui_node_params_update(void *_) {
 		return;
 	}
 	ui_node_params_pending = false;
+	if (ui_node_params_type == CANVAS_TYPE_MATERIAL) {
+		util_version_graph_bump(g_context->material); // The edit went into the canvas without ui_nodes_canvas_changed
+	}
 
 	if (ui_node_params_canvas != NULL) {
 		history_edit_nodes(ui_node_params_canvas, ui_node_params_type, -1);
