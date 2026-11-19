@@ -18,16 +18,19 @@ Adicionar Animação
 Adicionar Amostra
 Adicionar nova amostra
 Adicionar cor selecionada às amostras
+
 Tudo
 Todo o processamento é feito localmente no dispositivo
 Permitir Câmera Invertida
 Alfa
 Descartar Alfa
+
 Quantidade
 Ângulo
 Rejeição de Ângulo
 Animação
 Anisotropia
+
 Anexar
 Aplicar
 Aplicar Deslocamento
@@ -185,6 +188,8 @@ Destino
 Detalhe
 Rugosidade do Detalhe
 Escala do Detalhe
+
+
 Diagonal
 Diferença
 Dilatar Raio
@@ -218,6 +223,7 @@ Duplicar Camada
 Duplicar Material
 Duplicar Amostra
 Editar
+
 Editar Imagem
 Editar Nós
 Editar Script
@@ -229,6 +235,7 @@ Editar na Aba de Script
 Editar em Editor de Texto
 Emissão
 Vazio
+
 Quadro Final
 Ambiente
 Ângulo do Ambiente
@@ -437,6 +444,7 @@ Espelhar
 Misturar
 Misturar Cor
 Misturar Mapa de Normais
+
 Móvel
 Modo
 Modelo
@@ -590,6 +598,7 @@ Reimportar Malha
 Reimportar Texturas
 Deslocamento Relativo
 Remover
+
 Renomear Camada
 Renderizador
 Reorientado
@@ -714,6 +723,8 @@ Super Amostragem
 Amostras
 Amostras...
 Simetria
+
+
 Tangente
 Destino
 Modelo
@@ -781,6 +792,7 @@ Mapa UV
 Não foi possível verificar atualizações.\nPor favor visite {url}.
 Passos de Desfazer
 Desfazer {step}
+
 Desenrolar
 Desenrolar Malha
 Desenrolando malha
@@ -855,8 +867,8 @@ triângulos
 tipo
 sem título
 x
-{shortcut} e mover mouse
 
+{shortcut} e mover mouse
 
 
 

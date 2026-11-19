@@ -192,6 +192,8 @@
 #include "ui/tab_swatches.c"
 #include "ui/tab_textures.c"
 #include "ui/tab_timeline.c"
+#include "ui/ui_asset_details.c"
+#include "ui/ui_asset_tags.c"
 #include "ui/ui_base.c"
 #include "ui/ui_box.c"
 #include "ui/ui_dock.c"
@@ -206,6 +208,8 @@
 #include "ui/ui_view2d.c"
 
 #include "util/edit_uvmap.c"
+#include "util/util_asset_selection.c"
+#include "util/util_asset_tray.c"
 #include "util/util_brush.c"
 #include "util/util_clone.c"
 #include "util/util_csg.c"
