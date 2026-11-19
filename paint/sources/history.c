@@ -408,6 +408,7 @@ void history_set_canvas(history_step_t *step, ui_node_canvas_t *canvas) {
 }
 
 void history_swap_canvas(history_step_t *step) {
+	util_version_graph_bump(NULL); // Undo and redo can swap the canvas of any material or group
 	if (step->canvas_type == 0) {
 		ui_node_canvas_t *_canvas = history_get_canvas(step);
 		history_set_canvas(step, step->canvas);

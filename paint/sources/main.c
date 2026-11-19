@@ -257,6 +257,7 @@
 #include "util/util_uv.c"
 #include "util/util_uv_overlap.c"
 #include "util/util_uv_unwrap.c"
+#include "util/util_version.c"
 
 #include "account.c"
 #include "agent.c"

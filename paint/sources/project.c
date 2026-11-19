@@ -147,6 +147,7 @@ void project_assign_object_id(mesh_object_t *o) {
 
 void project_new(bool reset_layers) {
 	asset_selection_clear();
+	util_version_graph_bump(NULL); // New canvases, material ids start over
 	if (g_context->paint_object != NULL) {
 		project_cleanup();
 		g_project->_->filepath = "";
