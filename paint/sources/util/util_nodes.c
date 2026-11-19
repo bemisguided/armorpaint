@@ -208,6 +208,7 @@ ui_nodes_t *ui_nodes_get_nodes() {
 }
 
 void ui_nodes_canvas_changed() {
+	util_version_graph_bump_editor();
 	ui_nodes_recompile_mat       = true;
 	ui_nodes_recompile_mat_final = true;
 }
@@ -220,6 +221,7 @@ void ui_nodes_push_undo(ui_node_canvas_t *last_canvas) {
 	if (ui_nodes_canvas_type != CANVAS_TYPE_BRUSH && ui_nodes_group_stack->length > 0) {
 		canvas_group = array_index_of(ui_nodes_groups(), ui_nodes_group_stack->buffer[ui_nodes_group_stack->length - 1]);
 	}
+	util_version_graph_bump_editor();
 	ui_dock_redraw(TAB_AREA_SIDEBAR0);
 	history_edit_nodes(last_canvas, ui_nodes_canvas_type, canvas_group);
 }
@@ -292,6 +294,9 @@ void ui_viewnodes_on_canvas_cut(void *_) {
 
 void ui_nodes_recompile() {
 	nodes_mesh_refresh();
+	if (ui_nodes_recompile_mat || ui_nodes_recompile_mat_final) {
+		util_version_graph_bump_editor(); // Also the changes that set the flags without ui_nodes_canvas_changed
+	}
 
 	if (ui_nodes_canvas_type == CANVAS_TYPE_MESH) {
 		// Meshes are rebuilt once the change is done
