@@ -165,26 +165,86 @@ static bool make_image_node_busy() {
 	return bake_texture_node_baking || g_ui->input_down;
 }
 
-static u64 make_image_node_hash(u64 h, u8 *bytes, size_t n) {
-	size_t i = 0;
-	for (; i + 8 <= n; i += 8) {
-		u64 w;
-		memcpy(&w, bytes + i, 8);
-		h ^= w;
-		h *= 1099511628211ull;
-	}
-	for (; i < n; ++i) {
-		h ^= bytes[i];
-		h *= 1099511628211ull;
-	}
-	return h;
+// xxh64 begin
+// xxHash64 (Yann Collet, BSD 2 clause), single pass, public algorithm: 32 byte stripes in four lanes, then a final avalanche
+static inline u64 make_image_node_rotl64(u64 x, int r) {
+	return (x << r) | (x >> (64 - r));
 }
 
-// 64 bit FNV-1a over the captured pixels, the size and the processing parameters
+static inline u64 make_image_node_read64(const u8 *p) {
+	u64 v;
+	memcpy(&v, p, 8);
+	return v; // Little endian hosts only (every supported target)
+}
+
+static inline u64 make_image_node_xxh_round(u64 acc, u64 input) {
+	acc += input * 14029467366897019727ull;
+	acc = make_image_node_rotl64(acc, 31);
+	return acc * 11400714785074694791ull;
+}
+
+static inline u64 make_image_node_xxh_merge(u64 acc, u64 val) {
+	acc ^= make_image_node_xxh_round(0, val);
+	return acc * 11400714785074694791ull + 9650029242287828579ull;
+}
+
+// 64 bit xxHash64 of n bytes with a seed, the seed chains calls (the output of one call is the seed of the next)
+static u64 make_image_node_hash(u64 seed, const void *data, size_t n) {
+	const u8 *p   = data;
+	const u8 *end = p + n;
+	u64       h;
+	if (n >= 32) {
+		u64       v1    = seed + 11400714785074694791ull + 14029467366897019727ull;
+		u64       v2    = seed + 14029467366897019727ull;
+		u64       v3    = seed;
+		u64       v4    = seed - 11400714785074694791ull;
+		const u8 *limit = end - 32;
+		do {
+			v1 = make_image_node_xxh_round(v1, make_image_node_read64(p));
+			v2 = make_image_node_xxh_round(v2, make_image_node_read64(p + 8));
+			v3 = make_image_node_xxh_round(v3, make_image_node_read64(p + 16));
+			v4 = make_image_node_xxh_round(v4, make_image_node_read64(p + 24));
+			p += 32;
+		} while (p <= limit);
+		h = make_image_node_rotl64(v1, 1) + make_image_node_rotl64(v2, 7) + make_image_node_rotl64(v3, 12) + make_image_node_rotl64(v4, 18);
+		h = make_image_node_xxh_merge(h, v1);
+		h = make_image_node_xxh_merge(h, v2);
+		h = make_image_node_xxh_merge(h, v3);
+		h = make_image_node_xxh_merge(h, v4);
+	}
+	else {
+		h = seed + 2870177450012600261ull;
+	}
+	h += (u64)n;
+	while (p + 8 <= end) {
+		h ^= make_image_node_xxh_round(0, make_image_node_read64(p));
+		h = make_image_node_rotl64(h, 27) * 11400714785074694791ull + 9650029242287828579ull;
+		p += 8;
+	}
+	if (p + 4 <= end) {
+		u32 w;
+		memcpy(&w, p, 4);
+		h ^= (u64)w * 11400714785074694791ull;
+		h = make_image_node_rotl64(h, 23) * 14029467366897019727ull + 1609587929392839161ull;
+		p += 4;
+	}
+	while (p < end) {
+		h ^= (u64)(*p++) * 2870177450012600261ull;
+		h = make_image_node_rotl64(h, 11) * 11400714785074694791ull;
+	}
+	h ^= h >> 33;
+	h *= 14029467366897019727ull;
+	h ^= h >> 29;
+	h *= 1609587929392839161ull;
+	h ^= h >> 32;
+	return h;
+}
+// xxh64 end
+
+// 64 bit signature over the captured pixels, the size and the processing parameters: xxHash64 chained over the three
 static u64 make_image_node_signature(u8 *pixels, i32 pixel_bytes, i32 size, void *params, i32 params_size) {
-	u64 h = 14695981039346656037ull;
-	h     = make_image_node_hash(h, pixels, (size_t)size * size * pixel_bytes);
-	h     = make_image_node_hash(h, (u8 *)&size, sizeof(size));
+	u64 h = make_image_node_hash(0, pixels, (size_t)size * size * pixel_bytes);
+	h     = make_image_node_hash(h, &size, sizeof(size));
 	return make_image_node_hash(h, params, params_size);
 }
 
