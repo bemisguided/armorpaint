@@ -30,15 +30,25 @@ void tab_materials_update_material() {
 	base_update_tools_nodes();
 }
 
-void tab_materials_draw_slots_duplicate(void *_) {
-	i32 i               = _tab_materials_draw_slots;
-	g_context->material = slot_material_create(g_project->_->materials->buffer[0]->data, NULL);
+static void *tab_materials_duplicate(void *source) {
+	slot_material_t *from = source;
+	g_context->material   = slot_material_create(g_project->_->materials->buffer[0]->data, NULL);
 	any_array_push(g_project->_->materials, g_context->material);
-	ui_node_canvas_t *cloned    = util_clone_canvas(g_project->_->materials->buffer[i]->canvas);
+	ui_node_canvas_t *cloned    = util_clone_canvas(from->canvas);
 	cloned->name                = string_copy(slot_material_unique_name(cloned, cloned->name));
 	g_context->material->canvas = cloned;
+	g_context->material->meta   = from->meta != NULL ? meta_copy(from->meta) : NULL;
 	tab_materials_update_material();
 	history_duplicate_material();
+	return g_context->material;
+}
+
+static void tab_materials_set_active(void *material) {
+	context_set_material(material);
+}
+
+void tab_materials_duplicate_selected(void *_) {
+	asset_tray_duplicate_selected(ASSET_TRAY_MATERIALS, &tab_materials_duplicate, &tab_materials_set_active);
 }
 
 void tab_materials_update_material_pointers(ui_node_t_array_t *nodes, i32 deleted) {
@@ -122,6 +132,16 @@ static bool tab_materials_is_used(i32 index) {
 	return false;
 }
 
+static void tab_materials_delete_one(void *material) {
+	g_context->material = material; // History stores the selected material
+	tab_materials_delete_material(material);
+}
+
+// At least one material always stays, one undo step for all
+void tab_materials_delete_selected() {
+	asset_tray_delete_selected(ASSET_TRAY_MATERIALS, &tab_materials_delete_one, NULL, 1, true);
+}
+
 void tab_materials_delete_unused() {
 	i32   count = g_project->_->materials->length;
 	bool *used  = calloc(count, sizeof(bool));
@@ -161,12 +181,12 @@ void tab_materials_draw_slots_menu() {
 
 	if (ui_menu_button(tr("To Fill Layer"), "", ICON_SPHERE)) {
 		context_select_material(i);
-		layers_create_fill_layer(UV_TYPE_UVMAP, mat4_nan(), -1);
+		layers_create_fill_layers(asset_selection_get(ASSET_TRAY_MATERIALS), UV_TYPE_UVMAP, mat4_nan(), -1);
 	}
 
 	if (ui_menu_button(tr("Export"), "", ICON_EXPORT)) {
 		context_select_material(i);
-		box_export_show_material();
+		box_export_show_material(asset_selection_get(ASSET_TRAY_MATERIALS));
 	}
 
 	if (ui_menu_button(tr("Bake"), "", ICON_BAKE)) {
@@ -175,11 +195,15 @@ void tab_materials_draw_slots_menu() {
 	}
 
 	if (ui_menu_button(tr("Duplicate"), "ctrl+d", ICON_DUPLICATE)) {
-		sys_notify_on_next_frame(&tab_materials_draw_slots_duplicate, NULL);
+		sys_notify_on_next_frame(&tab_materials_duplicate_selected, NULL);
+	}
+
+	if (ui_menu_button(tr("Details..."), "", ICON_EDIT)) {
+		ui_asset_details_show(MC_MATERIAL, i);
 	}
 
 	if (g_project->_->materials->length > 1 && ui_menu_button(tr("Delete"), "delete", ICON_DELETE)) {
-		tab_materials_delete_material(m);
+		tab_materials_delete_selected();
 	}
 
 	if (g_config->experimental && ui_menu_button(tr("Inspect as Script"), "", ICON_SEARCH)) {
@@ -232,12 +256,17 @@ void tab_materials_draw_slots(bool mini) {
 		return;
 	}
 
+	// Indices of the materials passing the tag filter (the mini view has no filter combo and shows all)
+	bool         tag_filter = !mini && ui_asset_tags_active(MC_MATERIAL);
+	i32_array_t *filtered   = asset_tray_filter(ASSET_TRAY_MATERIALS, NULL, !mini);
+
 	bool drag_pos_set = false;
 	f32  uix          = 0.0;
 	f32  uiy          = 0.0;
 	i32  imgw_val     = math_floor(50 * a * UI_SCALE());
+	asset_tray_begin(ASSET_TRAY_MATERIALS, NULL, filtered);
 
-	for (i32 row = 0; row < math_floor(math_ceil(g_project->_->materials->length / (float)num)); ++row) {
+	for (i32 row = 0; row < math_floor(math_ceil(filtered->length / (float)num)); ++row) {
 		i32          mult = g_config->show_asset_names ? 2 : 1;
 		f32_array_t *ar   = f32_array_create_from_raw_tmp(NULL, num * mult);
 		for (i32 i = 0; i < num * mult; ++i) {
@@ -253,26 +282,29 @@ void tab_materials_draw_slots(bool mini) {
 
 		for (i32 j = 0; j < num; ++j) {
 			i32 imgw = math_floor(50 * a * UI_SCALE());
-			i32 i    = j + row * num;
-			if (i >= g_project->_->materials->length) {
+			i32 fi   = j + row * num;
+			if (fi >= filtered->length) {
 				ui_end_element_of_size(imgw);
 				if (g_config->show_asset_names) {
 					ui_end_element_of_size(0);
 				}
 				continue;
 			}
+			i32            i        = filtered->buffer[fi];
 			gpu_texture_t *img      = UI_SCALE() > 1 ? g_project->_->materials->buffer[i]->image : g_project->_->materials->buffer[i]->image_icon;
 			gpu_texture_t *img_full = g_project->_->materials->buffer[i]->image;
 
 			// Highligh selected
-			if (g_context->material == g_project->_->materials->buffer[i]) {
+			slot_material_t *material = g_project->_->materials->buffer[i];
+			u32              color    = asset_tray_frame_color(ASSET_TRAY_MATERIALS, material);
+			if (color != 0) {
 				if (mini) {
 					f32 w = g_ui->_w / (float)UI_SCALE();
-					ui_rect_round(0, -2, w - 2, w - 4, g_theme->HIGHLIGHT_COL, 3);
+					ui_rect_round(0, -2, w - 2, w - 4, color, 3);
 				}
 				else {
 					i32 w = 50 * a;
-					ui_rect_round(-1, -1, w + 2, w + 2, g_theme->HIGHLIGHT_COL, 2 * UI_SCALE());
+					ui_rect_round(-1, -1, w + 2, w + 2, color, 2 * UI_SCALE());
 				}
 			}
 
@@ -281,6 +313,7 @@ void tab_materials_draw_slots(bool mini) {
 			uiy      = g_ui->_y;
 			i32 tile = UI_SCALE() > 1 ? 100 : 50;
 			f32 imgh = mini ? ui_sidebar_w_mini * 0.85 : 50 * a * UI_SCALE();
+			asset_selection_marquee_cell(material, uix, uiy, mini ? g_ui->_w : imgw_val, imgh);
 
 			if (base_drag_material != NULL && tab_materials_drag_pos == i) {
 				ui_fill(-1, -2, 2, imgw_val + 4, g_theme->HIGHLIGHT_COL);
@@ -292,7 +325,7 @@ void tab_materials_draw_slots(bool mini) {
 			                               : ui_sub_image(resource_get("icons.k"), 0xffffffff, imgh, tile, tile, tile, tile);
 			g_ui->image_scroll_align = true;
 
-			if (state == UI_STATE_HOVERED && base_drag_material != NULL) {
+			if (state == UI_STATE_HOVERED && base_drag_material != NULL && !tag_filter) {
 				tab_materials_drag_pos = (mouse_x > uix + g_ui->_window_x + imgw_val / 2.0) ? i + 1 : i;
 				drag_pos_set           = true;
 			}
@@ -313,26 +346,29 @@ void tab_materials_draw_slots(bool mini) {
 
 			// Select material
 			if (state == UI_STATE_STARTED && g_ui->input_y > g_ui->_window_y) {
-				if (g_context->material != g_project->_->materials->buffer[i]) {
-					context_select_material(i);
+				bool             can_drag;
+				slot_material_t *primary = asset_tray_press(ASSET_TRAY_MATERIALS, material, filtered, &can_drag);
+				if (g_context->material != primary) {
+					context_set_material(primary);
 					if (g_context->tool == TOOL_TYPE_MATERIAL) {
 						sys_notify_on_next_frame(&tab_materials_draw_slots_update_fill_layers, NULL);
 					}
 				}
-				base_drag_off_x    = -(mouse_x - uix - g_ui->_window_x - 3);
-				base_drag_off_y    = -(mouse_y - uiy - g_ui->_window_y + 1);
-				base_drag_material = g_context->material;
-				// Double click to show nodes
-				if (sys_time() - g_context->select_time < 0.2) {
-					ui_base_show_material_nodes();
-					base_drag_material = NULL;
-					base_is_dragging   = false;
+				if (can_drag) {
+					bool double_click  = asset_tray_drag_begin(uix, uiy);
+					base_drag_material = g_context->material;
+					// Double click to show nodes
+					if (double_click) {
+						ui_base_show_material_nodes();
+						base_drag_material = NULL;
+						base_is_dragging   = false;
+					}
 				}
-				g_context->select_time = sys_time();
 			}
 
 			// Context menu
 			if (g_ui->is_hovered && g_ui->input_released_r) {
+				asset_selection_context(ASSET_TRAY_MATERIALS, material);
 				context_select_material(i);
 				_tab_materials_draw_slots = i;
 				ui_menu_draw(&tab_materials_draw_slots_menu, -1, -1);
@@ -362,7 +398,7 @@ void tab_materials_draw_slots(bool mini) {
 					}
 				}
 				g_ui->_y -= slotw * 0.9 + (a - 1) * 5 * UI_SCALE();
-				if (i == g_project->_->materials->length - 1) {
+				if (fi == filtered->length - 1) {
 					g_ui->_y += j == num - 1 ? imgw : imgw + UI_ELEMENT_H() + UI_ELEMENT_OFFSET();
 				}
 			}
@@ -377,6 +413,8 @@ void tab_materials_draw_slots(bool mini) {
 		ui_fill(imgw_val + 1, -2, 2, imgw_val + 4, g_theme->HIGHLIGHT_COL);
 	}
 
+	asset_tray_end(ASSET_TRAY_MATERIALS);
+
 	if (!drag_pos_set) {
 		tab_materials_drag_pos = -1;
 	}
@@ -385,11 +423,10 @@ void tab_materials_draw_slots(bool mini) {
 	                g_ui->input_y < g_ui->_window_y + g_ui->_window_h;
 	if (in_focus && g_ui->is_delete_down && g_project->_->materials->length > 1) {
 		g_ui->is_delete_down = false;
-		tab_materials_delete_material(g_context->material);
+		tab_materials_delete_selected();
 	}
 	if (in_focus && g_ui->is_ctrl_down && g_ui->is_key_pressed && g_ui->key_code == KEY_CODE_D) {
-		_tab_materials_draw_slots = array_index_of(g_project->_->materials, g_context->material);
-		sys_notify_on_next_frame(&tab_materials_draw_slots_duplicate, NULL);
+		sys_notify_on_next_frame(&tab_materials_duplicate_selected, NULL);
 	}
 	if (in_focus) {
 		i32 i = array_index_of(g_project->_->materials, g_context->material);
@@ -442,13 +479,13 @@ void tab_materials_draw_edit() {
 void tab_materials_draw_full(i32 *htab) {
 	if (ui_tab(htab, tr("Materials"), false, -1, false)) {
 		ui_begin_sticky();
-		f32_array_t *row = f32_array_create_from_raw_tmp(
-		    (f32[]){
-		        -64,
-		        -64,
-		        -64,
-		    },
-		    3);
+		f32_array_t *row = f32_array_create(0);
+		for (i32 i = 0; i < 3; ++i) {
+			f32_array_push(row, -64);
+		}
+		if (ui_asset_tags_any(MC_MATERIAL)) {
+			f32_array_push(row, -150); // Tags filter
+		}
 		ui_row(row);
 
 		tab_materials_button_new(tr("New"));
@@ -456,6 +493,7 @@ void tab_materials_draw_full(i32 *htab) {
 		if (ui_icon_button(tr("Edit"), ICON_EDIT, UI_ALIGN_CENTER)) {
 			ui_menu_draw(&tab_materials_draw_edit, -1, -1);
 		}
+		ui_asset_tags_filter(MC_MATERIAL);
 
 		ui_end_sticky();
 		ui_separator(3, false);
@@ -474,13 +512,8 @@ void tab_materials_accept_material_drop(slot_material_t *material) {
 		return;
 	}
 
-	i32 mat_pos = array_index_of(g_project->_->materials, material);
-	if (mat_pos != -1 && math_abs(mat_pos - tab_materials_drag_pos) > 0) {
-		array_remove(g_project->_->materials, material);
-		i32 new_pos = tab_materials_drag_pos - mat_pos > 0 ? tab_materials_drag_pos - 1 : tab_materials_drag_pos;
-		array_insert(g_project->_->materials, new_pos, material);
-		tab_meshes_on_material_reordered(mat_pos, new_pos);
-	}
+	any_array_t *moving = asset_selection_drag_items(ASSET_TRAY_MATERIALS, material, true);
+	asset_selection_reorder(g_project->_->materials, moving, tab_materials_drag_pos, &tab_meshes_on_material_reordered);
 }
 
 // Copy picked values into the Material Output node when it is the only node in the selected material

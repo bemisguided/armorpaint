@@ -145,6 +145,7 @@ void project_assign_object_id(mesh_object_t *o) {
 }
 
 void project_new(bool reset_layers) {
+	asset_selection_clear();
 	if (g_context->paint_object != NULL) {
 		project_cleanup();
 		g_project->_->filepath = "";
@@ -572,6 +573,7 @@ void project_reimport_texture_load(char *path, asset_t *asset) {
 	array_splice(g_project->_->assets, i, 1);
 	import_texture_run(asset->file, true);
 	array_insert(g_project->_->assets, i, array_pop(g_project->_->assets));
+	g_project->_->assets->buffer[i]->meta = old_asset->meta; // The reloaded texture keeps its metadata
 
 	if (g_context->texture == old_asset) {
 		g_context->texture = g_project->_->assets->buffer[i];
