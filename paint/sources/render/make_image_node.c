@@ -225,7 +225,7 @@ static shader_context_t *make_image_node_capture_shader(ui_node_t *node, char *(
 	parser_material_links = g_context->material->canvas->links;
 	if (make_image_node_capture_group != NULL) {
 		parser_material_push_group(make_image_node_capture_group);
-		parser_material_parents = make_image_node_capture_parents;
+		parser_material_set_parents(make_image_node_capture_parents);
 	}
 	parser_material_con                   = con;
 	parser_material_kong                  = kong;
