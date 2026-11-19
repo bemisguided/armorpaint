@@ -5,8 +5,10 @@
 // computed on the cpu into one RGBA128 texture per node. It never touches the uv, Tile UV places an image on the mesh.
 //
 // Everything is about the Pivot: flip, then scale, then rotation, then Offset. Output pixel q reads the source at
-// p = pivot + inverse(R * S * F) * (q - pivot - offset). The angle is applied like Tile UV applies it to its
-// coordinate (a positive Rotation turns the image counterclockwise in the editor view).
+// p = pivot + inverse(R * S * F) * (q - pivot - offset), R = [cos a, -sin a; sin a, cos a] on the image space (y down).
+// Rotation follows the rotation convention of all image nodes (armorpaint-admin specs/image-nodes/ROTATION_CONVENTION.md):
+// degrees, a positive angle turns the image clockwise as seen in the editor view (+90 sends the top left corner to the
+// top right), about the Pivot, after the scale and before the Offset.
 // Cubic is Catmull-Rom (make_image_node_sample_rgba, the shared cpu sampler), not Tile UV's B-spline: it passes through the texels, so the default settings give back
 // the input pixel for pixel. No mipmaps: a source shrunk by more than about 2x aliases.
 //
@@ -46,7 +48,7 @@ enum {
 typedef struct transform_params {
 	f32 offset_x;
 	f32 offset_y;
-	f32 rotation; // Degrees
+	f32 rotation; // Degrees, positive turns the image clockwise on screen
 	f32 scale_x;
 	f32 scale_y;
 	f32 pivot_x;
@@ -109,8 +111,8 @@ static void transform_node_rows(void *param, i32 begin, i32 end) {
 		for (i32 x = 0; x < size; ++x) {
 			f32 dx = ((f32)x + 0.5f) / (f32)size - p->pivot_x - p->offset_x;
 			f32 dy = ((f32)y + 0.5f) / (f32)size - p->pivot_y - p->offset_y;
-			f32 rx = dx * ca - dy * sa;
-			f32 ry = dx * sa + dy * ca;
+			f32 rx = dx * ca + dy * sa; // inverse(R) (q - pivot - offset): the source is read where the image content came from
+			f32 ry = -dx * sa + dy * ca;
 			rx /= sx;
 			ry /= sy;
 			rx = p->flip_x ? -rx : rx;
@@ -187,7 +189,7 @@ void transform_node_init() {
 	                        transform_node_socket(_tr("Image"), "RGBA", NODES_MATERIAL_IMAGE_COLOR, f32_array_create_xyzw(1.0, 1.0, 1.0, 1.0), 0.0, 1.0, 100),
 	                        transform_node_socket(_tr("Offset X"), "VALUE", value_color, f32_array_create_x(0.0), -1.0, 1.0, 100),
 	                        transform_node_socket(_tr("Offset Y"), "VALUE", value_color, f32_array_create_x(0.0), -1.0, 1.0, 100),
-	                        transform_node_socket(_tr("Rotation"), "VALUE", value_color, f32_array_create_x(0.0), -180.0, 180.0, 10),
+	                        transform_node_socket(_tr("Rotation"), "VALUE", value_color, f32_array_create_x(0.0), 0.0, 360.0, 10),
 	                        transform_node_socket(_tr("Scale X"), "VALUE", value_color, f32_array_create_x(1.0), 0.01, 8.0, 100),
 	                        transform_node_socket(_tr("Scale Y"), "VALUE", value_color, f32_array_create_x(1.0), 0.01, 8.0, 100),
 	                        transform_node_socket(_tr("Pivot X"), "VALUE", value_color, f32_array_create_x(0.5), 0.0, 1.0, 100),
