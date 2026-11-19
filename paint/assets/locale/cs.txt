@@ -359,6 +359,9 @@ Hyperbolický sinus
 Hyperbolický tangens
 
 
+
+
+
 Textura obrázku
 
 Obrázek na PBR

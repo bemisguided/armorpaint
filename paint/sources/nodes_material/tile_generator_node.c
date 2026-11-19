@@ -135,7 +135,7 @@ static char *tile_generator_node_capture(ui_node_t *node) {
 }
 
 static f32 tile_generator_node_clamp(f32 v, f32 lo, f32 hi) {
-	return v < lo ? lo : v > hi ? hi : v;
+	return !(v > lo) ? lo : v > hi ? hi : v; // Not a number gives lo
 }
 
 static void tile_generator_node_params(ui_node_t *node, void *params) {
@@ -157,7 +157,7 @@ static void tile_generator_node_params(ui_node_t *node, void *params) {
 	p->offset_random           = tile_generator_node_clamp(make_image_node_input_value(node, TILE_GENERATOR_INPUT_OFFSET_RANDOM), 0.0, 1.0);
 	p->brightness_random       = tile_generator_node_clamp(make_image_node_input_value(node, TILE_GENERATOR_INPUT_BRIGHTNESS_RANDOM), 0.0, 1.0);
 	f32 seed                   = make_image_node_input_value(node, TILE_GENERATOR_INPUT_SEED);
-	p->seed                    = (u32)math_floor(seed > 0.0 ? seed : 0.0);
+	p->seed                    = (u32)math_floor(tile_generator_node_clamp(seed, 0.0, 4000000000.0));
 }
 
 static u32 tile_generator_node_mix(u32 h, u32 v) {
@@ -264,7 +264,7 @@ static i32 tile_generator_node_process(u8 *bytes, i32 size, void *params, f32 *r
 			f32 mu         = (cx + 0.5) / p->tiles_x;
 			f32 mv         = (cy + 0.5) / p->tiles_y;
 			f32 mask       = tile_generator_node_map(maps_a, mu, mv, 0);
-			f32 scale_map  = tile_generator_node_map(maps_a, mu, mv, 1);
+			f32 scale_map  = tile_generator_node_clamp(tile_generator_node_map(maps_a, mu, mv, 1), 0.0, 1.0); // Multiplies the tile scale
 			f32 rotate_map = tile_generator_node_map(maps_a, mu, mv, 3);
 			f32 color_map  = tile_generator_node_map(maps_b, mu, mv, 0);
 			f32 pattern_map = tile_generator_node_map(maps_b, mu, mv, 1);
@@ -284,7 +284,7 @@ static i32 tile_generator_node_process(u8 *bytes, i32 size, void *params, f32 *r
 			f32 angle      = (p->rotation + rotate_map + p->rotation_random * (r_rotation * 2.0 - 1.0) * 0.5) * 2.0 * math_pi();
 			f32 brightness = (1.0 - p->brightness_random * r_brightness) * color_map;
 			f32 id         = 1.0 / TILE_GENERATOR_ID_FLOOR + r_id * (1.0 - 1.0 / TILE_GENERATOR_ID_FLOOR);
-			if (half_x <= 0.0 || half_y <= 0.0) {
+			if (!(half_x > 0.0) || !(half_y > 0.0)) {
 				continue;
 			}
 			tile_generator_node_draw_tile(pixels + one * k, size, result, position, center_x, center_y, half_x, half_y, angle, brightness, id, p->filter,

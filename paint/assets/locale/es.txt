@@ -359,6 +359,9 @@ Seno hiperbólico
 Tangente hiperbólica
 
 
+
+
+
 Imagen
 
 Imagen a PBR

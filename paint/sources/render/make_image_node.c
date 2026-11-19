@@ -1043,7 +1043,7 @@ char *make_image_node_sample(ui_node_t *node) {
 
 // The same for the second result texture of a node with second_result, read at the nearest texel
 char *make_image_node_sample_second(ui_node_t *node) {
-	return make_image_node_sample_texture(node, string_tmp("%s_2", make_material_node_preview_id(node, NULL)), "image2", IMAGE_FILTER_NEAREST);
+	return make_image_node_sample_texture(node, string_tmp("%s_2", make_material_node_preview_id(node, NULL)), "second", IMAGE_FILTER_NEAREST);
 }
 
 // The fetch of the node's baked result at the float2 expression uv (repeating), once per node; returns the float4

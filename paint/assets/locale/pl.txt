@@ -359,6 +359,9 @@ Sinus hiperboliczny
 Tangens hiperboliczny
 
 
+
+
+
 Tekstura obrazu
 
 Obraz do PBR
