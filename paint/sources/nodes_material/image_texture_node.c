@@ -64,9 +64,9 @@ char *parser_material_texture_store(ui_node_t *node, bind_tex_t *tex, char *tex_
 	}
 	else if (parser_material_tex_coord_atlas != NULL && !parser_material_triplanar && !parser_material_sample_keep_aspect &&
 	         image_texture_node_atlas_uv(node)) {
-		// With several udim tiles tex_coord repeats per tile, the atlas uv spans the whole image
+		// With several udim tiles tex_coord repeats per tile, the atlas uv spans the whole image and ignores the layer's UV scale and angle
 		char *store = parser_material_store_var_name(node);
-		parser_material_write(parser_material_kong, string_tmp("float2 %s_atlas = %s;", store, parser_material_tex_coord_atlas));
+		parser_material_write(parser_material_kong, string_tmp("float2 %s_atlas = %s;", store, make_texcoord_atlas_uv(parser_material_kong)));
 		uv_name = string_copy(string_tmp("%s_atlas", store));
 	}
 	else {
