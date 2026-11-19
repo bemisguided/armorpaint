@@ -90,6 +90,7 @@
 #include "nodes_material/shader_node.c"
 #include "nodes_material/text_texture_node.c"
 #include "nodes_material/texture_coordinate_node.c"
+#include "nodes_material/shape_generator_node.c"
 #include "nodes_material/tilesheet_animation_node.c"
 #include "nodes_material/tilesheet_node.c"
 #include "nodes_material/tile_uv_node.c"

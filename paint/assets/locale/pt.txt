@@ -108,6 +108,7 @@ Centro
 Canais
 Checar Atualizações...
 Textura Quadriculada
+
 Limitar
 Limitar Fator
 Limitar Resultado
@@ -149,6 +150,7 @@ Converter De
 Converter Para
 Copiar
 Copiar Código Hex
+
 Cosseno
 Não foi possível baixar
 Contagem
@@ -221,6 +223,7 @@ Duplicar Pincel
 Duplicar Camada
 Duplicar Material
 Duplicar Amostra
+
 Editar
 Editar Imagem
 Editar Nós
@@ -563,6 +566,8 @@ Extensões
 Ponto
 Pontualidade
 Posição
+
+
 Pós-processamento
 Potência
 Preferências
@@ -581,6 +586,7 @@ Prompt
 Qualidade
 Quantizar
 R
+
 Curvas RGB
 RGB para P&B
 RGBA
@@ -627,6 +633,8 @@ Altura da Linha
 Executar
 Executar no Player
 Executando...
+
+
 SSAO
 Amostras
 Saturação
@@ -837,6 +845,7 @@ Janela
 Aramado
 Área de Trabalho
 Mundo
+
 Envolver Mouse
 Envolver mouse nas bordas da visualização durante controle da câmera
 X

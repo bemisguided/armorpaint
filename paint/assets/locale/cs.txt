@@ -108,6 +108,7 @@ Střed
 Kanály
 Zkontrolovat aktualizace...
 Šachovnicová textura
+
 Omezit
 Omezit faktor
 Omezit výsledek
@@ -149,6 +150,7 @@ Převést z
 Převést na
 Kopírovat
 Kopírovat hex kód
+
 Kosinus
 Nelze stáhnout
 Počet
@@ -221,6 +223,7 @@ Duplikovat štětec
 Duplikovat vrstvu
 Duplikovat materiál
 Duplikovat vzorek
+
 Upravit
 Upravit obrázek
 Upravit uzly
@@ -563,6 +566,8 @@ Pluginy
 Bod
 Špičatost
 Pozice
+
+
 Postprodukce
 Mocnina
 Předvolby
@@ -581,6 +586,7 @@ Prompt
 Kvalita
 Kvantizovat
 R
+
 Křivky RGB
 RGB na černobílý
 RGBA
@@ -627,6 +633,8 @@ Výška řádku
 Spustit
 Spustit v přehrávači
 Probíhá...
+
+
 SSAO
 Vzorky
 Sytost
@@ -837,6 +845,7 @@ Okno
 Drátěný model
 Pracovní prostor
 Svět
+
 Obtáčet myš
 Obtáčet myš kolem hranic pohledu při ovládání kamery
 X

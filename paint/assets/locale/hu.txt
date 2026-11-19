@@ -108,6 +108,7 @@ Középpont
 Csatornák
 Frissítések keresése...
 Sakktábla textúra
+
 Szorítás (Clamp)
 Faktor szorítása
 Eredmény szorítása
@@ -149,6 +150,7 @@ Közreműködők
 Átalakítás erre
 Másolás
 Hex kód másolása
+
 Koszinusz
 Nem sikerült letölteni:
 Darabszám
@@ -221,6 +223,7 @@ Ecset duplikálása
 Réteg duplikálása
 Anyag duplikálása
 Színminta duplikálása
+
 Szerkesztés
 Kép szerkesztése
 Csomópontok szerkesztése
@@ -563,6 +566,8 @@ Bővítmények
 Pont
 Hegyesség (Pointiness)
 Pozíció
+
+
 Utófeldolgozás
 Hatvány
 Beállítások
@@ -581,6 +586,7 @@ Prompt
 Minőség
 Kvantálás
 R
+
 RGB görbék
 RGB -> Fekete-fehér
 RGBA
@@ -627,6 +633,8 @@ Sor magassága
 Futtatás
 Futtatás a Playerben
 Fut...
+
+
 SSAO
 Minták
 Telítettség
@@ -837,6 +845,7 @@ Ablak
 Drótváz
 Munkaterület
 Világ
+
 Egér átfordítása
 Kamera mozgatása közben az egér átfordul a képernyő szélein
 X

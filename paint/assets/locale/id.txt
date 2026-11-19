@@ -108,6 +108,7 @@ Tengah
 Kanal
 Periksa Pembaruan...
 Tekstur Kotak-kotak
+
 Batasi
 Batasi Faktor
 Batasi Hasil
@@ -149,6 +150,7 @@ Konversi Dari
 Konversi Ke
 Salin
 Salin Kode Hex
+
 Kosinus
 Tidak dapat mengunduh
 Jumlah
@@ -221,6 +223,7 @@ Duplikat Kuas
 Duplikat Lapisan
 Duplikat Material
 Duplikat Contoh Warna
+
 Sunting
 Sunting Gambar
 Sunting Node
@@ -563,6 +566,8 @@ Plugin
 Titik
 Ketajaman
 Posisi
+
+
 Pasca Proses
 Pangkat
 Preferensi
@@ -581,6 +586,7 @@ Prompt
 Kualitas
 Kuantisasi
 R
+
 Kurva RGB
 RGB ke Hitam Putih
 RGBA
@@ -627,6 +633,8 @@ Tinggi Baris
 Jalankan
 Jalankan di Pemutar
 Berjalan...
+
+
 SSAO
 Sampel
 Saturasi
@@ -837,6 +845,7 @@ Jendela
 Wireframe
 Ruang Kerja
 Dunia
+
 Bungkus Mouse
 Bungkus mouse di sekitar batas tampilan saat mengontrol kamera
 X

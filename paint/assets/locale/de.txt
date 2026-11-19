@@ -108,6 +108,7 @@ Mitte
 Kanäle
 Auf Updates prüfen...
 Schach Textur
+
 Begrenzen
 Faktor begrenzen
 Ergebnis begrenzen
@@ -149,6 +150,7 @@ Umwandeln von
 Umwandeln zu
 Kopieren
 Hex-Code kopieren
+
 Kosinus
 Download fehlgeschlagen:
 Anzahl
@@ -221,6 +223,7 @@ Pinsel duplizieren
 Ebene duplizieren
 Material duplizieren
 Farbfeld duplizieren
+
 Bearbeiten
 Bild bearbeiten
 Nodes bearbeiten
@@ -563,6 +566,8 @@ Plugins
 Punkt
 Spitzheit
 Position
+
+
 Nachbearbeitung
 Potenz
 Einstellungen
@@ -581,6 +586,7 @@ Prompt
 Qualität
 Quantisieren
 R
+
 RGB Kurven
 RGB zu Graustufen
 RGBA
@@ -627,6 +633,8 @@ Reihenhöhe
 Ausführen
 Im Player ausführen
 Läuft...
+
+
 SSAO
 Samples
 Sättigung
@@ -837,6 +845,7 @@ Fenster
 Drahtgitter
 Arbeitsbereich
 Welt
+
 Maus herumführen
 Bei der Steuerung der Kamera die Maus um die Ansichtsgrenzen herumführen.
 X

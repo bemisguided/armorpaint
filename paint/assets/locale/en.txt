@@ -108,6 +108,7 @@ Center
 Channels
 Check for Updates...
 Checker Texture
+Circle
 Clamp
 Clamp Factor
 Clamp Result
@@ -149,6 +150,7 @@ Convert From
 Convert To
 Copy
 Copy Hex Code
+Corner Radius
 Cosine
 Could not download
 Count
@@ -221,6 +223,7 @@ Duplicate Brush
 Duplicate Layer
 Duplicate Material
 Duplicate Swatch
+Edge Softness
 Edit
 Edit Image
 Edit Nodes
@@ -563,6 +566,8 @@ Plugins
 Point
 Pointiness
 Position
+Position X
+Position Y
 Post Process
 Power
 Preferences
@@ -581,6 +586,7 @@ Prompt
 Quality
 Quantize
 R
+Rectangle
 RGB Curves
 RGB to BW
 RGBA
@@ -627,6 +633,8 @@ Row Height
 Run
 Run in Player
 Running...
+Shape Generator
+Square
 SSAO
 Samples
 Saturation
@@ -837,6 +845,7 @@ Window
 Wireframe
 Workspace
 World
+Wrap Edges
 Wrap Mouse
 Wrap mouse around view boundaries during camera control
 X

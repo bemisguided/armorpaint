@@ -108,6 +108,7 @@ Centro
 Canales
 Comprobar actualizaciones...
 Verificador
+
 Limitar
 Limitar factor
 Limitar resultado
@@ -149,6 +150,7 @@ Convertir desde
 Convertir a
 Copiar
 Copiar código hex
+
 Coseno
 No se pudo descargar
 Cantidad
@@ -221,6 +223,7 @@ Duplicar pincel
 Duplicar capa
 Duplicar material
 Duplicar muestra
+
 Editar
 Editar imagen
 Editar nodos
@@ -563,6 +566,8 @@ Complementos
 Punto
 Puntiagudez
 Posición
+
+
 Posprocesado
 Potencia
 Preferencias
@@ -581,6 +586,7 @@ Prompt
 Calidad
 Cuantificar
 R
+
 Curvas RGB
 RVA a grises
 RVAA
@@ -627,6 +633,8 @@ Altura de la fila
 Ejecutar
 Ejecutar en el reproductor
 Ejecutando...
+
+
 SSAO
 Muestras
 Saturación
@@ -837,6 +845,7 @@ Ventana
 Alambre
 Espacio de trabajo
 Mundo
+
 Envolver ratón
 Envolver ratón alrededor de límites de vista durante control de cámara
 X
