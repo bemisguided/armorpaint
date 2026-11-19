@@ -350,6 +350,7 @@ Hyperbolic Tangent
 Image
 Image Texture
 Image node bake: out of memory
+Image node loop: looped input reads black
 Image to PBR
 Import
 Import Mesh
