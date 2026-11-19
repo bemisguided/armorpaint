@@ -348,6 +348,9 @@ Hiperbolikus szinusz
 Hiperbolikus tangens
 
 
+
+
+
 Kép textúra
 
 Képből PBR

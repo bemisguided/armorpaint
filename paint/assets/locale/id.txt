@@ -348,6 +348,9 @@ Sinus Hiperbolik
 Tangen Hiperbolik
 
 
+
+
+
 Tekstur Gambar
 
 Gambar ke PBR
