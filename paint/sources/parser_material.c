@@ -343,13 +343,13 @@ char *parser_material_parse_group(ui_node_t *node, ui_node_socket_t *socket) {
 	}
 	any_array_push(parser_material_parents, node); // Entering group
 	parser_material_push_group(group);
+	char      *out_group   = NULL;
 	ui_node_t *output_node = parser_material_node_by_type(parser_material_nodes, "GROUP_OUTPUT");
-	if (output_node == NULL) {
-		return NULL;
+	i32        index       = parser_material_socket_index(node, socket);
+	// The group node can have an output the group canvas has no input for, after an undo in the group canvas
+	if (output_node != NULL && index >= 0 && index < output_node->inputs->length) {
+		out_group = parser_material_parse_input(output_node->inputs->buffer[index]);
 	}
-	i32               index     = parser_material_socket_index(node, socket);
-	ui_node_socket_t *inp       = output_node->inputs->buffer[index];
-	char             *out_group = parser_material_parse_input(inp);
 	array_pop(parser_material_parents);
 	parser_material_pop_group();
 	return out_group;
@@ -358,9 +358,11 @@ char *parser_material_parse_group(ui_node_t *node, ui_node_socket_t *socket) {
 char *parser_material_parse_group_input(ui_node_t *node, ui_node_socket_t *socket) {
 	ui_node_t *parent = array_pop(parser_material_parents); // Leaving group
 	parser_material_pop_group();
-	i32               index = parser_material_socket_index(node, socket);
-	ui_node_socket_t *inp   = parent->inputs->buffer[index];
-	char             *res   = parser_material_parse_input(inp);
+	char *res   = NULL;
+	i32   index = parser_material_socket_index(node, socket);
+	if (index >= 0 && index < parent->inputs->length) {
+		res = parser_material_parse_input(parent->inputs->buffer[index]);
+	}
 	any_array_push(parser_material_parents, parent); // Return to group
 	parser_material_push_group(parser_material_get_group(parent->name));
 	return res;
