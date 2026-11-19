@@ -293,6 +293,17 @@ void parser_material_push_group(ui_node_canvas_t *g) {
 	parser_material_links = g->links;
 }
 
+// Starts parsing inside group, the innermost group of a nested chain: pushes one canvas per parent level, outermost first,
+// like parser_material_parse_group does, so the canvas stack mirrors the parents (a group input pops one of each).
+// The parents array stays owned by the caller.
+void parser_material_push_group_chain(ui_node_canvas_t *group, ui_node_t_array_t *parents) {
+	for (i32 i = 0; parents != NULL && i < parents->length - 1; ++i) {
+		parser_material_push_group(parser_material_get_group(parents->buffer[i]->name));
+	}
+	parser_material_push_group(group);
+	parser_material_set_parents(parents);
+}
+
 void parser_material_pop_group() {
 	array_pop(parser_material_canvases);
 	ui_node_canvas_t *g   = parser_material_canvases->buffer[parser_material_canvases->length - 1];
