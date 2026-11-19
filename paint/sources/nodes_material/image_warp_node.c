@@ -6,7 +6,8 @@
 // per node, R = the warped image. The texture is sampled like an Image Texture at tex_coord, repeating (Tile UV places it on
 // the uv). With Wrap Edges on (the default) the image repeats, so the warp wraps around the edges; off, samples outside the image (the warp tap and the Map reads) clamp to the nearest edge pixel. This is Directional Warp and Slope Blur in one node.
 //
-// Every output pixel reads the image at p - d (the content moves along d, a negative Strength moves it the other way):
+// Every output pixel reads the image at p + d, like the Warp node of the Color menu (tex_coord + direction * mask): the content
+// moves AGAINST d, so with a positive Strength it moves against the Angle (a negative Strength moves it along the Angle):
 //   Direction Angle:        d = (cos Angle, sin Angle) * Strength * Size * Map(p), Map clamped to 0..1.
 //   Direction Slope of Map: g = central difference of Map at p, in Map units per image width (per pixel * Size);
 //                           d = g / |g| * min(|g|, 1) * Strength * Size. So a Map that rises by 1 across the image moves the
@@ -14,9 +15,10 @@
 // Strength is a fraction of the image (the whole image is 1), Angle is in degrees (0 along x, y down like the uv).
 // Angle follows the rotation convention of all image nodes (armorpaint-admin specs/image-nodes/ROTATION_CONVENTION.md):
 // the direction is (cos Angle, sin Angle) on the y down image, 90 points down the image (the same direction as Advanced
-// Blur's Angle) and the pixels move along it.
-// Blur smears along the path: 0 is a pure warp (one tap at p - d); above 0 the output averages taps on the segment from
-// p - d * (1 - Blur) to p - d, so Blur 1 smears over the whole displacement (Slope Blur, Directional Blur along a map).
+// Blur's Angle); the lookup moves along it, the content moves against it (Angle 0 moves the content left, 90 up).
+// In Slope mode d points uphill, so the content flows downhill (towards lower Map values).
+// Blur smears along the path: 0 is a pure warp (one tap at p + d); above 0 the output averages taps on the segment from
+// p + d * (1 - Blur) to p + d, so Blur 1 smears over the whole displacement (Slope Blur, Directional Blur along a map).
 // Taps are one pixel apart or closer, up to WARP_MAX_TAPS; a smear longer than that aliases (spacing above one pixel).
 // Strength, Angle and Blur hold for the whole image (scalar, evaluated at the image centre when linked); Map is per pixel.
 
@@ -158,16 +160,16 @@ static void image_warp_node_rows(void *param, i32 begin, i32 end) {
 			f32 len  = blur * sqrtf(dx * dx + dy * dy);
 			f32 v;
 			if (len < 0.5f) {
-				v = c->sample(c->img, c->size, (f32)x - dx, (f32)y - dy);
+				v = c->sample(c->img, c->size, (f32)x + dx, (f32)y + dy);
 			}
 			else {
 				i32 n = (i32)ceilf(len) + 1;
 				n     = n > IMAGE_WARP_MAX_TAPS ? IMAGE_WARP_MAX_TAPS : n;
 				f32 sum = 0.0f;
 				for (i32 j = 0; j < n; ++j) {
-					f32 t = (f32)j / (f32)(n - 1); // 0 to 1 along the segment from p - d * (1 - blur) to p - d
+					f32 t = (f32)j / (f32)(n - 1); // 0 to 1 along the segment from p + d * (1 - blur) to p + d
 					f32 s = 1.0f - blur + blur * t;
-					sum += c->sample(c->img, c->size, (f32)x - dx * s, (f32)y - dy * s);
+					sum += c->sample(c->img, c->size, (f32)x + dx * s, (f32)y + dy * s);
 				}
 				v = sum / (f32)n;
 			}
