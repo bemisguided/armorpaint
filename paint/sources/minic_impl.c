@@ -1283,7 +1283,7 @@ i32 script_asset_index(char *search) {
 }
 
 // Asset metadata by category (meta_category_t) and index: the position in the matching tray / project array
-// (fonts include the default font at 0, meshes are the paint objects). Out of range indices are ignored.
+// (fonts include the default font at 0). Out of range indices are ignored.
 void script_meta_set_i32(i32 category, i32 index, i32 key, i32 value) {
 	meta_set_i32(meta_get(category, index), key, value);
 }
