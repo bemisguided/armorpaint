@@ -803,6 +803,7 @@ void                   parser_material_init();
 shader_out_t          *parser_material_parse(ui_node_canvas_t *canvas, node_shader_context_t *_con, node_shader_t *_kong);
 void                   parser_material_finalize(node_shader_context_t *con);
 void                   parser_material_push_group(ui_node_canvas_t *g);
+void                   parser_material_set_parents(ui_node_t_array_t *parents);
 char                  *parser_material_parse_group(ui_node_t *node, ui_node_socket_t *socket);
 void                   parser_material_write(node_shader_t *raw, char *s);
 char                  *parser_material_parse_vector_input(ui_node_socket_t *inp);
