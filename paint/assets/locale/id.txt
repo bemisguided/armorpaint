@@ -280,6 +280,8 @@ Filter
 Filter Tekstur
 Rata
 Ratakan
+
+
 Kurva Float
 Lantai
 Modulo Lantai
@@ -553,6 +555,8 @@ Sematkan ke Header
 Cubit
 Ping-Pong
 Poros
+
+
 Ukuran Piksel
 Dataran
 Mainkan
@@ -752,6 +756,7 @@ Petak Y
 Diubin
 Jumlah Petak X
 Jumlah Petak Y
+
 Tilesheet
 Animasi Tilesheet
 Waktu

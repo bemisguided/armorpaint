@@ -280,6 +280,8 @@ Filter
 Filter Textures
 Flat
 Flatten
+Flip X
+Flip Y
 Float Curve
 Floor
 Floored Modulo
@@ -553,6 +555,8 @@ Pin to Header
 Pinch
 Ping-Pong
 Pivot
+Pivot X
+Pivot Y
 Pixel Size
 Plateau
 Play
@@ -752,6 +756,7 @@ Tile Y
 Tiled
 Tiles X
 Tiles Y
+Tiling
 Tile UV
 Tilesheet
 Tilesheet Animation

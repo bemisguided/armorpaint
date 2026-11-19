@@ -280,6 +280,8 @@ Filtr
 Filtruj tekstury
 Płaski
 Spłaszcz
+
+
 Krzywa liczby
 Zaokrąglij w dół
 Modulo z podłogą
@@ -553,6 +555,8 @@ Przypnij do nagłówka
 Ściśnij
 Ping-Pong
 Punkt obrotu
+
+
 Rozmiar piksela
 Płaskowyż
 Odtwórz
@@ -752,6 +756,7 @@ Kafelek Y
 Kafelkowany
 Kafelków X
 Kafelków Y
+
 Arkusz kafelków
 Animacja arkusza kafelków
 Czas

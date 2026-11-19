@@ -280,6 +280,8 @@ Filtrer
 Filtrer les textures
 Plat
 Aplatir
+
+
 Courbe de flottant
 Plancher
 Modulo plancher
@@ -553,6 +555,8 @@ Sélectionneur
 Pincer
 Ping-pong
 Pivot
+
+
 Taille de pixel
 Plateau
 Lecture
@@ -752,6 +756,7 @@ Tuile Y
 Carrelé
 Tuiles X
 Tuiles Y
+
 Feuille de tuiles
 Animation de feuille de tuiles
 Temps

@@ -280,6 +280,8 @@ Filtr
 Filtrovat textury
 Plochý
 Zploštit
+
+
 Křivka čísla
 Zaokrouhlit dolů
 Modulo dolní
@@ -553,6 +555,8 @@ Připnout do záhlaví
 Sevřít
 Ping-pong
 Střed otáčení
+
+
 Velikost pixelu
 Plošina
 Přehrát
@@ -752,6 +756,7 @@ Dlaždice Y
 Dlaždicový
 Dlaždic X
 Dlaždic Y
+
 
 Dlaždicová mapa
 Animace dlaždicové mapy

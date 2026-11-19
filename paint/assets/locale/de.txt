@@ -280,6 +280,8 @@ Filter
 Texturen filtern
 Flach
 Abflachen
+
+
 Float Kurve
 Abrunden
 Abgerundetes Modulo
@@ -553,6 +555,8 @@ Oben festpinnen
 Zusammenziehen
 Ping-Pong
 Drehpunkt
+
+
 Pixelgröße
 Plateau
 Abspielen
@@ -752,6 +756,7 @@ Kachel Y
 Gekachelt
 Kacheln X
 Kacheln Y
+
 
 Tilesheet
 Tilesheet Animation

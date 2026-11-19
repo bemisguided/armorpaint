@@ -280,6 +280,8 @@ Filtrar
 Filtrar texturas
 Plano
 Aplanar
+
+
 Curva de valor
 Piso
 Módulo hacia abajo
@@ -553,6 +555,8 @@ Fijar a cabecera
 Pellizcar
 Ping - Pong
 Pivote
+
+
 Tamaño de píxel
 Meseta
 Reproducir
@@ -752,6 +756,7 @@ Mosaico Y
 Tileado
 Mosaicos X
 Mosaicos Y
+
 Hoja de mosaicos
 Animación de hoja de mosaicos
 Tiempo

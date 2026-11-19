@@ -280,6 +280,8 @@ Szűrő
 Textúrák szűrése
 Lapos
 Lapítás
+
+
 Float görbe
 Padló
 Lefelé kerekített modulo
@@ -553,6 +555,8 @@ Rögzítés a fejléchez
 Csípés
 Ping-Pong
 Középpont (Pivot)
+
+
 Pixel méret
 Plató
 Lejátszás
@@ -752,6 +756,7 @@ Mozaik Y
 Csempézett
 Mozaikok X
 Mozaikok Y
+
 Mozaiklap
 Mozaiklap animáció
 Idő

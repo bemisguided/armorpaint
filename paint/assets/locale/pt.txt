@@ -280,6 +280,8 @@ Filtro
 Filtrar Texturas
 Plano
 Achatar
+
+
 Curva de Float
 Chão
 Módulo Piso
@@ -553,6 +555,8 @@ Fixar no Cabeçalho
 Beliscar
 Ping-Pong
 Pivô
+
+
 Tamanho do Pixel
 Platô
 Reproduzir
@@ -752,6 +756,7 @@ Bloco Y
 Ladrilhado
 Blocos X
 Blocos Y
+
 Folha de Blocos
 Animação de Folha de Blocos
 Tempo
