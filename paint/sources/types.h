@@ -716,6 +716,7 @@ typedef struct project {
 	struct i32_array                            *mesh_nodes_objects; // Object index for each mesh_nodes canvas
 	struct f32_array_t_array                    *mesh_paths;         // Path and curve tool points
 	struct ui_node_canvas_t_array               *mesh_groups;
+	struct meta_t_array                         *metas; // Item metadata, sparse entries, see io/project_format.c
 	project_runtime_t                           *_;
 } project_t;
 
@@ -1072,6 +1073,12 @@ typedef struct material_data2_t_array {
 	int                length;
 	int                capacity;
 } material_data2_t_array_t;
+
+typedef struct meta_t_array {
+	meta_t **buffer;
+	int      length;
+	int      capacity;
+} meta_t_array_t;
 
 typedef struct ui_node_t_array {
 	ui_node_t **buffer;

@@ -326,6 +326,7 @@ buffer_t *export_arm_encode_project(char *path) {
 		any_array_push(mesh_transforms, ar);
 	}
 	g_project->mesh_transforms = mesh_transforms;
+	project_format_save_prep(g_project);
 	util_path_tool_export();
 
 	// Source mesh bytes
