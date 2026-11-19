@@ -141,6 +141,7 @@ static i32 edge_detect_node_process(u8 *bytes, i32 size, void *params, f32 *resu
 	f32 *pixels = (f32 *)bytes; // Float capture
 	edge_detect_params_t p = *(edge_detect_params_t *)params;
 	f32 width_px           = p.edge_width * (f32)size;
+	width_px               = width_px > (f32)size ? (f32)size : width_px; // The box width is capped to the size below anyway, keeps huge linked values out of the int cast
 	f32 tol                = p.tolerance < 0.0 ? 0.0 : p.tolerance > 1.0 ? 1.0 : p.tolerance;
 	size_t n               = (size_t)size * size;
 	f32 *e                 = malloc(n * sizeof(f32));
