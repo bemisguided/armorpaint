@@ -334,6 +334,105 @@ void make_image_node_parallel(i32 count, void (*fn)(void *ctx, i32 begin, i32 en
 	}
 }
 
+// Texel index after the tiling mode (IMAGE_TILING_*), -1 outside the image (None)
+static i32 make_image_node_wrap(i32 i, i32 size, i32 tiling) {
+	if (i >= 0 && i < size) {
+		return i;
+	}
+	switch (tiling) {
+	case IMAGE_TILING_TILE:
+		i %= size;
+		return i < 0 ? i + size : i;
+	case IMAGE_TILING_MIRROR:
+		i %= size * 2;
+		i = i < 0 ? i + size * 2 : i;
+		return i < size ? i : size * 2 - 1 - i;
+	case IMAGE_TILING_CLAMP:
+		return i < 0 ? 0 : size - 1;
+	}
+	return -1;
+}
+
+static void make_image_node_fetch(f32 *pixels, i32 size, i32 x, i32 y, i32 tiling, f32 *out) {
+	x = make_image_node_wrap(x, size, tiling);
+	y = make_image_node_wrap(y, size, tiling);
+	if (x < 0 || y < 0) {
+		out[0] = out[1] = out[2] = out[3] = 0.0f;
+		return;
+	}
+	f32 *s = pixels + ((size_t)y * size + x) * 4;
+	out[0] = s[0];
+	out[1] = s[1];
+	out[2] = s[2];
+	out[3] = s[3];
+}
+
+// Catmull-Rom weights for the four texels around a fraction t
+static void make_image_node_cubic_weights(f32 t, f32 *w) {
+	f32 t2 = t * t;
+	f32 t3 = t2 * t;
+	w[0]   = 0.5f * (-t3 + 2.0f * t2 - t);
+	w[1]   = 0.5f * (3.0f * t3 - 5.0f * t2 + 2.0f);
+	w[2]   = 0.5f * (-3.0f * t3 + 4.0f * t2 + t);
+	w[3]   = 0.5f * (t3 - t2);
+}
+
+// Cpu read of a square RGBA float image (size x size texels) at (u, v), image fractions 0..1, into out (4 floats).
+// filter: IMAGE_FILTER_NEAREST, _LINEAR or _CUBIC (Catmull-Rom: a read on a texel centre gives that texel back exactly).
+// tiling: IMAGE_TILING_* for the texels outside the image. For the cpu passes of the image nodes (Transform, ...).
+void make_image_node_sample_rgba(f32 *pixels, i32 size, f32 u, f32 v, i32 filter, i32 tiling, f32 *out) {
+	f32 fx = u * (f32)size;
+	f32 fy = v * (f32)size;
+	if (filter == IMAGE_FILTER_NEAREST) {
+		make_image_node_fetch(pixels, size, (i32)floorf(fx), (i32)floorf(fy), tiling, out);
+		return;
+	}
+	fx -= 0.5f;
+	fy -= 0.5f;
+	f32 flx = floorf(fx);
+	f32 fly = floorf(fy);
+	f32 tx  = fx - flx;
+	f32 ty  = fy - fly;
+	// Float error must not blur a read that lands on a texel centre
+	tx      = tx < 1e-4f ? 0.0f : tx > 1.0f - 1e-4f ? 1.0f : tx;
+	ty      = ty < 1e-4f ? 0.0f : ty > 1.0f - 1e-4f ? 1.0f : ty;
+	i32 ix  = (i32)flx;
+	i32 iy  = (i32)fly;
+	f32 wx[4];
+	f32 wy[4];
+	i32 n0;
+	if (filter == IMAGE_FILTER_LINEAR) {
+		wx[0] = 1.0f - tx;
+		wx[1] = tx;
+		wy[0] = 1.0f - ty;
+		wy[1] = ty;
+		n0    = 0;
+	}
+	else {
+		make_image_node_cubic_weights(tx, wx);
+		make_image_node_cubic_weights(ty, wy);
+		n0 = -1;
+	}
+	i32 n  = filter == IMAGE_FILTER_LINEAR ? 2 : 4;
+	out[0] = out[1] = out[2] = out[3] = 0.0f;
+	for (i32 j = 0; j < n; ++j) {
+		if (wy[j] == 0.0f) {
+			continue;
+		}
+		for (i32 i = 0; i < n; ++i) {
+			if (wx[i] == 0.0f) {
+				continue;
+			}
+			f32 t[4];
+			make_image_node_fetch(pixels, size, ix + n0 + i, iy + n0 + j, tiling, t);
+			f32 w = wx[i] * wy[j];
+			for (i32 k = 0; k < 4; ++k) {
+				out[k] += t[k] * w;
+			}
+		}
+	}
+}
+
 // Value of a number input of the node being captured, for the whole image: the default value when unlinked,
 // else the linked graph evaluated once at the image centre. Called from the type's params callback.
 f32 make_image_node_input_value(ui_node_t *node, i32 input) {
