@@ -285,7 +285,7 @@ void edge_detect_node_init() {
 	                        edge_detect_node_setting(_tr("Size"), "ENUM", 1, "512\n1024\n2048\n4096"),
 	                        make_image_node_state_button(),
 	                        edge_detect_node_setting(_tr("Mode"), "ENUM", 0, "Gradient\nBoundary"),
-	                        edge_detect_node_setting(_tr("Wrap Edges"), "BOOL", 0, NULL),
+	                        edge_detect_node_setting(_tr("Wrap Edges"), "BOOL", 1, NULL),
 	                    },
 	                    4),
 	                .width = 0,
