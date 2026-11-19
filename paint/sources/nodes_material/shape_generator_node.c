@@ -6,7 +6,8 @@
 // Width and Height are the full extent of the shape as a fraction of the image (Circle: the two diameters of an ellipse,
 // Square: Width only). Per pixel the signed distance to the shape in pixels gives the value 1 - smoothstep(-w, w, d),
 // w = Edge Softness in pixels, at least 1 so the edge is antialiased. Wrap Edges takes the nearest of the nine image
-// copies of the shape, so a shape that crosses the image border continues on the other side.
+// copies of the shape, so a shape that crosses the image border continues on the other side (the centre is reduced into the image first, more
+// copies each way when the shape extent plus the softness reaches farther than one image).
 // The number inputs hold for the whole image (scalars, evaluated at the image centre when linked).
 
 // Input socket indices
@@ -106,13 +107,26 @@ static f32 shape_generator_node_coverage(shape_generator_params_t *p, i32 size, 
 	f32 r    = p->shape == SHAPE_GENERATOR_CIRCLE ? 0.0f : shape_generator_node_clamp(p->corner_radius, 0.0f, 0.5f) * 2.0f * (hx < hy ? hx : hy);
 	f32 cx   = s * 0.5f + p->position_x * s;
 	f32 cy   = s * 0.5f + p->position_y * s;
+	if (p->wrap) {
+		// The centre inside the image, so the copies at -1..1 are the ones next to it
+		cx -= floorf(cx / s) * s;
+		cy -= floorf(cy / s) * s;
+	}
 	f32 a    = p->rotation * (3.14159265f / 180.0f);
 	f32 ca   = cosf(a);
 	f32 sa   = sinf(a);
 	f32 w    = p->edge_softness * s;
 	w        = w < 1.0f ? 1.0f : w;
-	i32 from = p->wrap ? -1 : 0;
-	i32 to   = p->wrap ? 1 : 0;
+	// A copy matters as far away as the value is above 0: the shape extent plus the softness, and for the ellipse the first
+	// order distance gets small far out along the long axis, so the softness band grows with the aspect ratio. A copy k
+	// images away is at least k - 1 images from every pixel; the count is bounded for the thinnest shapes.
+	f32 hmin  = hx < hy ? hx : hy;
+	f32 hmax  = hx < hy ? hy : hx;
+	f32 reach = p->shape == SHAPE_GENERATOR_CIRCLE ? hmax * (1.0f + w / hmin) : sqrtf(hx * hx + hy * hy) + w;
+	i32 n     = (i32)ceilf(reach / s);
+	n         = n < 1 ? 1 : n > 4 ? 4 : n;
+	i32 from  = p->wrap ? -n : 0;
+	i32 to    = p->wrap ? n : 0;
 	f32 d    = 1.0e30f;
 	for (i32 oy = from; oy <= to; ++oy) {
 		for (i32 ox = from; ox <= to; ++ox) {
