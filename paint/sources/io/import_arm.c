@@ -616,7 +616,11 @@ static void import_arm_import_materials(project_t *project, char *path, i32_arra
 			if (any_map_get(data_cached_textures, abs) == NULL && !iron_file_exists(abs)) {
 				import_arm_make_pink(abs);
 			}
+			i32 assets_before = g_project->_->assets->length;
 			import_texture_run(abs, true);
+			if (g_project->_->assets->length > assets_before) { // New texture, keeps its saved metadata
+				g_project->_->assets->buffer[assets_before]->meta = project_format_load_meta(project, MC_TEXTURE, i);
+			}
 		}
 	}
 
@@ -630,7 +634,8 @@ static void import_arm_import_materials(project_t *project, char *path, i32_arra
 		}
 		ui_node_canvas_t *c = util_clone_canvas(project->material_nodes->buffer[i]); // Project data is temporary
 		import_arm_init_nodes(c->nodes);
-		g_context->material = slot_material_create(m0, c);
+		g_context->material       = slot_material_create(m0, c);
+		g_context->material->meta = project_format_load_meta(project, MC_MATERIAL, i);
 		any_array_push(g_project->_->materials, g_context->material);
 		any_array_push(imported, g_context->material);
 		history_new_material();
@@ -1339,7 +1344,11 @@ void import_arm_run_brush_from_project(project_t *project, char *path) {
 		if (any_map_get(data_cached_textures, abs) == NULL && !iron_file_exists(abs)) {
 			import_arm_make_pink(abs);
 		}
+		i32 assets_before = g_project->_->assets->length;
 		import_texture_run(abs, true);
+		if (g_project->_->assets->length > assets_before) { // New texture, keeps its saved metadata
+			g_project->_->assets->buffer[assets_before]->meta = project_format_load_meta(project, MC_TEXTURE, i);
+		}
 	}
 
 	slot_brush_t_array_t *imported = any_array_create_from_raw((void *[]){}, 0);
@@ -1347,7 +1356,8 @@ void import_arm_run_brush_from_project(project_t *project, char *path) {
 	for (i32 i = 0; i < project->brush_nodes->length; ++i) {
 		ui_node_canvas_t *c = util_clone_canvas(project->brush_nodes->buffer[i]);
 		import_arm_init_nodes(c->nodes);
-		g_context->brush = slot_brush_create(c);
+		g_context->brush       = slot_brush_create(c);
+		g_context->brush->meta = project_format_load_meta(project, MC_BRUSH, i);
 		any_array_push(g_project->_->brushes, g_context->brush);
 		any_array_push(imported, g_context->brush);
 		make_material_parse_brush();
