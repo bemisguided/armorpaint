@@ -584,10 +584,13 @@ void script_fill_layer(void) {
 	g_context->ddirty              = 2;
 }
 
+// The canvas of the current material, for a script that edits (or only looks up nodes to edit): counts as a canvas change for
+// util_version_graph, so the image nodes capture again (see util/util_version.c)
 static ui_node_canvas_t *script_material_canvas(void) {
 	if (g_context == NULL || g_context->material == NULL) {
 		return NULL;
 	}
+	util_version_graph_bump(g_context->material);
 	return g_context->material->canvas;
 }
 
@@ -1636,6 +1639,7 @@ static ui_node_socket_t *script_material_socket(ui_node_t *node, bool is_input, 
 }
 
 void script_material_set_float(ui_node_t *node, i32 is_input, i32 socket, f32 value) {
+	util_version_graph_bump(g_context != NULL ? g_context->material : NULL);
 	ui_node_socket_t *soc = script_material_socket(node, is_input != 0, socket);
 	if (soc == NULL || soc->default_value == NULL || soc->default_value->length < 1) {
 		return;
@@ -1644,6 +1648,7 @@ void script_material_set_float(ui_node_t *node, i32 is_input, i32 socket, f32 va
 }
 
 void script_material_set_color(ui_node_t *node, i32 is_input, i32 socket, f32 r, f32 g, f32 b, f32 a) {
+	util_version_graph_bump(g_context != NULL ? g_context->material : NULL);
 	ui_node_socket_t *soc = script_material_socket(node, is_input != 0, socket);
 	if (soc == NULL || soc->default_value == NULL || soc->default_value->length < 3) {
 		return;
@@ -1657,6 +1662,7 @@ void script_material_set_color(ui_node_t *node, i32 is_input, i32 socket, f32 r,
 }
 
 void script_material_set_vector(ui_node_t *node, i32 is_input, i32 socket, f32 x, f32 y, f32 z) {
+	util_version_graph_bump(g_context != NULL ? g_context->material : NULL);
 	ui_node_socket_t *soc = script_material_socket(node, is_input != 0, socket);
 	if (soc == NULL || soc->default_value == NULL || soc->default_value->length < 3) {
 		return;
@@ -1667,6 +1673,7 @@ void script_material_set_vector(ui_node_t *node, i32 is_input, i32 socket, f32 x
 }
 
 void script_material_set_button(ui_node_t *node, i32 button, f32 value) {
+	util_version_graph_bump(g_context != NULL ? g_context->material : NULL);
 	if (node == NULL || button < 0 || button >= node->buttons->length) {
 		return;
 	}
@@ -1678,6 +1685,7 @@ void script_material_set_button(ui_node_t *node, i32 button, f32 value) {
 }
 
 void script_material_set_text(ui_node_t *node, i32 button, char *text) {
+	util_version_graph_bump(g_context != NULL ? g_context->material : NULL);
 	if (node == NULL || text == NULL || button < 0 || button >= node->buttons->length) {
 		return;
 	}
