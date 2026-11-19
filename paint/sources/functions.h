@@ -814,6 +814,7 @@ void                   project_reimport_texture_load(char *path, asset_t *asset)
 gpu_texture_t         *project_get_image(asset_t *asset);
 asset_t_array_t       *project_get_assets();
 void                   project_assign_object_id(mesh_object_t *o);
+void                   project_set_object_id(mesh_object_t *o, i32 id);
 bool                   project_packed_asset_exists(packed_asset_t_array_t *packed_assets, char *name);
 void                   project_export_swatches();
 swatch_color_t        *project_make_swatch(i32 base);
