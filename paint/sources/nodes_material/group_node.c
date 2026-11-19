@@ -15,6 +15,9 @@ char *group_node_value(ui_node_t *node, ui_node_socket_t *socket) {
 
 void nodes_material_new_group_button(i32 node_id) {
 	ui_node_t *node = ui_get_node(ui_nodes_get_canvas(true)->nodes, node_id);
+	if (node == NULL) {
+		return;
+	}
 	if (string_equals(node->name, "New Group")) {
 		for (i32 i = 1; i < 999; ++i) {
 			node->name = string("%s %s", tr("Group"), i32_to_string(i));
@@ -89,7 +92,7 @@ void nodes_material_new_group_button(i32 node_id) {
 		}
 	}
 	if (ui_icon_button(tr("Nodes"), ICON_NODES, UI_ALIGN_CENTER)) {
-		any_array_push(ui_nodes_group_stack, group);
+		ui_nodes_group_enter = group; // Entered after the canvas is drawn, see ui_nodes_update
 	}
 }
 

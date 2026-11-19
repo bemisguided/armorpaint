@@ -310,6 +310,7 @@ i32                   ui_nodes_grid_cell_w       = 200;
 i32                   ui_nodes_grid_small_cell_w = 40;
 ui_window_t          *ui_nodes_hwnd;
 node_group_t_array_t *ui_nodes_group_stack;
+node_group_t         *ui_nodes_group_enter; // Group chosen by a Nodes button while drawing, pushed on the stack after the draw
 f32                   ui_nodes_last_zoom = 1.0;
 i32                   _ui_nodes_type; // Group socket edit box
 char                 *_ui_nodes_name = "";
