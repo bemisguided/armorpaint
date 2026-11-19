@@ -1308,8 +1308,8 @@ static i32_array_t *_layer_overlap_make_key(slot_layer_t *l) {
 			i32_array_push(covered, o->paint_id);
 		}
 	}
-	i32_array_sort(covered, _util_udim_compare_i32);
-	i32_array_sort(live, _util_udim_compare_i32);
+	i32_array_sort(covered, util_udim_compare_i32);
+	i32_array_sort(live, util_udim_compare_i32);
 	i32_array_t *key = i32_array_create(0);
 	i32_array_push(key, covered->length);
 	for (i32 i = 0; i < covered->length; ++i) {
