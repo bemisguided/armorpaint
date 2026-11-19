@@ -34,7 +34,34 @@ static void texture_slot_node_button(i32 node_id) {
 	ui_combo(&sel, labels, tr("Bake Type"), false, UI_ALIGN_LEFT, true);
 	values->buffer[0] = sel < count ? asset_bake_type_at(sel) : btp;
 
-	node->buttons->buffer[0]->height = 1.5;
+	// Informational hint, dim, wrapped to the node width. The height follows on the next draw.
+	i32 lines = 0;
+	if (util_uv_overlap_covered(g_context->layer)) {
+		char *text  = tr("Several covered objects share UV space.");
+		i32   len   = string_length(text);
+		i32   start = 0;
+		i32   col   = g_theme->TEXT_COL;
+		g_theme->TEXT_COL = base_darker(col, 0x00202020);
+		while (start < len) {
+			i32 end        = start;
+			i32 last_space = -1;
+			while (end < len && draw_sub_string_width(g_font, g_ui->font_size, text, start, end + 1) <= g_ui->_w) {
+				if (text[end] == ' ') {
+					last_space = end;
+				}
+				end++;
+			}
+			if (end < len && last_space > start) {
+				end = last_space;
+			}
+			end = end == start ? start + 1 : end; // Always advance
+			ui_text(substring(text, start, end), UI_ALIGN_LEFT, 0x00000000);
+			lines++;
+			start = end < len && text[end] == ' ' ? end + 1 : end;
+		}
+		g_theme->TEXT_COL = col;
+	}
+	node->buttons->buffer[0]->height = 1.5 + lines;
 	ui_pop_id();
 	ui_pop_id();
 }
