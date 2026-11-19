@@ -240,6 +240,8 @@ void history_new_material_slot(history_step_t *step) {
 	g_context->material->meta   = step->meta;
 	ui_nodes_canvas_changed();
 	ui_nodes_hwnd->redraws = 2;
+	// The new slot has a blank preview and no shader yet
+	tab_materials_update_material();
 }
 
 void history_delete_material_slot(history_step_t *step) {
