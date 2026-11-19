@@ -47,6 +47,7 @@ Array
 Asset
 Attribut
 Automatisch
+
 Mittelwert
 Achse
 B
@@ -257,6 +258,7 @@ Fehler: Textur konnte nicht gefunden werden
 Fehler: Fontdaten konnten nicht gelesen werden
 Fehler: Meshdaten konnten nicht gelesen werden
 Fehler: Unbekanntes Asset Format
+
 Ausschluss
 Beenden
 Experimentelle Funktionen
@@ -420,6 +422,8 @@ Stufen
 Lebensdauer
 Aufhellen
 Lightmap
+
+
 Linear
 Lineares Licht
 Beleuchtet (Lit)
@@ -496,7 +500,9 @@ Neues Theme
 Neue weiße Maske
 Weiter
 Nein
+
 Keine Antwort
+
 Node
 Node Vorschauen
 Nodes
@@ -511,6 +517,7 @@ Normal Map 2
 Normieren
 Nicht verfügbar im Debug Build
 Nicht implementiert
+
 
 OK
 Objekt
@@ -543,6 +550,7 @@ Ursprung zur Geometrie
 Orthografisch
 Ausgang
 Überlagern
+
 
 
 
@@ -786,6 +794,7 @@ Theme
 Theme importiert:
 Dicke
 
+
 Kachel
 
 Kachel X
@@ -793,6 +802,8 @@ Kachel Y
 Gekachelt
 Kacheln X
 Kacheln Y
+
+
 
 Tilesheet
 Tilesheet Animation
@@ -912,7 +923,9 @@ Dreiecke
 Typ
 unbenannt
 x
+
 {shortcut} und Maus bewegen
+
 
 
 

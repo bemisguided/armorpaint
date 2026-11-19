@@ -47,6 +47,7 @@ Réseau
 Asset
 Attributs
 Auto
+
 Moyenne
 Axe
 B
@@ -257,6 +258,7 @@ Erreur : Impossible de localiser la texture
 Erreur : Échec lecture données police
 Erreur : Échec lecture données maillage
 Erreur : Format de ressource inconnu
+
 Exclusion
 Quitter
 Fonctionnalités expérimentales
@@ -420,6 +422,8 @@ Niveaux
 Durée de vie
 Éclaircir
 Carte de lumière
+
+
 Linéaire
 Lumière linéaire
 Éclairé
@@ -496,7 +500,9 @@ Nouveau thème
 Nouveau masque blanc
 Suivant
 Non
+
 Aucune réponse
+
 Nœud
 Aperçus de nœuds
 Nœuds
@@ -511,6 +517,7 @@ Carte de normales 2
 Normaliser
 Non disponible dans la version de débogage
 Non implémenté
+
 
 OK
 Objet
@@ -543,6 +550,7 @@ Origine vers la géométrie
 Orthographique
 Sortie
 Superposer
+
 
 
 
@@ -786,6 +794,7 @@ Thème
 Thème importé :
 Épaisseur
 
+
 Tuile
 
 Tuile X
@@ -793,6 +802,8 @@ Tuile Y
 Carrelé
 Tuiles X
 Tuiles Y
+
+
 
 Feuille de tuiles
 Animation de feuille de tuiles
@@ -912,7 +923,9 @@ triangles
 type
 sans titre
 x
+
 {shortcut} et déplacer la souris
+
 
 
 

@@ -47,6 +47,7 @@ Matriz
 Recurso
 Atributo
 Automático
+
 Promedio
 Ejes
 A
@@ -257,6 +258,7 @@ Error: No se pudo localizar la textura
 Error: Fallo al leer datos de fuente
 Error: No se pudieron leer los datos de la malla
 Error: formato de recurso desconocido
+
 Exclusión
 Salir
 Funciones experimentales
@@ -420,6 +422,8 @@ Niveles
 Tiempo de vida
 Aclarar
 Mapa de luz
+
+
 Lineal
 Luz lineal
 Iluminado
@@ -496,7 +500,9 @@ Nuevo Tema
 Nueva máscara blanca
 Siguiente
 No
+
 Sin respuesta
+
 Nodo
 Vistas previas de nodos
 Nodos
@@ -511,6 +517,7 @@ Mapa de normales 2
 Normalizar
 No disponible en la compilación de depuración
 No implementado
+
 
 OK
 Objeto
@@ -543,6 +550,7 @@ Origen a la geometría
 Ortográfica
 Salida
 Superponer
+
 
 
 
@@ -786,6 +794,7 @@ Tema
 Tema importado:
 Grosor
 
+
 Mosaico
 
 Mosaico X
@@ -793,6 +802,8 @@ Mosaico Y
 Tileado
 Mosaicos X
 Mosaicos Y
+
+
 
 Hoja de mosaicos
 Animación de hoja de mosaicos
@@ -912,7 +923,9 @@ Triángulos
 tipo
 Sin título
 x
+
 {shortcut} y mover ratón
+
 
 
 

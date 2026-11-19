@@ -47,6 +47,7 @@ Pole
 Asset
 Atribut
 Automaticky
+
 Průměr
 Osa
 B
@@ -257,6 +258,7 @@ Chyba: Nelze najít texturu
 Chyba: Selhání čtení dat písma
 Chyba: Selhání čtení dat sítě
 Chyba: Neznámý formát assetu
+
 Vyloučení
 Ukončit
 Experimentální funkce
@@ -420,6 +422,8 @@ Menší než
 Životnost
 Zesvětlit
 Mapa osvětlení
+
+
 Lineární
 Lineární světlo
 Osvětlený
@@ -496,7 +500,9 @@ Nové téma
 Nová bílá maska
 Další
 Ne
+
 Žádná odpověď
+
 Uzel
 Náhledy uzlů
 Uzly
@@ -511,6 +517,7 @@ Normálová mapa 2
 Normalizovat
 Není dostupné v ladicím buildu
 Neimplementováno
+
 
 OK
 Objekt
@@ -543,6 +550,7 @@ Počátek na geometrii
 Ortografie
 Výstup
 Překrytí
+
 
 
 
@@ -786,6 +794,7 @@ Téma
 Téma importováno:
 Tloušťka
 
+
 Dlaždice
 
 Dlaždice X
@@ -793,6 +802,8 @@ Dlaždice Y
 Dlaždicový
 Dlaždic X
 Dlaždic Y
+
+
 
 Dlaždicová mapa
 Animace dlaždicové mapy
@@ -912,7 +923,9 @@ trojúhelníky
 typ
 bez názvu
 x
+
 {shortcut} a pohyb myší
+
 
 
 

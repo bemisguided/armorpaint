@@ -47,6 +47,7 @@ Szyk
 Zasób
 Atrybut
 Automatyczny
+
 Średnia
 Oś
 B
@@ -257,6 +258,7 @@ Błąd: Nie można zlokalizować tekstury
 Błąd: Nie udało się odczytać danych czcionki
 Błąd: Nie udało się odczytać danych modelu
 Błąd: Nieznany format zasobu
+
 Wykluczenie
 Wyjście
 Funkcje eksperymentalne
@@ -420,6 +422,8 @@ Poziomy
 Czas życia
 Rozjaśnienie
 Lightmapa
+
+
 Liniowy
 Liniowe światło
 Oświetlony
@@ -496,7 +500,9 @@ Nowy motyw
 Nowa biała maska
 Następny
 Nie
+
 Brak odpowiedzi
+
 Węzeł
 Podglądy węzłów
 Węzły
@@ -511,6 +517,7 @@ Mapa normalnych 2
 Normalizuj
 Niedostępne w kompilacji debugowania
 Nie zaimplementowano
+
 
 OK
 Obiekt
@@ -543,6 +550,7 @@ Orientacja 3D
 Ortograficzny
 Wyjście
 Nakładka
+
 
 
 
@@ -786,6 +794,7 @@ Motyw
 Motyw zaimportowany:
 Grubość
 
+
 Kafelek
 
 Kafelek X
@@ -793,6 +802,8 @@ Kafelek Y
 Kafelkowany
 Kafelków X
 Kafelków Y
+
+
 
 Arkusz kafelków
 Animacja arkusza kafelków
@@ -912,7 +923,9 @@ trójkąty
 typ
 bez tytułu
 x
+
 {shortcut} i poruszaj myszą
+
 
 
 

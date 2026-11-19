@@ -47,6 +47,7 @@ Tömb
 Asset
 Attribútum
 Auto
+
 Átlag
 Tengely
 B
@@ -257,6 +258,7 @@ Hiba: A textúra nem található
 Hiba: Nem sikerült beolvasni a betűtípus adatokat
 Hiba: Nem sikerült beolvasni a háló adatokat
 Hiba: Ismeretlen asset formátum
+
 Kizárás
 Kilépés
 Kísérleti funkciók
@@ -420,6 +422,8 @@ Szintek
 Élettartam
 Világosítás
 Lightmap
+
+
 Lineáris
 Lineáris fény
 Megvilágított
@@ -496,7 +500,9 @@ Neurális
 Új fehér maszk
 Következő
 Nem
+
 Nincs válasz
+
 Csomópont
 Csomópont előnézetek
 Csomópontok
@@ -511,6 +517,7 @@ Normal Map 2
 Normalizálás
 Nem elérhető hibakereső változatban
 Nincs megvalósítva
+
 
 OK
 Objektum
@@ -543,6 +550,7 @@ Origó a geometriához
 Ortografikus
 Kimenet
 Átfedés (Overlay)
+
 
 
 
@@ -786,6 +794,7 @@ Téma
 Téma importálva:
 Vastagság
 
+
 Mozaik
 
 Mozaik X
@@ -793,6 +802,8 @@ Mozaik Y
 Csempézett
 Mozaikok X
 Mozaikok Y
+
+
 
 Mozaiklap
 Mozaiklap animáció
@@ -912,7 +923,9 @@ Háromszögek
 típus
 Névtelen
 x
+
 {shortcut} és egér mozgatása
+
 
 
 

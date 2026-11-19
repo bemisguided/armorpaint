@@ -47,6 +47,7 @@ Array
 Aset
 Atribut
 Otomatis
+
 Rata-rata
 Sumbu
 B
@@ -257,6 +258,7 @@ Kesalahan: Tidak dapat menemukan tekstur
 Kesalahan: Gagal membaca data font
 Kesalahan: Gagal membaca data mesh
 Kesalahan: Format aset tidak dikenal
+
 Eksklusi
 Keluar
 Fitur Eksperimental
@@ -420,6 +422,8 @@ Tingkat
 Masa Hidup
 Cerahkan
 Peta Cahaya
+
+
 Linear
 Cahaya Linear
 Tercahayai
@@ -496,7 +500,9 @@ Tema Baru
 Masker Putih Baru
 Berikutnya
 Tidak
+
 Tidak ada respons
+
 Node
 Pratinjau Node
 Node
@@ -511,6 +517,7 @@ Peta Normal 2
 Normalisasi
 Tidak tersedia di build debug
 Belum diimplementasikan
+
 
 OK
 Objek
@@ -543,6 +550,7 @@ Origin ke Geometri
 Ortografis
 Keluar
 Hampar
+
 
 
 
@@ -786,6 +794,7 @@ Tema
 Tema diimpor:
 Ketebalan
 
+
 Petak
 
 Petak X
@@ -793,6 +802,8 @@ Petak Y
 Diubin
 Jumlah Petak X
 Jumlah Petak Y
+
+
 
 Tilesheet
 Animasi Tilesheet
@@ -912,7 +923,9 @@ segitiga
 jenis
 tanpa judul
 x
+
 {shortcut} dan gerakkan mouse
+
 
 
 
