@@ -575,11 +575,6 @@ void asset_selection_reorder(any_array_t *items, any_array_t *moving, i32 drop_p
 	array_delete(order);
 }
 
-// Frame colour of selected items that are not the active item
-u32 asset_selection_highlight_color() {
-	return (g_theme->HIGHLIGHT_COL & 0x00ffffff) | 0x80000000;
-}
-
 // dir/name.ext, or dir/name.001.ext and up when the file exists or is in the taken list; the result is added to it
 char *asset_selection_unique_path(char *dir, char *name, char *ext, string_array_t *taken) {
 	char *path = string("%s%s%s.%s", dir, PATH_SEP, name, ext);
