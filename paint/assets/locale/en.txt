@@ -739,7 +739,6 @@ Text Texture
 Text to Image
 Texture
 Texture Coordinate
-Texture Slot
 Texture imported:
 Texture...
 Textures

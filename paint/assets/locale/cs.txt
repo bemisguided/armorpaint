@@ -739,7 +739,6 @@ Textová textura
 Text na obrázek
 Textura
 Souřadnice textury
-
 Textura importována:
 Textura...
 Textury
