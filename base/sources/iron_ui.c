@@ -1169,10 +1169,11 @@ void ui_draw_combo() {
 	}
 
 	if ((current->input_released || current->input_released_r || current->is_escape_down || current->is_return_down) && !current->combo_first) {
-		if (current->is_return_down && current->combo_search_bar && !current->is_escape_down) {
+		bool no_match = current->combo_search_bar && current->combo_selected_texts_filtered == 0;
+		if (current->is_return_down && current->combo_search_bar && !current->is_escape_down && !no_match) {
 			current->submit_combo_id = current->combo_selected_id; // Apply the highlighted entry of the search
 		}
-		if (current->input_released_r || current->is_escape_down) {
+		if (current->input_released_r || current->is_escape_down || (current->is_return_down && no_match)) { // Nothing matches, keep the selection
 			current->submit_combo_id = current->combo_selected_id;
 			current->combo_to_submit = current->combo_initial_value;
 		}
