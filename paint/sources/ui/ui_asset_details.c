@@ -16,10 +16,20 @@ static any_array_t *ui_asset_details_items    = NULL; // Edited items (asset_t, 
 static char        *ui_asset_details_input    = "";   // New tag
 static char        *ui_asset_details_name     = "";   // Name field text, committed to the asset on Enter or focus loss
 static i32          ui_asset_details_ids[4];
-static bool         ui_asset_details_had_mixed[4]; // The field started mixed when the dialog opened: its Mixed entry stays in the combo list
+static bool         ui_asset_details_had_mixed[4];        // The field started mixed when the dialog opened: its Mixed entry stays in the combo list
 static i32          ui_asset_details_last_btp = BTP_NONE; // Last bake type chosen in this session, BTP_NONE = none yet
 // Metadata of each item from before the first change made through the open combo, see ui_asset_details_combo_commit
 static any_array_t *ui_asset_details_combo_prev = NULL;
+
+// Position of each edited item in the live list of its category the last time it was looked up, a hint that makes the lookup O(1)
+static i32_array_t *ui_asset_details_hints = NULL;
+
+// Tags of all edited items with the number of items that have each, rebuilt by ui_asset_details_tags_update when they change
+static string_array_t *ui_asset_details_tag_list  = NULL; // Owned copies, in order of first appearance, compared case-insensitively
+static i32_array_t    *ui_asset_details_tag_have  = NULL;
+static u64             ui_asset_details_tag_hash  = 0;
+static i32             ui_asset_details_tag_frame = -1;
+static bool            ui_asset_details_tag_valid = false;
 
 static i32 ui_asset_details_count() {
 	return ui_asset_details_items != NULL ? ui_asset_details_items->length : 0;
@@ -29,9 +39,17 @@ static bool ui_asset_details_multi() {
 	return ui_asset_details_count() > 1;
 }
 
-// Index of the i-th edited item in the live list of its category
+// Index of the i-th edited item in the live list of its category, -1 when it is gone. A selection of hundreds of items is looked up many
+// times a frame, so the position found last time is tried first and the list is only scanned when the item moved.
 static i32 ui_asset_details_index(i32 i) {
-	return meta_item_index(ui_asset_details_category, ui_asset_details_items->buffer[i]);
+	void *item = ui_asset_details_items->buffer[i];
+	i32   hint = ui_asset_details_hints->buffer[i];
+	if (hint >= 0 && hint < meta_count(ui_asset_details_category) && meta_item(ui_asset_details_category, hint) == item) {
+		return hint;
+	}
+	hint                              = meta_item_index(ui_asset_details_category, item);
+	ui_asset_details_hints->buffer[i] = hint;
+	return hint;
 }
 
 static meta_t *ui_asset_details_peek(i32 i) {
@@ -47,6 +65,7 @@ static void ui_asset_details_refresh() {
 	for (i32 i = ui_asset_details_count() - 1; i >= 0; --i) {
 		if (ui_asset_details_index(i) == -1) {
 			array_splice(ui_asset_details_items, i, 1);
+			i32_array_splice(ui_asset_details_hints, i, 1);
 			if (ui_asset_details_combo_prev != NULL) {
 				meta_free(ui_asset_details_combo_prev->buffer[i]);
 				array_splice(ui_asset_details_combo_prev, i, 1);
@@ -90,7 +109,8 @@ static bool ui_asset_details_combo(i32 *value, string_array_t *ar, i32_array_t *
 	}
 	ui_set_next_id((ui_id_t)&ui_asset_details_ids[id_slot]);
 	ui_combo(&pos, ar, label, true, UI_ALIGN_LEFT, true);
-	bool changed = ui_item_changed() && ids->buffer[pos] != *value && ids->buffer[pos] != UI_ASSET_DETAILS_MIXED; // Escape hands back the old value, Mixed again changes nothing
+	bool changed = ui_item_changed() && ids->buffer[pos] != *value &&
+	               ids->buffer[pos] != UI_ASSET_DETAILS_MIXED; // Escape hands back the old value, Mixed again changes nothing
 	if (changed) {
 		*value = ids->buffer[pos];
 	}
@@ -205,30 +225,58 @@ static void ui_asset_details_draw_name() {
 	}
 }
 
-// Tags of all items in order of first appearance, compared like meta_has_tag (case-insensitive). The strings belong to the metas.
-static any_array_t *ui_asset_details_tags() {
-	any_array_t *tags = any_array_create(0);
+// Rebuilds the tag list of the edited items when their metadata changed (checked once per frame, no string is read for it)
+static void ui_asset_details_tags_update() {
+	if (ui_asset_details_tag_valid && ui_asset_details_tag_frame == g_context->frame) {
+		return;
+	}
+	u64 hash = 0xcbf29ce484222325ull ^ (u64)ui_asset_details_count();
+	for (i32 i = 0; i < ui_asset_details_count(); ++i) {
+		hash = ui_asset_tags_hash(ui_asset_details_peek(i), hash);
+	}
+	ui_asset_details_tag_frame = g_context->frame;
+	if (ui_asset_details_tag_valid && ui_asset_details_tag_hash == hash) {
+		return;
+	}
+	for (i32 i = 0; ui_asset_details_tag_list != NULL && i < ui_asset_details_tag_list->length; ++i) {
+		free(ui_asset_details_tag_list->buffer[i]);
+	}
+	array_delete(ui_asset_details_tag_list);
+	array_delete(ui_asset_details_tag_have);
+	ui_asset_details_tag_list = string_array_create(0);
+	ui_asset_details_tag_have = i32_array_create(0);
+	string_array_t *lower     = string_array_create(0);
+	i32_array_t    *last_item = i32_array_create(0); // Last item counted for the tag, a tag twice on one item counts once
 	for (i32 i = 0; i < ui_asset_details_count(); ++i) {
 		meta_t *m = ui_asset_details_peek(i);
 		for (i32 j = 0; m != NULL && m->tags != NULL && j < m->tags->length; ++j) {
-			char *t     = m->tags->buffer[j];
-			bool  known = false;
-			for (i32 k = 0; k < tags->length && !known; ++k) {
-				known = string_equals(string_to_lower_tmp(tags->buffer[k]), string_to_lower_tmp(t));
+			char *t = m->tags->buffer[j];
+			char *l = string_to_lower_tmp(t);
+			i32   k = string_array_index_of(lower, l);
+			if (k < 0) {
+				char *copy = malloc(strlen(t) + 1);
+				strcpy(copy, t);
+				string_array_push(ui_asset_details_tag_list, copy);
+				string_array_push(lower, l);
+				i32_array_push(ui_asset_details_tag_have, 0);
+				i32_array_push(last_item, -1);
+				k = lower->length - 1;
 			}
-			if (!known) {
-				any_array_push(tags, t);
+			if (last_item->buffer[k] != i) {
+				last_item->buffer[k] = i;
+				ui_asset_details_tag_have->buffer[k]++;
 			}
 		}
 	}
-	return tags;
+	array_delete(lower);
+	array_delete(last_item);
+	ui_asset_details_tag_hash  = hash;
+	ui_asset_details_tag_valid = true;
 }
 
 static i32 ui_asset_details_tag_count() {
-	any_array_t *tags  = ui_asset_details_tags();
-	i32          count = tags->length;
-	array_delete(tags);
-	return count;
+	ui_asset_details_tags_update();
+	return ui_asset_details_tag_list->length;
 }
 
 // Adds (or removes) the tag on every item, one undo step
@@ -243,6 +291,7 @@ static void ui_asset_details_set_tag(char *tag, bool add) {
 		}
 	}
 	ui_asset_details_push_edit(prev);
+	ui_asset_details_tag_valid = false;
 	base_redraw_ui();
 }
 
@@ -250,16 +299,14 @@ static void ui_asset_details_draw_tags() {
 	ui_text(tr("Tags"), UI_ALIGN_LEFT, 0x00000000);
 
 	// A tag on all items: name and X. A tag on some items only: dimmed name with the share, + adds it to the others, X removes it from all.
-	any_array_t *tags = ui_asset_details_tags();
-	i32          n    = ui_asset_details_count();
-	char        *edit = NULL;
-	bool         add  = false;
+	ui_asset_details_tags_update();
+	string_array_t *tags = ui_asset_details_tag_list;
+	i32             n    = ui_asset_details_count();
+	char           *edit = NULL;
+	bool            add  = false;
 	for (i32 i = 0; i < tags->length; ++i) {
 		char *t    = tags->buffer[i];
-		i32   have = 0;
-		for (i32 j = 0; j < n; ++j) {
-			have += meta_has_tag(ui_asset_details_peek(j), t) ? 1 : 0;
-		}
+		i32   have = ui_asset_details_tag_have->buffer[i];
 		if (have == n) {
 			f32_array_t *row = f32_array_create_from_raw_tmp(
 			    (f32[]){
@@ -297,9 +344,8 @@ static void ui_asset_details_draw_tags() {
 		}
 	}
 	if (edit != NULL) {
-		ui_asset_details_set_tag(string_copy(edit), add); // Copied, removing shifts the tag arrays
+		ui_asset_details_set_tag(string_copy(edit), add); // Copied, the tag list is rebuilt
 	}
-	array_delete(tags);
 
 	f32_array_t *row = f32_array_create_from_raw_tmp(
 	    (f32[]){
@@ -540,7 +586,13 @@ void ui_asset_details_show(i32 category, i32 index) {
 		any_array_push(items, item);
 	}
 	array_delete(ui_asset_details_items);
-	ui_asset_details_items      = items;
+	ui_asset_details_items = items;
+	array_delete(ui_asset_details_hints);
+	ui_asset_details_hints = i32_array_create(0);
+	for (i32 i = 0; i < items->length; ++i) {
+		i32_array_push(ui_asset_details_hints, -1);
+	}
+	ui_asset_details_tag_valid  = false;
 	ui_asset_details_category   = category;
 	ui_asset_details_combo_prev = NULL;
 	ui_asset_details_input      = "";
