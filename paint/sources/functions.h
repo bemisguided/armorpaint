@@ -1474,6 +1474,7 @@ bool                   sculpt_layer_mask_texels(slot_layer_t *l, f32 *out, i32 l
 gpu_texture_t         *sculpt_get_remap_texture();
 gpu_texture_t         *sculpt_get_adj_texture(i32 i);
 gpu_texture_t            *sculpt_get_coverage_texture();
+void                      sculpt_update_coverage_texture();
 f32                    sculpt_get_cloth_drag();
 void                   sculpt_layers_create_sculpt_layer();
 void                   render_path_sculpt_displace_pass(char *texpaint_sculpt);
