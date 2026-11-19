@@ -243,6 +243,7 @@
 #include "util/util_udim.c"
 #include "util/util_ui.c"
 #include "util/util_uv.c"
+#include "util/util_uv_overlap.c"
 #include "util/util_uv_unwrap.c"
 
 #include "account.c"
