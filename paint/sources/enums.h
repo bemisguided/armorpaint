@@ -665,4 +665,3 @@ typedef enum {
 	BTP_BENT_NORMAL   = 13,
 	BTP_THICKNESS     = 14,
 } bake_type_persistent_t;
-
