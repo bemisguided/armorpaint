@@ -173,18 +173,14 @@ static void tile_generator_node_draw_tile(u8 *pattern, i32 size, f32 *result, f3
 	i32 x1     = (i32)math_ceil((center_x + radius) * size);
 	i32 y0     = (i32)math_floor((center_y - radius) * size);
 	i32 y1     = (i32)math_ceil((center_y + radius) * size);
-	if (x1 - x0 > size) {
-		x1 = x0 + size; // A tile wider than the image covers each pixel once
-	}
-	if (y1 - y0 > size) {
-		y1 = y0 + size;
-	}
 	if (!wrap) {
 		x0 = x0 < 0 ? 0 : x0; // The part outside the image is dropped
 		y0 = y0 < 0 ? 0 : y0;
 		x1 = x1 > size ? size : x1;
 		y1 = y1 > size ? size : y1;
 	}
+	// With wrap the whole window around the tile is walked and every index wrapped, also a tile larger than the image
+	// (Scale is at most 2, so the window is at most about three images wide)
 	for (i32 iy = y0; iy < y1; ++iy) {
 		f32 dy = (iy + 0.5) / size - center_y;
 		i32 wy = wrap ? ((iy % size) + size) % size : iy;
