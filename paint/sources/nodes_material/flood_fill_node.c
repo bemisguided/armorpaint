@@ -61,6 +61,8 @@ static void flood_fill_node_params(ui_node_t *node, void *params) {
 	f32                  seed     = make_image_node_input_value(node, FLOOD_FILL_INPUT_SEED);
 	p->connectivity8              = flood_fill_node_button(node, FLOOD_FILL_BUTTON_CONNECTIVITY) != 0.0;
 	p->wrap                       = flood_fill_node_button(node, FLOOD_FILL_BUTTON_WRAP) != 0.0;
+	seed                          = seed > 4294967040.0 ? 4294967040.0 : seed; // Below the u32 and i32 limits: a huge linked value must not overflow the casts
+	min_size                      = min_size > 2147483520.0 ? 2147483520.0 : min_size;
 	p->seed                       = (u32)math_floor(seed > 0.0 ? seed : 0.0);
 	p->min_size                   = (i32)math_floor(min_size > 0.0 ? min_size : 0.0);
 }
