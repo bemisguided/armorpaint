@@ -169,7 +169,7 @@ static i32 shape_generator_node_process(u8 *bytes, i32 size, void *params, f32 *
 
 static image_node_type_t shape_generator_node_image_type = {
     .type          = "TEX_SHAPE_GENERATOR",
-    .result_format = GPU_TEXTURE_FORMAT_RGBA128,
+    .result_format = GPU_TEXTURE_FORMAT_RGBA128, // RGBA128 on purpose: Edge Softness makes ramps as wide as the image that a Bump node or a blur reads, half floats would band at 4096
     .params_size   = sizeof(shape_generator_params_t),
     .size          = shape_generator_node_size,
     .capture       = shape_generator_node_capture,
