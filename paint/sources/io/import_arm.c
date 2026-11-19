@@ -826,7 +826,7 @@ void import_arm_run_project(char *path) {
 	g_context->layer_filter_tile    = 0;
 	ui_header_draw_progress(0.1);
 
-	i32 progress_assets = project->assets->length + (project->sound_assets != NULL ? project->sound_assets->length : 0);
+	i32 progress_assets = (project->assets != NULL ? project->assets->length : 0) + (project->sound_assets != NULL ? project->sound_assets->length : 0);
 	i32 progress_loaded = 0;
 	i32 progress_bytes  = 1;
 	if (project->packed_assets != NULL) {
