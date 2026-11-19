@@ -54,6 +54,8 @@ B
 Zadní
 Zapékat
 Zapékat materiál...
+
+
 Zapékání textury
 Zapékat do textur
 

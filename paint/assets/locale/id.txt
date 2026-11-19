@@ -54,6 +54,8 @@ B
 Belakang
 Bake
 Bake Material...
+
+
 Bake Tekstur
 Bake ke Tekstur
 

@@ -54,6 +54,8 @@ B
 Back
 Bake
 Bake Material...
+Bake Properties
+Bake Properties...
 Bake Texture
 Bake to Textures
 Baked

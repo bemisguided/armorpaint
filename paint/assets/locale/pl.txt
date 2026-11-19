@@ -54,6 +54,8 @@ B
 Tył
 Wypalanie
 Wypalanie materiału...
+
+
 Wypalanie tekstury
 Wypal do tekstur
 
