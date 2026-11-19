@@ -393,6 +393,7 @@ Opasitas Lapisan
 Skala UV Lapisan
 Jenis UV Lapisan
 Visibilitas Lapisan
+
 Lapisan
 Radius Malas
 Langkah Malas

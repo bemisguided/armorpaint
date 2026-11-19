@@ -393,6 +393,7 @@ Krytí vrstvy
 Měřítko UV vrstvy
 Typ UV vrstvy
 Viditelnost vrstvy
+
 Vrstvy
 Líný poloměr
 Líný krok

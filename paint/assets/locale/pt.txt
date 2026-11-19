@@ -393,6 +393,7 @@ Opacidade da Camada
 Escala UV da Camada
 Tipo de UV da Camada
 Visibilidade da Camada
+
 Camadas
 Raio Preguiçoso
 Passo Preguiçoso

@@ -1042,8 +1042,7 @@ void render_path_paint_stroke_start() {
 	    t == TOOL_TYPE_BRUSH || t == TOOL_TYPE_ERASER || t == TOOL_TYPE_DECAL || t == TOOL_TYPE_TEXT || t == TOOL_TYPE_CLONE || t == TOOL_TYPE_BLUR;
 	render_path_paint_stroke_skipped = false;
 	render_path_paint_cover_pick     = history_push_undo && stroke_tool && !g_context->paint2d && g_context->layer->texpaint_sculpt == NULL &&
-	                                   !slot_layer_is_path(g_context->layer) &&
-	                                   (layer_objects_restricted(g_context->layer) || layer_tiles_tested(g_context->layer));
+	                                   !slot_layer_is_path(g_context->layer) && layer_is_restricted(g_context->layer);
 }
 
 void render_path_paint_stroke_end() {
@@ -1063,7 +1062,7 @@ static bool render_path_paint_stroke_start_covered() {
 	g_context->pdirty         = _pdirty;
 	make_material_parse_paint_material(false);
 	render_path_base_draw_gbuffer();
-	bool covered = o == NULL || layer_covers_object(g_context->layer, o);
+	bool covered = o == NULL || layer_covers_object_on_tile(g_context->layer, o);
 	if (covered && o != NULL && layer_tiles_tested(g_context->layer)) {
 		// A multi-tile object can be covered on some of its tiles only, the atlas uv under the cursor gives the tile
 		util_render_pick_pos_nor_tex(); // Reads the gbuffer drawn above

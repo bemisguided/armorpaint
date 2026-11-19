@@ -393,6 +393,7 @@ Layer Opacity
 Layer UV Scale
 Layer UV Type
 Layer Visibility
+Layer's objects are not on its tiles
 Layers
 Lazy Radius
 Lazy Step
