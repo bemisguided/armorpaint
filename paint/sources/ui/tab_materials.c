@@ -31,11 +31,13 @@ void tab_materials_update_material() {
 }
 
 static void *tab_materials_duplicate(void *source) {
-	g_context->material = slot_material_create(g_project->_->materials->buffer[0]->data, NULL);
+	slot_material_t *from = source;
+	g_context->material   = slot_material_create(g_project->_->materials->buffer[0]->data, NULL);
 	any_array_push(g_project->_->materials, g_context->material);
-	ui_node_canvas_t *cloned    = util_clone_canvas(((slot_material_t *)source)->canvas);
+	ui_node_canvas_t *cloned    = util_clone_canvas(from->canvas);
 	cloned->name                = string_copy(slot_material_unique_name(cloned, cloned->name));
 	g_context->material->canvas = cloned;
+	g_context->material->meta   = from->meta != NULL ? meta_copy(from->meta) : NULL;
 	tab_materials_update_material();
 	history_duplicate_material();
 	return g_context->material;

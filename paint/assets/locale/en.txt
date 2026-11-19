@@ -220,6 +220,7 @@ Duplicate Layer
 Duplicate Material
 Duplicate Swatch
 Edit
+Edit Details
 Edit Image
 Edit Nodes
 Edit Script
@@ -592,6 +593,7 @@ Reimport Mesh
 Reimport Textures
 Relative Offset
 Remove
+Rename
 Rename Layer
 Renderer
 Reoriented

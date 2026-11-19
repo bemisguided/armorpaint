@@ -36,11 +36,13 @@ void tab_brushes_draw_make_selected_preview(void *_) {
 }
 
 static void *tab_brushes_duplicate(void *source) {
-	g_context->brush = slot_brush_create(NULL);
+	slot_brush_t *from = source;
+	g_context->brush   = slot_brush_create(NULL);
 	any_array_push(g_project->_->brushes, g_context->brush);
-	ui_node_canvas_t *cloned = util_clone_canvas(((slot_brush_t *)source)->canvas);
+	ui_node_canvas_t *cloned = util_clone_canvas(from->canvas);
 	cloned->name             = string_copy(slot_brush_unique_name(cloned, cloned->name));
 	g_context->brush->canvas = cloned;
+	g_context->brush->meta   = from->meta != NULL ? meta_copy(from->meta) : NULL;
 	context_set_brush(g_context->brush);
 	util_render_make_brush_preview();
 	history_duplicate_brush();

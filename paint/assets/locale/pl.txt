@@ -220,6 +220,7 @@ Duplikuj warstwę
 Duplikuj materiał
 Duplikuj próbkę koloru
 Edytuj
+
 Edytuj obraz
 Edytuj węzły
 Edytuj skrypt
@@ -592,6 +593,7 @@ Zaimportuj model ponownie
 Zaimportuj tekstury ponownie
 Przesunięcie względne
 Usuń
+
 Zmień nazwę warstwy
 Renderer
 Przeorientowany

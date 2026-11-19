@@ -220,6 +220,7 @@ Réteg duplikálása
 Anyag duplikálása
 Színminta duplikálása
 Szerkesztés
+
 Kép szerkesztése
 Csomópontok szerkesztése
 Szkript szerkesztése
@@ -592,6 +593,7 @@ Háló újraimportálása
 Textúrák újraimportálása
 Relatív eltolás
 Eltávolítás
+
 Réteg átnevezése
 Renderelő
 Áttájolt

@@ -607,6 +607,8 @@ typedef enum {
 	HISTORY_ACTION_REPLACE_SWATCHES,
 	HISTORY_ACTION_EDIT_SWATCH,
 	HISTORY_ACTION_OBJECT_TRANSFORM,
+	HISTORY_ACTION_RENAME_ASSET,
+	HISTORY_ACTION_EDIT_META,
 } history_action_t;
 
 // Kinds of items that carry metadata (meta_t.category), saved in project files: explicit numbers, never renumber or reuse.

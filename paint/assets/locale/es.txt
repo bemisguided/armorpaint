@@ -220,6 +220,7 @@ Duplicar capa
 Duplicar material
 Duplicar muestra
 Editar
+
 Editar imagen
 Editar nodos
 Editar script
@@ -592,6 +593,7 @@ Reimportar malla
 Reimportar texturas
 Desplazamiento relativo
 Eliminar
+
 Renombrar capa
 Renderizar
 Reorientado

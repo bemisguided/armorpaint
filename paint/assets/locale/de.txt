@@ -220,6 +220,7 @@ Ebene duplizieren
 Material duplizieren
 Farbfeld duplizieren
 Bearbeiten
+
 Bild bearbeiten
 Nodes bearbeiten
 Skript bearbeiten
@@ -592,6 +593,7 @@ Mesh neu importieren
 Texturen neu importieren
 Relativer Offset
 Entfernen
+
 Ebene umbenennen
 Renderer
 Umorientiert

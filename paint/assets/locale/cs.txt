@@ -220,6 +220,7 @@ Duplikovat vrstvu
 Duplikovat materiál
 Duplikovat vzorek
 Upravit
+
 Upravit obrázek
 Upravit uzly
 Upravit skript
@@ -592,6 +593,7 @@ Znovu importovat síť
 Znovu importovat textury
 Relativní posun
 Odstranit
+
 Přejmenovat vrstvu
 Renderovací engine
 Přeorientováno

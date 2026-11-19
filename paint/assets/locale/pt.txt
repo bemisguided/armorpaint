@@ -220,6 +220,7 @@ Duplicar Camada
 Duplicar Material
 Duplicar Amostra
 Editar
+
 Editar Imagem
 Editar Nós
 Editar Script
@@ -592,6 +593,7 @@ Reimportar Malha
 Reimportar Texturas
 Deslocamento Relativo
 Remover
+
 Renomear Camada
 Renderizador
 Reorientado

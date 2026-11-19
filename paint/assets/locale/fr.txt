@@ -220,6 +220,7 @@ Dupliquer le calque
 Dupliquer matériau
 Dupliquer l'échantillon
 Modifier
+
 Éditer image
 Modifier nœuds
 Modifier le script
@@ -592,6 +593,7 @@ Ré-importer le maillage
 Ré-importer les textures
 Décalage relatif
 Supprimer
+
 Renommer le calque
 Rendu
 Réorienté

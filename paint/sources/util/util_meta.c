@@ -278,3 +278,54 @@ i32 meta_item_index(i32 category, void *item) {
 	}
 	return -1;
 }
+
+// Renames a material, the name gets the .001 style suffix when taken. An empty or whitespace-only name is rejected and the old name stays.
+// Returns true when the name changed.
+bool asset_material_rename(slot_material_t *m, char *name) {
+	char *n = meta_trim(name);
+	if (m == NULL || string_equals(n, "")) {
+		return false;
+	}
+	n = slot_material_unique_name(m->canvas, n);
+	if (string_equals(m->canvas->name, n)) {
+		return false;
+	}
+	m->canvas->name = string_copy(n);
+	return true;
+}
+
+// Renames a brush, same rules as asset_material_rename
+bool asset_brush_rename(slot_brush_t *b, char *name) {
+	char *n = meta_trim(name);
+	if (b == NULL || string_equals(n, "")) {
+		return false;
+	}
+	n = slot_brush_unique_name(b->canvas, n);
+	if (string_equals(b->canvas->name, n)) {
+		return false;
+	}
+	b->canvas->name = string_copy(n);
+	return true;
+}
+
+// Renames the material or brush at index of a category (MC_MATERIAL, MC_BRUSH) and pushes one undo step.
+// No step when the name did not change. Returns true when the name changed.
+bool asset_rename(i32 category, i32 index, char *name) {
+	if (category == MC_MATERIAL && index >= 0 && index < g_project->_->materials->length) {
+		slot_material_t *m    = g_project->_->materials->buffer[index];
+		char            *prev = string_copy(m->canvas->name);
+		if (asset_material_rename(m, name)) {
+			history_rename_asset(MC_MATERIAL, index, prev);
+			return true;
+		}
+	}
+	else if (category == MC_BRUSH && index >= 0 && index < g_project->_->brushes->length) {
+		slot_brush_t *b    = g_project->_->brushes->buffer[index];
+		char         *prev = string_copy(b->canvas->name);
+		if (asset_brush_rename(b, name)) {
+			history_rename_asset(MC_BRUSH, index, prev);
+			return true;
+		}
+	}
+	return false;
+}

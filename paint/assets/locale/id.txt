@@ -220,6 +220,7 @@ Duplikat Lapisan
 Duplikat Material
 Duplikat Contoh Warna
 Sunting
+
 Sunting Gambar
 Sunting Node
 Sunting Skrip
@@ -592,6 +593,7 @@ Impor Ulang Mesh
 Impor Ulang Tekstur
 Offset Relatif
 Hapus
+
 Ganti Nama Lapisan
 Renderer
 Diorientasi Ulang
