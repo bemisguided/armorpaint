@@ -49,7 +49,7 @@ void nodes_material_init() {
 	tile_uv_node_init();
 	// Filter nodes, keep alphabetical by English name (the menu lists them in this order)
 	advanced_blur_node_init();
-	bevel_node_init();
+	distance_node_init();
 	edge_detect_node_init();
 	seamless_node_init();
 	transform_node_init();
