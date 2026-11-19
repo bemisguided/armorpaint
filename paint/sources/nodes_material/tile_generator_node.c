@@ -10,8 +10,8 @@
 // centre of its grid cell, so they are captured at a small fixed size (TILE_GENERATOR_MAP_SIZE, two captures: the maps
 // are packed R = B = first, G = second, A = third, which survives a red/blue swap of the readback) and read bilinear.
 // Tiles are drawn in row order, a later tile covers an earlier one where they overlap (Scale above 1, jitter), and
-// nothing is clipped to the cell. The image wraps, so a tile leaving one side comes back on the other and the result
-// repeats seamlessly. The texture is sampled like an Image Texture at tex_coord, repeating (Tile UV places it on the uv).
+// nothing is clipped to the cell. With Wrap Edges (default on) the image wraps, so a tile leaving one side comes back on the
+// other and the result repeats seamlessly; with it off the tiles are clipped at the image borders (Mask, ID and Position too). The texture is sampled like an Image Texture at tex_coord, repeating (Tile UV places it on the uv).
 
 #define TILE_GENERATOR_ID_FLOOR  1024.0
 #define TILE_GENERATOR_MAX_TILES 64
@@ -42,6 +42,7 @@ enum {
 	TILE_GENERATOR_BUTTON_SIZE         = 0, // Button 1 is the state row
 	TILE_GENERATOR_BUTTON_PATTERNS     = 2,
 	TILE_GENERATOR_BUTTON_PATTERN_MODE = 3,
+	TILE_GENERATOR_BUTTON_WRAP_EDGES   = 4,
 };
 
 // Output socket indices
@@ -63,6 +64,7 @@ enum {
 typedef struct tile_generator_params {
 	i32 patterns;
 	i32 mode; // Pattern Mode
+	i32 wrap; // Wrap Edges, 1 or 0
 	i32 tiles_x;
 	i32 tiles_y;
 	f32 scale;
@@ -127,6 +129,7 @@ static void tile_generator_node_params(ui_node_t *node, void *params) {
 	p->patterns                = tile_generator_node_patterns(node);
 	i32 mode                   = (i32)make_image_node_button(node, TILE_GENERATOR_BUTTON_PATTERN_MODE);
 	p->mode                    = mode < 0 ? 0 : mode > TILE_GENERATOR_MODE_BY_MAP ? TILE_GENERATOR_MODE_BY_MAP : mode;
+	p->wrap                    = make_image_node_button(node, TILE_GENERATOR_BUTTON_WRAP_EDGES) != 0.0 ? 1 : 0;
 	f32 tx                     = make_image_node_input_value(node, TILE_GENERATOR_INPUT_TILES_X);
 	f32 ty                     = make_image_node_input_value(node, TILE_GENERATOR_INPUT_TILES_Y);
 	p->tiles_x                 = (i32)tile_generator_node_clamp(math_floor(tx + 0.5), 1.0, TILE_GENERATOR_MAX_TILES);
@@ -155,9 +158,9 @@ static f32 tile_generator_node_random(u32 tile_hash, u32 i) {
 	return (f32)(tile_generator_node_mix(tile_hash, i + 1) & 0xffffff) / 16777216.0;
 }
 
-// Draws one tile (pattern at pixels, size * size RGBA8 grey) over result, wrapping at the image edges
+// Draws one tile (pattern at pixels, size * size RGBA8 grey) over result, wrapping at the image edges or clipped at them
 static void tile_generator_node_draw_tile(u8 *pattern, i32 size, f32 *result, f32 center_x, f32 center_y, f32 half_x, f32 half_y, f32 angle, f32 brightness,
-                                          f32 id) {
+                                          f32 id, bool wrap) {
 	f32 c      = math_cos(angle);
 	f32 s      = math_sin(angle);
 	f32 radius = math_sqrt(half_x * half_x + half_y * half_y);
@@ -171,9 +174,15 @@ static void tile_generator_node_draw_tile(u8 *pattern, i32 size, f32 *result, f3
 	if (y1 - y0 > size) {
 		y1 = y0 + size;
 	}
+	if (!wrap) {
+		x0 = x0 < 0 ? 0 : x0; // The part outside the image is dropped
+		y0 = y0 < 0 ? 0 : y0;
+		x1 = x1 > size ? size : x1;
+		y1 = y1 > size ? size : y1;
+	}
 	for (i32 iy = y0; iy < y1; ++iy) {
 		f32 dy = (iy + 0.5) / size - center_y;
-		i32 wy = ((iy % size) + size) % size;
+		i32 wy = wrap ? ((iy % size) + size) % size : iy;
 		for (i32 ix = x0; ix < x1; ++ix) {
 			f32 dx = (ix + 0.5) / size - center_x;
 			f32 lx = dx * c + dy * s;
@@ -186,7 +195,7 @@ static void tile_generator_node_draw_tile(u8 *pattern, i32 size, f32 *result, f3
 			i32 pu = (i32)tile_generator_node_clamp(math_floor(u * size), 0.0, size - 1);
 			i32 pv = (i32)tile_generator_node_clamp(math_floor(v * size), 0.0, size - 1);
 			f32 g  = pattern[((size_t)pv * size + pu) * 4] / 255.0 * brightness;
-			i32 wx = ((ix % size) + size) % size;
+			i32 wx = wrap ? ((ix % size) + size) % size : ix;
 			f32 *r = &result[((size_t)wy * size + wx) * 4];
 			r[0]   = tile_generator_node_clamp(g, 0.0, 1.0);
 			r[1]   = u;
@@ -258,7 +267,8 @@ static i32 tile_generator_node_process(u8 *pixels, i32 size, void *params, f32 *
 			if (half_x <= 0.0 || half_y <= 0.0) {
 				continue;
 			}
-			tile_generator_node_draw_tile(pixels + one * k, size, result, center_x, center_y, half_x, half_y, angle, brightness, id);
+			tile_generator_node_draw_tile(pixels + one * k, size, result, center_x, center_y, half_x, half_y, angle, brightness, id,
+			                                  p->wrap != 0);
 		}
 	}
 	return p->tiles_x * p->tiles_y;
@@ -349,8 +359,9 @@ void tile_generator_node_init() {
 	                        make_image_node_state_button(),
 	                        make_image_node_setting(_tr("Patterns"), "ENUM", 0, "1\n2\n3\n4"),
 	                        make_image_node_setting(_tr("Pattern Mode"), "ENUM", 0, "Random\nCycle\nBy Map"),
+	                        make_image_node_setting(_tr("Wrap Edges"), "BOOL", 1, NULL),
 	                    },
-	                    4),
+	                    5),
 	                .width = 0,
 	                .flags = 0});
 
