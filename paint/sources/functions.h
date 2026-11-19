@@ -1613,6 +1613,7 @@ void              seamless_node_init();
 void              image_warp_node_init();
 void              bevel_node_init();
 void              shape_generator_node_init();
+void              transform_node_init();
 void              text_texture_node_init();
 void              texture_slot_node_init();
 char             *texture_slot_node_vector(ui_node_t *node, ui_node_socket_t *socket);

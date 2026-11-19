@@ -290,6 +290,8 @@ Filter
 Filter Textures
 Flat
 Flatten
+Flip X
+Flip Y
 Float Curve
 Flood Fill
 Floor
@@ -541,6 +543,8 @@ Pattern Mode
 By Map
 Color Map
 Pattern Map
+Pivot X
+Pivot Y
 Position X
 Position Y
 Rectangle
@@ -788,6 +792,7 @@ Tiles Y
 Tile UV
 Tilesheet
 Tilesheet Animation
+Tiling
 Time
 Timeline
 To Degrees

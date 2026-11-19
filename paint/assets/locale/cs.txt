@@ -290,6 +290,8 @@ Filtr
 Filtrovat textury
 Plochý
 Zploštit
+
+
 Křivka čísla
 
 Zaokrouhlit dolů
@@ -547,6 +549,8 @@ Překrytí
 
 
 
+
+
 PBR
 Zabalit assety
 Zabalit do projektu
@@ -788,6 +792,7 @@ Dlaždic Y
 
 Dlaždicová mapa
 Animace dlaždicové mapy
+
 Čas
 Časová osa
 Na stupně

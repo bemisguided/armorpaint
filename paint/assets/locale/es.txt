@@ -290,6 +290,8 @@ Filtrar
 Filtrar texturas
 Plano
 Aplanar
+
+
 Curva de valor
 
 Piso
@@ -547,6 +549,8 @@ Superponer
 
 
 
+
+
 PBR
 Empaquetar recursos
 Empaquetar en proyecto
@@ -788,6 +792,7 @@ Mosaicos Y
 
 Hoja de mosaicos
 Animación de hoja de mosaicos
+
 Tiempo
 Línea de tiempo
 A grados

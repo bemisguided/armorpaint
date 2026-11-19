@@ -290,6 +290,8 @@ Filtro
 Filtrar Texturas
 Plano
 Achatar
+
+
 Curva de Float
 
 Chão
@@ -547,6 +549,8 @@ Sobrepor
 
 
 
+
+
 PBR
 Empacotar Ativos
 Empacotar no Projeto
@@ -788,6 +792,7 @@ Blocos Y
 
 Folha de Blocos
 Animação de Folha de Blocos
+
 Tempo
 Linha do Tempo
 Para Graus

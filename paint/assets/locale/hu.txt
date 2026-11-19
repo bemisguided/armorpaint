@@ -290,6 +290,8 @@ Szűrő
 Textúrák szűrése
 Lapos
 Lapítás
+
+
 Float görbe
 
 Padló
@@ -547,6 +549,8 @@ Kimenet
 
 
 
+
+
 PBR
 Assetek becsomagolása
 Csomagolás a projektbe
@@ -788,6 +792,7 @@ Mozaikok Y
 
 Mozaiklap
 Mozaiklap animáció
+
 Idő
 Időszalag
 Fokra

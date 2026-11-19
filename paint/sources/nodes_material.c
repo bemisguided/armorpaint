@@ -58,6 +58,7 @@ void nodes_material_init() {
 	image_warp_node_init();
 	bevel_node_init();
 	shape_generator_node_init();
+	transform_node_init();
 
 	array_sort(nodes_material_pattern, nodes_material_compare_names);
 	array_sort(nodes_material_filter, nodes_material_compare_names);

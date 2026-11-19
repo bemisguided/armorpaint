@@ -290,6 +290,8 @@ Filter
 Filter Tekstur
 Rata
 Ratakan
+
+
 Kurva Float
 
 Lantai
@@ -547,6 +549,8 @@ Hampar
 
 
 
+
+
 PBR
 Kemas Aset
 Kemas ke Proyek
@@ -788,6 +792,7 @@ Jumlah Petak Y
 
 Tilesheet
 Animasi Tilesheet
+
 Waktu
 Garis Waktu
 Ke Derajat

@@ -290,6 +290,8 @@ Filtr
 Filtruj tekstury
 Płaski
 Spłaszcz
+
+
 Krzywa liczby
 
 Zaokrąglij w dół
@@ -547,6 +549,8 @@ Nakładka
 
 
 
+
+
 PBR
 Spakuj zasoby
 Spakuj do projektu
@@ -788,6 +792,7 @@ Kafelków Y
 
 Arkusz kafelków
 Animacja arkusza kafelków
+
 Czas
 Oś czasu
 Do stopni
