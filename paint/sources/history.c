@@ -102,9 +102,7 @@ static void history_step_free(history_step_t *step) {
 		meta_free(step->merge_layers->buffer[i]->meta); // Saved layers are out of the project, their metadata goes with the step
 	}
 	meta_free(step->layer_meta);
-	if (step->action == HISTORY_ACTION_EDIT_META) {
-		meta_free(step->meta); // The other step kinds hand their metadata to a live item on undo or redo
-	}
+	meta_free(step->meta); // Only set while the step holds the metadata: an Edit Details step, or a deleted material or brush
 	free(step);
 }
 
@@ -240,7 +238,8 @@ void history_new_material_slot(history_step_t *step) {
 	g_context->material = slot_material_create(g_project->_->materials->buffer[0]->data, NULL);
 	array_insert(g_project->_->materials, step->material, g_context->material);
 	g_context->material->canvas = step->canvas;
-	g_context->material->meta   = step->meta;
+	g_context->material->meta   = step->meta; // The live item owns it again
+	step->meta                  = NULL;
 	ui_nodes_canvas_changed();
 	ui_nodes_hwnd->redraws = 2;
 	// The new slot has a blank preview and no shader yet
@@ -248,17 +247,19 @@ void history_new_material_slot(history_step_t *step) {
 }
 
 void history_delete_material_slot(history_step_t *step) {
-	g_context->material = g_project->_->materials->buffer[step->material];
-	step->canvas        = g_context->material->canvas;
-	step->meta          = g_context->material->meta;
+	g_context->material       = g_project->_->materials->buffer[step->material];
+	step->canvas              = g_context->material->canvas;
+	step->meta                = g_context->material->meta; // The step owns it while the item is gone
+	g_context->material->meta = NULL;
 	slot_material_delete(g_context->material);
 }
 
 void history_new_brush_slot(history_step_t *step) {
 	slot_brush_t *b = slot_brush_create(NULL);
 	array_insert(g_project->_->brushes, step->brush, b);
-	b->canvas = step->canvas;
-	b->meta   = step->meta;
+	b->canvas  = step->canvas;
+	b->meta    = step->meta;
+	step->meta = NULL;
 	context_set_brush(b);
 	ui_nodes_canvas_changed();
 	ui_nodes_hwnd->redraws = 2;
@@ -267,8 +268,9 @@ void history_new_brush_slot(history_step_t *step) {
 }
 
 void history_delete_brush_slot(history_step_t *step) {
-	step->canvas     = g_project->_->brushes->buffer[step->brush]->canvas;
-	step->meta       = g_project->_->brushes->buffer[step->brush]->meta;
+	step->canvas                                     = g_project->_->brushes->buffer[step->brush]->canvas;
+	step->meta                                       = g_project->_->brushes->buffer[step->brush]->meta;
+	g_project->_->brushes->buffer[step->brush]->meta = NULL;
 	if (g_project->_->brushes->length > 1) {
 		context_select_brush(step->brush == g_project->_->brushes->length - 1 ? step->brush - 1 : step->brush + 1);
 	}
@@ -818,7 +820,9 @@ void history_redo() {
 				slot_layer_t         *group  = g_context->layer->parent;
 				slot_layer_t_array_t *layers = slot_layer_get_children(group);
 				array_insert(layers, 0, g_context->layer);
-				history_copy_merging_layers2(layers);
+				if (!history_copy_merging_layers2(layers)) {
+					return; // Like history_apply_mask: no undo copy, nothing is applied and the redo stays pending
+				}
 			}
 			else {
 				slot_layer_t_array_t *layers = any_array_create_from_raw(
@@ -827,7 +831,9 @@ void history_redo() {
 				        g_context->layer->parent,
 				    },
 				    2);
-				history_copy_merging_layers2(layers);
+				if (!history_copy_merging_layers2(layers)) {
+					return;
+				}
 			}
 
 			sys_notify_on_next_frame(&history_redo_apply_mask, NULL);
@@ -1277,10 +1283,11 @@ void history_new_brush() {
 }
 
 void history_delete_brush() {
-	history_step_t *step = history_push(HISTORY_ACTION_DELETE_BRUSH);
-	step->canvas_type    = CANVAS_TYPE_BRUSH;
-	step->canvas         = util_clone_canvas(g_context->brush->canvas);
-	step->meta           = g_context->brush->meta != NULL ? meta_copy(g_context->brush->meta) : NULL;
+	history_step_t *step   = history_push(HISTORY_ACTION_DELETE_BRUSH);
+	step->canvas_type      = CANVAS_TYPE_BRUSH;
+	step->canvas           = util_clone_canvas(g_context->brush->canvas);
+	step->meta             = g_context->brush->meta; // The brush is removed right after, the step owns its metadata
+	g_context->brush->meta = NULL;
 }
 
 void history_duplicate_brush() {
@@ -1364,10 +1371,11 @@ void history_new_material() {
 }
 
 void history_delete_material() {
-	history_step_t *step = history_push(HISTORY_ACTION_DELETE_MATERIAL);
-	step->canvas_type    = 0;
-	step->canvas         = util_clone_canvas(g_context->material->canvas);
-	step->meta           = g_context->material->meta != NULL ? meta_copy(g_context->material->meta) : NULL;
+	history_step_t *step      = history_push(HISTORY_ACTION_DELETE_MATERIAL);
+	step->canvas_type         = 0;
+	step->canvas              = util_clone_canvas(g_context->material->canvas);
+	step->meta                = g_context->material->meta; // The material is removed right after, the step owns its metadata
+	g_context->material->meta = NULL;
 }
 
 void history_duplicate_material() {

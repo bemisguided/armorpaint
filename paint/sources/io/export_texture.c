@@ -238,7 +238,7 @@ static void export_texture_set_channel(f32 value, buffer_t *to, i32 to_channel, 
 }
 
 // Object name as a file name part, characters a file system refuses become "_"
-static char *export_texture_file_label(char *name) {
+char *export_texture_file_label(char *name) {
 	char *r = string_copy(name);
 	for (char *c = r; *c != '\0'; ++c) {
 		if (strchr("/\\:*?\"<>|", *c) != NULL || (unsigned char)*c < 32) {
