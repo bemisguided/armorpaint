@@ -109,7 +109,6 @@ void util_mesh_unshare_data(mesh_object_t *o) {
 		return;
 	}
 	mesh_object_set_data(o, util_mesh_data_duplicate(o->data));
-	util_mesh_changed();
 	o->data->name = string_copy(o->base->name);
 }
 
@@ -365,6 +364,10 @@ mesh_object_t_array_t *util_mesh_paintable(mesh_object_t_array_t *objects) {
 }
 
 static void util_mesh_merged_toggled() {
+	// Uv maps are drawn from the merged mesh or the object, rebuilt for the one shown now
+	util_uv_uvmap_cached       = false;
+	util_uv_trianglemap_cached = false;
+	util_uv_dilatemap_cached   = false;
 	if (g_context->layer != NULL) {
 		context_select_paint_object(g_context->paint_object);
 	}
@@ -626,7 +629,6 @@ static void util_mesh_apply_matrix(mesh_object_t *o, mat4_t m) {
 		}
 	}
 	mesh_data_build_vertices(g->_->vertex_buffer, g->vertex_arrays);
-	util_mesh_changed();
 	mesh_data_build_indices(g->_->index_buffer, g->index_array);
 
 	// Children stay in place
@@ -819,7 +821,6 @@ void util_mesh_swap_axis(mesh_object_t_array_t *objects, i32 a, i32 b) {
 		}
 		mesh_data_t *g = o->data;
 		mesh_data_build_vertices(g->_->vertex_buffer, vas);
-		util_mesh_changed();
 	}
 	util_mesh_merge(NULL);
 }
@@ -2956,7 +2957,6 @@ void util_mesh_split(mesh_object_t *o) {
 		md->_->udim_tile = utile[0];
 	}
 	mesh_object_set_data(o, md);
-	util_mesh_changed();
 	if (!shared) {
 		sys_notify_on_next_frame(&util_mesh_delete_data_uncache, g);
 	}
