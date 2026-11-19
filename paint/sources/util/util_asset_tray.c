@@ -17,12 +17,31 @@ static char *asset_tray_item_name(asset_tray_t tray, void *item) {
 	}
 }
 
-// Tray indices of the items whose name contains the search text (lower case), all items for an empty text
-i32_array_t *asset_tray_filter(asset_tray_t tray, char *search) {
+static i32 asset_tray_meta_category(asset_tray_t tray) {
+	switch (tray) {
+	case ASSET_TRAY_TEXTURES:
+		return MC_TEXTURE;
+	case ASSET_TRAY_MATERIALS:
+		return MC_MATERIAL;
+	case ASSET_TRAY_BRUSHES:
+		return MC_BRUSH;
+	case ASSET_TRAY_FONTS:
+		return MC_FONT;
+	default:
+		return MC_SOUND;
+	}
+}
+
+// Tray indices of the items that pass the tag filter of the tray (tags: false shows all) and whose name contains the search text
+// (lower case, NULL or empty for no search)
+i32_array_t *asset_tray_filter(asset_tray_t tray, char *search, bool tags) {
 	any_array_t *items    = asset_selection_tray_items(tray);
 	i32_array_t *filtered = i32_array_create_from_raw((i32[]){}, 0);
 	for (i32 i = 0; i < items->length; ++i) {
-		if (string_equals(search, "") || string_index_of(to_lower_case(asset_tray_item_name(tray, items->buffer[i])), search) >= 0) {
+		if (tags && !ui_asset_tags_visible(asset_tray_meta_category(tray), i)) {
+			continue;
+		}
+		if (search == NULL || string_equals(search, "") || string_index_of(to_lower_case(asset_tray_item_name(tray, items->buffer[i])), search) >= 0) {
 			i32_array_push(filtered, i);
 		}
 	}

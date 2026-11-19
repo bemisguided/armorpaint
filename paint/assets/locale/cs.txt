@@ -719,6 +719,7 @@ Supersampling
 Vzorky
 Vzorky...
 Symetrie
+
 Tangenta
 Cíl
 Šablona

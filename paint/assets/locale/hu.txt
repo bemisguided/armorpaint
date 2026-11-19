@@ -719,6 +719,7 @@ Szuperminta (Super Sample)
 Színminták
 Színminták...
 Szimmetria
+
 Tangens
 Cél
 Sablon

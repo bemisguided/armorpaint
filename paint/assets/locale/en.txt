@@ -719,6 +719,7 @@ Super Sample
 Swatches
 Swatches...
 Symmetry
+Tags
 Tangent
 Target
 Template

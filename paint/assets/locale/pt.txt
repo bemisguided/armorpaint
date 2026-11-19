@@ -719,6 +719,7 @@ Super Amostragem
 Amostras
 Amostras...
 Simetria
+
 Tangente
 Destino
 Modelo

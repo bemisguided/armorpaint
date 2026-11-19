@@ -108,13 +108,13 @@ void tab_brushes_draw(i32 *htab) {
 		}
 
 		ui_begin_sticky();
-		f32_array_t *row = f32_array_create_from_raw_tmp(
-		    (f32[]){
-		        -64,
-		        -64,
-		        -64,
-		    },
-		    3);
+		f32_array_t *row = f32_array_create(0);
+		for (i32 i = 0; i < 3; ++i) {
+			f32_array_push(row, -64);
+		}
+		if (ui_asset_tags_any(MC_BRUSH)) {
+			f32_array_push(row, -150); // Tags filter
+		}
 		ui_row(row);
 		if (ui_icon_button(tr("New"), ICON_PLUS, UI_ALIGN_CENTER)) {
 			g_context->brush = slot_brush_create(NULL);
@@ -129,6 +129,7 @@ void tab_brushes_draw(i32 *htab) {
 		if (ui_icon_button(tr("Edit"), ICON_EDIT, UI_ALIGN_CENTER)) {
 			ui_menu_draw(&tab_brushes_draw_edit, -1, -1);
 		}
+		ui_asset_tags_filter(MC_BRUSH);
 		ui_end_sticky();
 		ui_separator(3, false);
 
@@ -139,14 +140,16 @@ void tab_brushes_draw(i32 *htab) {
 			return;
 		}
 
-		asset_tray_begin(ASSET_TRAY_BRUSHES, NULL, NULL);
+		// Indices of the brushes passing the tag filter
+		i32_array_t *filtered = asset_tray_filter(ASSET_TRAY_BRUSHES, NULL, true);
+		asset_tray_begin(ASSET_TRAY_BRUSHES, NULL, filtered);
 
 		bool drag_pos_set = false;
 		f32  uix          = 0.0;
 		f32  uiy          = 0.0;
 		i32  imgw_val     = math_floor(50 * a * UI_SCALE());
 
-		for (i32 row = 0; row < math_floor(math_ceil(g_project->_->brushes->length / (float)num)); ++row) {
+		for (i32 row = 0; row < math_floor(math_ceil(filtered->length / (float)num)); ++row) {
 			i32          mult = g_config->show_asset_names ? 2 : 1;
 			f32_array_t *ar   = f32_array_create_from_raw((f32[]){}, 0);
 			for (i32 i = 0; i < num * mult; ++i) {
@@ -162,14 +165,15 @@ void tab_brushes_draw(i32 *htab) {
 
 			for (i32 j = 0; j < num; ++j) {
 				i32 imgw = math_floor(50 * a * UI_SCALE());
-				i32 i    = j + row * num;
-				if (i >= g_project->_->brushes->length) {
+				i32 fi   = j + row * num;
+				if (fi >= filtered->length) {
 					ui_end_element_of_size(imgw);
 					if (g_config->show_asset_names) {
 						ui_end_element_of_size(0);
 					}
 					continue;
 				}
+				i32            i        = filtered->buffer[fi];
 				gpu_texture_t *img      = UI_SCALE() > 1 ? g_project->_->brushes->buffer[i]->image : g_project->_->brushes->buffer[i]->image_icon;
 				gpu_texture_t *img_full = g_project->_->brushes->buffer[i]->image;
 
@@ -196,14 +200,14 @@ void tab_brushes_draw(i32 *htab) {
 				                               : ui_sub_image(resource_get("icons.k"), -1, imgw, tile * 5, tile, tile, tile);
 				g_ui->image_scroll_align = true;
 
-				if (state == UI_STATE_HOVERED && base_drag_brush != NULL) {
+				if (state == UI_STATE_HOVERED && base_drag_brush != NULL && !ui_asset_tags_active(MC_BRUSH)) {
 					tab_brushes_drag_pos = (mouse_x > uix + g_ui->_window_x + imgw_val / 2.0) ? i + 1 : i;
 					drag_pos_set         = true;
 				}
 
 				if (state == UI_STATE_STARTED) {
 					bool          can_drag;
-					slot_brush_t *primary = asset_tray_press(ASSET_TRAY_BRUSHES, brush, NULL, &can_drag);
+					slot_brush_t *primary = asset_tray_press(ASSET_TRAY_BRUSHES, brush, filtered, &can_drag);
 					if (g_context->brush != primary) {
 						context_set_brush(primary);
 					}
@@ -244,7 +248,7 @@ void tab_brushes_draw(i32 *htab) {
 						ui_tooltip(g_project->_->brushes->buffer[i]->canvas->name);
 					}
 					g_ui->_y -= slotw * 0.9 + (a - 1) * 5 * UI_SCALE();
-					if (i == g_project->_->brushes->length - 1) {
+					if (fi == filtered->length - 1) {
 						g_ui->_y += j == num - 1 ? imgw : imgw + UI_ELEMENT_H() + UI_ELEMENT_OFFSET();
 					}
 				}

@@ -719,6 +719,7 @@ Super Sampel
 Contoh Warna
 Contoh Warna...
 Simetri
+
 Tangen
 Target
 Templat

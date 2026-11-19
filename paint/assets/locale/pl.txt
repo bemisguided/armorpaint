@@ -719,6 +719,7 @@ Superpróbkowanie
 Próbki kolorów
 Próbki...
 Symetria
+
 Tangens
 Cel
 Szablon

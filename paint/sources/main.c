@@ -191,6 +191,7 @@
 #include "ui/tab_swatches.c"
 #include "ui/tab_textures.c"
 #include "ui/tab_timeline.c"
+#include "ui/ui_asset_tags.c"
 #include "ui/ui_base.c"
 #include "ui/ui_box.c"
 #include "ui/ui_dock.c"
