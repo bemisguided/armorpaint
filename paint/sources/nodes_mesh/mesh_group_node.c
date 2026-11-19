@@ -164,6 +164,9 @@ static ui_node_canvas_t *mesh_group_canvas(char *name) {
 
 static void mesh_group_node_button(i32 node_id) {
 	ui_node_t *node = ui_get_node(ui_nodes_get_canvas(true)->nodes, node_id);
+	if (node == NULL) {
+		return;
+	}
 	if (string_equals(node->name, "New Group")) {
 		for (i32 i = 1; i < 999; ++i) {
 			node->name = string("%s %s", tr("Group"), i32_to_string(i));
@@ -180,7 +183,7 @@ static void mesh_group_node_button(i32 node_id) {
 	}
 	node_group_t *group = nodes_mesh_get_group(node->name);
 	if (group != NULL && ui_icon_button(tr("Nodes"), ICON_NODES, UI_ALIGN_CENTER)) {
-		any_array_push(ui_nodes_group_stack, group);
+		ui_nodes_group_enter = group; // Entered after the canvas is drawn, see ui_nodes_update
 	}
 }
 

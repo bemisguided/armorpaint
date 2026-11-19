@@ -1026,6 +1026,10 @@ void ui_nodes_update(void *_) {
 
 		ui_node_canvas(ui_nodes, c);
 		g_ui->input_enabled = _input_enabled;
+		if (ui_nodes_group_enter != NULL) { // Switching canvas in the middle of the draw would draw the remaining nodes against the wrong canvas
+			any_array_push(ui_nodes_group_stack, ui_nodes_group_enter);
+			ui_nodes_group_enter = NULL;
+		}
 
 		if (ui_nodes_popup_changed) {
 			ui_nodes_popup_changed = false;
