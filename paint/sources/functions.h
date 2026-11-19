@@ -1488,6 +1488,7 @@ bool                   ui_asset_tags_any(i32 category);
 bool                   ui_asset_tags_filter(i32 category);
 bool                   ui_asset_tags_active(i32 category);
 bool                   ui_asset_tags_visible(i32 category, i32 index);
+u64                    ui_asset_tags_hash(meta_t *m, u64 h);
 void                   tab_meshes_draw(i32 *htab);
 bool                      tab_meshes_tile_used(i32 tile);
 void                   tab_meshes_draw_context_menu_delete(mesh_object_t *o);
