@@ -18,16 +18,19 @@ Add Animation
 Add Swatch
 Add new swatch
 Add picked color to swatches
+Add to all
 All
 All processing is done locally on device
 Allow Upside Down Camera
 Alpha
 Alpha Discard
+Ambient Occlusion
 Amount
 Angle
 Angle Reject
 Animation
 Anisotropy
+Any
 Append
 Apply
 Apply Displacement
@@ -185,6 +188,8 @@ Destination
 Detail
 Detail Roughness
 Detail Scale
+Details
+Details...
 Diagonal
 Difference
 Dilate Radius
@@ -218,6 +223,7 @@ Duplicate Layer
 Duplicate Material
 Duplicate Swatch
 Edit
+Edit Details
 Edit Image
 Edit Nodes
 Edit Script
@@ -229,6 +235,7 @@ Edit in Script Tab
 Edit in Text Editor
 Emission
 Empty
+Encoding
 End Frame
 Environment
 Environment Angle
@@ -437,6 +444,7 @@ Mirror
 Mix
 Mix Color
 Mix Normal Map
+Mixed
 Mobile
 Mode
 Model
@@ -590,6 +598,7 @@ Reimport Mesh
 Reimport Textures
 Relative Offset
 Remove
+Rename
 Rename Layer
 Renderer
 Reoriented
@@ -714,6 +723,8 @@ Super Sample
 Swatches
 Swatches...
 Symmetry
+Tag
+Tags
 Tangent
 Target
 Template
@@ -781,6 +792,7 @@ UVMap
 Unable to check for updates.\nPlease visit {url}.
 Undo Steps
 Undo {step}
+Unknown ({n})
 Unwrap
 Unwrap Mesh
 Unwrapping mesh
@@ -855,6 +867,7 @@ triangles
 type
 untitled
 x
+{count} items
 {shortcut} and move mouse
 Objects: All
 No objects

@@ -18,16 +18,19 @@ Přidat animaci
 Přidat vzorek
 Přidat nový vzorek
 Přidat vybranou barvu do vzorků
+
 Vše
 Veškeré zpracování probíhá lokálně na zařízení
 Povolit převrácenou kameru
 Alfa
 Zahodit alfa
+
 Množství
 Úhel
 Odmítnout úhel
 Animace
 Anizotropie
+
 Připojit
 Použít
 Použít posunutí
@@ -185,6 +188,8 @@ Cíl
 Detail
 Drsnost detailu
 Měřítko detailu
+
+
 Diagonála
 Rozdíl
 Rozšířit poloměr
@@ -218,6 +223,7 @@ Duplikovat vrstvu
 Duplikovat materiál
 Duplikovat vzorek
 Upravit
+
 Upravit obrázek
 Upravit uzly
 Upravit skript
@@ -229,6 +235,7 @@ Upravit v záložce skriptu
 Upravit v textovém editoru
 Emise
 Prázdný
+
 Koncový snímek
 Okolí
 Úhel okolí
@@ -437,6 +444,7 @@ Zrcadlit
 Smíchat
 Smíchat barvu
 Smíchat normálovou mapu
+
 Mobilní
 Režim
 Model
@@ -590,6 +598,7 @@ Znovu importovat síť
 Znovu importovat textury
 Relativní posun
 Odstranit
+
 Přejmenovat vrstvu
 Renderovací engine
 Přeorientováno
@@ -714,6 +723,8 @@ Supersampling
 Vzorky
 Vzorky...
 Symetrie
+
+
 Tangenta
 Cíl
 Šablona
@@ -781,6 +792,7 @@ UV mapa
 Nelze zkontrolovat aktualizace.\nNavštivte prosím {url}.
 Kroky zpět
 Zpět {step}
+
 Rozbalit
 Rozbalit síť
 Rozbalování sítě
@@ -855,6 +867,7 @@ trojúhelníky
 typ
 bez názvu
 x
+
 {shortcut} a pohyb myší
 
 

@@ -18,16 +18,19 @@ Tambah Animasi
 Tambah Contoh Warna
 Tambah contoh warna baru
 Tambah warna yang dipilih ke contoh warna
+
 Semua
 Semua pemrosesan dilakukan secara lokal di perangkat
 Izinkan Kamera Terbalik
 Alfa
 Buang Alfa
+
 Jumlah
 Sudut
 Tolak Sudut
 Animasi
 Anisotropi
+
 Tambahkan
 Terapkan
 Terapkan Perpindahan
@@ -185,6 +188,8 @@ Tujuan
 Detail
 Kekasaran Detail
 Skala Detail
+
+
 Diagonal
 Perbedaan
 Perluas Radius
@@ -218,6 +223,7 @@ Duplikat Lapisan
 Duplikat Material
 Duplikat Contoh Warna
 Sunting
+
 Sunting Gambar
 Sunting Node
 Sunting Skrip
@@ -229,6 +235,7 @@ Sunting di Tab Skrip
 Sunting di Editor Teks
 Emisi
 Kosong
+
 Bingkai Akhir
 Lingkungan
 Sudut Lingkungan
@@ -437,6 +444,7 @@ Cermin
 Campur
 Campur Warna
 Campur Peta Normal
+
 Seluler
 Mode
 Model
@@ -590,6 +598,7 @@ Impor Ulang Mesh
 Impor Ulang Tekstur
 Offset Relatif
 Hapus
+
 Ganti Nama Lapisan
 Renderer
 Diorientasi Ulang
@@ -714,6 +723,8 @@ Super Sampel
 Contoh Warna
 Contoh Warna...
 Simetri
+
+
 Tangen
 Target
 Templat
@@ -781,6 +792,7 @@ Peta UV
 Tidak dapat memeriksa pembaruan.\nSilakan kunjungi {url}.
 Langkah Batal
 Batal {step}
+
 Buka Lipatan
 Buka Lipatan Mesh
 Membuka lipatan mesh
@@ -855,6 +867,7 @@ segitiga
 jenis
 tanpa judul
 x
+
 {shortcut} dan gerakkan mouse
 
 

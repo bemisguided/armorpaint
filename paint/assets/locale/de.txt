@@ -18,16 +18,19 @@ Animation hinzufügen
 Farbfeld hinzufügen
 Neues Farbfeld hinzufügen
 Gewählte Farbe zu Farbfeldern hinzufügen
+
 Alle
 Alle Verarbeitung erfolgt lokal auf dem Gerät
 Kamera über Kopf erlauben
 Alpha
 Alpha verwerfen
+
 Stärke
 Winkel
 Winkel verwerfen
 Animation
 Anisotropie
+
 Hinzufügen
 Anwenden
 Displacement anwenden
@@ -185,6 +188,8 @@ Ziel
 Detail
 Detail Roughness
 Detail Skalierung
+
+
 Diagonal
 Unterschied
 Radius erweitern
@@ -218,6 +223,7 @@ Ebene duplizieren
 Material duplizieren
 Farbfeld duplizieren
 Bearbeiten
+
 Bild bearbeiten
 Nodes bearbeiten
 Skript bearbeiten
@@ -229,6 +235,7 @@ Im Script Tab bearbeiten
 Im Texteditor bearbeiten
 Emission
 Leer
+
 Endbild
 Umgebung
 Umgebungswinkel
@@ -437,6 +444,7 @@ Spiegeln
 Mix
 Farben mischen
 Mix Normal Map
+
 Mobil
 Modus
 Modell
@@ -590,6 +598,7 @@ Mesh neu importieren
 Texturen neu importieren
 Relativer Offset
 Entfernen
+
 Ebene umbenennen
 Renderer
 Umorientiert
@@ -714,6 +723,8 @@ Supersampling
 Farbfelder
 Farbfelder...
 Symmetrie
+
+
 Tangente
 Ziel
 Vorlage
@@ -781,6 +792,7 @@ UV Map
 Konnte nicht nach Updates suchen.\nBitte {url} aufsuchen.
 Schritte rückgängig
 Rückgängig {step}
+
 Unwrap
 Unwrap Mesh
 Mesh wird unwrapped
@@ -855,6 +867,7 @@ Dreiecke
 Typ
 unbenannt
 x
+
 {shortcut} und Maus bewegen
 
 

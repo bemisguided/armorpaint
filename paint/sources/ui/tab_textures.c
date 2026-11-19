@@ -2,7 +2,6 @@
 #include "../global.h"
 
 gpu_texture_t *_tab_textures_draw_img;
-char          *_tab_textures_draw_path;
 asset_t       *_tab_textures_draw_asset;
 i32            _tab_textures_draw_i;
 bool           _tab_textures_draw_is_packed;
@@ -13,58 +12,93 @@ void tab_textures_draw_set_as_envmap(void *_) {
 }
 
 void tab_textures_draw_to_layer(void *_) {
-	layers_create_image_layer(_tab_textures_draw_asset);
+	layers_create_image_layers(asset_selection_get(ASSET_TRAY_TEXTURES));
 }
 
 void tab_textures_draw_to_mask(void *_) {
 	layers_create_image_mask(_tab_textures_draw_asset);
 }
 
-void tab_textures_draw_export_on_next_frame2(gpu_texture_t *target) {
-	char *path = _tab_textures_draw_path;
-	char *f    = ui_files_filename;
-	if (string_equals(f, "")) {
-		f = string_copy(tr("untitled"));
-	}
-	if (target->format == GPU_TEXTURE_FORMAT_RGBA64) {
-		if (!ends_with(f, ".exr")) {
-			f = string("%s.exr", f);
+static any_array_t    *_tab_textures_export_assets  = NULL; // Selected when Export was picked
+static any_array_t    *_tab_textures_export_targets = NULL;
+static string_array_t *_tab_textures_export_files   = NULL;
+
+static bool tab_textures_is_hdr(gpu_texture_t *img) {
+	return img->format == GPU_TEXTURE_FORMAT_RGBA64 || img->format == GPU_TEXTURE_FORMAT_RGBA128;
+}
+
+void tab_textures_draw_export_on_next_frame2(void *_) {
+	for (i32 i = 0; i < _tab_textures_export_targets->length; ++i) {
+		gpu_texture_t *target = _tab_textures_export_targets->buffer[i];
+		char          *file   = _tab_textures_export_files->buffer[i];
+		buffer_t      *pixels = gpu_get_texture_pixels(target);
+		if (target->format == GPU_TEXTURE_FORMAT_RGBA64) {
+			buffer_t *b = export_exr_run(target->width, target->height, pixels, 16, 1, 0);
+			iron_file_save_bytes(file, b, b->length);
+			array_free(b);
+			free(b);
 		}
-		buffer_t *pixels = gpu_get_texture_pixels(target);
-		buffer_t *b      = export_exr_run(target->width, target->height, pixels, 16, 1, 0);
-		iron_file_save_bytes(string("%s%s%s", path, PATH_SEP, f), b, b->length);
-		array_free(b);
-		free(b);
+		else if (ends_with(file, ".jpg")) {
+			iron_write_jpg(file, pixels, target->width, target->height, 0, 80);
+		}
+		else {
+			iron_write_png(file, pixels, target->width, target->height, 0);
+		}
 		gpu_delete_texture(target);
-		return;
 	}
-	if (!ends_with(f, ".jpg") && !ends_with(f, ".png")) {
-		f = string("%s.png", f);
-	}
-	buffer_t *buf = gpu_get_texture_pixels(target);
-	if (ends_with(f, ".jpg")) {
-		iron_write_jpg(string("%s%s%s", path, PATH_SEP, f), buf, target->width, target->height, 0, 80);
-	}
-	else {
-		iron_write_png(string("%s%s%s", path, PATH_SEP, f), buf, target->width, target->height, 0);
-	}
-	gpu_delete_texture(target);
 }
 
 void tab_textures_draw_export_on_next_frame(void *_) {
-	gpu_texture_t *img    = _tab_textures_draw_img;
-	bool           hdr    = img->format == GPU_TEXTURE_FORMAT_RGBA64 || img->format == GPU_TEXTURE_FORMAT_RGBA128;
-	gpu_texture_t *target = gpu_create_render_target(img->width, img->height, hdr ? GPU_TEXTURE_FORMAT_RGBA64 : GPU_TEXTURE_FORMAT_RGBA32);
-	draw_begin(target, false, 0);
-	draw_set_pipeline(hdr ? pipes_copy64 : pipes_copy);
-	draw_scaled_image(img, 0, 0, target->width, target->height);
-	draw_set_pipeline(NULL);
-	draw_end();
-	sys_notify_on_next_frame(&tab_textures_draw_export_on_next_frame2, target);
+	_tab_textures_export_targets = any_array_create_from_raw((void *[]){}, 0);
+	for (i32 i = 0; i < _tab_textures_export_assets->length; ++i) {
+		gpu_texture_t *img    = project_get_image(_tab_textures_export_assets->buffer[i]);
+		bool           hdr    = tab_textures_is_hdr(img);
+		gpu_texture_t *target = gpu_create_render_target(img->width, img->height, hdr ? GPU_TEXTURE_FORMAT_RGBA64 : GPU_TEXTURE_FORMAT_RGBA32);
+		draw_begin(target, false, 0);
+		draw_set_pipeline(hdr ? pipes_copy64 : pipes_copy);
+		draw_scaled_image(img, 0, 0, target->width, target->height);
+		draw_set_pipeline(NULL);
+		draw_end();
+		any_array_push(_tab_textures_export_targets, target);
+	}
+	sys_notify_on_next_frame(&tab_textures_draw_export_on_next_frame2, NULL);
 }
 
+// One file for a single texture, named from the file browser; each texture under its own name for several
 void tab_textures_draw_export(char *path) {
-	_tab_textures_draw_path = string_copy(path);
+	any_array_t *assets        = any_array_create_from_raw((void *[]){}, 0);
+	_tab_textures_export_files = string_array_create(0);
+	for (i32 i = 0; i < _tab_textures_export_assets->length; ++i) {
+		asset_t       *asset = _tab_textures_export_assets->buffer[i];
+		gpu_texture_t *img   = project_get_image(asset);
+		if (img == NULL) {
+			continue;
+		}
+		bool hdr = tab_textures_is_hdr(img);
+		if (_tab_textures_export_assets->length == 1) {
+			char *f = ui_files_filename;
+			if (string_equals(f, "")) {
+				f = string_copy(tr("untitled"));
+			}
+			if (hdr && !ends_with(f, ".exr")) {
+				f = string("%s.exr", f);
+			}
+			else if (!hdr && !ends_with(f, ".jpg") && !ends_with(f, ".png")) {
+				f = string("%s.png", f);
+			}
+			string_array_push(_tab_textures_export_files, string("%s%s%s", path, PATH_SEP, f));
+		}
+		else {
+			char *name = asset->name;
+			i32   dot  = string_last_index_of(name, ".");
+			if (dot > 0) {
+				name = substring(name, 0, dot);
+			}
+			asset_selection_unique_path(path, name, hdr ? "exr" : "png", _tab_textures_export_files);
+		}
+		any_array_push(assets, asset);
+	}
+	_tab_textures_export_assets = assets;
 	sys_notify_on_next_frame(&tab_textures_draw_export_on_next_frame, NULL);
 }
 
@@ -117,6 +151,8 @@ void tab_textures_delete_texture(asset_t *asset) {
 	}
 
 	data_delete_texture(asset->file);
+	meta_free(asset->meta);
+	asset->meta = NULL;
 	array_splice(g_project->_->assets, index, 1);
 	sys_notify_on_next_frame(&tab_textures_delete_texture_on_next_frame, NULL);
 
@@ -141,10 +177,18 @@ void tab_textures_delete_texture(asset_t *asset) {
 	}
 }
 
+static void tab_textures_delete_one(void *asset) {
+	tab_textures_delete_texture(asset);
+}
+
+void tab_textures_delete_selected() {
+	asset_tray_delete_selected(ASSET_TRAY_TEXTURES, &tab_textures_delete_one, NULL, 0, false);
+}
+
 void tab_textures_draw_context_menu() {
 	if (ui_menu_button(tr("Export"), "", ICON_EXPORT)) {
-		gpu_texture_format_t format = _tab_textures_draw_img->format;
-		bool                 hdr    = format == GPU_TEXTURE_FORMAT_RGBA64 || format == GPU_TEXTURE_FORMAT_RGBA128;
+		_tab_textures_export_assets = asset_selection_get(ASSET_TRAY_TEXTURES);
+		bool hdr                    = tab_textures_is_hdr(_tab_textures_draw_img);
 		ui_files_show(hdr ? "exr" : "png,jpg", true, false, &tab_textures_draw_export);
 	}
 	if (ui_menu_button(tr("Reimport"), "", ICON_SYNC)) {
@@ -168,8 +212,11 @@ void tab_textures_draw_context_menu() {
 			g_context->ddirty         = 2;
 		}
 	}
+	if (ui_menu_button(tr("Details..."), "", ICON_EDIT)) {
+		ui_asset_details_show(MC_TEXTURE, _tab_textures_draw_i);
+	}
 	if (ui_menu_button(tr("Delete"), "delete", ICON_DELETE)) {
-		tab_textures_delete_texture(_tab_textures_draw_asset);
+		tab_textures_delete_selected();
 	}
 	if (!_tab_textures_draw_is_packed && ui_menu_button(tr("Open Containing Directory..."), "", ICON_FOLDER_OPEN)) {
 		file_start(substring(_tab_textures_draw_asset->file, 0, string_last_index_of(_tab_textures_draw_asset->file, PATH_SEP)));
@@ -326,23 +373,17 @@ void tab_textures_draw(i32 *htab) {
 
 		ui_begin_sticky();
 
-		f32_array_t *row = string_equals(tab_textures_search, "") ? f32_array_create_from_raw(
-		                                                                (f32[]){
-		                                                                    -100,
-		                                                                    -100,
-		                                                                    -100,
-		                                                                    -200,
-		                                                                },
-		                                                                4)
-		                                                          : f32_array_create_from_raw(
-		                                                                (f32[]){
-		                                                                    -100,
-		                                                                    -100,
-		                                                                    -100,
-		                                                                    -200,
-		                                                                    -40,
-		                                                                },
-		                                                                5);
+		f32_array_t *row = f32_array_create(0);
+		f32_array_push(row, -100);
+		f32_array_push(row, -100);
+		f32_array_push(row, -100);
+		f32_array_push(row, -200); // Search
+		if (ui_asset_tags_any(MC_TEXTURE)) {
+			f32_array_push(row, -150); // Tags filter
+		}
+		if (!string_equals(tab_textures_search, "")) {
+			f32_array_push(row, -40); // Clear search
+		}
 		ui_row(row);
 
 		if (ui_icon_button(tr("Import"), ICON_IMPORT, UI_ALIGN_CENTER)) {
@@ -365,6 +406,7 @@ void tab_textures_draw(i32 *htab) {
 		if (g_ui->is_ctrl_down && g_ui->is_key_pressed && g_ui->key_code == KEY_CODE_F) {
 			ui_start_text_edit(&tab_textures_search, UI_ALIGN_LEFT);
 		}
+		ui_asset_tags_filter(MC_TEXTURE);
 		if (!string_equals(tab_textures_search, "") && (ui_button(tr("X"), UI_ALIGN_CENTER, "") || g_ui->is_escape_down)) {
 			tab_textures_search = "";
 		}
@@ -383,12 +425,8 @@ void tab_textures_draw(i32 *htab) {
 			}
 
 			// Indices of the assets passing the search filter
-			i32_array_t *filtered = i32_array_create_from_raw((i32[]){}, 0);
-			for (i32 i = 0; i < g_project->_->assets->length; ++i) {
-				if (string_equals(search, "") || string_index_of(to_lower_case(g_project->_->assets->buffer[i]->name), search) >= 0) {
-					i32_array_push(filtered, i);
-				}
-			}
+			i32_array_t *filtered = asset_tray_filter(ASSET_TRAY_TEXTURES, search, true);
+			asset_tray_begin(ASSET_TRAY_TEXTURES, search, filtered);
 
 			bool drag_pos_set = false;
 			f32  uix          = 0.0;
@@ -427,8 +465,9 @@ void tab_textures_draw(i32 *htab) {
 						render_target_t *empty_rt = any_map_get(render_path_render_targets, "empty_black");
 						img                       = empty_rt->_image;
 					}
-					uix    = g_ui->_x;
-					uiy    = g_ui->_y;
+					uix = g_ui->_x;
+					uiy = g_ui->_y;
+					asset_selection_marquee_cell(asset, uix, uiy, imgw_val, imgw_val);
 					i32 sw = img->height < img->width ? img->height : 0;
 
 					if (base_drag_asset != NULL && tab_textures_drag_pos == i) {
@@ -438,30 +477,32 @@ void tab_textures_draw(i32 *htab) {
 					ui_state_t _state = ui_sub_image(img, 0xffffffff, slotw, 0, 0, sw, sw);
 
 					// Reordering
-					if (_state == UI_STATE_HOVERED && base_drag_asset != NULL && string_equals(search, "")) {
+					if (_state == UI_STATE_HOVERED && base_drag_asset != NULL && string_equals(search, "") && !ui_asset_tags_active(MC_TEXTURE)) {
 						tab_textures_drag_pos = (mouse_x > uix + g_ui->_window_x + imgw_val / 2.0) ? i + 1 : i;
 						drag_pos_set          = true;
 					}
 
 					if (_state == UI_STATE_STARTED && g_ui->input_y > g_ui->_window_y) {
-						base_drag_off_x    = -(mouse_x - uix - g_ui->_window_x - 3);
-						base_drag_off_y    = -(mouse_y - uiy - g_ui->_window_y + 1);
-						base_drag_asset    = asset;
-						g_context->texture = asset;
-						if (sys_time() - g_context->select_time < 0.2) {
-							ui_base_show_2d_view(VIEW_2D_TYPE_ASSET);
+						bool can_drag;
+						g_context->texture = asset_tray_press(ASSET_TRAY_TEXTURES, asset, filtered, &can_drag);
+						if (can_drag) {
+							bool double_click = asset_tray_drag_begin(uix, uiy);
+							base_drag_asset   = asset;
+							if (double_click) {
+								ui_base_show_2d_view(VIEW_2D_TYPE_ASSET);
+							}
 						}
-						g_context->select_time  = sys_time();
 						ui_view2d_hwnd->redraws = 2;
 					}
 
-					if (asset == g_context->texture) {
+					u32 color = asset_tray_frame_color(ASSET_TRAY_TEXTURES, asset);
+					if (color != 0) {
 						f32 _uix = g_ui->_x;
 						f32 _uiy = g_ui->_y;
 						g_ui->_x = uix;
 						g_ui->_y = uiy;
 						i32 w    = 50 * a;
-						ui_rect_round(1, 1, w + 2, w + 2, g_theme->HIGHLIGHT_COL, 2 * UI_SCALE());
+						ui_rect_round(1, 1, w + 2, w + 2, color, 2 * UI_SCALE());
 						g_ui->_x = _uix;
 						g_ui->_y = _uiy;
 					}
@@ -483,6 +524,7 @@ void tab_textures_draw(i32 *htab) {
 					}
 
 					if (g_ui->is_hovered && g_ui->input_released_r) {
+						asset_selection_context(ASSET_TRAY_TEXTURES, asset);
 						g_context->texture = asset;
 
 						_tab_textures_draw_img       = img;
@@ -512,6 +554,8 @@ void tab_textures_draw(i32 *htab) {
 				ui_fill(imgw_val + 1, -2, 2, imgw_val + 4, g_theme->HIGHLIGHT_COL);
 			}
 
+			asset_tray_end(ASSET_TRAY_TEXTURES);
+
 			if (!drag_pos_set) {
 				tab_textures_drag_pos = -1;
 			}
@@ -529,7 +573,7 @@ void tab_textures_draw(i32 *htab) {
 		                g_ui->input_y < g_ui->_window_y + g_ui->_window_h;
 		if (in_focus && g_ui->is_delete_down && g_project->_->assets->length > 0 && array_index_of(g_project->_->assets, g_context->texture) >= 0) {
 			g_ui->is_delete_down = false;
-			tab_textures_delete_texture(g_context->texture);
+			tab_textures_delete_selected();
 		}
 		if (in_focus && g_project->_->assets->length > 0) {
 			i32 i = array_index_of(g_project->_->assets, g_context->texture);
@@ -567,38 +611,36 @@ void tab_textures_remap_node_indices(ui_node_t_array_t *nodes, i32 old_pos, i32 
 	}
 }
 
+void tab_textures_on_asset_moved(i32 asset_pos, i32 new_pos) {
+	for (i32 i = 0; i < g_project->_->materials->length; ++i) {
+		tab_textures_remap_node_indices(g_project->_->materials->buffer[i]->canvas->nodes, asset_pos, new_pos);
+	}
+	for (i32 i = 0; i < g_project->_->material_groups->length; ++i) {
+		tab_textures_remap_node_indices(g_project->_->material_groups->buffer[i]->canvas->nodes, asset_pos, new_pos);
+	}
+	for (i32 i = 0; i < g_project->_->brushes->length; ++i) {
+		tab_textures_remap_node_indices(g_project->_->brushes->buffer[i]->canvas->nodes, asset_pos, new_pos);
+	}
+	ui_node_canvas_t_array_t *mesh_canvases = nodes_mesh_canvases();
+	for (i32 i = 0; i < mesh_canvases->length; ++i) {
+		tab_textures_remap_node_indices(mesh_canvases->buffer[i]->nodes, asset_pos, new_pos);
+	}
+	if (g_context->colorid == asset_pos) {
+		g_context->colorid = new_pos;
+	}
+	else if (new_pos > asset_pos && g_context->colorid > asset_pos && g_context->colorid <= new_pos) {
+		g_context->colorid--;
+	}
+	else if (new_pos < asset_pos && g_context->colorid >= new_pos && g_context->colorid < asset_pos) {
+		g_context->colorid++;
+	}
+}
+
+// Moves the dragged texture, or the selection holding it, to the drop marker
 void tab_textures_accept_asset_drop(asset_t *asset) {
 	if (tab_textures_drag_pos == -1) {
 		return;
 	}
-
-	i32 asset_pos = array_index_of(g_project->_->assets, asset);
-	if (asset_pos != -1 && math_abs(asset_pos - tab_textures_drag_pos) > 0) {
-		array_remove(g_project->_->assets, asset);
-		i32 new_pos = tab_textures_drag_pos - asset_pos > 0 ? tab_textures_drag_pos - 1 : tab_textures_drag_pos;
-		array_insert(g_project->_->assets, new_pos, asset);
-
-		for (i32 i = 0; i < g_project->_->materials->length; ++i) {
-			tab_textures_remap_node_indices(g_project->_->materials->buffer[i]->canvas->nodes, asset_pos, new_pos);
-		}
-		for (i32 i = 0; i < g_project->_->material_groups->length; ++i) {
-			tab_textures_remap_node_indices(g_project->_->material_groups->buffer[i]->canvas->nodes, asset_pos, new_pos);
-		}
-		for (i32 i = 0; i < g_project->_->brushes->length; ++i) {
-			tab_textures_remap_node_indices(g_project->_->brushes->buffer[i]->canvas->nodes, asset_pos, new_pos);
-		}
-		ui_node_canvas_t_array_t *mesh_canvases = nodes_mesh_canvases();
-		for (i32 i = 0; i < mesh_canvases->length; ++i) {
-			tab_textures_remap_node_indices(mesh_canvases->buffer[i]->nodes, asset_pos, new_pos);
-		}
-		if (g_context->colorid == asset_pos) {
-			g_context->colorid = new_pos;
-		}
-		else if (new_pos > asset_pos && g_context->colorid > asset_pos && g_context->colorid <= new_pos) {
-			g_context->colorid--;
-		}
-		else if (new_pos < asset_pos && g_context->colorid >= new_pos && g_context->colorid < asset_pos) {
-			g_context->colorid++;
-		}
-	}
+	any_array_t *moving = asset_selection_drag_items(ASSET_TRAY_TEXTURES, asset, true);
+	asset_selection_reorder(g_project->_->assets, moving, tab_textures_drag_pos, &tab_textures_on_asset_moved);
 }
