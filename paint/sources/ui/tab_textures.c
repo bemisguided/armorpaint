@@ -433,7 +433,7 @@ void tab_textures_draw(i32 *htab) {
 			}
 
 			asset_selection_select_all(ASSET_TRAY_TEXTURES, filtered);
-			asset_selection_marquee_begin(ASSET_TRAY_TEXTURES);
+			asset_selection_marquee_begin();
 
 			bool drag_pos_set = false;
 			f32  uix          = 0.0;

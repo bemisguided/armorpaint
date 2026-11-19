@@ -267,7 +267,7 @@ void tab_materials_draw_slots(bool mini) {
 	f32  uiy          = 0.0;
 	i32  imgw_val     = math_floor(50 * a * UI_SCALE());
 	asset_selection_select_all(ASSET_TRAY_MATERIALS, NULL);
-	asset_selection_marquee_begin(ASSET_TRAY_MATERIALS);
+	asset_selection_marquee_begin();
 
 	for (i32 row = 0; row < math_floor(math_ceil(g_project->_->materials->length / (float)num)); ++row) {
 		i32          mult = g_config->show_asset_names ? 2 : 1;

@@ -886,7 +886,7 @@ void                      asset_selection_context(asset_tray_t tray, void *item)
 void                      asset_selection_set(asset_tray_t tray, any_array_t *items, void *primary);
 void                      asset_selection_sync_filter(asset_tray_t tray, char *search);
 void                      asset_selection_select_all(asset_tray_t tray, i32_array_t *visible);
-void                      asset_selection_marquee_begin(asset_tray_t tray);
+void                      asset_selection_marquee_begin();
 void                      asset_selection_marquee_cell(void *item, f32 x, f32 y, f32 w, f32 h);
 void                      asset_selection_marquee_end(asset_tray_t tray);
 i32                       asset_selection_drag_count();

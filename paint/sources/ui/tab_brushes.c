@@ -150,7 +150,7 @@ void tab_brushes_draw(i32 *htab) {
 		}
 
 		asset_selection_select_all(ASSET_TRAY_BRUSHES, NULL);
-		asset_selection_marquee_begin(ASSET_TRAY_BRUSHES);
+		asset_selection_marquee_begin();
 
 		bool drag_pos_set = false;
 		f32  uix          = 0.0;
