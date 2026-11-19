@@ -1,15 +1,19 @@
 
 #include "../global.h"
 
-// Hidden atlas of the Slot Texture node (interim, see notes/PAINT_PATH.md verdict B).
+// Hidden atlas of the Slot Texture node.
 // A fill layer is one draw of the merged mesh with the atlas uv as position, so the (object, tile) pair is not known when
-// the texture is bound. Until the draw is split per pair, the textures of one bake type are composed into one internal
+// the texture is bound. The textures of one bake type are composed into one internal
 // render target of the project atlas layout (one slot per udim tile, a project without tiles has the single slot 1001).
 // Per object images are not black outside their islands (bake padding fills the tile), so each one is drawn only inside the
 // uv islands of its object on the slot (mask of layers_object_slot_mask, dilated like painted texels), replacing what is there.
 // Object "any" images cover the whole slot and are drawn first.
 // Per (object, tile) the exact image wins over an object or tile "any" one (META_OBJECT / META_TILE absent).
 // Built from an update (never inside a draw) when the signature of the matching textures, the tile list or the size changes.
+// A layer restricted to some objects or tiles gets an atlas composed from the objects it covers only (texture_slot_prepare, called
+// before each fill layer is painted): where islands of two objects overlap, the layer then reads the image of an object it covers,
+// not the one of a later object it does not cover. Overlapping objects covered by the same layer still share the texels of the
+// layer itself.
 
 #define TEXTURE_SLOT_MAX 32
 
@@ -17,6 +21,7 @@ typedef struct texture_slot_entry {
 	i32            btp;
 	gpu_texture_t *atlas; // NULL when no texture has this bake type
 	u64            sig;   // 0 = no matching texture
+	u64            key;   // Objects the atlas was composed for, 0 = all of them (see texture_slot_key)
 } texture_slot_entry_t;
 
 static texture_slot_entry_t texture_slot_entries[TEXTURE_SLOT_MAX];
@@ -174,7 +179,8 @@ static gpu_texture_t *texture_slot_scratch(gpu_texture_t *t, i32 w, i32 h) {
 }
 
 // Draws every slot of the atlas, black where nothing is drawn (flat normal for the Normal encoding)
-static void texture_slot_build(texture_slot_entry_t *e) {
+// only: composes the per object images of these objects only, NULL for all of them
+static void texture_slot_build(texture_slot_entry_t *e, mesh_object_t_array_t *only) {
 	i32 w = config_get_texture_res_x();
 	i32 h = config_get_texture_res_y();
 	if (e->atlas != NULL && (e->atlas->width != w || e->atlas->height != h)) {
@@ -217,8 +223,8 @@ static void texture_slot_build(texture_slot_entry_t *e) {
 				continue;
 			}
 			mesh_object_t *o = project_object_by_id(object);
-			if (o == NULL || !layers_object_slot_mask(o, s)) {
-				continue; // Object no longer exists
+			if (o == NULL || (only != NULL && array_index_of(only, o) < 0) || !layers_object_slot_mask(o, s)) {
+				continue; // Object no longer exists, or the layer does not cover it
 			}
 			texture_slot_tmp_a = texture_slot_scratch(texture_slot_tmp_a, w, h);
 			texture_slot_tmp_b = texture_slot_scratch(texture_slot_tmp_b, w, h);
@@ -256,6 +262,42 @@ static void texture_slot_build(texture_slot_entry_t *e) {
 	free(sels);
 }
 
+// Key of the objects a layer covers: 0 for a layer without restriction (the atlas of every object), else a hash of the paint ids.
+// covered gets the objects (caller frees), NULL for key 0.
+static u64 texture_slot_key(slot_layer_t *l, mesh_object_t_array_t **covered) {
+	*covered = NULL;
+	if (l == NULL || !layer_is_restricted(l)) {
+		return 0;
+	}
+	*covered = layer_coverage_objects(l);
+	u64 h    = 14695981039346656037ULL;
+	for (i32 i = 0; i < (*covered)->length; ++i) {
+		h = texture_slot_hash(h, (*covered)->buffer[i]->paint_id);
+	}
+	return h != 0 ? h : 1;
+}
+
+// Composes the atlases of the layer about to be painted from the objects it covers. Not inside a draw. Called by the fill layer
+// updates after layers_update_paint_set, the layer is painted right after so no refresh is queued.
+void texture_slot_prepare(slot_layer_t *l) {
+	if (texture_slot_count == 0 || gpu_in_use || _draw_current != NULL) {
+		return;
+	}
+	mesh_object_t_array_t *covered = NULL;
+	u64                    key     = texture_slot_key(l, &covered);
+	for (i32 i = 0; i < texture_slot_count; ++i) {
+		texture_slot_entry_t *e = &texture_slot_entries[i];
+		if (e->sig == 0 || e->key == key) {
+			continue;
+		}
+		e->key = key;
+		texture_slot_build(e, covered);
+	}
+	if (covered != NULL) {
+		array_delete(covered);
+	}
+}
+
 static void texture_slot_invalidate() {
 	make_material_parse_paint_material(true);
 	if (layers_is_fill_material()) {
@@ -282,7 +324,12 @@ void texture_slot_update() {
 		}
 		e->sig = sig;
 		if (sig != 0) {
-			texture_slot_build(e);
+			mesh_object_t_array_t *covered = NULL;
+			e->key                         = texture_slot_key(g_context->layer, &covered);
+			texture_slot_build(e, covered);
+			if (covered != NULL) {
+				array_delete(covered);
+			}
 		}
 		else if (e->atlas != NULL) {
 			gpu_delete_texture(e->atlas);
@@ -324,9 +371,4 @@ gpu_texture_t *texture_slot_resolve(i32 btp) {
 	}
 	render_target_t *rt = any_map_get(render_path_render_targets, "empty_black");
 	return rt->_image;
-}
-
-// True while an atlas changed and the layers and previews are not refreshed yet
-bool texture_slot_changed() {
-	return texture_slot_pending;
 }
