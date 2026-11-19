@@ -45,18 +45,14 @@ Arc tangente
 Réseau
 
 Asset
-Atlas
 Attributs
 Auto
-
 Moyenne
 Axe
 B
 Arrière
 Rendu
 Exporter le matériau...
-
-
 Rendu de texture
 Rendu des textures
 
@@ -261,7 +257,6 @@ Erreur : Impossible de localiser la texture
 Erreur : Échec lecture données police
 Erreur : Échec lecture données maillage
 Erreur : Format de ressource inconnu
-
 Exclusion
 Quitter
 Fonctionnalités expérimentales
@@ -298,7 +293,6 @@ Aplatir
 
 
 Courbe de flottant
-
 
 Plancher
 Modulo plancher
@@ -426,8 +420,6 @@ Niveaux
 Durée de vie
 Éclaircir
 Carte de lumière
-
-
 Linéaire
 Lumière linéaire
 Éclairé
@@ -504,9 +496,7 @@ Nouveau thème
 Nouveau masque blanc
 Suivant
 Non
-
 Aucune réponse
-
 Nœud
 Aperçus de nœuds
 Nœuds
@@ -521,7 +511,6 @@ Carte de normales 2
 Normaliser
 Non disponible dans la version de débogage
 Non implémenté
-
 
 OK
 Objet
@@ -557,8 +546,6 @@ Superposer
 
 
 
-
-Par tuile UDIM
 
 
 
@@ -676,7 +663,6 @@ Exécuter dans le lecteur
 En cours...
 
 
-Partagé
 
 SSAO
 Échantillons
@@ -800,7 +786,6 @@ Thème
 Thème importé :
 Épaisseur
 
-
 Tuile
 
 Tuile X
@@ -808,8 +793,6 @@ Tuile Y
 Carrelé
 Tuiles X
 Tuiles Y
-
-
 
 Feuille de tuiles
 Animation de feuille de tuiles
@@ -844,7 +827,6 @@ Faire confiance aux scripts du projet ?
 Interpolation
 Torsion
 Type
-Tuile UDIM
 Échelle interface
 UV
 Îlot UV
@@ -930,9 +912,7 @@ triangles
 type
 sans titre
 x
-
 {shortcut} et déplacer la souris
-
 
 
 

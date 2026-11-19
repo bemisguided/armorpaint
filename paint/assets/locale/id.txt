@@ -45,18 +45,14 @@ Arkutangen
 Array
 
 Aset
-Atlas
 Atribut
 Otomatis
-
 Rata-rata
 Sumbu
 B
 Belakang
 Bake
 Bake Material...
-
-
 Bake Tekstur
 Bake ke Tekstur
 
@@ -261,7 +257,6 @@ Kesalahan: Tidak dapat menemukan tekstur
 Kesalahan: Gagal membaca data font
 Kesalahan: Gagal membaca data mesh
 Kesalahan: Format aset tidak dikenal
-
 Eksklusi
 Keluar
 Fitur Eksperimental
@@ -298,7 +293,6 @@ Ratakan
 
 
 Kurva Float
-
 
 Lantai
 Modulo Lantai
@@ -426,8 +420,6 @@ Tingkat
 Masa Hidup
 Cerahkan
 Peta Cahaya
-
-
 Linear
 Cahaya Linear
 Tercahayai
@@ -504,9 +496,7 @@ Tema Baru
 Masker Putih Baru
 Berikutnya
 Tidak
-
 Tidak ada respons
-
 Node
 Pratinjau Node
 Node
@@ -521,7 +511,6 @@ Peta Normal 2
 Normalisasi
 Tidak tersedia di build debug
 Belum diimplementasikan
-
 
 OK
 Objek
@@ -557,8 +546,6 @@ Hampar
 
 
 
-
-Per Tile UDIM
 
 
 
@@ -676,7 +663,6 @@ Jalankan di Pemutar
 Berjalan...
 
 
-Berbagi
 
 SSAO
 Sampel
@@ -800,7 +786,6 @@ Tema
 Tema diimpor:
 Ketebalan
 
-
 Petak
 
 Petak X
@@ -808,8 +793,6 @@ Petak Y
 Diubin
 Jumlah Petak X
 Jumlah Petak Y
-
-
 
 Tilesheet
 Animasi Tilesheet
@@ -844,7 +827,6 @@ Percayai skrip proyek?
 Tween
 Puntir
 Jenis
-Tile UDIM
 Skala UI
 UV
 Pulau UV
@@ -930,9 +912,7 @@ segitiga
 jenis
 tanpa judul
 x
-
 {shortcut} dan gerakkan mouse
-
 
 
 

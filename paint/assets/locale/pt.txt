@@ -45,18 +45,14 @@ Arco tangente
 Matriz
 
 Ativo
-Atlas
 Atributo
 Automático
-
 Média
 Eixo
 B
 Costas
 Cozinhar
 Cozinhar Material
-
-
 Cozinhar Textura
 Cozinhar para Texturas
 
@@ -261,7 +257,6 @@ Erro: Não foi possível localizar a textura
 Erro: Falha ao ler dados da fonte
 Erro: Falha ao ler dados da malha
 Erro: Formato de ativo desconhecido
-
 Exclusão
 Sair
 Recursos Experimentais
@@ -298,7 +293,6 @@ Achatar
 
 
 Curva de Float
-
 
 Chão
 Módulo Piso
@@ -426,8 +420,6 @@ Níveis
 Tempo de Vida
 Clarear
 Mapa de Luz
-
-
 Linear
 Luz Linear
 Iluminado
@@ -504,9 +496,7 @@ Novo Tema
 Nova Máscara Branca
 Próximo
 Não
-
 Sem resposta
-
 Nó
 Pré-visualizações de Nós
 Nós
@@ -521,7 +511,6 @@ Mapa de Normais 2
 Normalizar
 Não disponível na compilação de depuração
 Não implementado
-
 
 OK
 Objeto
@@ -557,8 +546,6 @@ Sobrepor
 
 
 
-
-Por Telha UDIM
 
 
 
@@ -676,7 +663,6 @@ Executar no Player
 Executando...
 
 
-Compartilhado
 
 SSAO
 Amostras
@@ -800,7 +786,6 @@ Tema
 Tema importado:
 Espessura
 
-
 Bloco
 
 Bloco X
@@ -808,8 +793,6 @@ Bloco Y
 Ladrilhado
 Blocos X
 Blocos Y
-
-
 
 Folha de Blocos
 Animação de Folha de Blocos
@@ -844,7 +827,6 @@ Confiar nos scripts do projeto?
 Interpolar
 Torcer
 Tipo
-Telha UDIM
 Escala da Interface
 UV
 Ilha UV
@@ -930,9 +912,7 @@ triângulos
 tipo
 sem título
 x
-
 {shortcut} e mover mouse
-
 
 
 

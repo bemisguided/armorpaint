@@ -45,18 +45,14 @@ Arktangens
 Pole
 
 Asset
-Atlasy
 Atribut
 Automaticky
-
 Průměr
 Osa
 B
 Zadní
 Zapékat
 Zapékat materiál...
-
-
 Zapékání textury
 Zapékat do textur
 
@@ -261,7 +257,6 @@ Chyba: Nelze najít texturu
 Chyba: Selhání čtení dat písma
 Chyba: Selhání čtení dat sítě
 Chyba: Neznámý formát assetu
-
 Vyloučení
 Ukončit
 Experimentální funkce
@@ -298,7 +293,6 @@ Zploštit
 
 
 Křivka čísla
-
 
 Zaokrouhlit dolů
 Modulo dolní
@@ -426,8 +420,6 @@ Menší než
 Životnost
 Zesvětlit
 Mapa osvětlení
-
-
 Lineární
 Lineární světlo
 Osvětlený
@@ -504,9 +496,7 @@ Nové téma
 Nová bílá maska
 Další
 Ne
-
 Žádná odpověď
-
 Uzel
 Náhledy uzlů
 Uzly
@@ -521,7 +511,6 @@ Normálová mapa 2
 Normalizovat
 Není dostupné v ladicím buildu
 Neimplementováno
-
 
 OK
 Objekt
@@ -557,8 +546,6 @@ Překrytí
 
 
 
-
-Na UDIM dlaždici
 
 
 
@@ -676,7 +663,6 @@ Spustit v přehrávači
 Probíhá...
 
 
-Sdílené
 
 SSAO
 Vzorky
@@ -800,7 +786,6 @@ Téma
 Téma importováno:
 Tloušťka
 
-
 Dlaždice
 
 Dlaždice X
@@ -808,8 +793,6 @@ Dlaždice Y
 Dlaždicový
 Dlaždic X
 Dlaždic Y
-
-
 
 Dlaždicová mapa
 Animace dlaždicové mapy
@@ -844,7 +827,6 @@ Důvěřovat skriptům projektu?
 Prolnutí
 Zkroutit
 Typ
-UDIM dlaždice
 Měřítko rozhraní
 UV
 UV ostrov
@@ -930,9 +912,7 @@ trojúhelníky
 typ
 bez názvu
 x
-
 {shortcut} a pohyb myší
-
 
 
 

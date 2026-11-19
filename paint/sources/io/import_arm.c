@@ -1391,7 +1391,7 @@ void import_arm_run_brush(char *path) {
 		return;
 	}
 	project_t *project = import_arm_is_old(b) ? import_arm_from_old(b) : project_format_decode(b); // Old layouts end before the fork fields
-	if (project == NULL) { // Unknown version, or a fork file of an earlier build
+	if (project == NULL) { // Unknown version, a fork file of an earlier build, or damaged data
 		console_error(string("Unsupported project version in %s.", path));
 		data_delete_blob(path);
 		return;

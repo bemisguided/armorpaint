@@ -45,18 +45,14 @@ Arcus tangens
 Szyk
 
 Zasób
-Atlasy
 Atrybut
 Automatyczny
-
 Średnia
 Oś
 B
 Tył
 Wypalanie
 Wypalanie materiału...
-
-
 Wypalanie tekstury
 Wypal do tekstur
 
@@ -261,7 +257,6 @@ Błąd: Nie można zlokalizować tekstury
 Błąd: Nie udało się odczytać danych czcionki
 Błąd: Nie udało się odczytać danych modelu
 Błąd: Nieznany format zasobu
-
 Wykluczenie
 Wyjście
 Funkcje eksperymentalne
@@ -298,7 +293,6 @@ Spłaszcz
 
 
 Krzywa liczby
-
 
 Zaokrąglij w dół
 Modulo z podłogą
@@ -426,8 +420,6 @@ Poziomy
 Czas życia
 Rozjaśnienie
 Lightmapa
-
-
 Liniowy
 Liniowe światło
 Oświetlony
@@ -504,9 +496,7 @@ Nowy motyw
 Nowa biała maska
 Następny
 Nie
-
 Brak odpowiedzi
-
 Węzeł
 Podglądy węzłów
 Węzły
@@ -521,7 +511,6 @@ Mapa normalnych 2
 Normalizuj
 Niedostępne w kompilacji debugowania
 Nie zaimplementowano
-
 
 OK
 Obiekt
@@ -557,8 +546,6 @@ Nakładka
 
 
 
-
-Na kafel UDIM
 
 
 
@@ -676,7 +663,6 @@ Uruchom w odtwarzaczu
 Uruchomiono...
 
 
-Współdzielone
 
 SSAO
 Próbki
@@ -800,7 +786,6 @@ Motyw
 Motyw zaimportowany:
 Grubość
 
-
 Kafelek
 
 Kafelek X
@@ -808,8 +793,6 @@ Kafelek Y
 Kafelkowany
 Kafelków X
 Kafelków Y
-
-
 
 Arkusz kafelków
 Animacja arkusza kafelków
@@ -844,7 +827,6 @@ Zaufać skryptom projektu?
 Interpolacja
 Skręć
 Typ
-Kafel UDIM
 Skala UI
 UV
 Wyspa UV
@@ -930,9 +912,7 @@ trójkąty
 typ
 bez tytułu
 x
-
 {shortcut} i poruszaj myszą
-
 
 
 

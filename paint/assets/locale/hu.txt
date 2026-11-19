@@ -45,18 +45,14 @@ Arkusz tangens
 Tömb
 
 Asset
-Atlaszok
 Attribútum
 Auto
-
 Átlag
 Tengely
 B
 Hátul
 Sütés (Bake)
 Anyag sütése...
-
-
 Textúra sütése
 Sütés textúrákra
 
@@ -261,7 +257,6 @@ Hiba: A textúra nem található
 Hiba: Nem sikerült beolvasni a betűtípus adatokat
 Hiba: Nem sikerült beolvasni a háló adatokat
 Hiba: Ismeretlen asset formátum
-
 Kizárás
 Kilépés
 Kísérleti funkciók
@@ -298,7 +293,6 @@ Lapítás
 
 
 Float görbe
-
 
 Padló
 Lefelé kerekített modulo
@@ -426,8 +420,6 @@ Szintek
 Élettartam
 Világosítás
 Lightmap
-
-
 Lineáris
 Lineáris fény
 Megvilágított
@@ -504,9 +496,7 @@ Neurális
 Új fehér maszk
 Következő
 Nem
-
 Nincs válasz
-
 Csomópont
 Csomópont előnézetek
 Csomópontok
@@ -521,7 +511,6 @@ Normal Map 2
 Normalizálás
 Nem elérhető hibakereső változatban
 Nincs megvalósítva
-
 
 OK
 Objektum
@@ -557,8 +546,6 @@ Kimenet
 
 
 
-
-UDIM csempénként
 
 
 
@@ -676,7 +663,6 @@ Futtatás a Playerben
 Fut...
 
 
-Megosztott
 
 SSAO
 Minták
@@ -800,7 +786,6 @@ Téma
 Téma importálva:
 Vastagság
 
-
 Mozaik
 
 Mozaik X
@@ -808,8 +793,6 @@ Mozaik Y
 Csempézett
 Mozaikok X
 Mozaikok Y
-
-
 
 Mozaiklap
 Mozaiklap animáció
@@ -844,7 +827,6 @@ Megbízik a projekt szkriptjeiben?
 Átmenet
 Csavarás
 Típus
-UDIM Csempe
 UI méretezés
 UV
 UV sziget
@@ -930,9 +912,7 @@ Háromszögek
 típus
 Névtelen
 x
-
 {shortcut} és egér mozgatása
-
 
 
 

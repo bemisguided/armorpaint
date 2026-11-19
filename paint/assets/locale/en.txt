@@ -45,18 +45,14 @@ Area
 Array
 Aspect
 Asset
-Atlases
 Attribute
 Auto
-Auto uses tiles when the UVs span more than one tile and no triangle crosses a tile border
 Average
 Axis
 B
 Back
 Bake
 Bake Material...
-Bake Properties
-Bake Properties...
 Bake Texture
 Bake to Textures
 Baked
@@ -261,7 +257,6 @@ Error: Could not locate texture
 Error: Failed to read font data
 Error: Failed to read mesh data
 Error: Unknown asset format
-Excluded by the group
 Exclusion
 Exit
 Experimental Features
@@ -299,7 +294,6 @@ Flip X
 Flip Y
 Float Curve
 Flood Fill
-Flood Fill: out of memory
 Floor
 Floored Modulo
 Fly
@@ -426,8 +420,6 @@ Levels
 Lifetime
 Lighten
 Lightmap
-Limit this layer to the selected UDIM tiles.
-Limit this layer to the selected objects.
 Linear
 Linear Light
 Lit
@@ -504,9 +496,7 @@ New Theme
 New White Mask
 Next
 No
-No objects are selected for this layer or its group, so it covers nothing. Select objects or choose All to use it.
 No response
-No tiles are selected for this layer or its group, so it covers nothing. Select tiles or choose All to use it.
 Node
 Node Previews
 Nodes
@@ -521,7 +511,6 @@ Normal Map 2
 Normalize
 Not available in debug build
 Not implemented
-Objects: All
 Offset Random
 OK
 Object
@@ -558,13 +547,11 @@ Pattern Mode
 By Map
 Color Map
 Pattern Map
-Per Udim Tile
 Pivot X
 Pivot Y
 Position X
 Position Y
 Rectangle
-Resolution (per tile)
 Rotation Map
 Scale Map
 Patterns
@@ -676,7 +663,6 @@ Run in Player
 Running...
 Scale Random
 Shape Generator
-Shared
 Smoothing
 SSAO
 Samples
@@ -799,7 +785,6 @@ Textures...
 Theme
 Theme imported:
 Thickness
-This layer's objects were deleted, so it covers nothing. Select objects or choose All to use it again.
 Threshold
 Tile
 Tile Generator
@@ -809,8 +794,6 @@ Tiled
 Tiles X
 Tiles Y
 Tile UV
-Tiles: All
-Tiles: {tiles}
 Tilesheet
 Tilesheet Animation
 Tiling
@@ -844,7 +827,6 @@ Trust project scripts?
 Tween
 Twist
 Type
-UDIM Tile
 UI Scale
 UV
 UV Island
@@ -930,7 +912,6 @@ triangles
 type
 untitled
 x
-{object} shares UV space with {other} on tile {tile}. In exports and path tracing this layer also applies to {other}.
 {shortcut} and move mouse
 No objects
 objects
@@ -999,5 +980,3 @@ Add to all
 The GPU bake result could not be read, baking on the CPU
 The GPU bake result could not be read
 Not enough memory for the GPU bake, lower the resolution
-
-{tiles} tiles, atlas {atlas} px, about {mb} MB

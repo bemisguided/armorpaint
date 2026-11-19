@@ -45,18 +45,14 @@ Arc tangente
 Matriz
 
 Recurso
-Atlas
 Atributo
 Automático
-
 Promedio
 Ejes
 A
 Trasera
 Hornear
 Hornear material...
-
-
 Hornear textura
 Hornear a texturas
 
@@ -261,7 +257,6 @@ Error: No se pudo localizar la textura
 Error: Fallo al leer datos de fuente
 Error: No se pudieron leer los datos de la malla
 Error: formato de recurso desconocido
-
 Exclusión
 Salir
 Funciones experimentales
@@ -298,7 +293,6 @@ Aplanar
 
 
 Curva de valor
-
 
 Piso
 Módulo hacia abajo
@@ -426,8 +420,6 @@ Niveles
 Tiempo de vida
 Aclarar
 Mapa de luz
-
-
 Lineal
 Luz lineal
 Iluminado
@@ -504,9 +496,7 @@ Nuevo Tema
 Nueva máscara blanca
 Siguiente
 No
-
 Sin respuesta
-
 Nodo
 Vistas previas de nodos
 Nodos
@@ -521,7 +511,6 @@ Mapa de normales 2
 Normalizar
 No disponible en la compilación de depuración
 No implementado
-
 
 OK
 Objeto
@@ -557,8 +546,6 @@ Superponer
 
 
 
-
-Por tile UDIM
 
 
 
@@ -676,7 +663,6 @@ Ejecutar en el reproductor
 Ejecutando...
 
 
-Compartido
 
 SSAO
 Muestras
@@ -800,7 +786,6 @@ Tema
 Tema importado:
 Grosor
 
-
 Mosaico
 
 Mosaico X
@@ -808,8 +793,6 @@ Mosaico Y
 Tileado
 Mosaicos X
 Mosaicos Y
-
-
 
 Hoja de mosaicos
 Animación de hoja de mosaicos
@@ -844,7 +827,6 @@ Módulo truncado
 Interpolar
 Torcer
 Tipo
-Cuadro UDIM
 Escala de Interfaz
 UV
 Isla UV
@@ -930,9 +912,7 @@ Triángulos
 tipo
 Sin título
 x
-
 {shortcut} y mover ratón
-
 
 
 
