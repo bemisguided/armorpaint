@@ -429,6 +429,28 @@ static void make_image_node_upload(char *id, f32 *result, i32 size, gpu_texture_
 	gpu_delete_texture(tmp);
 }
 
+// Deletes the result texture of an image node and its map entry, the node renders black again
+static void make_image_node_delete_result(char *id) {
+	if (g_context->node_previews == NULL) {
+		return;
+	}
+	string_array_t *keys = map_keys(g_context->node_previews);
+	for (i32 i = 0; i < keys->length; ++i) {
+		char *key = keys->buffer[i];
+		if (string_equals(key, id)) {
+			gpu_texture_t *image = any_map_get(g_context->node_previews, key);
+			if (image != NULL) {
+				gpu_delete_texture(image);
+			}
+			map_delete(g_context->node_previews, key);
+			free(key);
+			break;
+		}
+	}
+	array_free(keys);
+	free(keys);
+}
+
 // Processes the pending capture of s into its result texture
 static void make_image_node_bake(make_image_node_state_t *s, char *id) {
 	if (!s->pending || s->type == NULL) {
@@ -447,7 +469,8 @@ static void make_image_node_bake(make_image_node_state_t *s, char *id) {
 	}
 	if (result == NULL || s->result_count < 0) {
 		console_error(tr("Image node bake: out of memory"));
-		s->has_baked        = false; // Black result
+		make_image_node_delete_result(id); // Black result, not the previous texture
+		s->has_baked        = false;
 		s->failed           = true;
 		s->failed_signature = s->pending_signature;
 	}
