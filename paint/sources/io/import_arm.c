@@ -97,7 +97,7 @@ void import_arm_run_mesh(project_t *raw) {
 project_t *import_arm_decode_project(buffer_t *b) {
 	if (!import_arm_has_version(b)) { // Mesh only
 		scene_t *scene = armpack_decode(b);
-		return ALLOC_INIT(project_t, {.mesh_datas = scene->mesh_datas});
+		return scene != NULL ? ALLOC_INIT(project_t, {.mesh_datas = scene->mesh_datas}) : NULL;
 	}
 	if (import_arm_is_old(b)) {
 		return import_arm_from_old(b);
@@ -778,7 +778,7 @@ void import_arm_run_project(char *path) {
 	if (!import_arm_has_version(b)) {
 		import_as_mesh     = true;
 		scene_t *scene_raw = armpack_decode(b);
-		project            = ALLOC_INIT(project_t, {.mesh_datas = scene_raw->mesh_datas});
+		project            = scene_raw != NULL ? ALLOC_INIT(project_t, {.mesh_datas = scene_raw->mesh_datas}) : NULL;
 	}
 	else if (import_arm_is_old(b)) {
 		project = import_arm_from_old(b);
@@ -786,7 +786,7 @@ void import_arm_run_project(char *path) {
 	else {
 		project = project_format_decode(b);
 	}
-	if (project == NULL) { // Unknown version, or a fork file of an earlier build
+	if (project == NULL) { // Unknown version, a fork file of an earlier build, or damaged data
 		console_error(string("Unsupported project version in %s.", path));
 		data_delete_blob(path);
 		return;
@@ -1423,7 +1423,7 @@ void import_arm_run_brush_from_project(project_t *project, char *path) {
 void import_arm_run_swatches(char *path, bool replace_existing) {
 	buffer_t  *b       = data_get_blob(path);
 	project_t *project = armpack_decode(b);
-	if (project->version == NULL) {
+	if (project == NULL || project->version == NULL) {
 		data_delete_blob(path);
 		return;
 	}
@@ -1431,6 +1431,6 @@ void import_arm_run_swatches(char *path, bool replace_existing) {
 }
 
 bool import_arm_has_version(buffer_t *b) {
-	bool has_version = b->buffer[10] == 118; // 'v';
+	bool has_version = b->length > 10 && b->buffer[10] == 118; // 'v';
 	return has_version;
 }
