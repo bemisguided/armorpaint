@@ -1002,7 +1002,8 @@ static void agent_mcp_request(void *data) {
 }
 
 static bool agent_mcp_pending(void) {
-	return iron_file_exists(agent_serve_file("request.txt"));
+	// Called every frame: a temporary string, agent_serve_file allocates one that is never freed
+	return iron_file_exists(string_tmp("%sagent%s%s", iron_internal_save_path(), PATH_SEP, "request.txt"));
 }
 
 static void agent_listen(void *_) {
