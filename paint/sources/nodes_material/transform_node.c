@@ -7,7 +7,7 @@
 // Everything is about the Pivot: flip, then scale, then rotation, then Offset. Output pixel q reads the source at
 // p = pivot + inverse(R * S * F) * (q - pivot - offset). The angle is applied like Tile UV applies it to its
 // coordinate (a positive Rotation turns the image counterclockwise in the editor view).
-// Cubic is Catmull-Rom, not Tile UV's B-spline: it passes through the texels, so the default settings give back
+// Cubic is Catmull-Rom (make_image_node_sample_rgba, the shared cpu sampler), not Tile UV's B-spline: it passes through the texels, so the default settings give back
 // the input pixel for pixel. No mipmaps: a source shrunk by more than about 2x aliases.
 //
 // Tiling Tile always tiles (the output is periodic with period 1): the inverse map N = F * S^-1 * R(angle) must have
@@ -35,13 +35,8 @@ enum {
 	TRANSFORM_BUTTON_FLIP_Y = 5,
 };
 
-enum {
-	TRANSFORM_TILING_TILE,
-	TRANSFORM_TILING_MIRROR,
-	TRANSFORM_TILING_CLAMP,
-	TRANSFORM_TILING_NONE,
-};
-
+// Filter setting values (the order of the combo); the sampler takes IMAGE_FILTER_*, mapped in transform_node_params.
+// The Tiling setting values are IMAGE_TILING_* (types.h) in the same order as its combo.
 enum {
 	TRANSFORM_FILTER_LINEAR,
 	TRANSFORM_FILTER_CUBIC,
@@ -82,7 +77,7 @@ static void transform_node_snap(transform_params_t *p, f32 rotation, f32 scale_x
 	f32 a   = rotation * (3.14159265f / 180.0f);
 	f32 sx  = scale_x < 0.0001f ? 0.0001f : scale_x;
 	f32 sy  = scale_y < 0.0001f ? 0.0001f : scale_y;
-	if (p->tiling != TRANSFORM_TILING_TILE) {
+	if (p->tiling != IMAGE_TILING_TILE) {
 		p->cos_a   = cosf(a);
 		p->sin_a   = sinf(a);
 		p->scale_x = sx;
@@ -153,108 +148,12 @@ static void transform_node_params(ui_node_t *node, void *params) {
 	p->pivot_x            = make_image_node_input_value(node, TRANSFORM_INPUT_PIVOT_X);
 	p->pivot_y            = make_image_node_input_value(node, TRANSFORM_INPUT_PIVOT_Y);
 	p->tiling             = (i32)transform_node_button(node, TRANSFORM_BUTTON_TILING);
-	p->filter             = (i32)transform_node_button(node, TRANSFORM_BUTTON_FILTER);
+	i32 filter            = (i32)transform_node_button(node, TRANSFORM_BUTTON_FILTER);
+	p->filter             = filter == TRANSFORM_FILTER_LINEAR ? IMAGE_FILTER_LINEAR : filter == TRANSFORM_FILTER_CUBIC ? IMAGE_FILTER_CUBIC : IMAGE_FILTER_NEAREST;
 	p->flip_x             = transform_node_button(node, TRANSFORM_BUTTON_FLIP_X) != 0.0f;
 	p->flip_y             = transform_node_button(node, TRANSFORM_BUTTON_FLIP_Y) != 0.0f;
 	transform_node_snap(p, make_image_node_input_value(node, TRANSFORM_INPUT_ROTATION), make_image_node_input_value(node, TRANSFORM_INPUT_SCALE_X),
 	                    make_image_node_input_value(node, TRANSFORM_INPUT_SCALE_Y));
-}
-
-// Texel index after the tiling mode, -1 outside the source (None)
-static i32 transform_node_wrap(i32 i, i32 size, i32 tiling) {
-	if (i >= 0 && i < size) {
-		return i;
-	}
-	switch (tiling) {
-	case TRANSFORM_TILING_TILE:
-		i %= size;
-		return i < 0 ? i + size : i;
-	case TRANSFORM_TILING_MIRROR:
-		i %= size * 2;
-		i = i < 0 ? i + size * 2 : i;
-		return i < size ? i : size * 2 - 1 - i;
-	case TRANSFORM_TILING_CLAMP:
-		return i < 0 ? 0 : size - 1;
-	}
-	return -1;
-}
-
-static void transform_node_fetch(f32 *pixels, i32 size, i32 x, i32 y, i32 tiling, f32 *out) {
-	x = transform_node_wrap(x, size, tiling);
-	y = transform_node_wrap(y, size, tiling);
-	if (x < 0 || y < 0) {
-		out[0] = out[1] = out[2] = out[3] = 0.0f;
-		return;
-	}
-	f32 *s = pixels + ((size_t)y * size + x) * 4;
-	out[0] = s[0];
-	out[1] = s[1];
-	out[2] = s[2];
-	out[3] = s[3];
-}
-
-// Catmull-Rom weights for the four texels around a fraction t
-static void transform_node_cubic_weights(f32 t, f32 *w) {
-	f32 t2 = t * t;
-	f32 t3 = t2 * t;
-	w[0]   = 0.5f * (-t3 + 2.0f * t2 - t);
-	w[1]   = 0.5f * (3.0f * t3 - 5.0f * t2 + 2.0f);
-	w[2]   = 0.5f * (-3.0f * t3 + 4.0f * t2 + t);
-	w[3]   = 0.5f * (t3 - t2);
-}
-
-// Source read at (u, v), image fractions
-static void transform_node_sample(f32 *pixels, i32 size, f32 u, f32 v, i32 filter, i32 tiling, f32 *out) {
-	f32 fx = u * (f32)size;
-	f32 fy = v * (f32)size;
-	if (filter == TRANSFORM_FILTER_NEAREST) {
-		transform_node_fetch(pixels, size, (i32)floorf(fx), (i32)floorf(fy), tiling, out);
-		return;
-	}
-	fx -= 0.5f;
-	fy -= 0.5f;
-	f32 flx = floorf(fx);
-	f32 fly = floorf(fy);
-	f32 tx  = fx - flx;
-	f32 ty  = fy - fly;
-	// Float error must not blur a read that lands on a texel centre
-	tx      = tx < 1e-4f ? 0.0f : tx > 1.0f - 1e-4f ? 1.0f : tx;
-	ty      = ty < 1e-4f ? 0.0f : ty > 1.0f - 1e-4f ? 1.0f : ty;
-	i32 ix  = (i32)flx;
-	i32 iy  = (i32)fly;
-	f32 wx[4];
-	f32 wy[4];
-	i32 n0;
-	if (filter == TRANSFORM_FILTER_LINEAR) {
-		wx[0] = 1.0f - tx;
-		wx[1] = tx;
-		wy[0] = 1.0f - ty;
-		wy[1] = ty;
-		n0    = 0;
-	}
-	else {
-		transform_node_cubic_weights(tx, wx);
-		transform_node_cubic_weights(ty, wy);
-		n0 = -1;
-	}
-	i32 n = filter == TRANSFORM_FILTER_LINEAR ? 2 : 4;
-	out[0] = out[1] = out[2] = out[3] = 0.0f;
-	for (i32 j = 0; j < n; ++j) {
-		if (wy[j] == 0.0f) {
-			continue;
-		}
-		for (i32 i = 0; i < n; ++i) {
-			if (wx[i] == 0.0f) {
-				continue;
-			}
-			f32 t[4];
-			transform_node_fetch(pixels, size, ix + n0 + i, iy + n0 + j, tiling, t);
-			f32 w = wx[i] * wy[j];
-			for (i32 k = 0; k < 4; ++k) {
-				out[k] += t[k] * w;
-			}
-		}
-	}
 }
 
 static void transform_node_rows(void *param, i32 begin, i32 end) {
@@ -275,7 +174,7 @@ static void transform_node_rows(void *param, i32 begin, i32 end) {
 			ry /= sy;
 			rx = p->flip_x ? -rx : rx;
 			ry = p->flip_y ? -ry : ry;
-			transform_node_sample(c->pixels, size, p->pivot_x + rx, p->pivot_y + ry, p->filter, p->tiling, c->result + ((size_t)y * size + x) * 4);
+			make_image_node_sample_rgba(c->pixels, size, p->pivot_x + rx, p->pivot_y + ry, p->filter, p->tiling, c->result + ((size_t)y * size + x) * 4);
 		}
 	}
 }
@@ -363,7 +262,7 @@ void transform_node_init() {
 	                    (void *[]){
 	                        transform_node_setting(_tr("Size"), "ENUM", 1, "512\n1024\n2048\n4096"),
 	                        make_image_node_state_button(),
-	                        transform_node_setting(_tr("Tiling"), "ENUM", TRANSFORM_TILING_TILE, "Tile\nMirror\nClamp\nNone"),
+	                        transform_node_setting(_tr("Tiling"), "ENUM", IMAGE_TILING_TILE, "Tile\nMirror\nClamp\nNone"),
 	                        transform_node_setting(_tr("Filter"), "ENUM", TRANSFORM_FILTER_CUBIC, "Linear\nCubic\nNearest"),
 	                        transform_node_setting(_tr("Flip X"), "BOOL", 0, NULL),
 	                        transform_node_setting(_tr("Flip Y"), "BOOL", 0, NULL),
