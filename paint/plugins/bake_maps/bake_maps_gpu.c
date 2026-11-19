@@ -211,7 +211,7 @@ static f32 gpo_world_scale(void) {
 	return 1.0f;
 }
 
-// One sample (64 rays, 4 on metal) of every covered texel, the shaders average the samples in the target
+// One sample (64 rays, 4 on WebGPU) of every covered texel, the shaders average the samples in the target
 static void gpo_dispatch() {
 	// Set before every dispatch, the textures are shared with the viewport and the core bake
 	gpu_texture_t *sobol = data_get_texture("bnoise_sobol.k");
@@ -234,14 +234,15 @@ static void gpo_dispatch() {
 }
 
 // Half float target into the pair's RGBA8 buffer, then dilated like a cpu result.
-static void gpo_readback(i32 pair) {
+static bool gpo_readback(i32 pair) {
 	buffer_t *pixels = gpu_get_texture_pixels(gpo_target);
 	u8       *out    = bake_maps_gpo_result(pair);
-	if (pixels == NULL || out == NULL || pixels->length < (u32)(gpo_w * gpo_h * 8)) {
-		return;
+	size_t    count  = (size_t)gpo_w * (size_t)gpo_h;
+	if (pixels == NULL || out == NULL || (size_t)pixels->length < count * 8) {
+		return false;
 	}
 	u16 *hp = (u16 *)pixels->buffer;
-	for (i32 i = 0; i < gpo_w * gpo_h; ++i) {
+	for (size_t i = 0; i < count; ++i) {
 		for (i32 c = 0; c < 3; ++c) {
 			f32 v          = render_path_raytrace_half_to_float(hp[i * 4 + c]);
 			v              = v < 0.0f ? 0.0f : v > 1.0f ? 1.0f : v;
@@ -250,6 +251,7 @@ static void gpo_readback(i32 pair) {
 		out[i * 4 + 3] = 255;
 	}
 	bake_maps_gpo_finish_result(pair);
+	return true;
 }
 
 // Hands the raytrace state back, the viewport and the core bake rebuild their scene and shader
@@ -418,14 +420,19 @@ bool bake_gpu_object_poll() {
 		}
 	}
 	else {
-		gpo_readback(gpo_pair);
-		gpo_free_pair_textures();
-		gpo_pair++;
-		gpo_sample = 0;
-		gpo_state  = GPO_INIT;
-		if (gpo_pair >= gpo_pairs) {
-			gpo_stop();
+		if (!gpo_readback(gpo_pair)) {
+			gpo_fail(vtr("The GPU bake result could not be read, baking on the CPU", NULL));
 			done = true;
+		}
+		else {
+			gpo_free_pair_textures();
+			gpo_pair++;
+			gpo_sample = 0;
+			gpo_state  = GPO_INIT;
+			if (gpo_pair >= gpo_pairs) {
+				gpo_stop();
+				done = true;
+			}
 		}
 	}
 	gpo_draw_resume();

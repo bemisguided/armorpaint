@@ -94,10 +94,16 @@ void import_arm_run_mesh(project_t *raw) {
 	history_reset();
 }
 
+// 0xdf map, i32 count, 0xdb string, i32 len, then the first key, 'v' of "version" when the file has one
+#define ARM_VERSION_OFFSET 10
+
 project_t *import_arm_decode_project(buffer_t *b) {
+	if (b == NULL || b->length <= ARM_VERSION_OFFSET) { // Missing or too short to be an arm file
+		return NULL;
+	}
 	if (!import_arm_has_version(b)) { // Mesh only
 		scene_t *scene = armpack_decode(b);
-		return ALLOC_INIT(project_t, {.mesh_datas = scene->mesh_datas});
+		return scene != NULL ? ALLOC_INIT(project_t, {.mesh_datas = scene->mesh_datas}) : NULL;
 	}
 	if (import_arm_is_old(b)) {
 		return import_arm_from_old(b);
@@ -260,7 +266,11 @@ static void import_arm_run_mesh_append_from_project(project_t *project, i32_arra
 }
 
 void import_arm_run_mesh_append(char *path) {
-	buffer_t  *b       = data_get_blob(path);
+	buffer_t *b = data_get_blob(path);
+	if (b == NULL) {
+		console_error(string("Could not open file %s.", path));
+		return;
+	}
 	project_t *project = import_arm_decode_project(b);
 	if (project == NULL) { // Unknown version
 		console_error(string("Unsupported project version in %s.", path));
@@ -596,11 +606,16 @@ static void import_arm_trust_scripts_box_draw() {
 	}
 }
 
-static void import_arm_check_scripts(project_t *project, bool meshes) {
+static bool import_arm_is_cloud(char *path) {
+	char *root = path_is_protected() ? string("%scloud", iron_internal_save_path()) : string("%s%scloud", iron_internal_files_location(), PATH_SEP);
+	return starts_with(path, root);
+}
+
+static void import_arm_check_scripts(project_t *project, char *path, bool meshes) {
 	if (args_player) {
 		return;
 	}
-	if (g_config->auto_run_scripts) {
+	if (g_config->auto_run_scripts || import_arm_is_cloud(path)) {
 		project_scripts_trusted = true;
 		return;
 	}
@@ -613,7 +628,7 @@ static void import_arm_check_scripts(project_t *project, bool meshes) {
 }
 
 static void import_arm_import_materials(project_t *project, char *path, i32_array_t *selected, bool delete_blob) {
-	import_arm_check_scripts(project, false);
+	import_arm_check_scripts(project, path, false);
 	if (project->material_nodes == NULL || project->material_nodes->length == 0) {
 		if (delete_blob) {
 			data_delete_blob(path);
@@ -766,6 +781,13 @@ void import_arm_run_project(char *path) {
 	buffer_t *b = data_get_blob(path);
 	if (b == NULL) {
 		console_error(string("Could not open file %s.", path));
+		ui_header_draw_progress(1.0);
+		return;
+	}
+	if (b->length <= ARM_VERSION_OFFSET) { // Too short to be an arm file
+		console_error(string("Unsupported project version in %s.", path));
+		data_delete_blob(path);
+		ui_header_draw_progress(1.0);
 		return;
 	}
 	project_t *project;
@@ -773,7 +795,7 @@ void import_arm_run_project(char *path) {
 	if (!import_arm_has_version(b)) {
 		import_as_mesh     = true;
 		scene_t *scene_raw = armpack_decode(b);
-		project            = ALLOC_INIT(project_t, {.mesh_datas = scene_raw->mesh_datas});
+		project            = scene_raw != NULL ? ALLOC_INIT(project_t, {.mesh_datas = scene_raw->mesh_datas}) : NULL;
 	}
 	else if (import_arm_is_old(b)) {
 		project = import_arm_from_old(b);
@@ -784,6 +806,7 @@ void import_arm_run_project(char *path) {
 	if (project == NULL) { // Unknown version, or a fork file of an earlier build
 		console_error(string("Unsupported project version in %s.", path));
 		data_delete_blob(path);
+		ui_header_draw_progress(1.0);
 		return;
 	}
 
@@ -808,7 +831,7 @@ void import_arm_run_project(char *path) {
 	g_context->layer_filter_tile    = 0;
 	ui_header_draw_progress(0.1);
 
-	i32 progress_assets = project->assets->length + (project->sound_assets != NULL ? project->sound_assets->length : 0);
+	i32 progress_assets = (project->assets != NULL ? project->assets->length : 0) + (project->sound_assets != NULL ? project->sound_assets->length : 0);
 	i32 progress_loaded = 0;
 	i32 progress_bytes  = 1;
 	if (project->packed_assets != NULL) {
@@ -854,7 +877,7 @@ void import_arm_run_project(char *path) {
 		project_scripts_trusted = was_trusted;
 	}
 	else {
-		import_arm_check_scripts(project, true);
+		import_arm_check_scripts(project, path, true);
 	}
 	layer_data_t *l0                     = g_project->layer_datas->buffer[0];
 	project_format_load_tiles(g_project, l0->res); // Sets base_res, base_res_x/y to the per tile resolution
@@ -1037,7 +1060,7 @@ void import_arm_run_project(char *path) {
 	context_select_paint_object(context_main_object());
 
 	gpu_texture_t *tex = g_project->_->layers->buffer[0]->texpaint;
-	if (tex->width != util_udim_res_x() || tex->height != util_udim_res_y()) {
+	if (tex->width != config_get_texture_res_x() || tex->height != config_get_texture_res_y()) {
 		layers_resize_targets();
 	}
 
@@ -1099,7 +1122,7 @@ void import_arm_run_project(char *path) {
 					render_target_t *t = render_target_create();
 					t->name            = string("texpaint_sculpt%s", l->ext);
 					// Sculpt textures are per vertex at the per tile resolution, not atlas sized like the layer textures
-					i32 sculpt_res     = config_get_texture_res_x();
+					i32 sculpt_res     = config_get_tile_res_x();
 					t->width           = sculpt_res;
 					t->height          = sculpt_res;
 					t->format          = "RGBA128";
@@ -1335,7 +1358,11 @@ void import_arm_run_project(char *path) {
 }
 
 void import_arm_run_material(char *path) {
-	buffer_t  *b = data_get_blob(path);
+	buffer_t *b = data_get_blob(path);
+	if (b == NULL) {
+		console_error(string("Could not open file %s.", path));
+		return;
+	}
 	project_t *project;
 	if (import_arm_is_old(b)) {
 		project = import_arm_from_old(b);
@@ -1357,7 +1384,11 @@ void import_arm_run_material(char *path) {
 }
 
 void import_arm_run_brush(char *path) {
-	buffer_t  *b       = data_get_blob(path);
+	buffer_t *b = data_get_blob(path);
+	if (b == NULL) {
+		console_error(string("Could not open file %s.", path));
+		return;
+	}
 	project_t *project = import_arm_is_old(b) ? import_arm_from_old(b) : project_format_decode(b); // Old layouts end before the fork fields
 	if (project == NULL) { // Unknown version, or a fork file of an earlier build
 		console_error(string("Unsupported project version in %s.", path));
@@ -1415,8 +1446,17 @@ void import_arm_run_brush_from_project(project_t *project, char *path) {
 }
 
 void import_arm_run_swatches(char *path, bool replace_existing) {
-	buffer_t  *b       = data_get_blob(path);
+	buffer_t *b = data_get_blob(path);
+	if (b == NULL) {
+		console_error(string("Could not open file %s.", path));
+		return;
+	}
 	project_t *project = armpack_decode(b);
+	if (project == NULL) { // Damaged data
+		console_error(string("Could not read %s.", path));
+		data_delete_blob(path);
+		return;
+	}
 	if (project->version == NULL) {
 		data_delete_blob(path);
 		return;
@@ -1425,6 +1465,6 @@ void import_arm_run_swatches(char *path, bool replace_existing) {
 }
 
 bool import_arm_has_version(buffer_t *b) {
-	bool has_version = b->buffer[10] == 118; // 'v';
+	bool has_version = b->length > ARM_VERSION_OFFSET && b->buffer[ARM_VERSION_OFFSET] == 118; // 'v';
 	return has_version;
 }
