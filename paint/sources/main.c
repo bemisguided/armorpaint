@@ -214,6 +214,7 @@
 #include "util/util_env.c"
 #include "util/util_geom.c"
 #include "util/util_layer.c"
+#include "util/util_layer_coverage.c"
 #include "util/util_mesh.c"
 #include "util/util_meta.c"
 #include "util/util_nodes.c"
