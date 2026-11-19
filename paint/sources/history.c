@@ -978,8 +978,9 @@ void history_group_end() {
 	history_grouping = false;
 }
 
-// Keeps the newest undo_steps groups (a step and the with_prev steps after it) and no more undo layers than there are,
-// the newest step always stays
+// The undo limit counts groups (a step and the with_prev steps after it), so a group of more steps than undo_steps is never cut and old groups
+// go whole. Steps that wrote undo layers are limited separately to the ring size (undo_steps layers), or the ring would overwrite their data.
+// The newest step always stays.
 static void history_trim() {
 	while (true) {
 		i32 groups = 0;
