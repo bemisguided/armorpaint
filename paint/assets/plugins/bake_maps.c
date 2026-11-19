@@ -620,6 +620,7 @@ void draw_settings() {
 	res_combo->buffer[2]      = "4096";
 	res_combo->buffer[3]      = "8192";
 	ui_combo(&res_index, res_combo, "Resolution", true, UI_ALIGN_LEFT, true);
+	ui_tooltip("Resolution of each tile");
 
 	if (any_selected(2, 5) || any_selected(12, 12)) { // World space normal, position, bent normal
 		string_array_t *up_combo = string_array_create(2);
