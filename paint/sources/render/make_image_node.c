@@ -73,6 +73,9 @@ typedef struct make_image_node_state {
 	u32                captured_asset_version;
 	bool               cycle_seen;    // The running capture sampled a node that depends on this node, see make_image_node_edge_cyclic
 	bool               cycle_told;    // The Console told about the loop this node is in
+#ifdef ARMORPAINT_TEST_NATIVES
+	i32                result_count;  // What the type's process returned for the last bake (Flood Fill: islands), for the test natives
+#endif
 } make_image_node_state_t;
 
 // An image node of a material, found by make_image_node_collect
@@ -771,6 +774,9 @@ static void make_image_node_bake(make_image_node_state_t *s, char *id) {
 	i32                status       = -1;
 	if (result != NULL) {
 		status = t->process(s->pending_pixels, size, s->pending_params, result);
+#ifdef ARMORPAINT_TEST_NATIVES
+		s->result_count = status;
+#endif
 		make_image_node_plane_free(s->pending_pixels, s->pending_bytes); // The capture is not needed during the upload
 		free(s->pending_params);
 		s->pending_pixels = NULL;
@@ -1165,6 +1171,34 @@ static make_image_node_state_t *make_image_node_state_of(ui_node_t *node, char *
 i32 make_image_node_capture_count() {
 	return make_image_node_captures;
 }
+
+#ifdef ARMORPAINT_TEST_NATIVES
+// Test driver hooks (minic_test_natives.c)
+bool make_image_node_is_pending(ui_node_t *node) {
+	char                    *id;
+	make_image_node_state_t *s = make_image_node_state_of(node, &id);
+	return s != NULL && (s->pending || s->needs_capture || make_image_node_force_all);
+}
+
+gpu_texture_t *make_image_node_result(ui_node_t *node) {
+	char                    *id;
+	make_image_node_state_t *s = make_image_node_state_of(node, &id);
+	if (s == NULL || !s->has_baked || g_context->node_previews == NULL) {
+		return NULL;
+	}
+	return any_map_get(g_context->node_previews, id);
+}
+
+i32 make_image_node_result_count(ui_node_t *node) {
+	char                    *id;
+	make_image_node_state_t *s = make_image_node_state_of(node, &id);
+	return s != NULL && s->has_baked ? s->result_count : -1;
+}
+
+void make_image_node_bake_now(ui_node_t *node) {
+	make_image_node_regenerate();
+}
+#endif
 
 // Regenerate image nodes: captures and bakes every image node of the project on the next update, also the ones whose
 // signature did not change (an Image Texture whose file was reloaded)

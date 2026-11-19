@@ -58,6 +58,9 @@ project_t *main() {
 	if (!flags->embed) {
 		add_assets(project, "../base/assets/extra/*", "data/{name}", 0); // font_cjk.ttc
 	}
+	if (has_arg("--test-natives")) {
+		add_define(project, "ARMORPAINT_TEST_NATIVES"); // Script natives for the automated tests, see minic_test_natives.c
+	}
 	if (with_mipmaps) {
 		add_define(project, "WITH_MIPMAPS");
 	}

@@ -271,6 +271,7 @@
 #include "keymap.c"
 #include "logic_node.c"
 #include "minic_impl.c"
+#include "minic_test_natives.c"
 #include "node_shader.c"
 #include "nodes_brush.c"
 #include "nodes_material.c"

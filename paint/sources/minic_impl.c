@@ -211,13 +211,6 @@ void ui_files_show2(char *filters, bool is_save, bool open_multiple, void *files
 	ui_files_show(filters, is_save, open_multiple, _ui_files_show_done);
 }
 
-// The next file or folder dialog does not open and answers with path, once. Open dialogs pass path to their callback.
-// Save dialogs, also the folder pickers, take path as the chosen file: the callback gets its folder and
-// ui_files_filename its name, so "dir/name.png" picks folder "dir", and "dir/" picks "dir" with no name.
-void script_files_next(char *path) {
-	ui_files_answer_next(path);
-}
-
 static void *_ui_box_commands;
 static void *_ui_box_on_hide;
 
@@ -933,33 +926,6 @@ static void script_layer_set_coverage(slot_layer_t *l, bool tiles, i32 *ids, i32
 	g_context->ddirty  = 2;
 }
 
-// Persistent paint ids (mesh_object_t.paint_id), all covers every object and keeps ids for later
-void script_layer_set_objects(slot_layer_t *l, i32_array_t *ids, bool all) {
-	script_layer_set_coverage(l, false, ids != NULL ? ids->buffer : NULL, ids != NULL ? ids->length : 0, all);
-}
-
-// Udim tile ids (1001..), all covers every tile and keeps ids for later
-void script_layer_set_tiles(slot_layer_t *l, i32_array_t *ids, bool all) {
-	script_layer_set_coverage(l, true, ids != NULL ? ids->buffer : NULL, ids != NULL ? ids->length : 0, all);
-}
-
-// Coverage as stored on the layer (slot_layer_t.meta), the lists are copies (empty when none), editing them changes nothing
-bool script_layer_all_objects(slot_layer_t *l) {
-	return !script_layer_valid(l) || slot_layer_all_objects(l);
-}
-
-i32_array_t *script_layer_objects(slot_layer_t *l) {
-	return script_layer_valid(l) ? i32_array_create_from_array(slot_layer_objects(l)) : NULL; // NULL for an invalid layer
-}
-
-bool script_layer_all_tiles(slot_layer_t *l) {
-	return !script_layer_valid(l) || slot_layer_all_tiles(l);
-}
-
-i32_array_t *script_layer_tiles(slot_layer_t *l) {
-	return script_layer_valid(l) ? i32_array_create_from_array(slot_layer_tiles(l)) : NULL; // NULL for an invalid layer
-}
-
 // Single object, NULL covers all objects
 void script_layer_set_object(slot_layer_t *l, object_t *object) {
 	if (object == NULL) {
@@ -1283,32 +1249,6 @@ i32 script_asset_index(char *search) {
 		}
 	}
 	return -1;
-}
-
-// Asset metadata by category (meta_category_t) and index: the position in the matching tray / project array
-// (fonts include the default font at 0). Out of range indices are ignored.
-void script_meta_set_i32(i32 category, i32 index, i32 key, i32 value) {
-	meta_set_i32(meta_get(category, index), key, value);
-}
-
-i32 script_meta_get_i32(i32 category, i32 index, i32 key, i32 def) {
-	return meta_get_i32(meta_peek(category, index), key, def);
-}
-
-void script_meta_add_tag(i32 category, i32 index, char *tag) {
-	meta_add_tag(meta_get(category, index), tag);
-}
-
-i32 script_meta_has_tag(i32 category, i32 index, char *tag) {
-	return meta_has_tag(meta_peek(category, index), tag);
-}
-
-i32 script_asset_count(i32 category) {
-	return meta_count(category);
-}
-
-char *script_asset_name(i32 category, i32 index) {
-	return meta_item_name(category, index);
 }
 
 void script_import_asset(char *path, bool hdr_as_envmap) {
@@ -2369,85 +2309,6 @@ void script_mouse_click(i32 x, i32 y, i32 button) {
 		return;
 	}
 	sys_notify_on_next_frame(script_mouse_click_down, script_click_create(x, y, button));
-}
-
-static void script_mouse_move_next(void *data) {
-	script_click_t *c = data;
-	script_mouse_apply_move(c);
-	free(c);
-}
-
-static void script_mouse_down_next(void *data) {
-	script_click_t *c = data;
-	script_mouse_apply_down(c);
-	free(c);
-}
-
-static void script_mouse_up_next(void *data) {
-	script_click_t *c = data;
-	script_mouse_apply_move(c);
-	iron_internal_mouse_trigger_release(c->button, c->x, c->y);
-	free(c);
-}
-
-// Move the mouse to window pixel x, y next frame, a button that is down stays down (drags)
-void script_mouse_move(i32 x, i32 y) {
-	sys_notify_on_next_frame(script_mouse_move_next, script_click_create(x, y, 0));
-}
-
-// Move to window pixel x, y and press next frame, button 0 left, 1 right, 2 middle; release with script_mouse_up
-void script_mouse_down(i32 x, i32 y, i32 button) {
-	if (button < 0 || button > 4) {
-		return;
-	}
-	sys_notify_on_next_frame(script_mouse_down_next, script_click_create(x, y, button));
-}
-
-// Move to window pixel x, y and release next frame
-void script_mouse_up(i32 x, i32 y, i32 button) {
-	if (button < 0 || button > 4) {
-		return;
-	}
-	sys_notify_on_next_frame(script_mouse_up_next, script_click_create(x, y, button));
-}
-
-// Project resolution like the Resolution combo of the Layers tab and the export dialog: 0 2048, 1 4096, 2 8192, 3 16384
-void script_project_set_resolution(i32 res) {
-	if (res < TEXTURE_RES_RES2048 || res > TEXTURE_RES_RES16384) {
-		return;
-	}
-	base_res = res;
-	config_set_texture_res(base_res);
-	layers_on_resized();
-}
-
-// Export dialog Color combo: 0 8bit, 1 16bit, 2 32bit. Rebuilds the layers next frame like the combo
-static void script_export_set_bits_next(void *data) {
-	layers_set_bits();
-}
-
-void script_export_set_bits(i32 bits) {
-	if (bits < TEXTURE_BITS_BITS8 || bits > TEXTURE_BITS_BITS32) {
-		return;
-	}
-	base_bits = bits;
-	sys_notify_on_next_frame(script_export_set_bits_next, NULL);
-}
-
-// Export dialog Format combo: 0 png, 1 jpg (8bit only; 16bit and 32bit always write exr)
-void script_export_set_format(i32 format) {
-	if (format < TEXTURE_LDR_FORMAT_PNG || format > TEXTURE_LDR_FORMAT_JPG) {
-		return;
-	}
-	g_context->format_type = format;
-}
-
-// Export dialog Destination combo: 0 Disk, 1 Pack into Project. Pack writes into the project when export_texture_run gets the path "/"
-void script_export_set_destination(i32 destination) {
-	if (destination < EXPORT_DESTINATION_DISK || destination > EXPORT_DESTINATION_PACK_INTO_PROJECT) {
-		return;
-	}
-	g_context->layers_destination = destination;
 }
 
 static void script_key_press_up(void *data) {
