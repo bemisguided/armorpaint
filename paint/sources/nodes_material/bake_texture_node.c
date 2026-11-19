@@ -44,6 +44,7 @@ static void bake_to_target_check_result(void *_) {
 	g_context->tool            = _bake_to_target_tool;
 	ui_view2d_hwnd->redraws    = 2;
 	bake_texture_node_baking   = false;
+	util_version_graph_bump(NULL); // The baked texture is a new input of the image nodes that read it
 	make_material_parse_paint_material(true);
 
 	if (rgba128) {
