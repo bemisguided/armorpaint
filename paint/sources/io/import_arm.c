@@ -56,6 +56,18 @@ static mesh_data_t_array_t *import_arm_get_mesh_datas(project_t *project, string
 	return mesh_datas;
 }
 
+// Layer image into the layer being drawn, a saved atlas bigger than the atlas side limit lets the project open smaller
+static void import_arm_draw_layer_image(gpu_texture_t *image) {
+	i32 w = config_get_texture_res_x();
+	i32 h = config_get_texture_res_y();
+	if (image->width == w && image->height == h) {
+		draw_image(image, 0, 0);
+	}
+	else {
+		draw_scaled_image(image, 0, 0, w, h);
+	}
+}
+
 void import_arm_run_mesh(project_t *raw) {
 	g_project->_->paint_objects  = any_array_create_from_raw((void *[]){}, 0);
 	g_project->_->next_object_id = 0;
@@ -875,6 +887,7 @@ void import_arm_run_project(char *path) {
 	}
 	layer_data_t *l0                     = g_project->layer_datas->buffer[0];
 	project_format_load_tiles(g_project, l0->res); // Sets base_res, base_res_x/y to the per tile resolution
+	util_udim_warn_clamped();
 	texture_bits_t bits_pos              = l0->bpp == 8 ? TEXTURE_BITS_BITS8 : l0->bpp == 16 ? TEXTURE_BITS_BITS16 : TEXTURE_BITS_BITS32;
 	base_bits                            = bits_pos;
 	i32                  bytes_per_pixel = math_floor(l0->bpp / 8.0);
@@ -1073,7 +1086,7 @@ void import_arm_run_project(char *path) {
 				draw_begin(l->texpaint, false, 0);
 				// draw_set_pipeline(pipes_copy8);
 				draw_set_pipeline(g_project->is_bgra ? pipes_copy_bgra : pipes_copy); // Full bits for undo support, R8 is used
-				draw_image(_texpaint, 0, 0);
+				import_arm_draw_layer_image(_texpaint);
 				draw_set_pipeline(NULL);
 				draw_end();
 			}
@@ -1084,21 +1097,21 @@ void import_arm_run_project(char *path) {
 				                                        i == 0 ? &g_project->_->translucency : NULL);
 				draw_begin(l->texpaint, false, 0);
 				draw_set_pipeline(g_project->is_bgra ? pipes_copy_bgra : pipes_copy);
-				draw_image(_texpaint, 0, 0);
+				import_arm_draw_layer_image(_texpaint);
 				draw_set_pipeline(NULL);
 				draw_end();
 
 				_texpaint_nor = import_arm_texture_from_lz4(ld->texpaint_nor, ld->res, ld->res * ld->res * 4 * bytes_per_pixel, format, NULL);
 				draw_begin(l->texpaint_nor, false, 0);
 				draw_set_pipeline(g_project->is_bgra ? pipes_copy_bgra : pipes_copy);
-				draw_image(_texpaint_nor, 0, 0);
+				import_arm_draw_layer_image(_texpaint_nor);
 				draw_set_pipeline(NULL);
 				draw_end();
 
 				_texpaint_pack = import_arm_texture_from_lz4(ld->texpaint_pack, ld->res, ld->res * ld->res * 4 * bytes_per_pixel, format, NULL);
 				draw_begin(l->texpaint_pack, false, 0);
 				draw_set_pipeline(g_project->is_bgra ? pipes_copy_bgra : pipes_copy);
-				draw_image(_texpaint_pack, 0, 0);
+				import_arm_draw_layer_image(_texpaint_pack);
 				draw_set_pipeline(NULL);
 				draw_end();
 
