@@ -1093,11 +1093,20 @@ typedef struct ui_nodes_editor_state {
 
 // An image node type (render/make_image_node.c): the shared pass captures the node's inputs in image space,
 // the type turns the captured pixels into its result, which the node samples at the current texture coordinate (Tile UV at its own placement)
-// How the baked result of an image node is read where it is placed (make_image_node_sample_at)
+// How the baked result of an image node is read where it is placed (make_image_node_sample_at), also the filter of the cpu read
+// (make_image_node_sample_rgba; Cubic there is Catmull-Rom, which passes through the texels, not the shader's B-spline)
 enum {
 	IMAGE_FILTER_NEAREST = 0,
 	IMAGE_FILTER_LINEAR  = 1,
 	IMAGE_FILTER_CUBIC   = 2,
+};
+
+// How a cpu read (make_image_node_sample_rgba) treats a texel index outside the image
+enum {
+	IMAGE_TILING_TILE   = 0, // Repeat
+	IMAGE_TILING_MIRROR = 1, // Repeat, every other period mirrored
+	IMAGE_TILING_CLAMP  = 2, // Edge texel
+	IMAGE_TILING_NONE   = 3, // Transparent black
 };
 
 typedef struct image_node_type {
