@@ -10,9 +10,9 @@
 // Cubic is Catmull-Rom (make_image_node_sample_rgba, the shared cpu sampler), not Tile UV's B-spline: it passes through the texels, so the default settings give back
 // the input pixel for pixel. No mipmaps: a source shrunk by more than about 2x aliases.
 //
-// Tiling Tile always tiles (the output is periodic with period 1): the inverse map N = F * S^-1 * R(angle) must have
-// integer entries, so Rotation and Scale are snapped to the nearest closable values (transform_node_snap). The maths
-// and the exact rule are in armorpaint-admin specs/image-nodes/IMAGE_NODES.md, section Transform.
+// Rotation and Scale are used as set for every Tiling mode. The output of a Tile Transform is periodic with period 1
+// only when the rotation maps the lattice onto itself (multiples of 90 degrees with an integer 1 / Scale), otherwise
+// it shows a seam when tiled (known limit). The maths is in armorpaint-admin specs/image-nodes/IMAGE_NODES.md, section Transform.
 
 // Input socket indices
 enum {
@@ -43,15 +43,10 @@ enum {
 	TRANSFORM_FILTER_NEAREST,
 };
 
-// Largest source period count along the rotated axis a Tile snap may use: the closable angles are the integer vectors
-// (p, q) with p^2 + q^2 <= this squared
-#define TRANSFORM_MAX_HYPOT 16
-
 typedef struct transform_params {
 	f32 offset_x;
 	f32 offset_y;
-	f32 cos_a; // Rotation as cos and sin: exact for a snapped angle
-	f32 sin_a;
+	f32 rotation; // Degrees
 	f32 scale_x;
 	f32 scale_y;
 	f32 pivot_x;
@@ -68,62 +63,6 @@ typedef struct transform_ctx {
 	i32                 size;
 	transform_params_t *p;
 } transform_ctx_t;
-
-// Rotation and Scale into the params. Tiling Tile snaps them so the output is periodic with period 1:
-// Rotation to the nearest angle atan2(q, p) with p, q coprime integers and p^2 + q^2 <= TRANSFORM_MAX_HYPOT^2, r = sqrt(p^2 + q^2),
-// Scale to 1 / (k * r) and 1 / (j * r) with k, j integers >= 1: k = round(1 / (requested * r)), so a zoom in is limited
-// to 1 / r and a zoom out is a whole number of source periods per axis. Other Tiling modes are not snapped.
-static void transform_node_snap(transform_params_t *p, f32 rotation, f32 scale_x, f32 scale_y) {
-	f32 a   = rotation * (3.14159265f / 180.0f);
-	f32 sx  = scale_x < 0.0001f ? 0.0001f : scale_x;
-	f32 sy  = scale_y < 0.0001f ? 0.0001f : scale_y;
-	if (p->tiling != IMAGE_TILING_TILE) {
-		p->cos_a   = cosf(a);
-		p->sin_a   = sinf(a);
-		p->scale_x = sx;
-		p->scale_y = sy;
-		return;
-	}
-	i32 best_p    = 1;
-	i32 best_q    = 0;
-	f32 best_diff = 1e9f;
-	for (i32 q = -TRANSFORM_MAX_HYPOT; q <= TRANSFORM_MAX_HYPOT; ++q) {
-		for (i32 x = -TRANSFORM_MAX_HYPOT; x <= TRANSFORM_MAX_HYPOT; ++x) {
-			if (x * x + q * q > TRANSFORM_MAX_HYPOT * TRANSFORM_MAX_HYPOT) {
-				continue;
-			}
-			i32 g = x < 0 ? -x : x;
-			i32 h = q < 0 ? -q : q;
-			while (h != 0) {
-				i32 t = g % h;
-				g     = h;
-				h     = t;
-			}
-			if (g != 1) {
-				continue; // Not coprime ((0, 0) included): the same angle as a shorter vector
-			}
-			f32 d = fabsf(atan2f((f32)q, (f32)x) - a);
-			d     = fmodf(d, 6.28318531f);
-			d     = d > 3.14159265f ? 6.28318531f - d : d;
-			if (d < best_diff) {
-				best_diff = d;
-				best_p    = x;
-				best_q    = q;
-			}
-		}
-	}
-	f32 r      = sqrtf((f32)(best_p * best_p + best_q * best_q));
-	p->cos_a   = (f32)best_p / r;
-	p->sin_a   = (f32)best_q / r;
-	f32 k_max  = floorf(100.0f / r); // Scale stays above the socket minimum 0.01
-	k_max      = k_max < 1.0f ? 1.0f : k_max;
-	f32 kx     = roundf(1.0f / (sx * r));
-	f32 ky     = roundf(1.0f / (sy * r));
-	kx         = kx < 1.0f ? 1.0f : kx > k_max ? k_max : kx;
-	ky         = ky < 1.0f ? 1.0f : ky > k_max ? k_max : ky;
-	p->scale_x = 1.0f / (kx * r);
-	p->scale_y = 1.0f / (ky * r);
-}
 
 static f32 transform_node_button(ui_node_t *node, i32 i) {
 	return node->buttons->buffer[i]->default_value->buffer[0];
@@ -145,6 +84,9 @@ static void transform_node_params(ui_node_t *node, void *params) {
 	transform_params_t *p = params;
 	p->offset_x           = make_image_node_input_value(node, TRANSFORM_INPUT_OFFSET_X);
 	p->offset_y           = make_image_node_input_value(node, TRANSFORM_INPUT_OFFSET_Y);
+	p->rotation           = make_image_node_input_value(node, TRANSFORM_INPUT_ROTATION);
+	p->scale_x            = make_image_node_input_value(node, TRANSFORM_INPUT_SCALE_X);
+	p->scale_y            = make_image_node_input_value(node, TRANSFORM_INPUT_SCALE_Y);
 	p->pivot_x            = make_image_node_input_value(node, TRANSFORM_INPUT_PIVOT_X);
 	p->pivot_y            = make_image_node_input_value(node, TRANSFORM_INPUT_PIVOT_Y);
 	p->tiling             = (i32)transform_node_button(node, TRANSFORM_BUTTON_TILING);
@@ -152,18 +94,17 @@ static void transform_node_params(ui_node_t *node, void *params) {
 	p->filter             = filter == TRANSFORM_FILTER_LINEAR ? IMAGE_FILTER_LINEAR : filter == TRANSFORM_FILTER_CUBIC ? IMAGE_FILTER_CUBIC : IMAGE_FILTER_NEAREST;
 	p->flip_x             = transform_node_button(node, TRANSFORM_BUTTON_FLIP_X) != 0.0f;
 	p->flip_y             = transform_node_button(node, TRANSFORM_BUTTON_FLIP_Y) != 0.0f;
-	transform_node_snap(p, make_image_node_input_value(node, TRANSFORM_INPUT_ROTATION), make_image_node_input_value(node, TRANSFORM_INPUT_SCALE_X),
-	                    make_image_node_input_value(node, TRANSFORM_INPUT_SCALE_Y));
 }
 
 static void transform_node_rows(void *param, i32 begin, i32 end) {
 	transform_ctx_t    *c    = param;
 	transform_params_t *p    = c->p;
 	i32                 size = c->size;
-	f32                 ca   = p->cos_a;
-	f32                 sa   = p->sin_a;
-	f32                 sx   = p->scale_x;
-	f32                 sy   = p->scale_y;
+	f32                 a    = p->rotation * (3.14159265f / 180.0f);
+	f32                 ca   = cosf(a);
+	f32                 sa   = sinf(a);
+	f32                 sx   = p->scale_x < 0.0001f ? 0.0001f : p->scale_x;
+	f32                 sy   = p->scale_y < 0.0001f ? 0.0001f : p->scale_y;
 	for (i32 y = begin; y < end; ++y) {
 		for (i32 x = 0; x < size; ++x) {
 			f32 dx = ((f32)x + 0.5f) / (f32)size - p->pivot_x - p->offset_x;
