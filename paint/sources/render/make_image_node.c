@@ -226,8 +226,7 @@ static shader_context_t *make_image_node_capture_shader(ui_node_t *node, char *(
 	parser_material_nodes = g_context->material->canvas->nodes;
 	parser_material_links = g_context->material->canvas->links;
 	if (make_image_node_capture_group != NULL) {
-		parser_material_push_group(make_image_node_capture_group);
-		parser_material_set_parents(make_image_node_capture_parents);
+		parser_material_push_group_chain(make_image_node_capture_group, make_image_node_capture_parents);
 	}
 	parser_material_con                   = con;
 	parser_material_kong                  = kong;
@@ -589,6 +588,28 @@ static bool make_image_node_upload(char *id, f32 *result, i32 size, gpu_texture_
 	return true;
 }
 
+// Deletes the result texture of an image node and its map entry, the node renders black again
+static void make_image_node_delete_result(char *id) {
+	if (g_context->node_previews == NULL) {
+		return;
+	}
+	string_array_t *keys = map_keys(g_context->node_previews);
+	for (i32 i = 0; i < keys->length; ++i) {
+		char *key = keys->buffer[i];
+		if (string_equals(key, id)) {
+			gpu_texture_t *image = any_map_get(g_context->node_previews, key);
+			if (image != NULL) {
+				gpu_delete_texture(image);
+			}
+			map_delete(g_context->node_previews, key);
+			free(key);
+			break;
+		}
+	}
+	array_free(keys);
+	free(keys);
+}
+
 // Processes the pending capture of s into its result texture
 static void make_image_node_bake(make_image_node_state_t *s, char *id) {
 	if (!s->pending || s->type == NULL) {
@@ -618,7 +639,8 @@ static void make_image_node_bake(make_image_node_state_t *s, char *id) {
 	}
 	if (status < 0) {
 		console_error(tr("Image node bake: out of memory"));
-		s->has_baked        = false; // Black result
+		make_image_node_delete_result(id); // Black result, not the previous texture
+		s->has_baked        = false;
 		s->failed           = true;
 		s->failed_signature = s->pending_signature;
 	}
@@ -740,6 +762,12 @@ static ui_node_t *make_image_node_run_material(slot_material_t *m, bool force_al
 			}
 			if (force_all || s->needs_capture || upstream_baked) {
 				make_image_node_capture(s, e->id, e->node, e->group, e->parents, force_all);
+				if (!cycle && make_image_node_waits(e, entries)) {
+					// The capture just recorded the upstream of a node never captured before: wait for it and capture again.
+					// Not progress, so a cycle still trips the cycle flag at the end of a pass without a finished node.
+					s->needs_capture = true;
+					continue;
+				}
 			}
 			if (s->pending) {
 				make_image_node_bake(s, e->id);
