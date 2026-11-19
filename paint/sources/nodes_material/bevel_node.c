@@ -384,7 +384,7 @@ void bevel_node_init() {
 	                        bevel_node_setting(_tr("Size"), "ENUM", 1, "512\n1024\n2048\n4096"),
 	                        make_image_node_state_button(),
 	                        bevel_node_setting(_tr("Mode"), "ENUM", 0, "Inner\nOuter\nBoth"),
-	                        bevel_node_setting(_tr("Wrap Edges"), "BOOL", 0, NULL),
+	                        bevel_node_setting(_tr("Wrap Edges"), "BOOL", 1, NULL),
 	                    },
 	                    4),
 	                .width = 0,
