@@ -234,8 +234,6 @@ void project_format_load_layer_metas(project_t *raw) {
 project_t *project_format_decode(buffer_t *b) {
 	return armpack_decode(b);
 }
-	return armpack_decode(b);
-}
 
 // After the paint objects of a loaded project exist, one per mesh_datas entry; tex is still tile-local (util_udim_apply_layout_loaded)
 void project_format_load_mesh_tiles(project_t *raw) {
