@@ -111,6 +111,7 @@ Középpont
 Csatornák
 Frissítések keresése...
 Sakktábla textúra
+
 Szorítás (Clamp)
 Faktor szorítása
 Eredmény szorítása
@@ -153,6 +154,7 @@ Közreműködők
 Átalakítás erre
 Másolás
 Hex kód másolása
+
 Koszinusz
 Nem sikerült letölteni:
 Darabszám
@@ -226,6 +228,7 @@ Ecset duplikálása
 Réteg duplikálása
 Anyag duplikálása
 Színminta duplikálása
+
 
 
 Szerkesztés
@@ -541,6 +544,9 @@ Kimenet
 
 
 
+
+
+
 PBR
 Assetek becsomagolása
 Csomagolás a projektbe
@@ -649,6 +655,7 @@ Futtatás a Playerben
 Fut...
 
 
+
 SSAO
 Minták
 Telítettség
@@ -730,6 +737,7 @@ Szétválasztás
 Felosztás e szerint
 Osztott nézet
 Háló felosztása objektumokra
+
 Négyzetgyök
 Lapítás
 Szakasz

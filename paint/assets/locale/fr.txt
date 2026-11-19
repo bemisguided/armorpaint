@@ -111,6 +111,7 @@ Centre
 Canaux
 Vérifier les mises à jour...
 Texture d'échiquier
+
 Resserrement
 Resserrer le facteur
 Resserrer le résultat
@@ -153,6 +154,7 @@ Convertir depuis
 Convertir vers
 Copier...
 Copier le code HEX
+
 Cosinus
 Impossible de télécharger
 Nombre
@@ -226,6 +228,7 @@ Dupliquer la brosse
 Dupliquer le calque
 Dupliquer matériau
 Dupliquer l'échantillon
+
 
 
 Modifier
@@ -541,6 +544,9 @@ Superposer
 
 
 
+
+
+
 PBR
 Embarquer les assets
 Empaqueter dans projet
@@ -649,6 +655,7 @@ Exécuter dans le lecteur
 En cours...
 
 
+
 SSAO
 Échantillons
 Saturation
@@ -730,6 +737,7 @@ Séparer
 Séparer par
 Vue partagée
 Diviser le maillage en objets
+
 Racine carrée
 Écrasement
 Étape

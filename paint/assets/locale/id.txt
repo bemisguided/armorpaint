@@ -111,6 +111,7 @@ Tengah
 Kanal
 Periksa Pembaruan...
 Tekstur Kotak-kotak
+
 Batasi
 Batasi Faktor
 Batasi Hasil
@@ -153,6 +154,7 @@ Konversi Dari
 Konversi Ke
 Salin
 Salin Kode Hex
+
 Kosinus
 Tidak dapat mengunduh
 Jumlah
@@ -226,6 +228,7 @@ Duplikat Kuas
 Duplikat Lapisan
 Duplikat Material
 Duplikat Contoh Warna
+
 
 
 Sunting
@@ -541,6 +544,9 @@ Hampar
 
 
 
+
+
+
 PBR
 Kemas Aset
 Kemas ke Proyek
@@ -649,6 +655,7 @@ Jalankan di Pemutar
 Berjalan...
 
 
+
 SSAO
 Sampel
 Saturasi
@@ -730,6 +737,7 @@ Pisahkan
 Pisah Berdasarkan
 Tampilan Terpisah
 Pisah mesh menjadi objek
+
 Akar Kuadrat
 Pipihkan
 Tahap

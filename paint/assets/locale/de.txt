@@ -111,6 +111,7 @@ Mitte
 Kanäle
 Auf Updates prüfen...
 Schach Textur
+
 Begrenzen
 Faktor begrenzen
 Ergebnis begrenzen
@@ -153,6 +154,7 @@ Umwandeln von
 Umwandeln zu
 Kopieren
 Hex-Code kopieren
+
 Kosinus
 Download fehlgeschlagen:
 Anzahl
@@ -226,6 +228,7 @@ Pinsel duplizieren
 Ebene duplizieren
 Material duplizieren
 Farbfeld duplizieren
+
 
 
 Bearbeiten
@@ -541,6 +544,9 @@ Ausgang
 
 
 
+
+
+
 PBR
 Assets zusammenpacken
 In Projekt packen
@@ -649,6 +655,7 @@ Im Player ausführen
 Läuft...
 
 
+
 SSAO
 Samples
 Sättigung
@@ -730,6 +737,7 @@ Aufteilen
 Aufteilen nach
 Geteilte Ansicht
 Mesh in Objekte aufteilen
+
 Quadratwurzel
 Quetschung
 Stage

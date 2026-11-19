@@ -111,6 +111,7 @@ Centro
 Canales
 Comprobar actualizaciones...
 Verificador
+
 Limitar
 Limitar factor
 Limitar resultado
@@ -153,6 +154,7 @@ Convertir desde
 Convertir a
 Copiar
 Copiar código hex
+
 Coseno
 No se pudo descargar
 Cantidad
@@ -226,6 +228,7 @@ Duplicar pincel
 Duplicar capa
 Duplicar material
 Duplicar muestra
+
 
 
 Editar
@@ -541,6 +544,9 @@ Superponer
 
 
 
+
+
+
 PBR
 Empaquetar recursos
 Empaquetar en proyecto
@@ -649,6 +655,7 @@ Ejecutar en el reproductor
 Ejecutando...
 
 
+
 SSAO
 Muestras
 Saturación
@@ -730,6 +737,7 @@ Dividir
 Separar por
 Dividir vista
 Dividir la malla en objetos
+
 Raíz Cuadrada
 Achatamiento
 Etapa

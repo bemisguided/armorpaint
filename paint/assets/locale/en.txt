@@ -111,6 +111,7 @@ Center
 Channels
 Check for Updates...
 Checker Texture
+Circle
 Clamp
 Clamp Factor
 Clamp Result
@@ -153,6 +154,7 @@ Convert From
 Convert To
 Copy
 Copy Hex Code
+Corner Radius
 Cosine
 Could not download
 Count
@@ -227,6 +229,7 @@ Duplicate Layer
 Duplicate Material
 Duplicate Swatch
 Edge Detect
+Edge Softness
 Edge Width
 Edit
 Edit Image
@@ -538,6 +541,9 @@ Pattern Mode
 By Map
 Color Map
 Pattern Map
+Position X
+Position Y
+Rectangle
 Rotation Map
 Scale Map
 Patterns
@@ -648,6 +654,7 @@ Run
 Run in Player
 Running...
 Scale Random
+Shape Generator
 Smoothing
 SSAO
 Samples
@@ -730,6 +737,7 @@ Split
 Split By
 Split View
 Split mesh into objects
+Square
 Square Root
 Squash
 Stage

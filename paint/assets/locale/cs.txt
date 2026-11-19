@@ -111,6 +111,7 @@ Střed
 Kanály
 Zkontrolovat aktualizace...
 Šachovnicová textura
+
 Omezit
 Omezit faktor
 Omezit výsledek
@@ -153,6 +154,7 @@ Převést z
 Převést na
 Kopírovat
 Kopírovat hex kód
+
 Kosinus
 Nelze stáhnout
 Počet
@@ -226,6 +228,7 @@ Duplikovat štětec
 Duplikovat vrstvu
 Duplikovat materiál
 Duplikovat vzorek
+
 
 
 Upravit
@@ -541,6 +544,9 @@ Překrytí
 
 
 
+
+
+
 PBR
 Zabalit assety
 Zabalit do projektu
@@ -649,6 +655,7 @@ Spustit v přehrávači
 Probíhá...
 
 
+
 SSAO
 Vzorky
 Sytost
@@ -730,6 +737,7 @@ Oddělit
 Rozdělit podle
 Rozdělený pohled
 Rozdělit síť na objekty
+
 Druhá odmocnina
 Zploštění
 Etapa

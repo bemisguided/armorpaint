@@ -111,6 +111,7 @@ Centro
 Canais
 Checar Atualizações...
 Textura Quadriculada
+
 Limitar
 Limitar Fator
 Limitar Resultado
@@ -153,6 +154,7 @@ Converter De
 Converter Para
 Copiar
 Copiar Código Hex
+
 Cosseno
 Não foi possível baixar
 Contagem
@@ -226,6 +228,7 @@ Duplicar Pincel
 Duplicar Camada
 Duplicar Material
 Duplicar Amostra
+
 
 
 Editar
@@ -541,6 +544,9 @@ Sobrepor
 
 
 
+
+
+
 PBR
 Empacotar Ativos
 Empacotar no Projeto
@@ -649,6 +655,7 @@ Executar no Player
 Executando...
 
 
+
 SSAO
 Amostras
 Saturação
@@ -730,6 +737,7 @@ Dividir
 Separar Por
 Dividir Visualização
 Dividir malha em objetos
+
 Raiz Quadrada
 Achatamento
 Etapa
