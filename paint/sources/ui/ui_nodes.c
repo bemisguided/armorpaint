@@ -16,6 +16,7 @@ bool              ui_nodes_recompile_mat_final   = false;
 ui_node_t        *ui_nodes_node_search_spawn     = NULL;
 i32               ui_nodes_node_search_offset    = 0;
 ui_node_canvas_t *ui_nodes_last_canvas           = NULL;
+static ui_node_canvas_t *ui_nodes_last_canvas_source = NULL; // The canvas ui_nodes_last_canvas is a copy of
 i32               ui_nodes_last_node_selected_id = -1;
 bool              ui_nodes_release_link          = false;
 bool              ui_nodes_is_node_menu_op       = false;
@@ -1034,7 +1035,8 @@ void ui_nodes_update(void *_) {
 
 		// Undo
 		if (g_ui->input_started || g_ui->is_key_pressed) {
-			ui_nodes_last_canvas = util_clone_canvas(ui_nodes_get_canvas(true));
+			ui_nodes_last_canvas_source = ui_nodes_get_canvas(true);
+			ui_nodes_last_canvas        = util_clone_canvas(ui_nodes_get_canvas(true));
 		}
 
 		// Nodes
@@ -1110,7 +1112,10 @@ void ui_nodes_update(void *_) {
 		}
 		else if (ui_nodes_uichanged_last) {
 			ui_nodes_canvas_changed();
-			ui_nodes_push_undo(ui_nodes_last_canvas);
+			// The Nodes and Back buttons change the canvas being edited, the copy then belongs to another canvas than the one push_undo records it for
+			if (ui_nodes_last_canvas_source == ui_nodes_get_canvas(true)) {
+				ui_nodes_push_undo(ui_nodes_last_canvas);
+			}
 		}
 		ui_nodes_uichanged_last = g_ui->changed;
 
@@ -1247,7 +1252,8 @@ void ui_nodes_render_popup() {
 		return;
 	}
 	if (g_ui->input_started || g_ui->is_key_pressed) {
-		ui_nodes_last_canvas = util_clone_canvas(ui_nodes_get_canvas(true));
+		ui_nodes_last_canvas_source = ui_nodes_get_canvas(true);
+		ui_nodes_last_canvas        = util_clone_canvas(ui_nodes_get_canvas(true));
 	}
 	draw_begin(NULL, false, 0);
 	g_ui->input_enabled = g_ui->combo_selected_id == 0 && !ui_box_show && !ui_menu_show;
