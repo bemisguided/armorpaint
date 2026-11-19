@@ -151,7 +151,7 @@ void flood_fill_node_init() {
 	                        make_image_node_state_button(),
 	                        make_image_node_setting(_tr("Connectivity"), "ENUM", 0, "4\n8"),
 	                        make_image_node_setting(_tr("Invert"), "BOOL", 0, NULL),
-	                        make_image_node_setting(_tr("Wrap Edges"), "BOOL", 0, NULL),
+	                        make_image_node_setting(_tr("Wrap Edges"), "BOOL", 1, NULL),
 	                    },
 	                    5),
 	                .width = 0,
