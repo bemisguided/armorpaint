@@ -1055,6 +1055,7 @@ i32                       make_image_node_capture_index();
 void                      make_image_node_parallel(i32 count, void (*fn)(void *ctx, i32 begin, i32 end), void *ctx);
 void                      make_image_node_sample_rgba(f32 *pixels, i32 size, f32 u, f32 v, i32 filter, i32 tiling, f32 *out);
 char                     *make_image_node_sample(ui_node_t *node);
+char                     *make_image_node_sample_second(ui_node_t *node);
 char                     *make_image_node_sample_at(ui_node_t *node, char *uv, i32 filter);
 void                      make_image_node_regenerate();
 ui_node_button_t         *make_image_node_state_button();

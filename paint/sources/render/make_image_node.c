@@ -592,7 +592,8 @@ static void make_image_node_bake(make_image_node_state_t *s, char *id) {
 	}
 	image_node_type_t *t      = s->type;
 	i32                size   = s->pending_size;
-	f32               *result = calloc((size_t)size * size * 4, sizeof(f32));
+	size_t             plane  = (size_t)size * size * 4;
+	f32               *result = calloc(plane * (t->second_result ? 2 : 1), sizeof(f32));
 	i32                status = -1;
 	if (result != NULL) {
 		status = t->process(s->pending_pixels, size, s->pending_params, result);
@@ -601,6 +602,9 @@ static void make_image_node_bake(make_image_node_state_t *s, char *id) {
 		s->pending_pixels = NULL;
 		s->pending_params = NULL;
 		if (!make_image_node_upload(id, result, size, t->result_format)) {
+			status = -1;
+		}
+		else if (t->second_result && !make_image_node_upload(string_tmp("%s_2", id), result + plane, size, GPU_TEXTURE_FORMAT_RGBA64)) {
 			status = -1;
 		}
 		free(result);
@@ -853,6 +857,9 @@ void make_image_node_on_traverse(ui_node_t *node, ui_node_canvas_t *group, ui_no
 	char *id = make_material_node_preview_id(node, parents);
 	any_array_push(g_context->node_previews_used, id); // Keeps the baked result
 	make_image_node_state_t *s = make_image_node_get_state(id, node);
+	if (s->type != NULL && s->type->second_result) {
+		any_array_push(g_context->node_previews_used, string_tmp("%s_2", id));
+	}
 	if (linked) {
 		return; // A stroke changes layers, never the image space input (Layer nodes are neutral there)
 	}
@@ -977,11 +984,11 @@ static void make_image_node_write_fetch(char *var, char *tex_name, char *uv, i32
 }
 
 // Records the dependency of a capture on the node, binds its result texture and size constant; returns the texture name
-static char *make_image_node_bind(ui_node_t *node, char *id) {
+static char *make_image_node_bind(ui_node_t *node, char *id, char *texture_id) {
 	if (make_image_node_capturing != NULL && string_array_index_of(make_image_node_capturing->upstream, id) == -1) {
 		any_array_push(make_image_node_capturing->upstream, string_copy(id)); // Chained: bakes before the node being captured
 	}
-	char *tex_name = string_tmp("teximage_%s", id);
+	char *tex_name = string_tmp("teximage_%s", texture_id);
 	node_shader_add_texture(parser_material_kong, tex_name, string_tmp("_%s", tex_name));
 	node_shader_add_constant(parser_material_kong, string_tmp("float2 %s_size", tex_name), string_tmp("_size(_%s)", tex_name));
 	return tex_name;
@@ -991,18 +998,15 @@ static char *make_image_node_bind(ui_node_t *node, char *id) {
 // Image Texture), once per node; returns the float4 variable. Image nodes have no Vector input: the placement on the
 // uv is done by a Tile UV node at the end of the chain (make_image_node_sample_at). In image space (a capture) tex_coord
 // is the image uv, so chained nodes read each other's result 1:1.
-char *make_image_node_sample(ui_node_t *node) {
-	char *id  = make_material_node_preview_id(node, NULL);
-	char *var = string_tmp("%s_image", parser_material_store_var_name(node));
-	char *tex_name = make_image_node_bind(node, id);
+static char *make_image_node_sample_texture(ui_node_t *node, char *texture_id, char *var_suffix, i32 filter) {
+	char *id       = make_material_node_preview_id(node, NULL);
+	char *var      = string_tmp("%s_%s", parser_material_store_var_name(node), var_suffix);
+	char *tex_name = make_image_node_bind(node, id, texture_id);
 	if (string_array_index_of(parser_material_parsed, var) >= 0) {
 		return var;
 	}
 	any_array_push(parser_material_parsed, var);
 
-	image_node_type_t *type   = make_image_node_type_of(node->type);
-	// Smooth results are read cubic on the mesh; a capture (chained nodes, image space) reads 1:1 and stays bilinear
-	i32 filter = type != NULL && type->smooth_sample ? (parser_material_image_space ? IMAGE_FILTER_LINEAR : IMAGE_FILTER_CUBIC) : IMAGE_FILTER_NEAREST;
 	if (parser_material_triplanar && !parser_material_image_space) { // Like Image Texture: one fetch per projection, blended
 		node_shader_context_add_elem(parser_material_kong->context, "tex", "short2norm");
 		make_image_node_write_fetch(string_tmp("%s0", var), tex_name, "tex_coord", filter);
@@ -1020,12 +1024,24 @@ char *make_image_node_sample(ui_node_t *node) {
 	return var;
 }
 
+char *make_image_node_sample(ui_node_t *node) {
+	image_node_type_t *type = make_image_node_type_of(node->type);
+	// Smooth results are read cubic on the mesh; a capture (chained nodes, image space) reads 1:1 and stays bilinear
+	i32 filter = type != NULL && type->smooth_sample ? (parser_material_image_space ? IMAGE_FILTER_LINEAR : IMAGE_FILTER_CUBIC) : IMAGE_FILTER_NEAREST;
+	return make_image_node_sample_texture(node, make_material_node_preview_id(node, NULL), "image", filter);
+}
+
+// The same for the second result texture of a node with second_result, read at the nearest texel
+char *make_image_node_sample_second(ui_node_t *node) {
+	return make_image_node_sample_texture(node, string_tmp("%s_2", make_material_node_preview_id(node, NULL)), "image2", IMAGE_FILTER_NEAREST);
+}
+
 // The fetch of the node's baked result at the float2 expression uv (repeating), once per node; returns the float4
 // variable. Used by Tile UV, which places its own result on the uv. filter: IMAGE_FILTER_NEAREST, _LINEAR or _CUBIC.
 char *make_image_node_sample_at(ui_node_t *node, char *uv, i32 filter) {
 	char *id  = make_material_node_preview_id(node, NULL);
 	char *var = string_tmp("%s_tile", parser_material_store_var_name(node));
-	char *tex_name = make_image_node_bind(node, id);
+	char *tex_name = make_image_node_bind(node, id, id);
 	if (string_array_index_of(parser_material_parsed, var) >= 0) {
 		return var;
 	}
