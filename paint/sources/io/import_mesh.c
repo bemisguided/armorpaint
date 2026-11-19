@@ -128,6 +128,10 @@ void import_mesh_run(char *path, bool _clear_layers, bool replace_existing, bool
 		bool has_next = mesh->has_next;
 		while (has_next) {
 			raw_mesh_t *mesh = importer(path);
+			if (mesh == NULL) {
+				console_error(string("Failed to import '%s'", path));
+				break;
+			}
 			if (string_equals(mesh->name, "")) {
 				mesh->name = string_copy(path_base_name(path));
 			}
