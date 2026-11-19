@@ -80,7 +80,7 @@ bool util_udim_clamped() {
 f64 util_udim_memory_estimate() {
 	i32 layers = g_project->_->layers != NULL && g_project->_->layers->length > 0 ? g_project->_->layers->length : 1;
 	i32 bytes  = base_bits == TEXTURE_BITS_BITS8 ? 4 : base_bits == TEXTURE_BITS_BITS16 ? 8 : 16;
-	return (f64)layers * 3.0 * (f64)util_udim_res_x() * (f64)util_udim_res_y() * (f64)bytes;
+	return (f64)layers * 3.0 * (f64)config_get_texture_res_x() * (f64)config_get_texture_res_y() * (f64)bytes;
 }
 
 // Sets the project tile list (copied, sorted, distinct, ids outside 1001..2000 dropped, NULL or empty gives {1001}), the layout is not changed
