@@ -150,6 +150,7 @@
 #include "render/make_particle.c"
 #include "render/make_picking.c"
 #include "render/make_sculpt.c"
+#include "render/make_sculpt_coverage.c"
 #include "render/make_texcoord.c"
 #include "render/render_compass.c"
 #include "render/render_envsphere.c"
