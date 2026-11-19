@@ -1171,6 +1171,7 @@ i32                       util_udim_tile(i32 slot);
 i32                       util_udim_slot(i32 tile);
 i32                       util_udim_stride();
 bool                      util_udim_active();
+i32                       util_udim_tile_side(i32 res, i32 max_side);
 i32                       util_udim_tile_res_x();
 i32                       util_udim_tile_res_y();
 bool                      util_udim_clamped();
