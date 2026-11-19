@@ -254,8 +254,8 @@ static char *export_texture_file_label(char *name) {
 // Restricted layers are masked to their coverage footprint either way. A tile filter also crops that tile out of the
 // flattened atlas at its native size and adds "_<tile>" after the channel name. object_name is the file name label.
 static void export_texture_run_layers(char *path, slot_layer_t_array_t *layers, char *object_name, bool bake_material, i32 object_filter, i32 tile_filter) {
-	i32 texture_size_x = util_udim_res_x();
-	i32 texture_size_y = util_udim_res_y();
+	i32 texture_size_x = config_get_texture_res_x();
+	i32 texture_size_y = config_get_texture_res_y();
 #if defined(IRON_ANDROID) || defined(IRON_IOS)
 	char *f = sys_title();
 #else

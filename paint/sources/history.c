@@ -102,6 +102,9 @@ static void history_step_free(history_step_t *step) {
 		meta_free(step->merge_layers->buffer[i]->meta); // Saved layers are out of the project, their metadata goes with the step
 	}
 	meta_free(step->layer_meta);
+	if (step->action == HISTORY_ACTION_EDIT_META) {
+		meta_free(step->meta); // The other step kinds hand their metadata to a live item on undo or redo
+	}
 	free(step);
 }
 
@@ -240,6 +243,8 @@ void history_new_material_slot(history_step_t *step) {
 	g_context->material->meta   = step->meta;
 	ui_nodes_canvas_changed();
 	ui_nodes_hwnd->redraws = 2;
+	// The new slot has a blank preview and no shader yet
+	tab_materials_update_material();
 }
 
 void history_delete_material_slot(history_step_t *step) {
@@ -661,7 +666,8 @@ slot_layer_t *history_undo_slot(i32 i) {
 	return l;
 }
 
-void history_copy_to_undo(i32 from_id, i32 to_id, bool is_mask) {
+// Returns false when the copy was skipped, the caller must then not push a history step
+bool history_copy_to_undo(i32 from_id, i32 to_id, bool is_mask) {
 	char *to_id_s   = i32_to_string(to_id);
 	char *from_id_s = i32_to_string(from_id);
 	if (history_undo_layers != NULL && to_id < history_undo_layers->length) {
@@ -676,7 +682,7 @@ void history_copy_to_undo(i32 from_id, i32 to_id, bool is_mask) {
 		render_target_t *rt = any_map_get(render_path_render_targets, undo_names[i]);
 		if (rt == NULL || rt->_image == NULL) {
 			console_error(tr("Not enough memory for the undo step, lower the resolution"));
-			return;
+			return false;
 		}
 	}
 	if (is_mask) {
@@ -712,13 +718,17 @@ void history_copy_to_undo(i32 from_id, i32 to_id, bool is_mask) {
 		render_path_draw_shader(string_tmp("Scene/copy_mrt3_pass/%s", pipe));
 	}
 	history_undo_i = (history_undo_i + 1) % g_config->undo_steps;
+	return true;
 }
 
-void history_copy_merging_layers2(slot_layer_t_array_t *layers) {
+bool history_copy_merging_layers2(slot_layer_t_array_t *layers) {
 	for (i32 i = 0; i < layers->length; ++i) {
 		slot_layer_t *layer = layers->buffer[i];
-		history_copy_to_undo(layer->id, history_undo_i, slot_layer_is_mask(layer));
+		if (!history_copy_to_undo(layer->id, history_undo_i, slot_layer_is_mask(layer))) {
+			return false;
+		}
 	}
+	return true;
 }
 
 void history_redo_duplicate_layer(void *_) {
@@ -1029,9 +1039,13 @@ void history_edit_nodes(ui_node_canvas_t *canvas, i32 canvas_type, i32 canvas_gr
 
 void history_paint() {
 	bool is_mask = slot_layer_is_mask(g_context->layer);
-	history_copy_to_undo(g_context->layer->id, history_undo_i, is_mask);
+	bool copied  = history_copy_to_undo(g_context->layer->id, history_undo_i, is_mask);
 
-	history_push_undo    = false;
+	history_push_undo = false;
+	if (!copied) {
+		return; // No undo textures, paint without a history step
+	}
+
 	history_step_t *step = history_push(HISTORY_ACTION_PAINT);
 	step->name           = tr(ui_toolbar_tool_names->buffer[g_context->tool]);
 
@@ -1148,7 +1162,9 @@ void history_apply_mask() {
 		slot_layer_t         *group  = g_context->layer->parent;
 		slot_layer_t_array_t *layers = slot_layer_get_children(group);
 		array_insert(layers, 0, g_context->layer);
-		history_copy_merging_layers2(layers);
+		if (!history_copy_merging_layers2(layers)) {
+			return;
+		}
 	}
 	else {
 		slot_layer_t_array_t *layers = any_array_create_from_raw(
@@ -1157,7 +1173,9 @@ void history_apply_mask() {
 		        g_context->layer->parent,
 		    },
 		    2);
-		history_copy_merging_layers2(layers);
+		if (!history_copy_merging_layers2(layers)) {
+			return;
+		}
 	}
 	history_push(HISTORY_ACTION_APPLY_MASK);
 }
@@ -1167,22 +1185,30 @@ void history_invert_mask() {
 }
 
 void history_to_fill_layer() {
-	history_copy_to_undo(g_context->layer->id, history_undo_i, false);
+	if (!history_copy_to_undo(g_context->layer->id, history_undo_i, false)) {
+		return;
+	}
 	history_push(HISTORY_ACTION_TO_FILL_LAYER);
 }
 
 void history_to_fill_mask() {
-	history_copy_to_undo(g_context->layer->id, history_undo_i, true);
+	if (!history_copy_to_undo(g_context->layer->id, history_undo_i, true)) {
+		return;
+	}
 	history_push(HISTORY_ACTION_TO_FILL_MASK);
 }
 
 void history_to_paint_layer() {
-	history_copy_to_undo(g_context->layer->id, history_undo_i, false);
+	if (!history_copy_to_undo(g_context->layer->id, history_undo_i, false)) {
+		return;
+	}
 	history_push(HISTORY_ACTION_TO_PAINT_LAYER);
 }
 
 void history_to_paint_mask() {
-	history_copy_to_undo(g_context->layer->id, history_undo_i, true);
+	if (!history_copy_to_undo(g_context->layer->id, history_undo_i, true)) {
+		return;
+	}
 	history_push(HISTORY_ACTION_TO_PAINT_MASK);
 }
 

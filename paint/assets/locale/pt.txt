@@ -40,6 +40,7 @@ Arcocosseno
 Arcoseno
 Arctan2
 Arco tangente
+
 Matriz
 Ativo
 Atributo
@@ -52,6 +53,7 @@ Cozinhar
 Cozinhar Material
 Cozinhar Textura
 Cozinhar para Texturas
+
 Faixas
 Base
 Cor Base
@@ -135,6 +137,7 @@ Combinar Cor
 Combinar XYZ
 Bússola
 Confirmar
+
 Console
 Modelo do Console
 Constante
@@ -277,6 +280,8 @@ Filtrar Texturas
 Plano
 Achatar
 Curva de Float
+
+
 Chão
 Módulo Piso
 Voar
@@ -340,6 +345,7 @@ Matiz/Saturação/Valor
 Cosseno Hiperbólico
 Seno Hiperbólico
 Tangente Hiperbólica
+
 Textura de Imagem
 Imagem para PBR
 Importar
@@ -432,6 +438,7 @@ Malhas
 Metálico
 Mínimo
 Mínimo Máximo
+
 Mínimo
 Espelhar
 Misturar
@@ -641,6 +648,7 @@ Escultura
 Camada de Escultura
 Procurar
 Procurar por Nós
+
 Segmentos
 Selecionar
 Selecionar Tudo
@@ -734,6 +742,7 @@ Texturas...
 Tema
 Tema importado:
 Espessura
+
 Bloco
 Bloco X
 Bloco Y
@@ -823,6 +832,7 @@ Janela
 Aramado
 Área de Trabalho
 Mundo
+
 Envolver Mouse
 Envolver mouse nas bordas da visualização durante controle da câmera
 X
@@ -879,6 +889,10 @@ x
 
 
 
+
+
+
+Atlas
 
 
 

@@ -497,6 +497,12 @@ static void ui_asset_details_box_draw() {
 static void ui_asset_details_on_hide() {
 	ui_asset_details_refresh();
 	ui_asset_details_combo_commit();
+	// A tag field left in edit mode (OK right after Add) would keep is_typing set and block the undo and redo shortcuts until Escape
+	if (g_ui->text_selected_id != 0) {
+		ui_deselect_text(g_ui);
+		g_ui->submit_text_id    = 0; // Drop the pending text, the dialog is gone
+		g_ui->text_to_submit[0] = '\0';
+	}
 }
 
 static asset_tray_t ui_asset_details_tray(i32 category) {

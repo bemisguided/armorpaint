@@ -90,8 +90,8 @@ static u64 texture_slot_signature(i32 btp) {
 	for (i32 s = 0; s < count; ++s) {
 		h = texture_slot_hash(h, util_udim_tile(s));
 	}
-	h = texture_slot_hash(h, util_udim_res_x());
-	h = texture_slot_hash(h, util_udim_res_y());
+	h = texture_slot_hash(h, config_get_texture_res_x());
+	h = texture_slot_hash(h, config_get_texture_res_y());
 	// The island masks depend on the meshes and the dilate radius
 	h = texture_slot_hash(h, util_mesh_version);
 	h = texture_slot_hash(h, g_config->dilate_radius);
@@ -175,8 +175,8 @@ static gpu_texture_t *texture_slot_scratch(gpu_texture_t *t, i32 w, i32 h) {
 
 // Draws every slot of the atlas, black where nothing is drawn (flat normal for the Normal encoding)
 static void texture_slot_build(texture_slot_entry_t *e) {
-	i32 w = util_udim_res_x();
-	i32 h = util_udim_res_y();
+	i32 w = config_get_texture_res_x();
+	i32 h = config_get_texture_res_y();
 	if (e->atlas != NULL && (e->atlas->width != w || e->atlas->height != h)) {
 		gpu_delete_texture(e->atlas);
 		e->atlas = NULL;

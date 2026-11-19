@@ -679,10 +679,3 @@ typedef enum {
 	BTP_THICKNESS     = 14,
 	BTP_CAVITY        = 15, // Bake Maps plugin cavity (cpu only)
 } bake_type_persistent_t;
-
-typedef enum {
-	MT_BOOL      = 0,
-	MT_I32       = 1,
-	MT_F32       = 2,
-	MT_I32_ARRAY = 3,
-} meta_type_t;
