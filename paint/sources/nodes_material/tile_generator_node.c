@@ -15,6 +15,11 @@
 // nothing is clipped to the cell. With Wrap Edges (default on) the image wraps, so a tile leaving one side comes back on the
 // other and the result repeats seamlessly; with it off the tiles are clipped at the image borders (Mask, ID and Position too).
 // The texture is sampled like an Image Texture at tex_coord, repeating (Tile UV places it on the uv).
+// Rotation follows the rotation convention of all image nodes (armorpaint-admin specs/image-nodes/ROTATION_CONVENTION.md):
+// degrees, a positive angle turns a tile clockwise as seen in the editor view (y down), about the centre of the tile.
+// A tile's angle is Rotation + Rotation Map * 360 + Rotation Random * (-180..180) degrees: Rotation Map is a grey value
+// where 1 stands for one full turn (the whole Rotation slider range), Rotation Random is a fraction of the full circle
+// (0 none, 1 anywhere in -180..180), like the other Random amounts.
 // Memory at Size 4096: the first texture 134 MB and the second 134 MB on the gpu (8 bytes per pixel each), the cpu result
 // 2 * 268 MB while it is drawn, and each pattern capture 268 MB (16 bytes per pixel).
 
@@ -83,8 +88,8 @@ typedef struct tile_generator_params {
 	i32 tiles_y;
 	f32 scale;
 	f32 scale_random;
-	f32 rotation;
-	f32 rotation_random;
+	f32 rotation;        // Degrees, positive turns a tile clockwise on screen
+	f32 rotation_random; // Fraction of the full circle, 0 to 1
 	f32 offset_random;
 	f32 brightness_random;
 	u32 seed;
@@ -203,7 +208,7 @@ static void tile_generator_node_draw_tile(f32 *pattern, i32 size, f32 *result, f
 		i32 wy = wrap ? ((iy % size) + size) % size : iy;
 		for (i32 ix = x0; ix < x1; ++ix) {
 			f32 dx = (ix + 0.5) / size - center_x;
-			f32 lx = dx * c + dy * s;
+			f32 lx = dx * c + dy * s; // The pixel in the frame of the tile: inverse of the clockwise turn by angle
 			f32 ly = -dx * s + dy * c;
 			if (lx < -half_x || lx > half_x || ly < -half_y || ly > half_y) {
 				continue;
@@ -286,7 +291,7 @@ static i32 tile_generator_node_process(u8 *bytes, i32 size, void *params, f32 *r
 			f32 scale      = p->scale * (1.0 - p->scale_random * r_scale) * scale_map;
 			f32 half_x     = 0.5 * scale / p->tiles_x;
 			f32 half_y     = 0.5 * scale / p->tiles_y;
-			f32 angle      = (p->rotation + rotate_map + p->rotation_random * (r_rotation * 2.0 - 1.0) * 0.5) * 2.0 * math_pi();
+			f32 angle      = (p->rotation + rotate_map * 360.0 + p->rotation_random * (r_rotation * 2.0 - 1.0) * 180.0) * (math_pi() / 180.0);
 			f32 brightness = (1.0 - p->brightness_random * r_brightness) * color_map;
 			f32 id         = 1.0 / TILE_GENERATOR_ID_FLOOR + r_id * (1.0 - 1.0 / TILE_GENERATOR_ID_FLOOR);
 			if (!(half_x > 0.0) || !(half_y > 0.0)) {
@@ -394,7 +399,7 @@ void tile_generator_node_init() {
 	                        tile_generator_node_socket(_tr("Tiles Y"), "VALUE", value_color, f32_array_create_x(4.0), TILE_GENERATOR_MAX_TILES, 1),
 	                        tile_generator_node_socket(_tr("Scale"), "VALUE", value_color, f32_array_create_x(0.9), 2.0, 100),
 	                        tile_generator_node_socket(_tr("Scale Random"), "VALUE", value_color, f32_array_create_x(0.0), 1.0, 100),
-	                        tile_generator_node_socket(_tr("Rotation"), "VALUE", value_color, f32_array_create_x(0.0), 1.0, 100),
+	                        tile_generator_node_socket(_tr("Rotation"), "VALUE", value_color, f32_array_create_x(0.0), 360.0, 10), // Degrees
 	                        tile_generator_node_socket(_tr("Rotation Random"), "VALUE", value_color, f32_array_create_x(0.0), 1.0, 100),
 	                        tile_generator_node_socket(_tr("Offset Random"), "VALUE", value_color, f32_array_create_x(0.0), 1.0, 100),
 	                        tile_generator_node_socket(_tr("Brightness Random"), "VALUE", value_color, f32_array_create_x(0.0), 1.0, 100),
