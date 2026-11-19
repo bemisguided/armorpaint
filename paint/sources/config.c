@@ -561,11 +561,21 @@ void config_set_texture_res(i32 pos) {
 	}
 }
 
+// Layer target size, the udim atlas (the configured per tile resolution times the atlas stride, one tile without udim)
 i32 config_get_texture_res_x() {
-	return (i32)base_res_x;
+	return util_udim_tile_res_x() * util_udim_stride();
 }
 
 i32 config_get_texture_res_y() {
+	return util_udim_tile_res_y() * util_udim_stride();
+}
+
+// Configured resolution of one tile, what a vertex based texture (sculpt) uses. The atlas lowers it to fit 16384.
+i32 config_get_tile_res_x() {
+	return (i32)base_res_x;
+}
+
+i32 config_get_tile_res_y() {
 	return (i32)base_res_y;
 }
 
