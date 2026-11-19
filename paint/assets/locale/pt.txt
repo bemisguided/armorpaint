@@ -741,7 +741,6 @@ Textura de Texto
 Texto para Imagem
 Textura
 Coordenada de Textura
-
 Textura importada:
 Textura...
 Texturas

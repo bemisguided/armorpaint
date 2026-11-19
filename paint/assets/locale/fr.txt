@@ -741,7 +741,6 @@ Texture texte
 Texte vers image
 Texture
 Coordonnées de texture
-
 Texture importée :
 Texture...
 Textures

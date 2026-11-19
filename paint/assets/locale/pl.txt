@@ -741,7 +741,6 @@ Tekstura tekstu
 Tekst do obrazu
 Tekstura
 Współrzędne tekstury
-
 Tekstura zaimportowana:
 Tekstura...
 Tekstury

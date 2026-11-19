@@ -741,7 +741,6 @@ Tekstur Teks
 Teks ke Gambar
 Tekstur
 Koordinat Tekstur
-
 Tekstur diimpor:
 Tekstur...
 Tekstur

@@ -741,7 +741,6 @@ Szöveg textúra
 Szövegből Kép
 Textúra
 Textúra koordináta
-
 Textúra importálva:
 Textúra...
 Textúrák
