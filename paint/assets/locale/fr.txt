@@ -839,6 +839,7 @@ Fenêtre
 Fil de fer
 Espace de travail
 Monde
+
 Boucler la souris
 Boucler la souris autour des limites de la vue pendant le contrôle caméra
 X
