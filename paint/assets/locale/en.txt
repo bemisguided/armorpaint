@@ -353,6 +353,7 @@ Image 3
 Image 4
 Image Texture
 Image node bake: out of memory
+Image node loop: looped input reads black
 Image to PBR
 Import
 Import Mesh

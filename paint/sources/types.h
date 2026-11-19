@@ -1091,8 +1091,6 @@ typedef struct ui_nodes_editor_state {
 	i32              line;
 } ui_nodes_editor_state_t;
 
-// An image node type (render/make_image_node.c): the shared pass captures the node's inputs in image space,
-// the type turns the captured pixels into its result, which the node samples at the current texture coordinate (Tile UV at its own placement)
 // How the baked result of an image node is read where it is placed (make_image_node_sample_at), also the filter of the cpu read
 // (make_image_node_sample_rgba; Cubic there is Catmull-Rom, which passes through the texels, not the shader's B-spline)
 enum {
@@ -1100,6 +1098,8 @@ enum {
 	IMAGE_FILTER_LINEAR  = 1,
 	IMAGE_FILTER_CUBIC   = 2,
 };
+
+#define MAKE_IMAGE_NODE_SIZE_ITEMS "512\n1024\n2048\n4096" // The Size setting of every image node
 
 // How a cpu read (make_image_node_sample_rgba) treats a texel index outside the image
 enum {
@@ -1109,6 +1109,8 @@ enum {
 	IMAGE_TILING_NONE   = 3, // Transparent black
 };
 
+// An image node type (render/make_image_node.c): the shared pass captures the node's inputs in image space,
+// the type turns the captured pixels into its result, which the node samples at the current texture coordinate (Tile UV at its own placement)
 typedef struct image_node_type {
 	char *type;          // Node type, e.g. "TEX_FLOOD_FILL"
 	i32   result_format; // gpu_texture_format_t of the result: RGBA64 or RGBA128
@@ -1139,6 +1141,6 @@ typedef struct image_node_type {
 	// 2 * size * size * 4 floats: the first result, then the second one.
 	bool second_result;
 	// Turns the captured pixels (size * size RGBA8, or size * size * 4 floats with capture_float, per capture) into size * size * 4 floats (RGBA).
-	// Returns a count kept with the result (Flood Fill: islands), or -1 when memory runs out.
+	// Returns -1 when memory runs out, else 0 or a count of the type's own (Flood Fill: islands).
 	i32 (*process)(u8 *pixels, i32 size, void *params, f32 *result);
 } image_node_type_t;

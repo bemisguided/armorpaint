@@ -1,12 +1,13 @@
 #include "../global.h"
 
-// Shared pass of the image nodes (Image menu).
+// Shared pass of the image nodes (Pattern and Filter menus).
 // An image node evaluates its inputs in image space: the graph above the node drawn over the node's own square
 // ([0, 1] of tex_coord, Size x Size pixels, no mesh, no uv layout, parser_material_image_space), read back and
 // processed on the cpu by the node's type (image_node_type_t, make_image_node_register). The result is uploaded into
 // g_context->node_previews under the node's preview id and sampled by the node like an Image Texture at the
 // current texture coordinate, repeating (make_image_node_sample; Tile UV places an image on the uv with
-// make_image_node_sample_at; bound as _teximage_<preview id>). Image nodes have no Vector input. Nothing is saved with the project.
+// make_image_node_sample_at; bound as _teximage_<preview id>). Image nodes have no Vector input.
+// Nothing is saved with the project.
 // Every node preview traversal captures the node; a changed capture or parameter set makes it pending, and 0.5 s
 // after the last change, with no mouse button held and no Bake Texture running, the pending nodes are baked:
 // chained image nodes in dependency order, the inner node first.
@@ -20,18 +21,19 @@ extern gpu_buffer_t *util_render_screen_aligned_full_ib;
 typedef struct make_image_node_state {
 	image_node_type_t *type;
 	i32                material_id;
-	ui_node_t         *node; // Only compared, never dereferenced from here
 	bool               has_baked;
 	u64                baked_signature;
-	i32                result_count; // What the type's process returned for the last bake (Flood Fill: islands)
+	bool               failed;           // The last bake of failed_signature failed (upload or out of memory), not retried for it
+	u64                failed_signature;
 	bool               pending;      // pending_pixels wait for the debounce
 	u64                pending_signature;
 	u8                *pending_pixels; // pending_size * pending_size RGBA8
 	i32                pending_size;
 	void              *pending_params;
 	bool               needs_capture; // Graph changed while busy, capture when the debounce fires
-	bool               force;         // Capture and bake on the next update even when unchanged
 	string_array_t    *upstream;      // Preview ids of the image nodes the last capture sampled
+	bool               cycle_seen;    // The running capture sampled a node that depends on this node, see make_image_node_edge_cyclic
+	bool               cycle_told;    // The Console told about the loop this node is in
 } make_image_node_state_t;
 
 // An image node of a material, found by make_image_node_collect
@@ -98,6 +100,15 @@ static void make_image_node_free_keys(string_array_t *keys) {
 	free(keys);
 }
 
+// The states in the slots of the map, NULL for an empty slot, without building a key list. Do not add or delete states while walking.
+static i32 make_image_node_state_slots() {
+	return make_image_node_states != NULL ? make_image_node_states->keys->capacity : 0;
+}
+
+static make_image_node_state_t *make_image_node_state_at(i32 slot) {
+	return make_image_node_states->keys->buffer[slot] != NULL ? make_image_node_states->values->buffer[slot] : NULL;
+}
+
 static make_image_node_state_t *make_image_node_get_state(char *id, ui_node_t *node) {
 	if (make_image_node_states == NULL) {
 		make_image_node_states = any_map_create();
@@ -109,7 +120,6 @@ static make_image_node_state_t *make_image_node_get_state(char *id, ui_node_t *n
 	}
 	s->type        = make_image_node_type_of(node->type);
 	s->material_id = g_context->material->id;
-	s->node        = node;
 	return s;
 }
 
@@ -181,7 +191,7 @@ static u64 make_image_node_signature(u8 *pixels, size_t bytes, i32 size, void *p
 
 // Shader evaluating expr(node) over the image square: a full screen triangle with tex_coord = the image uv,
 // [0, 1] across the target, no mesh (parser_material_image_space gives mesh based inputs a neutral value).
-// The node writes the expression while make_image_node_capturing is set. NULL when it does not compile.
+// The node writes the expression while make_image_node_capturing is set.
 static shader_context_t *make_image_node_capture_shader(ui_node_t *node, char *(*expr)(ui_node_t *), char *format) {
 	shader_context_t      *props = ALLOC_INIT(shader_context_t, {.name            = "mesh",
 	                                                             .depth_write     = false,
@@ -218,8 +228,7 @@ static shader_context_t *make_image_node_capture_shader(ui_node_t *node, char *(
 	parser_material_nodes = g_context->material->canvas->nodes;
 	parser_material_links = g_context->material->canvas->links;
 	if (make_image_node_capture_group != NULL) {
-		parser_material_push_group(make_image_node_capture_group);
-		parser_material_set_parents(make_image_node_capture_parents);
+		parser_material_push_group_chain(make_image_node_capture_group, make_image_node_capture_parents);
 	}
 	parser_material_con                   = con;
 	parser_material_kong                  = kong;
@@ -243,12 +252,9 @@ static shader_context_t *make_image_node_capture_shader(ui_node_t *node, char *(
 }
 
 // Renders expr(node) over the image square into a size x size target of format and reads it back.
-// Returns the pixels (the caller frees them), or NULL when the shader does not compile.
+// Returns the pixels (the caller frees them), or NULL when the readback fails.
 static u8 *make_image_node_capture_pixels(ui_node_t *node, char *(*expr)(ui_node_t *), i32 size, gpu_texture_format_t format) {
 	shader_context_t *scon = make_image_node_capture_shader(node, expr, format == GPU_TEXTURE_FORMAT_RGBA128 ? "RGBA128" : "RGBA32");
-	if (scon == NULL) {
-		return NULL;
-	}
 	if (util_render_screen_aligned_full_vb == NULL) {
 		util_render_create_screen_aligned_full_data();
 	}
@@ -272,9 +278,13 @@ static u8 *make_image_node_capture_pixels(ui_node_t *node, char *(*expr)(ui_node
 	_mesh_object_last_pipeline = NULL; // Mesh draws set their pipeline again
 	make_material_delete_context(scon);
 
-	buffer_t *b      = gpu_get_texture_pixels(target);
-	u8       *pixels = b->buffer;
-	b->buffer        = NULL; // Kept, gpu_delete_texture frees the rest
+	buffer_t *b = gpu_get_texture_pixels(target);
+	if (b == NULL) {
+		gpu_delete_texture(target);
+		return NULL;
+	}
+	u8 *pixels = b->buffer;
+	b->buffer  = NULL; // Kept, gpu_delete_texture frees the rest
 	gpu_delete_texture(target);
 	return pixels;
 }
@@ -440,7 +450,10 @@ f32 make_image_node_input_value(ui_node_t *node, i32 input) {
 	}
 	f32 v = pixels[0]; // A 1 x 1 target: its pixel centre is the image centre
 	free(pixels);
-	return v;
+	if (!isfinite(v)) {
+		return socket->default_value->buffer[0]; // A NaN (Square Root of a negative value) or infinity would turn the whole result into one
+	}
+	return v; // Huge finite values stay, the nodes clamp them
 }
 
 // Captures the node in image space. A new capture or parameter set makes the node pending, returns true then.
@@ -452,6 +465,7 @@ static bool make_image_node_capture(make_image_node_state_t *s, char *id, ui_nod
 		return false;
 	}
 	make_image_node_clear_upstream(s);
+	s->cycle_seen                   = false;
 	make_image_node_capturing       = s;
 	make_image_node_capture_group   = group;
 	make_image_node_capture_parents = parents;
@@ -481,6 +495,10 @@ static bool make_image_node_capture(make_image_node_state_t *s, char *id, ui_nod
 		}
 		if (pixels == NULL) {
 			pixels = malloc(total);
+			if (pixels == NULL) {
+				free(p);
+				break;
+			}
 		}
 		size_t one = (size_t)ks * ks * pixel_bytes;
 		memcpy(pixels + offset, p, one);
@@ -491,13 +509,22 @@ static bool make_image_node_capture(make_image_node_state_t *s, char *id, ui_nod
 	void *params              = NULL;
 	if (pixels != NULL) {
 		params = calloc(1, t->params_size > 0 ? t->params_size : 1);
-		t->params(node, params); // May capture a linked scalar input
+		if (params == NULL) {
+			free(pixels);
+			pixels = NULL;
+		}
+		else {
+			t->params(node, params); // May capture a linked scalar input
+		}
 	}
 	make_image_node_capturing       = NULL;
 	make_image_node_capture_group   = NULL;
 	make_image_node_capture_parents = NULL;
+	if (!s->cycle_seen) {
+		s->cycle_told = false; // The loop is gone, tells again when it returns
+	}
 	if (pixels == NULL) {
-		return false; // Shader error, keep what is baked
+		return false; // Capture failed, keep what is baked
 	}
 	u64 sig = make_image_node_signature(pixels, total, size, params, t->params_size);
 
@@ -505,6 +532,11 @@ static bool make_image_node_capture(make_image_node_state_t *s, char *id, ui_nod
 	if (!force && has_result && s->has_baked && sig == s->baked_signature) {
 		make_image_node_clear_pending(s); // Back to what is baked, e.g. a change undone within the debounce
 		free(pixels);
+		free(params);
+		return false;
+	}
+	if (!force && s->failed && sig == s->failed_signature) {
+		free(pixels); // Failed already, retried after a change or Regenerate Image Nodes
 		free(params);
 		return false;
 	}
@@ -522,8 +554,8 @@ static bool make_image_node_capture(make_image_node_state_t *s, char *id, ui_nod
 	return true;
 }
 
-// Uploads size * size * 4 floats as the node's result, in the type's format
-static void make_image_node_upload(char *id, f32 *result, i32 size, gpu_texture_format_t format) {
+// Uploads size * size * 4 floats as the node's result, in the type's format. Returns false when memory runs out.
+static bool make_image_node_upload(char *id, f32 *result, i32 size, gpu_texture_format_t format) {
 	size_t         n   = (size_t)size * size * 4;
 	gpu_texture_t *tmp = NULL;
 	if (format == GPU_TEXTURE_FORMAT_RGBA128) {
@@ -533,12 +565,18 @@ static void make_image_node_upload(char *id, f32 *result, i32 size, gpu_texture_
 	else {
 		format  = GPU_TEXTURE_FORMAT_RGBA64;
 		u16 *hb = malloc(n * sizeof(u16));
+		if (hb == NULL) {
+			return false;
+		}
 		for (size_t i = 0; i < n; ++i) {
 			hb[i] = float_to_half_fast(result[i]);
 		}
 		buffer_t b = {.buffer = (u8 *)hb, .length = (i32)(n * sizeof(u16))};
 		tmp        = gpu_create_texture_from_bytes_raw(&b, size, size, GPU_TEXTURE_FORMAT_RGBA64);
 		free(hb);
+	}
+	if (tmp == NULL) {
+		return false;
 	}
 
 	gpu_texture_t *image = any_map_get(g_context->node_previews, id);
@@ -556,6 +594,29 @@ static void make_image_node_upload(char *id, f32 *result, i32 size, gpu_texture_
 	draw_set_pipeline(NULL);
 	draw_end();
 	gpu_delete_texture(tmp);
+	return true;
+}
+
+// Deletes the result texture of an image node and its map entry, the node renders black again
+static void make_image_node_delete_result(char *id) {
+	if (g_context->node_previews == NULL) {
+		return;
+	}
+	string_array_t *keys = map_keys(g_context->node_previews);
+	for (i32 i = 0; i < keys->length; ++i) {
+		char *key = keys->buffer[i];
+		if (string_equals(key, id)) {
+			gpu_texture_t *image = any_map_get(g_context->node_previews, key);
+			if (image != NULL) {
+				gpu_delete_texture(image);
+			}
+			map_delete(g_context->node_previews, key);
+			free(key);
+			break;
+		}
+	}
+	array_free(keys);
+	free(keys);
 }
 
 // Processes the pending capture of s into its result texture
@@ -570,21 +631,33 @@ static void make_image_node_bake(make_image_node_state_t *s, char *id) {
 	i32                size   = s->pending_size;
 	size_t             plane  = (size_t)size * size * 4;
 	f32               *result = calloc(plane * (t->second_result ? 2 : 1), sizeof(f32));
+	i32                status = -1;
 	if (result != NULL) {
-		s->result_count = t->process(s->pending_pixels, size, s->pending_params, result);
-		make_image_node_upload(id, result, size, t->result_format);
-		if (t->second_result) {
-			make_image_node_upload(string_tmp("%s_2", id), result + plane, size, GPU_TEXTURE_FORMAT_RGBA64);
+		status = t->process(s->pending_pixels, size, s->pending_params, result);
+		free(s->pending_pixels); // The capture is not needed during the upload
+		free(s->pending_params);
+		s->pending_pixels = NULL;
+		s->pending_params = NULL;
+		if (!make_image_node_upload(id, result, size, t->result_format)) {
+			status = -1;
+		}
+		else if (t->second_result && !make_image_node_upload(string_tmp("%s_2", id), result + plane, size, GPU_TEXTURE_FORMAT_RGBA64)) {
+			status = -1;
 		}
 		free(result);
 	}
-	if (result == NULL || s->result_count < 0) {
+	if (status < 0) {
 		console_error(tr("Image node bake: out of memory"));
-		s->has_baked = false; // Black result, the next traversal tries again
+		make_image_node_delete_result(id); // Black result, not the previous texture
+		make_image_node_delete_result(string_tmp("%s_2", id)); // The second result of a node that has one
+		s->has_baked        = false;
+		s->failed           = true;
+		s->failed_signature = s->pending_signature;
 	}
 	else {
 		s->has_baked       = true;
 		s->baked_signature = s->pending_signature;
+		s->failed          = false;
 	}
 	make_image_node_clear_pending(s);
 }
@@ -657,7 +730,58 @@ static void make_image_node_free_entries(any_array_t *entries) {
 	free(entries);
 }
 
-// True while an image node the capture of e samples has not been handled in this run
+// True when the image node with preview id from depends, through the recorded upstream, on the state target (or is it)
+static bool make_image_node_reaches(char *from, make_image_node_state_t *target, string_array_t *seen) {
+	make_image_node_state_t *s = make_image_node_states != NULL ? any_map_get(make_image_node_states, from) : NULL;
+	if (s == NULL || string_array_index_of(seen, from) >= 0) {
+		return false;
+	}
+	if (s == target) {
+		return true;
+	}
+	any_array_push(seen, from);
+	for (i32 i = 0; s->upstream != NULL && i < s->upstream->length; ++i) {
+		if (make_image_node_reaches(s->upstream->buffer[i], target, seen)) {
+			return true;
+		}
+	}
+	return false;
+}
+
+static bool make_image_node_depends_on(char *from, make_image_node_state_t *target) {
+	string_array_t *seen = any_array_create_from_raw((void *[]){}, 0);
+	bool            r    = make_image_node_reaches(from, target, seen);
+	array_free(seen);
+	free(seen);
+	return r;
+}
+
+// True when the node s samples (the preview id upstream_id) is part of a loop with s: it depends on s again, or is s.
+// Such an input is read as black by a capture: baking a node from its own result never settles.
+static bool make_image_node_edge_cyclic(make_image_node_state_t *s, char *upstream_id) {
+	return make_image_node_depends_on(upstream_id, s);
+}
+
+// Tells the Console once per loop (not once per node of it) that the capture of s reads the input of upstream_id as black
+static void make_image_node_tell_cycle(make_image_node_state_t *s, char *upstream_id) {
+	s->cycle_seen = true;
+	if (s->cycle_told) {
+		return;
+	}
+	bool            told = false; // A node of the loop told already: it depends on s and the node of upstream_id depends on it
+	string_array_t *keys = make_image_node_states_keys();
+	for (i32 i = 0; i < keys->length && !told; ++i) {
+		make_image_node_state_t *m = any_map_get(make_image_node_states, keys->buffer[i]);
+		told                       = m->cycle_told && make_image_node_depends_on(keys->buffer[i], s) && make_image_node_depends_on(upstream_id, m);
+	}
+	make_image_node_free_keys(keys);
+	s->cycle_told = true;
+	if (!told) {
+		console_error(tr("Image node loop: looped input reads black"));
+	}
+}
+
+// True while an image node the capture of e samples has not been handled in this run (a node of a loop with e does not count)
 static bool make_image_node_waits(make_image_node_entry_t *e, any_array_t *entries) {
 	string_array_t *upstream = e->state->upstream;
 	if (upstream == NULL) {
@@ -665,7 +789,7 @@ static bool make_image_node_waits(make_image_node_entry_t *e, any_array_t *entri
 	}
 	for (i32 i = 0; i < entries->length; ++i) {
 		make_image_node_entry_t *f = entries->buffer[i];
-		if (f != e && !f->done && string_array_index_of(upstream, f->id) >= 0) {
+		if (f != e && !f->done && string_array_index_of(upstream, f->id) >= 0 && !make_image_node_edge_cyclic(e->state, f->id)) {
 			return true;
 		}
 	}
@@ -697,9 +821,14 @@ static ui_node_t *make_image_node_run_material(slot_material_t *m, bool force_al
 			for (i32 j = 0; s->upstream != NULL && j < s->upstream->length; ++j) {
 				upstream_baked = upstream_baked || string_array_index_of(baked, s->upstream->buffer[j]) >= 0;
 			}
-			bool force = s->force || force_all;
-			if (force || s->needs_capture || upstream_baked) {
-				make_image_node_capture(s, e->id, e->node, e->group, e->parents, force);
+			if (force_all || s->needs_capture || upstream_baked) {
+				make_image_node_capture(s, e->id, e->node, e->group, e->parents, force_all);
+				if (!cycle && make_image_node_waits(e, entries)) {
+					// The capture just recorded the upstream of a node never captured before: wait for it and capture again.
+					// Not progress, so a cycle still trips the cycle flag at the end of a pass without a finished node.
+					s->needs_capture = true;
+					continue;
+				}
 			}
 			if (s->pending) {
 				make_image_node_bake(s, e->id);
@@ -708,7 +837,6 @@ static ui_node_t *make_image_node_run_material(slot_material_t *m, bool force_al
 					changed = e->node;
 				}
 			}
-			s->force = false;
 			e->done  = true;
 			progress = true;
 			left--;
@@ -739,15 +867,13 @@ static void make_image_node_run(bool force_all) {
 		draw_end();
 	}
 
-	string_array_t *keys      = make_image_node_states_keys();
-	i32_array_t    *materials = i32_array_create(0);
-	for (i32 i = 0; i < keys->length; ++i) {
-		make_image_node_state_t *s = any_map_get(make_image_node_states, keys->buffer[i]);
-		if ((s->pending || s->needs_capture || s->force) && i32_array_index_of(materials, s->material_id) == -1) {
+	i32_array_t *materials = i32_array_create(0);
+	for (i32 i = 0; i < make_image_node_state_slots(); ++i) {
+		make_image_node_state_t *s = make_image_node_state_at(i);
+		if (s != NULL && (s->pending || s->needs_capture) && i32_array_index_of(materials, s->material_id) == -1) {
 			i32_array_push(materials, s->material_id);
 		}
 	}
-	make_image_node_free_keys(keys);
 	for (i32 i = 0; force_all && i < g_project->_->materials->length; ++i) {
 		slot_material_t *m = g_project->_->materials->buffer[i];
 		if (i32_array_index_of(materials, m->id) == -1) {
@@ -769,14 +895,13 @@ static void make_image_node_run(bool force_all) {
 	}
 
 	// What is still waiting lost its node or its material
-	keys = make_image_node_states_keys();
-	for (i32 i = 0; i < keys->length; ++i) {
-		make_image_node_state_t *s = any_map_get(make_image_node_states, keys->buffer[i]);
-		s->needs_capture           = false;
-		s->force                   = false;
-		make_image_node_clear_pending(s);
+	for (i32 i = 0; i < make_image_node_state_slots(); ++i) {
+		make_image_node_state_t *s = make_image_node_state_at(i);
+		if (s != NULL) {
+			s->needs_capture = false;
+			make_image_node_clear_pending(s);
+		}
 	}
-	make_image_node_free_keys(keys);
 
 	// The refresh captures again and may schedule what changed meanwhile
 	for (i32 i = 0; i < materials->length; ++i) {
@@ -799,28 +924,13 @@ static bool make_image_node_any_waiting() {
 	if (make_image_node_force_all) {
 		return true;
 	}
-	bool            any  = false;
-	string_array_t *keys = make_image_node_states_keys();
-	for (i32 i = 0; i < keys->length; ++i) {
-		make_image_node_state_t *s = any_map_get(make_image_node_states, keys->buffer[i]);
-		any                        = any || s->pending || s->needs_capture || s->force;
+	for (i32 i = 0; i < make_image_node_state_slots(); ++i) {
+		make_image_node_state_t *s = make_image_node_state_at(i);
+		if (s != NULL && (s->pending || s->needs_capture)) {
+			return true;
+		}
 	}
-	make_image_node_free_keys(keys);
-	return any;
-}
-
-static bool make_image_node_any_forced() {
-	if (make_image_node_force_all) {
-		return true;
-	}
-	bool            any  = false;
-	string_array_t *keys = make_image_node_states_keys();
-	for (i32 i = 0; i < keys->length; ++i) {
-		make_image_node_state_t *s = any_map_get(make_image_node_states, keys->buffer[i]);
-		any                        = any || s->force;
-	}
-	make_image_node_free_keys(keys);
-	return any;
+	return false;
 }
 
 static void make_image_node_update(void *_) {
@@ -830,7 +940,7 @@ static void make_image_node_update(void *_) {
 		return;
 	}
 	// A forced bake (Regenerate image nodes) does not wait for the debounce, only for the mouse and Bake Texture
-	if (make_image_node_busy() || (!make_image_node_any_forced() && sys_time() - make_image_node_last_change < MAKE_IMAGE_NODE_DEBOUNCE)) {
+	if (make_image_node_busy() || (!make_image_node_force_all && sys_time() - make_image_node_last_change < MAKE_IMAGE_NODE_DEBOUNCE)) {
 		return;
 	}
 	sys_remove_update(make_image_node_update);
@@ -881,49 +991,33 @@ void make_image_node_delete_states(slot_material_t *m, string_array_t *keep) {
 	make_image_node_free_keys(keys);
 }
 
-// Preview id of an image node of the current material, NULL before its first traversal
-static char *make_image_node_id_of(ui_node_t *node) {
-	if (make_image_node_states == NULL || node == NULL) {
+// State of an image node of the current material (the node being drawn in the editor), NULL before its first traversal. The
+// preview id is built like the traversal does, with the group nodes of the open groups as parents (the first instance of a
+// group used more than once).
+static make_image_node_state_t *make_image_node_state_of(ui_node_t *node, char **id) {
+	if (make_image_node_states == NULL) {
 		return NULL;
 	}
-	char           *found = NULL;
-	string_array_t *keys  = make_image_node_states_keys();
-	for (i32 i = 0; i < keys->length; ++i) {
-		make_image_node_state_t *s = any_map_get(make_image_node_states, keys->buffer[i]);
-		if (s->node == node && s->material_id == g_context->material->id) {
-			found = keys->buffer[i];
+	ui_node_t *chain[16];
+	i32        depth = 0;
+	ui_node_t_array_t parents = {.buffer = chain, .length = 0, .capacity = 16};
+	ui_node_t_array_t *nodes = g_context->material->canvas->nodes;
+	for (i32 i = 0; i < ui_nodes_group_stack->length && depth < 16; ++i) {
+		char      *name  = ui_nodes_group_stack->buffer[i]->canvas->name;
+		ui_node_t *group = NULL;
+		for (i32 j = 0; j < nodes->length && group == NULL; ++j) {
+			ui_node_t *n = nodes->buffer[j];
+			group        = string_equals(n->type, "GROUP") && string_equals(n->name, name) ? n : NULL;
 		}
+		if (group == NULL) {
+			return NULL;
+		}
+		chain[depth++] = group;
+		nodes          = ui_nodes_group_stack->buffer[i]->canvas->nodes;
 	}
-	make_image_node_free_keys(keys);
-	return found;
-}
-
-// State of an image node of the current material, NULL before its first traversal
-static make_image_node_state_t *make_image_node_state_of(ui_node_t *node) {
-	char *id = make_image_node_id_of(node);
-	return id != NULL ? any_map_get(make_image_node_states, id) : NULL;
-}
-
-// True while the node waits for its bake
-bool make_image_node_is_pending(ui_node_t *node) {
-	make_image_node_state_t *s = make_image_node_state_of(node);
-	return s != NULL && (s->pending || s->needs_capture || s->force || make_image_node_force_all);
-}
-
-// Baked result of an image node of the current material, NULL when not baked
-gpu_texture_t *make_image_node_result(ui_node_t *node) {
-	char                    *id = make_image_node_id_of(node);
-	make_image_node_state_t *s  = id != NULL ? any_map_get(make_image_node_states, id) : NULL;
-	if (s == NULL || !s->has_baked || g_context->node_previews == NULL) {
-		return NULL;
-	}
-	return any_map_get(g_context->node_previews, id);
-}
-
-// What the type's process returned for the last bake of the node (Flood Fill: islands), -1 when not baked
-i32 make_image_node_result_count(ui_node_t *node) {
-	make_image_node_state_t *s = make_image_node_state_of(node);
-	return s != NULL && s->has_baked ? s->result_count : -1;
+	parents.length = depth;
+	*id            = make_material_node_preview_id(node, &parents);
+	return any_map_get(make_image_node_states, *id);
 }
 
 // Regenerate image nodes: captures and bakes every image node of the project on the next update, also the ones whose
@@ -933,24 +1027,12 @@ void make_image_node_regenerate() {
 	make_image_node_schedule();
 }
 
-// Captures and bakes the node on the next update, even when nothing changed
-void make_image_node_bake_now(ui_node_t *node) {
-	make_image_node_state_t *s = make_image_node_state_of(node);
-	if (s != NULL) {
-		s->force = true;
-		make_image_node_schedule();
-	}
-}
-
 // Writes the fetch of the node's baked result at the float2 expression uv, once per variable. Repeating: the uv is wrapped
 // and snapped to the texel centre, so the one linear sampler never blends two texels. Black until the first bake.
 static void make_image_node_write_fetch(char *var, char *tex_name, char *uv, i32 filter) {
 	parser_material_write(parser_material_kong, string_tmp("float2 %s_uv = %s;", var, uv));
 	if (filter == IMAGE_FILTER_CUBIC) {
-		// Cubic B-spline over 4 x 4 texel centres (wrapped, like the bilinear below). Chosen over Catmull-Rom: it is C2, so
-		// the slope of the result (ddx, ddy of a Bump node) has no jumps at texel borders, and it never overshoots, so no
-		// dark or bright halos at the steps of a mask. The price is a blur of about half a texel, below a screen pixel
-		// wherever the result is magnified, and 16 fetches per pixel.
+		// Cubic B-spline over 4 x 4 texel centres (wrapped, like the bilinear below): C2 and without overshoot, at the cost of 16 fetches
 		parser_material_write(parser_material_kong, string_tmp("float2 %s_p = %s_uv * constants.%s_size - 0.5;", var, var, tex_name));
 		parser_material_write(parser_material_kong, string_tmp("float2 %s_f = floor(%s_p);", var, var));
 		parser_material_write(parser_material_kong, string_tmp("float2 %s_t = %s_p - %s_f;", var, var, var));
@@ -1000,10 +1082,15 @@ static void make_image_node_write_fetch(char *var, char *tex_name, char *uv, i32
 	parser_material_write(parser_material_kong, string_tmp("float4 %s = sample_lod(%s, sampler_linear, %s_uv, 0.0);", var, tex_name, var));
 }
 
-// Records the dependency of a capture on the node, binds its result texture and size constant; returns the texture name
+// Records the dependency of a capture on the node, binds its result texture and size constant; returns the texture name,
+// NULL when the capture reads the node as black because they depend on each other
 static char *make_image_node_bind(ui_node_t *node, char *id, char *texture_id) {
 	if (make_image_node_capturing != NULL && string_array_index_of(make_image_node_capturing->upstream, id) == -1) {
 		any_array_push(make_image_node_capturing->upstream, string_copy(id)); // Chained: bakes before the node being captured
+	}
+	if (make_image_node_capturing != NULL && make_image_node_edge_cyclic(make_image_node_capturing, id)) {
+		make_image_node_tell_cycle(make_image_node_capturing, id);
+		return NULL;
 	}
 	char *tex_name = string_tmp("teximage_%s", texture_id);
 	node_shader_add_texture(parser_material_kong, tex_name, string_tmp("_%s", tex_name));
@@ -1023,6 +1110,10 @@ static char *make_image_node_sample_texture(ui_node_t *node, char *texture_id, c
 		return var;
 	}
 	any_array_push(parser_material_parsed, var);
+	if (tex_name == NULL) {
+		parser_material_write(parser_material_kong, string_tmp("float4 %s = float4(0.0, 0.0, 0.0, 1.0);", var));
+		return var;
+	}
 
 	if (parser_material_triplanar && !parser_material_image_space) { // Like Image Texture: one fetch per projection, blended
 		node_shader_context_add_elem(parser_material_kong->context, "tex", "short2norm");
@@ -1063,6 +1154,10 @@ char *make_image_node_sample_at(ui_node_t *node, char *uv, i32 filter) {
 		return var;
 	}
 	any_array_push(parser_material_parsed, var);
+	if (tex_name == NULL) {
+		parser_material_write(parser_material_kong, string_tmp("float4 %s = float4(0.0, 0.0, 0.0, 1.0);", var));
+		return var;
+	}
 	make_image_node_write_fetch(var, tex_name, uv, filter);
 	return var;
 }
@@ -1074,14 +1169,70 @@ static void make_image_node_state_row(i32 node_id) {
 	if (node == NULL) {
 		return;
 	}
-	if (make_image_node_is_pending(node)) {
+	char                    *id = NULL;
+	make_image_node_state_t *s  = make_image_node_state_of(node, &id);
+	if (s != NULL && (s->pending || s->needs_capture || make_image_node_force_all)) {
 		ui_text(tr("Baking"), UI_ALIGN_CENTER, g_theme->HIGHLIGHT_COL);
 		return;
 	}
-	i32 _TEXT_COL     = g_theme->TEXT_COL;
+	bool baked = s != NULL && s->has_baked && g_context->node_previews != NULL && any_map_get(g_context->node_previews, id) != NULL;
+	i32  _TEXT_COL    = g_theme->TEXT_COL;
 	g_theme->TEXT_COL = g_theme->LABEL_COL;
-	ui_text(make_image_node_result(node) != NULL ? tr("Baked") : "", UI_ALIGN_CENTER, 0);
+	ui_text(baked ? tr("Baked") : "", UI_ALIGN_CENTER, 0);
 	g_theme->TEXT_COL = _TEXT_COL;
+}
+
+// Value of a setting of the node (the default value of button i)
+f32 make_image_node_button(ui_node_t *node, i32 i) {
+	return node->buttons->buffer[i]->default_value->buffer[0];
+}
+
+// Width and height of the image: the Size setting (button) 512, 1024, 2048 or 4096
+i32 make_image_node_size(ui_node_t *node, i32 button) {
+	i32 i = (i32)make_image_node_button(node, button);
+	return 512 << (i < 0 ? 0 : i > 3 ? 3 : i);
+}
+
+// Socket of an image node definition
+ui_node_socket_t *make_image_node_socket(char *name, char *type, u32 color, f32_array_t *default_value, f32 min, f32 max, f32 precision) {
+	return ALLOC_INIT(ui_node_socket_t, {.id            = 0,
+	                                     .node_id       = 0,
+	                                     .name          = name,
+	                                     .type          = type,
+	                                     .color         = color,
+	                                     .default_value = default_value,
+	                                     .min           = min,
+	                                     .max           = max,
+	                                     .precision     = precision,
+	                                     .display       = 0});
+}
+
+// Setting (button) of an image node definition, data holds the items of an ENUM
+ui_node_button_t *make_image_node_setting(char *name, char *type, f32 default_value, char *data) {
+	return ALLOC_INIT(ui_node_button_t, {.name          = name,
+	                                     .type          = type,
+	                                     .output        = -1,
+	                                     .default_value = f32_array_create_x(default_value),
+	                                     .data          = data != NULL ? u8_array_create_from_string(data) : NULL,
+	                                     .min           = 0.0,
+	                                     .max           = 1.0,
+	                                     .precision     = 100,
+	                                     .height        = 0});
+}
+
+// Bilinear sample of a single channel size x size image at pixel position (x, y), wrapping
+f32 make_image_node_sample_bilinear(f32 *img, i32 size, f32 x, f32 y) {
+	f32 fx = floorf(x);
+	f32 fy = floorf(y);
+	f32 tx = x - fx;
+	f32 ty = y - fy;
+	i32 x0 = ((i32)fx % size + size) % size;
+	i32 y0 = ((i32)fy % size + size) % size;
+	i32 x1 = (x0 + 1) % size;
+	i32 y1 = (y0 + 1) % size;
+	f32 a  = img[(size_t)y0 * size + x0] * (1.0f - tx) + img[(size_t)y0 * size + x1] * tx;
+	f32 b  = img[(size_t)y1 * size + x0] * (1.0f - tx) + img[(size_t)y1 * size + x1] * tx;
+	return a * (1.0f - ty) + b * ty;
 }
 
 // The state row button of an image node definition, placed right after the Size setting (Size first, then the state row, then the other settings)
