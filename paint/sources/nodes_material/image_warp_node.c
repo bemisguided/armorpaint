@@ -181,11 +181,12 @@ static void image_warp_node_rows(void *param, i32 begin, i32 end) {
 // Warped image from the captured float pixels; returns 0, or -1 when memory runs out
 static i32 image_warp_node_process(u8 *pixels, i32 size, void *params, f32 *result) {
 	size_t n   = (size_t)size * size;
-	f32   *img = malloc(n * sizeof(f32));
-	f32   *dst = malloc(n * sizeof(f32));
+	size_t plane_bytes = n * sizeof(f32);
+	f32   *img         = make_image_node_plane_alloc(plane_bytes);
+	f32   *dst         = make_image_node_plane_alloc(plane_bytes);
 	if (img == NULL || dst == NULL) {
-		free(img);
-		free(dst);
+		make_image_node_plane_free(img, plane_bytes);
+		make_image_node_plane_free(dst, plane_bytes);
 		return -1;
 	}
 	f32 *px = (f32 *)pixels;
@@ -204,8 +205,8 @@ static i32 image_warp_node_process(u8 *pixels, i32 size, void *params, f32 *resu
 		result[i * 4 + 2] = v;
 		result[i * 4 + 3] = 1.0f;
 	}
-	free(img);
-	free(dst);
+	make_image_node_plane_free(img, plane_bytes);
+	make_image_node_plane_free(dst, plane_bytes);
 	return 0;
 }
 
