@@ -552,6 +552,8 @@ void history_undo() {
 			g_context->material->canvas = step->canvas;
 			ui_nodes_canvas_changed();
 			ui_nodes_hwnd->redraws = 2;
+			// The restored slot has a blank preview and no shader yet
+			tab_materials_update_material();
 		}
 		else if (step->action == HISTORY_ACTION_DUPLICATE_MATERIAL) {
 			g_context->material = g_project->_->materials->buffer[step->material];
@@ -824,6 +826,8 @@ void history_redo() {
 			g_context->material->canvas = step->canvas;
 			ui_nodes_canvas_changed();
 			ui_nodes_hwnd->redraws = 2;
+			// The restored slot has a blank preview and no shader yet
+			tab_materials_update_material();
 		}
 		else if (step->action == HISTORY_ACTION_DELETE_MATERIAL) {
 			g_context->material = g_project->_->materials->buffer[step->material];
@@ -836,6 +840,8 @@ void history_redo() {
 			g_context->material->canvas = step->canvas;
 			ui_nodes_canvas_changed();
 			ui_nodes_hwnd->redraws = 2;
+			// The restored slot has a blank preview and no shader yet
+			tab_materials_update_material();
 		}
 		else { // Paint operation
 			slot_layer_t *lay = history_undo_slot(history_undo_i);
