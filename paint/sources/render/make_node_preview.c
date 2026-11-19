@@ -42,8 +42,7 @@ node_shader_context_t *make_node_preview_run(material_t *data, ui_node_t *node, 
 	parser_material_nodes = g_context->material->canvas->nodes;
 	parser_material_links = g_context->material->canvas->links;
 	if (group != NULL) {
-		parser_material_push_group(group);
-		parser_material_parents = parents;
+		parser_material_push_group_chain(group, parents);
 	}
 	ui_node_link_t_array_t *links          = parser_material_links;
 	i32                     socket_preview = i32_imap_get(g_context->node_preview_socket_map, node->id);

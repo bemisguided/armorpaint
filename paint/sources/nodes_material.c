@@ -1,13 +1,6 @@
 
 #include "global.h"
 
-// Orders the node lists of the Pattern and Filter menus by displayed name, whatever order the nodes registered in
-static int nodes_material_compare_names(const void *a, const void *b) {
-	ui_node_t *x = *(ui_node_t **)a;
-	ui_node_t *y = *(ui_node_t **)b;
-	return strcmp(tr(x->name), tr(y->name));
-}
-
 void nodes_material_init() {
 	if (nodes_material_list != NULL) {
 		return;
@@ -48,11 +41,10 @@ void nodes_material_init() {
 
 	nodes_material_pattern = any_array_create_from_raw((void *[]){}, 0); // Image nodes that make a pattern (make_image_node.c): they add themselves
 	nodes_material_filter  = any_array_create_from_raw((void *[]){}, 0); // Image nodes that filter an image
-	advanced_blur_node_init();
+	// Filter nodes, keep alphabetical by English name (the menu lists them in this order)
+	filter();
 	tile_uv_node_init();
-
-	array_sort(nodes_material_pattern, nodes_material_compare_names);
-	array_sort(nodes_material_filter, nodes_material_compare_names);
+	// Filter nodes, keep alphabetical by English name (the menu lists them in this order)
 
 	nodes_material_color = any_array_create_from_raw((void *[]){}, 0);
 	blur_node_init();
@@ -105,32 +97,30 @@ void nodes_material_init() {
 
 #if defined(IRON_WINDOWS) || defined(IRON_LINUX) || defined(IRON_MACOS)
 
-	nodes_material_list = any_array_create_from_raw(
-	    (void *[]){
-	        nodes_material_input,
-	        nodes_material_texture,
-	        nodes_material_pattern,
-	        nodes_material_filter,
-	        nodes_material_color,
-	        nodes_material_utilities,
-	        nodes_material_neural,
-	        nodes_material_group,
-	    },
-	    8);
+	void *lists[] = {
+	    nodes_material_input,
+	    nodes_material_texture,
+	    nodes_material_pattern,
+	    nodes_material_filter,
+	    nodes_material_color,
+	    nodes_material_utilities,
+	    nodes_material_neural,
+	    nodes_material_group,
+	};
+	nodes_material_list = any_array_create_from_raw(lists, sizeof(lists) / sizeof(lists[0]));
 
 #else
 
-	nodes_material_list = any_array_create_from_raw(
-	    (void *[]){
-	        nodes_material_input,
-	        nodes_material_texture,
-	        nodes_material_pattern,
-	        nodes_material_filter,
-	        nodes_material_color,
-	        nodes_material_utilities,
-	        nodes_material_group,
-	    },
-	    7);
+	void *lists[] = {
+	    nodes_material_input,
+	    nodes_material_texture,
+	    nodes_material_pattern,
+	    nodes_material_filter,
+	    nodes_material_color,
+	    nodes_material_utilities,
+	    nodes_material_group,
+	};
+	nodes_material_list = any_array_create_from_raw(lists, sizeof(lists) / sizeof(lists[0]));
 
 #endif
 }
