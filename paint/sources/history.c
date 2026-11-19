@@ -102,6 +102,9 @@ static void history_step_free(history_step_t *step) {
 		meta_free(step->merge_layers->buffer[i]->meta); // Saved layers are out of the project, their metadata goes with the step
 	}
 	meta_free(step->layer_meta);
+	if (step->action == HISTORY_ACTION_EDIT_META) {
+		meta_free(step->meta); // The other step kinds hand their metadata to a live item on undo or redo
+	}
 	free(step);
 }
 
