@@ -14,15 +14,31 @@
 // before each fill layer is painted): where islands of two objects overlap, the layer then reads the image of an object it covers,
 // not the one of a later object it does not cover. Overlapping objects covered by the same layer still share the texels of the
 // layer itself.
+// The atlases of a bake type are cached by the objects they were composed for (key, see texture_slot_key), so refreshing many fill
+// layers with different coverage composes each atlas once, not once per layer. The cache holds a few atlases per bake type and
+// is capped in memory, the least recently used atlas that is not bound goes first. Everything that decides the content of an atlas is
+// in texture_slot_signature (textures, tile list and layout, resolution, meshes): when it changes the whole cache of the bake type is dropped.
 
-#define TEXTURE_SLOT_MAX 32
+#define TEXTURE_SLOT_MAX           32
+#define TEXTURE_SLOT_CACHE_ATLASES 6                   // Atlases kept per bake type
+#define TEXTURE_SLOT_CACHE_BYTES   (256 * 1024 * 1024) // All kept atlases together, the bound ones are never dropped
+
+typedef struct texture_slot_cached {
+	u64            key; // Objects the atlas was composed for, 0 = all of them (see texture_slot_key)
+	gpu_texture_t *atlas;
+	u64            used; // texture_slot_tick when last bound
+} texture_slot_cached_t;
 
 typedef struct texture_slot_entry {
-	i32            btp;
-	gpu_texture_t *atlas; // NULL when no texture has this bake type
-	u64            sig;   // 0 = no matching texture
-	u64            key;   // Objects the atlas was composed for, 0 = all of them (see texture_slot_key)
+	i32                   btp;
+	gpu_texture_t        *atlas; // The bound atlas, NULL when no texture has this bake type. One of cached[]
+	u64                   sig;   // 0 = no matching texture
+	u64                   key;   // Objects the bound atlas was composed for
+	texture_slot_cached_t cached[TEXTURE_SLOT_CACHE_ATLASES];
+	i32                   cached_count;
 } texture_slot_entry_t;
+
+static u64 texture_slot_tick = 0;
 
 static texture_slot_entry_t texture_slot_entries[TEXTURE_SLOT_MAX];
 static i32                  texture_slot_count       = 0;
@@ -42,9 +58,8 @@ static texture_slot_entry_t *texture_slot_entry(i32 btp, bool create) {
 		return NULL;
 	}
 	texture_slot_entry_t *e = &texture_slot_entries[texture_slot_count++];
-	e->btp                  = btp;
-	e->atlas                = NULL;
-	e->sig                  = 0;
+	memset(e, 0, sizeof(texture_slot_entry_t));
+	e->btp = btp;
 	return e;
 }
 
@@ -97,6 +112,9 @@ static u64 texture_slot_signature(i32 btp) {
 	}
 	h = texture_slot_hash(h, config_get_texture_res_x());
 	h = texture_slot_hash(h, config_get_texture_res_y());
+	h = texture_slot_hash(h, util_udim_stride()); // Atlas layout: slot size and slots per row
+	h = texture_slot_hash(h, util_udim_tile_res_x());
+	h = texture_slot_hash(h, util_udim_tile_res_y());
 	// The island masks depend on the meshes and the dilate radius
 	h = texture_slot_hash(h, util_mesh_version);
 	h = texture_slot_hash(h, g_config->dilate_radius);
@@ -125,10 +143,10 @@ static i32_array_t *texture_slot_select(i32 btp, i32 tile) {
 	}
 	i32_array_t *keep = i32_array_create(0);
 	for (i32 k = 0; k < cand->length; ++k) {
-		meta_t       *mk   = g_project->_->assets->buffer[cand->buffer[k]]->meta;
-		i32           ok   = meta_get_i32(mk, META_OBJECT, -1);
-		i32           tk   = meta_get_i32(mk, META_TILE, -1);
-		bool          drop = false;
+		meta_t *mk   = g_project->_->assets->buffer[cand->buffer[k]]->meta;
+		i32     ok   = meta_get_i32(mk, META_OBJECT, -1);
+		i32     tk   = meta_get_i32(mk, META_TILE, -1);
+		bool    drop = false;
 		for (i32 j = 0; j < cand->length && !drop; ++j) {
 			if (j == k) {
 				continue;
@@ -152,9 +170,9 @@ static i32_array_t *texture_slot_select(i32 btp, i32 tile) {
 // Copy pipeline of the layer copy shaders with alpha blending (the island mask is in the alpha of the source)
 static gpu_pipeline_t *texture_slot_get_pipe() {
 	if (texture_slot_pipe == NULL) {
-		gpu_pipeline_t *p = gpu_create_pipeline();
-		p->vertex_shader   = sys_get_shader("layer_copy.vert");
-		p->fragment_shader = sys_get_shader("layer_copy.frag");
+		gpu_pipeline_t *p          = gpu_create_pipeline();
+		p->vertex_shader           = sys_get_shader("layer_copy.vert");
+		p->fragment_shader         = sys_get_shader("layer_copy.frag");
 		gpu_vertex_structure_t *vs = ALLOC_INIT(gpu_vertex_structure_t, {0});
 		gpu_vertex_structure_add(vs, "pos", GPU_VERTEX_DATA_F32_2X);
 		gpu_vertex_structure_add(vs, "tex", GPU_VERTEX_DATA_F32_2X);
@@ -178,32 +196,29 @@ static gpu_texture_t *texture_slot_scratch(gpu_texture_t *t, i32 w, i32 h) {
 	return t != NULL ? t : gpu_create_render_target(w, h, GPU_TEXTURE_FORMAT_RGBA32);
 }
 
+static gpu_texture_t *texture_slot_new_atlas() {
+	return gpu_create_render_target(config_get_texture_res_x(), config_get_texture_res_y(), GPU_TEXTURE_FORMAT_RGBA32);
+}
+
 // Draws every slot of the atlas, black where nothing is drawn (flat normal for the Normal encoding)
 // only: composes the per object images of these objects only, NULL for all of them
-static void texture_slot_build(texture_slot_entry_t *e, mesh_object_t_array_t *only) {
-	i32 w = config_get_texture_res_x();
-	i32 h = config_get_texture_res_y();
-	if (e->atlas != NULL && (e->atlas->width != w || e->atlas->height != h)) {
-		gpu_delete_texture(e->atlas);
-		e->atlas = NULL;
-	}
-	if (e->atlas == NULL) {
-		e->atlas = gpu_create_render_target(w, h, GPU_TEXTURE_FORMAT_RGBA32);
-	}
+static void texture_slot_build(i32 btp, gpu_texture_t *atlas, mesh_object_t_array_t *only) {
+	i32 w      = atlas->width;
+	i32 h      = atlas->height;
 	i32 stride = util_udim_stride();
 	i32 tw     = util_udim_tile_res_x();
 	i32 th     = util_udim_tile_res_y();
-	u32 clear  = asset_bake_default_encoding(e->btp) == AE_NORMAL ? 0xff8080ff : 0xff000000;
+	u32 clear  = asset_bake_default_encoding(btp) == AE_NORMAL ? 0xff8080ff : 0xff000000;
 	i32 count  = util_udim_count();
 
 	i32_array_t **sels = (i32_array_t **)malloc(sizeof(i32_array_t *) * (count > 0 ? count : 1));
 
 	// Object any images over the whole slot
-	draw_begin(e->atlas, true, clear);
+	draw_begin(atlas, true, clear);
 	draw_set_color(0xffffffff);
 	draw_set_pipeline(pipes_copy);
 	for (i32 s = 0; s < count; ++s) {
-		sels[s] = texture_slot_select(e->btp, util_udim_tile(s));
+		sels[s] = texture_slot_select(btp, util_udim_tile(s));
 		for (i32 k = 0; k < sels[s]->length; ++k) {
 			asset_t *a = g_project->_->assets->buffer[sels[s]->buffer[k]];
 			if (meta_get_i32(a->meta, META_OBJECT, -1) == -1) {
@@ -247,7 +262,7 @@ static void texture_slot_build(texture_slot_entry_t *e, mesh_object_t_array_t *o
 			gpu_draw();
 			gpu_end();
 
-			draw_begin(e->atlas, false, 0);
+			draw_begin(atlas, false, 0);
 			draw_set_color(0xffffffff);
 			draw_set_pipeline(texture_slot_get_pipe());
 			draw_image(texture_slot_tmp_b, 0, 0);
@@ -277,6 +292,117 @@ static u64 texture_slot_key(slot_layer_t *l, mesh_object_t_array_t **covered) {
 	return h != 0 ? h : 1;
 }
 
+static i64 texture_slot_atlas_bytes(gpu_texture_t *atlas) {
+	return (i64)atlas->width * atlas->height * 4;
+}
+
+// An atlas some bake type has bound right now is never dropped
+static bool texture_slot_bound(gpu_texture_t *atlas) {
+	for (i32 i = 0; i < texture_slot_count; ++i) {
+		if (texture_slot_entries[i].atlas == atlas) {
+			return true;
+		}
+	}
+	return false;
+}
+
+// Drops the cached atlases of a bake type, the bound one included
+static void texture_slot_cache_clear(texture_slot_entry_t *e) {
+	for (i32 i = 0; i < e->cached_count; ++i) {
+		gpu_delete_texture(e->cached[i].atlas);
+	}
+	e->cached_count = 0;
+	e->atlas        = NULL;
+}
+
+// Drops the least recently used atlas that is not bound, of this bake type only (per type) or of every one (memory cap).
+// Returns false when there is none.
+static bool texture_slot_cache_evict(texture_slot_entry_t *only) {
+	texture_slot_entry_t *victim_entry = NULL;
+	i32                   victim       = -1;
+	for (i32 k = 0; k < texture_slot_count; ++k) {
+		texture_slot_entry_t *e = &texture_slot_entries[k];
+		if (only != NULL && e != only) {
+			continue;
+		}
+		for (i32 i = 0; i < e->cached_count; ++i) {
+			if (texture_slot_bound(e->cached[i].atlas)) {
+				continue;
+			}
+			if (victim < 0 || e->cached[i].used < victim_entry->cached[victim].used) {
+				victim_entry = e;
+				victim       = i;
+			}
+		}
+	}
+	if (victim < 0) {
+		return false;
+	}
+	gpu_delete_texture(victim_entry->cached[victim].atlas);
+	victim_entry->cached[victim] = victim_entry->cached[--victim_entry->cached_count];
+	return true;
+}
+
+static i64 texture_slot_cache_bytes() {
+	i64 bytes = 0;
+	for (i32 k = 0; k < texture_slot_count; ++k) {
+		for (i32 i = 0; i < texture_slot_entries[k].cached_count; ++i) {
+			bytes += texture_slot_atlas_bytes(texture_slot_entries[k].cached[i].atlas);
+		}
+	}
+	return bytes;
+}
+
+// Binds the atlas of the bake type composed for the objects of key (covered, NULL for all of them): the cached one, else a new one
+// that is composed now. Not inside a draw.
+static void texture_slot_bind(texture_slot_entry_t *e, u64 key, mesh_object_t_array_t *covered) {
+	for (i32 i = 0; i < e->cached_count; ++i) {
+		if (e->cached[i].key == key) {
+			e->cached[i].used = ++texture_slot_tick;
+			e->atlas          = e->cached[i].atlas;
+			e->key            = key;
+			return;
+		}
+	}
+	while (e->cached_count >= TEXTURE_SLOT_CACHE_ATLASES && texture_slot_cache_evict(e)) {
+	}
+	i64 bytes = (i64)config_get_texture_res_x() * config_get_texture_res_y() * 4;
+	while (e->cached_count < TEXTURE_SLOT_CACHE_ATLASES && texture_slot_cache_bytes() + bytes > TEXTURE_SLOT_CACHE_BYTES && texture_slot_cache_evict(NULL)) {
+	}
+	gpu_texture_t *atlas = texture_slot_new_atlas();
+	texture_slot_build(e->btp, atlas, covered);
+	texture_slot_cached_t *c = &e->cached[e->cached_count++];
+	c->key                   = key;
+	c->atlas                 = atlas;
+	c->used                  = ++texture_slot_tick;
+	e->atlas                 = atlas;
+	e->key                   = key;
+}
+
+// Textures, layout or meshes of the bake type changed: every cached atlas is stale. The bound atlas is recomposed in place for the
+// objects of key (the GPU may still use it), the others are deleted.
+static void texture_slot_refresh(texture_slot_entry_t *e, u64 key, mesh_object_t_array_t *covered) {
+	gpu_texture_t *keep = e->atlas;
+	if (keep != NULL && (keep->width != config_get_texture_res_x() || keep->height != config_get_texture_res_y())) {
+		keep = NULL;
+	}
+	for (i32 i = 0; i < e->cached_count; ++i) {
+		if (e->cached[i].atlas != keep) {
+			gpu_delete_texture(e->cached[i].atlas);
+		}
+	}
+	e->cached_count = 0;
+	e->atlas        = NULL;
+	if (keep == NULL) {
+		texture_slot_bind(e, key, covered);
+		return;
+	}
+	texture_slot_build(e->btp, keep, covered);
+	e->cached[e->cached_count++] = (texture_slot_cached_t){key, keep, ++texture_slot_tick};
+	e->atlas                     = keep;
+	e->key                       = key;
+}
+
 // Composes the atlases of the layer about to be painted from the objects it covers. Not inside a draw. Called by the fill layer
 // updates after layers_update_paint_set, the layer is painted right after so no refresh is queued.
 void texture_slot_prepare(slot_layer_t *l) {
@@ -287,11 +413,10 @@ void texture_slot_prepare(slot_layer_t *l) {
 	u64                    key     = texture_slot_key(l, &covered);
 	for (i32 i = 0; i < texture_slot_count; ++i) {
 		texture_slot_entry_t *e = &texture_slot_entries[i];
-		if (e->sig == 0 || e->key == key) {
+		if (e->sig == 0 || (e->atlas != NULL && e->key == key)) {
 			continue;
 		}
-		e->key = key;
-		texture_slot_build(e, covered);
+		texture_slot_bind(e, key, covered);
 	}
 	if (covered != NULL) {
 		array_delete(covered);
@@ -325,15 +450,14 @@ void texture_slot_update() {
 		e->sig = sig;
 		if (sig != 0) {
 			mesh_object_t_array_t *covered = NULL;
-			e->key                         = texture_slot_key(g_context->layer, &covered);
-			texture_slot_build(e, covered);
+			u64                    key     = texture_slot_key(g_context->layer, &covered);
+			texture_slot_refresh(e, key, covered);
 			if (covered != NULL) {
 				array_delete(covered);
 			}
 		}
-		else if (e->atlas != NULL) {
-			gpu_delete_texture(e->atlas);
-			e->atlas = NULL;
+		else {
+			texture_slot_cache_clear(e);
 		}
 		texture_slot_pending = true;
 	}
@@ -358,11 +482,11 @@ gpu_texture_t *texture_slot_resolve(i32 btp) {
 	}
 	if (asset_bake_default_encoding(btp) == AE_NORMAL) {
 		if (texture_slot_flat_normal == NULL) {
-			buffer_t *b = buffer_create(4);
-			b->buffer[0] = 128;
-			b->buffer[1] = 128;
-			b->buffer[2] = 255;
-			b->buffer[3] = 255;
+			buffer_t *b              = buffer_create(4);
+			b->buffer[0]             = 128;
+			b->buffer[1]             = 128;
+			b->buffer[2]             = 255;
+			b->buffer[3]             = 255;
 			texture_slot_flat_normal = gpu_create_texture_from_bytes(b, 1, 1, GPU_TEXTURE_FORMAT_RGBA32);
 			array_free(b);
 			free(b);
