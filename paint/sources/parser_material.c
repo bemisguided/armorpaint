@@ -41,6 +41,15 @@ static void parser_material_free_scratch() {
 	parser_material_canvases = NULL;
 }
 
+// The parents array of a group being parsed, owned by the caller: init must not free it
+void parser_material_set_parents(ui_node_t_array_t *parents) {
+	if (parser_material_owns_parents) {
+		array_delete(parser_material_parents);
+	}
+	parser_material_parents      = parents;
+	parser_material_owns_parents = false;
+}
+
 void parser_material_init() {
 	parser_material_free_scratch();
 
@@ -282,6 +291,17 @@ void parser_material_push_group(ui_node_canvas_t *g) {
 	any_array_push(parser_material_canvases, g);
 	parser_material_nodes = g->nodes;
 	parser_material_links = g->links;
+}
+
+// Starts parsing inside group, the innermost group of a nested chain: pushes one canvas per parent level, outermost first,
+// like parser_material_parse_group does, so the canvas stack mirrors the parents (a group input pops one of each).
+// The parents array stays owned by the caller.
+void parser_material_push_group_chain(ui_node_canvas_t *group, ui_node_t_array_t *parents) {
+	for (i32 i = 0; parents != NULL && i < parents->length - 1; ++i) {
+		parser_material_push_group(parser_material_get_group(parents->buffer[i]->name));
+	}
+	parser_material_push_group(group);
+	parser_material_set_parents(parents);
 }
 
 void parser_material_pop_group() {
