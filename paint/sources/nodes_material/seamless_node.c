@@ -29,14 +29,9 @@ typedef struct seamless_params {
 	f32 blend_width;
 } seamless_params_t;
 
-static f32 seamless_node_button(ui_node_t *node, i32 i) {
-	return node->buttons->buffer[i]->default_value->buffer[0];
-}
-
 // Width and height of the image: Size 512, 1024, 2048 or 4096
 static i32 seamless_node_size(ui_node_t *node) {
-	i32 i = (i32)seamless_node_button(node, SEAMLESS_BUTTON_SIZE);
-	return 512 << (i < 0 ? 0 : i > 3 ? 3 : i);
+	return make_image_node_size(node, SEAMLESS_BUTTON_SIZE);
 }
 
 // Captured per pixel: the Image input
@@ -119,31 +114,6 @@ char *seamless_node_value(ui_node_t *node, ui_node_socket_t *socket) {
 	return string_tmp("%s.r", make_image_node_sample(node));
 }
 
-static ui_node_socket_t *seamless_node_socket(char *name, char *type, u32 color, f32_array_t *default_value, f32 min, f32 max, f32 precision) {
-	return ALLOC_INIT(ui_node_socket_t, {.id            = 0,
-	                                     .node_id       = 0,
-	                                     .name          = name,
-	                                     .type          = type,
-	                                     .color         = color,
-	                                     .default_value = default_value,
-	                                     .min           = min,
-	                                     .max           = max,
-	                                     .precision     = precision,
-	                                     .display       = 0});
-}
-
-static ui_node_button_t *seamless_node_setting(char *name, f32 default_value, char *data) {
-	return ALLOC_INIT(ui_node_button_t, {.name          = name,
-	                                     .type          = "ENUM",
-	                                     .output        = -1,
-	                                     .default_value = f32_array_create_x(default_value),
-	                                     .data          = u8_array_create_from_string(data),
-	                                     .min           = 0.0,
-	                                     .max           = 1.0,
-	                                     .precision     = 100,
-	                                     .height        = 0});
-}
-
 void seamless_node_init() {
 	u32 value_color = 0xffa1a1a1;
 
@@ -157,18 +127,18 @@ void seamless_node_init() {
 	                .color  = NODES_MATERIAL_IMAGE_COLOR,
 	                .inputs = any_array_create_from_raw(
 	                    (void *[]){
-	                        seamless_node_socket(_tr("Image"), "RGBA", NODES_MATERIAL_IMAGE_COLOR, f32_array_create_xyzw(1.0, 1.0, 1.0, 1.0), 0.0, 1.0, 100),
-	                        seamless_node_socket(_tr("Blend Width"), "VALUE", value_color, f32_array_create_x(0.25), 0.0, 0.5, 100),
+	                        make_image_node_socket(_tr("Image"), "RGBA", NODES_MATERIAL_IMAGE_COLOR, f32_array_create_xyzw(1.0, 1.0, 1.0, 1.0), 0.0, 1.0, 100),
+	                        make_image_node_socket(_tr("Blend Width"), "VALUE", value_color, f32_array_create_x(0.25), 0.0, 0.5, 100),
 	                    },
 	                    2),
 	                .outputs = any_array_create_from_raw(
 	                    (void *[]){
-	                        seamless_node_socket(_tr("Image"), "RGBA", NODES_MATERIAL_IMAGE_COLOR, f32_array_create_xyzw(0.0, 0.0, 0.0, 1.0), 0.0, 1.0, 100),
+	                        make_image_node_socket(_tr("Image"), "RGBA", NODES_MATERIAL_IMAGE_COLOR, f32_array_create_xyzw(0.0, 0.0, 0.0, 1.0), 0.0, 1.0, 100),
 	                    },
 	                    1),
 	                .buttons = any_array_create_from_raw(
 	                    (void *[]){
-	                        seamless_node_setting(_tr("Size"), 1, "512\n1024\n2048\n4096"),
+	                        make_image_node_setting(_tr("Size"), "ENUM", 1, MAKE_IMAGE_NODE_SIZE_ITEMS),
 	                        make_image_node_state_button(),
 	                    },
 	                    2),
