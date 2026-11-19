@@ -395,6 +395,7 @@ Krycie warstwy
 Skala UV warstwy
 Typ UV warstwy
 Widoczność warstwy
+
 Warstwy
 Promień leniwy
 Krok leniwy

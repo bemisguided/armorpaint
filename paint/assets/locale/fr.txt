@@ -395,6 +395,7 @@ Opacité du calque
 Échelle UV du calque
 Type UV du calque
 Visibilité du calque
+
 Calques
 Rayon du ralenti
 Étape du ralenti

@@ -395,6 +395,7 @@ Opacidad de la capa
 Escala UV de capa
 Tipo UV de capa
 Visibilidad de capa
+
 Capas
 Radio perezoso
 Paso perezoso

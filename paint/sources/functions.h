@@ -1227,6 +1227,7 @@ bool                      layer_objects_restricted(slot_layer_t *l);
 bool                      layer_is_restricted(slot_layer_t *l);
 mesh_object_t_array_t    *layer_coverage_objects(slot_layer_t *l);
 layer_coverage_empty_t    layer_coverage_empty_reason(slot_layer_t *l);
+bool                      layer_covers_object_on_tile(slot_layer_t *l, mesh_object_t *o);
 bool                      layer_covers_nothing(slot_layer_t *l);
 bool                      util_uv_overlap_covered(slot_layer_t *l);
 void                      util_uv_overlap_poll();

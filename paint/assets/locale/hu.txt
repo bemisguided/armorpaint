@@ -395,6 +395,7 @@ Réteg átlátszatlansága
 Réteg UV méretezése
 Réteg UV típusa
 Réteg láthatósága
+
 Rétegek
 Lusta sugár
 Lusta lépés
