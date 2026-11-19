@@ -424,6 +424,7 @@ void texture_slot_prepare(slot_layer_t *l) {
 }
 
 static void texture_slot_invalidate() {
+	util_version_graph_bump(NULL); // The assignment is read by image nodes that capture a Slot Texture node, but it is not a canvas change
 	make_material_parse_paint_material(true);
 	if (layers_is_fill_material()) {
 		layers_update_fill_layers();
