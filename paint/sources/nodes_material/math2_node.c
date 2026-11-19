@@ -130,10 +130,10 @@ char *math2_node_value(ui_node_t *node, ui_node_socket_t *socket) {
 		out_val = string_tmp("tanh(%s)", val1);
 	}
 	else if (string_equals(op, "TO_RADIANS")) {
-		out_val = string_tmp("radians(%s)", val1);
+		out_val = string_tmp("(%s * 0.017453292519943295)", val1);
 	}
 	else if (string_equals(op, "TO_DEGREES")) {
-		out_val = string_tmp("degrees(%s)", val1);
+		out_val = string_tmp("(%s * 57.29577951308232)", val1);
 	}
 	if (use_clamp) {
 		return string_tmp("clamp(%s, 0.0, 1.0)", out_val);
