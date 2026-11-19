@@ -182,6 +182,57 @@ void tab_layers_draw_layer_slot_full_delete_layer(void *_) {
 	tab_layers_delete_layer(g_context->layer);
 }
 
+// layer_coverage_empty_reason scans the paint objects against the tiles, and every layer row asks it on every redraw. The answer is cached per
+// layer and recomputed when anything it reads changed: the coverage levels from the layer up (parent chain, flags, stored ids), the paint
+// object ids, the project tile list and util_mesh_version (object tiles). Direct mapped by layer, a clash only recomputes.
+#define TAB_LAYERS_REASON_CACHE 512
+typedef struct {
+	slot_layer_t          *l;
+	u64                    key;
+	layer_coverage_empty_t reason;
+} tab_layers_reason_t;
+static tab_layers_reason_t tab_layers_reason_cache[TAB_LAYERS_REASON_CACHE];
+
+static u64 tab_layers_reason_mix(u64 h, u64 v) {
+	return (h ^ v) * 0x100000001b3ull;
+}
+
+static u64 tab_layers_reason_ids(u64 h, i32_array_t *ids) {
+	h = tab_layers_reason_mix(h, (u64)ids->length);
+	for (i32 i = 0; i < ids->length; ++i) {
+		h = tab_layers_reason_mix(h, (u64)ids->buffer[i]);
+	}
+	return h;
+}
+
+static layer_coverage_empty_t tab_layers_coverage_reason(slot_layer_t *l) {
+	u64 key = tab_layers_reason_mix(0xcbf29ce484222325ull, (u64)util_mesh_version);
+	for (slot_layer_t *p = slot_layer_coverage_owner(l); p != NULL; p = p->parent) {
+		bool all_objects = slot_layer_all_objects(p);
+		bool all_tiles   = slot_layer_all_tiles(p);
+		key              = tab_layers_reason_mix(key, (u64)(uintptr_t)p);
+		key              = tab_layers_reason_mix(key, (u64)all_objects * 2 + (u64)all_tiles);
+		key              = all_objects ? key : tab_layers_reason_ids(key, slot_layer_objects(p));
+		key              = all_tiles ? key : tab_layers_reason_ids(key, slot_layer_tiles(p));
+	}
+	mesh_object_t_array_t *objects = g_project->_->paint_objects;
+	key                            = tab_layers_reason_mix(key, (u64)objects->length);
+	for (i32 i = 0; i < objects->length; ++i) {
+		key = tab_layers_reason_mix(key, (u64)objects->buffer[i]->paint_id);
+	}
+	key = tab_layers_reason_mix(key, (u64)util_udim_count());
+	for (i32 i = 0; i < util_udim_count(); ++i) {
+		key = tab_layers_reason_mix(key, (u64)util_udim_tile(i));
+	}
+	tab_layers_reason_t *e = &tab_layers_reason_cache[((u64)(uintptr_t)l >> 4) % TAB_LAYERS_REASON_CACHE];
+	if (e->l != l || e->key != key) {
+		e->l      = l;
+		e->key    = key;
+		e->reason = layer_coverage_empty_reason(l);
+	}
+	return e->reason;
+}
+
 static bool tab_layers_coverage_under(slot_layer_t *m, slot_layer_t *l) {
 	for (slot_layer_t *p = m; p != NULL; p = p->parent) {
 		if (p == l) {
@@ -685,7 +736,7 @@ void tab_layers_draw_layer_slot_full(slot_layer_t *l, i32 i) {
 		}
 
 		// Dimmed like the eye of a hidden group when the layer's objects or tiles are gone or none are selected
-		layer_coverage_empty_t empty          = layer_coverage_empty_reason(l);
+		layer_coverage_empty_t empty          = tab_layers_coverage_reason(l);
 		bool                   covers_nothing = empty != LAYER_COVERAGE_SOME;
 		i32                    text_col       = g_theme->TEXT_COL;
 		if (covers_nothing) {
@@ -1463,7 +1514,7 @@ void tab_layers_draw_edit() {
 			vars = any_map_create();
 			any_map_set(vars, "res", string_tmp("%d", util_udim_tile_res_x()));
 			ui_menu_align();
-			ui_menu_label(vtr("Clamped to {res} px per tile (atlas limit 16384)", vars), NULL);
+			ui_menu_label(vtr("Clamped to {res} px per tile (atlas limit 8192)", vars), NULL);
 			map_free(vars);
 		}
 	}
