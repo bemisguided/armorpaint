@@ -350,6 +350,7 @@ vec4_t                 util_layer_path_segment_a();
 vec4_t                 util_layer_path_segment_b();
 f32                    util_layer_path_length();
 void                   make_texcoord_run(node_shader_t *kong, bool is_atlas);
+char                  *make_texcoord_atlas_uv(node_shader_t *kong);
 void                   context_init();
 void                   context_select_material(i32 i);
 void                   context_set_material(slot_material_t *m);

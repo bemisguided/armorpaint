@@ -249,7 +249,7 @@ bool                      parser_material_sample_keep_aspect = false; // Adjust 
 bool parser_material_straight_cutouts = false;
 #endif
 char                 *parser_material_sample_uv_scale       = "1.0";
-char                 *parser_material_tex_coord_atlas       = NULL; // Atlas uv expression for "UV: Atlas" image nodes, NULL when tex_coord is the atlas uv
+char                 *parser_material_tex_coord_atlas       = NULL; // Not NULL when "UV: Atlas" image nodes can ask make_texcoord_atlas_uv for the atlas uv (uv map layers), NULL otherwise: they sample tex_coord
 bool                  parser_material_transform_color_space = true;
 bool                  parser_material_blur_passthrough      = false;
 bool                  parser_material_warp_passthrough      = false;

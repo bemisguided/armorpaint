@@ -2585,6 +2585,8 @@ static i32            inpaint_stamp_count = 0;
 static i32            inpaint_stamp_cap   = 0;
 static bool           inpaint_has_mask    = false;
 static bool           inpaint_has_last = false;
+static u8            *inpaint_touched     = NULL; // Per result: the stroke hit its object and tile (per object results)
+static i32            inpaint_touched_cap = 0;
 static f32            inpaint_last[3];
 static bool           inpaint_dirty       = false;
 static gpu_texture_t *inpaint_preview     = NULL;
@@ -2735,7 +2737,7 @@ static void bake_rays_stamp(u8 *mask, f32 *center, f32 radius) {
 }
 
 // Mouse ray against the low poly, in the bake space of the paint object
-static bool inpaint_hit(f32 *hit) {
+static bool inpaint_hit(f32 *hit, i32 *tri) {
 	mesh_object_t *o = g_context->paint_object;
 	if (o == NULL || bake_rays_lpb.count == 0) {
 		return false;
@@ -2748,7 +2750,8 @@ static bool inpaint_hit(f32 *hit) {
 	f32    dir[3] = {b.x - a.x, b.y - a.y, b.z - a.z};
 	bake_rays_v3_norm(dir);
 	f32 t, u, v;
-	if (bake_rays_trace(&bake_rays_lpb, org, dir, 0.0, 1e30, -1.0, false, false, &t, &u, &v) < 0) {
+	*tri = bake_rays_trace(&bake_rays_lpb, org, dir, 0.0, 1e30, -1.0, false, false, &t, &u, &v);
+	if (*tri < 0) {
 		return false;
 	}
 	for (i32 k = 0; k < 3; ++k) {
@@ -2784,8 +2787,7 @@ static asset_t *inpaint_find_asset(char *path) {
 }
 
 // Uv layout of a map w x h: the current per object result (one tile) or the whole layout (cpu map without udim
-// tiles, gpu atlas), an INPAINT_BEGIN_ result. The mask follows the layout, the stamps of the stroke are replayed into
-// it when it changes.
+// tiles, gpu atlas), an INPAINT_BEGIN_ result. The mask follows the layout, the stamps of the stroke are replayed into it when it changes.
 static i32 inpaint_layout(i32 w, i32 h, bool per_object) {
 	if (bake_rays_lp != NULL && bake_maps_low_key != bake_maps_paint_objects_key()) {
 		bake_rays_free_images();
@@ -2817,6 +2819,16 @@ static i32 inpaint_layout(i32 w, i32 h, bool per_object) {
 		inpaint_dirty = true;
 	}
 	return INPAINT_BEGIN_OK;
+}
+
+// Result (object, tile pair) of a low poly triangle, -1 without per object results
+static i32 inpaint_pair_of_tri(i32 tri) {
+	for (i32 k = 0; bake_rays_lp != NULL && tri >= 0 && tri < bake_rays_lp_count && k < bake_rays_pair_count; ++k) {
+		if (bake_rays_pairs[k].object == bake_rays_lp[tri].object && bake_rays_pairs[k].slot == bake_rays_lp[tri].slot) {
+			return k;
+		}
+	}
+	return -1;
 }
 
 static void inpaint_stamp(f32 *center, f32 radius) {
@@ -2852,8 +2864,27 @@ static minic_val_t bake_maps_inpaint_begin(minic_val_t *a, int n) {
 // bool bake_maps_inpaint_stroke(): stamps the mask from the last mouse hit to the current one, false when the mouse misses the mesh
 static minic_val_t bake_maps_inpaint_stroke(minic_val_t *a, int n) {
 	f32 hit[3];
-	if (inpaint_mask == NULL || bake_rays_texmap == NULL || !inpaint_hit(hit)) {
+	i32 tri;
+	if (inpaint_mask == NULL || bake_rays_texmap == NULL || !inpaint_hit(hit, &tri)) {
 		return minic_val_int(0);
+	}
+	i32 pair = inpaint_pair_of_tri(tri);
+	if (pair >= 0 && inpaint_mask_pair >= 0) {
+		if (!inpaint_has_last && pair != inpaint_mask_pair) {
+			// A stroke starts on the result under the cursor, the mask follows it (nothing is stamped yet)
+			bake_rays_current = pair;
+			if (inpaint_layout(inpaint_mask_w, inpaint_mask_h, true) != INPAINT_BEGIN_OK) {
+				return minic_val_int(0);
+			}
+		}
+		if (inpaint_touched_cap != bake_rays_pair_count) {
+			free(inpaint_touched);
+			inpaint_touched     = calloc(bake_rays_pair_count, 1);
+			inpaint_touched_cap = inpaint_touched != NULL ? bake_rays_pair_count : 0;
+		}
+		if (inpaint_touched != NULL) {
+			inpaint_touched[pair] = 1;
+		}
 	}
 	f32 r = inpaint_radius();
 	if (inpaint_has_last) {
@@ -2925,6 +2956,30 @@ static minic_val_t bake_maps_inpaint_clear(minic_val_t *a, int n) {
 	inpaint_has_mask    = false;
 	inpaint_has_last    = false;
 	inpaint_dirty       = true;
+	if (inpaint_touched != NULL) {
+		memset(inpaint_touched, 0, inpaint_touched_cap);
+	}
+	return minic_val_int(0);
+}
+
+// int bake_maps_inpaint_next_result(int after): the next result after `after` (-1 for the first) that the stroke hit,
+// -1 when there is none. A stroke over several objects and tiles repairs each of their results.
+static minic_val_t bake_maps_inpaint_next_result(minic_val_t *a, int n) {
+	for (i32 k = bake_maps_arg_i(a, n, 0) + 1; inpaint_touched != NULL && k >= 0 && k < inpaint_touched_cap; ++k) {
+		if (inpaint_touched[k]) {
+			return minic_val_int(k);
+		}
+	}
+	return minic_val_int(-1);
+}
+
+// void bake_maps_inpaint_set_result(int index): makes a result current without dropping the stroke, the mask and the
+// file names follow it (bake_maps_set_result drops the stroke)
+static minic_val_t bake_maps_inpaint_set_result(minic_val_t *a, int n) {
+	i32 index = bake_maps_arg_i(a, n, 0);
+	if (index >= 0 && index < bake_rays_pair_count) {
+		bake_rays_current = index;
+	}
 	return minic_val_int(0);
 }
 
@@ -3281,6 +3336,9 @@ static minic_val_t bake_maps_inpaint_end(minic_val_t *a, int n) {
 	inpaint_stamp_cap   = 0;
 	inpaint_has_mask    = false;
 	inpaint_has_last    = false;
+	free(inpaint_touched);
+	inpaint_touched     = NULL;
+	inpaint_touched_cap = 0;
 	if (inpaint_preview_old != NULL) {
 		gpu_delete_texture(inpaint_preview_old);
 	}
@@ -3421,6 +3479,8 @@ void bake_maps_init() {
 	minic_register("bake_maps_inpaint_clear", "v()", bake_maps_inpaint_clear);
 	minic_register("bake_maps_inpaint_apply", "b(p,i,b,b)", bake_maps_inpaint_apply);
 	minic_register("bake_maps_inpaint_end", "v()", bake_maps_inpaint_end);
+	minic_register("bake_maps_inpaint_next_result", "i(i)", bake_maps_inpaint_next_result);
+	minic_register("bake_maps_inpaint_set_result", "v(i)", bake_maps_inpaint_set_result);
 	minic_register("bake_maps_result_count", "i()", bake_maps_result_count);
 	minic_register("bake_maps_result_objects", "i()", bake_maps_result_objects);
 	minic_register("bake_maps_set_result", "i(i)", bake_maps_set_result);
