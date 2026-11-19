@@ -283,9 +283,9 @@ static u64 make_image_node_hash(u64 seed, const void *data, size_t n) {
 }
 // xxh64 end
 
-// 64 bit signature over the captured pixels, the size and the processing parameters: xxHash64 chained over the three
-static u64 make_image_node_signature(u8 *pixels, i32 pixel_bytes, i32 size, void *params, i32 params_size) {
-	u64 h = make_image_node_hash(0, pixels, (size_t)size * size * pixel_bytes);
+// 64 bit signature over the captured pixels (bytes), the size and the processing parameters: xxHash64 chained over the three
+static u64 make_image_node_signature(u8 *pixels, size_t bytes, i32 size, void *params, i32 params_size) {
+	u64 h = make_image_node_hash(0, pixels, bytes);
 	h     = make_image_node_hash(h, &size, sizeof(size));
 	return make_image_node_hash(h, params, params_size);
 }
@@ -598,13 +598,45 @@ static bool make_image_node_capture(make_image_node_state_t *s, char *id, ui_nod
 	i32   size                      = t->size(node);
 	i32   count                     = t->capture_count != NULL ? t->capture_count(node) : 1;
 	i32   pixel_bytes               = t->capture_float ? 16 : 4;
-	size_t pixels_bytes             = (size_t)size * size * pixel_bytes;
-	u8   *pixels                    = make_image_node_capture_pixels(node, t->capture, size, t->capture_float ? GPU_TEXTURE_FORMAT_RGBA128 : GPU_TEXTURE_FORMAT_RGBA32);
-	void *params                    = NULL;
+	gpu_texture_format_t format     = t->capture_float ? GPU_TEXTURE_FORMAT_RGBA128 : GPU_TEXTURE_FORMAT_RGBA32;
+	u8   *pixels                    = NULL;
+	size_t total                    = 0; // Bytes of all captures, each of its own size
+	size_t offset                   = 0;
+	for (i32 k = 0; k < count; ++k) {
+		i32 ks = t->capture_size != NULL ? t->capture_size(node, k) : size;
+		total += (size_t)ks * ks * pixel_bytes;
+	}
+	for (i32 k = 0; k < count; ++k) {
+		make_image_node_capture_k = k;
+		i32    ks                 = t->capture_size != NULL ? t->capture_size(node, k) : size;
+		size_t one                = (size_t)ks * ks * pixel_bytes;
+		u8    *p                  = make_image_node_capture_pixels(node, t->capture, ks, format);
+		if (p == NULL) {
+			make_image_node_plane_free(pixels, total);
+			pixels = NULL;
+			break;
+		}
+		if (count == 1) {
+			pixels = p;
+			break;
+		}
+		if (pixels == NULL) {
+			pixels = make_image_node_plane_alloc(total);
+			if (pixels == NULL) {
+				make_image_node_plane_free(p, one);
+				break;
+			}
+		}
+		memcpy(pixels + offset, p, one);
+		offset += one;
+		make_image_node_plane_free(p, one);
+	}
+	make_image_node_capture_k = 0;
+	void *params              = NULL;
 	if (pixels != NULL) {
 		params = calloc(1, t->params_size > 0 ? t->params_size : 1);
 		if (params == NULL) {
-			make_image_node_plane_free(pixels, pixels_bytes);
+			make_image_node_plane_free(pixels, total);
 			pixels = NULL;
 		}
 		else {
@@ -624,28 +656,28 @@ static bool make_image_node_capture(make_image_node_state_t *s, char *id, ui_nod
 	s->captured_canvas        = g_context->material->canvas;
 	s->captured_graph_version = util_version_graph(g_context->material);
 	s->captured_asset_version = util_version_assets();
-	u64 sig = make_image_node_signature(pixels, pixel_bytes, size, params, t->params_size);
+	u64 sig = make_image_node_signature(pixels, total, size, params, t->params_size);
 
 	bool has_result = g_context->node_previews != NULL && any_map_get(g_context->node_previews, id) != NULL;
 	if (!force && has_result && s->has_baked && sig == s->baked_signature) {
 		make_image_node_clear_pending(s); // Back to what is baked, e.g. a change undone within the debounce
-		make_image_node_plane_free(pixels, pixels_bytes);
+		make_image_node_plane_free(pixels, total);
 		free(params);
 		return false;
 	}
 	if (!force && s->failed && sig == s->failed_signature) {
-		make_image_node_plane_free(pixels, pixels_bytes); // Failed already, retried after a change or Regenerate Image Nodes
+		make_image_node_plane_free(pixels, total); // Failed already, retried after a change or Regenerate Image Nodes
 		free(params);
 		return false;
 	}
 	if (!force && s->pending && sig == s->pending_signature) {
-		make_image_node_plane_free(pixels, pixels_bytes); // Already waiting for this one
+		make_image_node_plane_free(pixels, total); // Already waiting for this one
 		free(params);
 		return false;
 	}
 	make_image_node_clear_pending(s);
 	s->pending_pixels    = pixels;
-	s->pending_bytes     = pixels_bytes;
+	s->pending_bytes     = total;
 	s->pending_params    = params;
 	s->pending_size      = size;
 	s->pending_signature = sig;
@@ -733,7 +765,8 @@ static void make_image_node_bake(make_image_node_state_t *s, char *id) {
 	}
 	image_node_type_t *t      = s->type;
 	i32                size   = s->pending_size;
-	size_t             result_bytes = (size_t)size * size * 4 * sizeof(f32);
+	size_t             plane        = (size_t)size * size * 4;
+	size_t             result_bytes = plane * (t->second_result ? 2 : 1) * sizeof(f32);
 	f32               *result       = make_image_node_plane_alloc(result_bytes);
 	i32                status       = -1;
 	if (result != NULL) {
@@ -744,6 +777,9 @@ static void make_image_node_bake(make_image_node_state_t *s, char *id) {
 		s->pending_bytes  = 0;
 		s->pending_params = NULL;
 		if (!make_image_node_upload(id, result, size, t->result_format)) {
+			status = -1;
+		}
+		else if (t->second_result && !make_image_node_upload(string_tmp("%s_2", id), result + plane, size, GPU_TEXTURE_FORMAT_RGBA64)) {
 			status = -1;
 		}
 		make_image_node_plane_free(result, result_bytes);
