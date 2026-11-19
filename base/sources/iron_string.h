@@ -13,6 +13,7 @@ char *string_copy(char *a);
 char *string_tmp_alloc(int size);
 char *string_tmp(char *fmt, ...);
 char *string_replace_all_tmp(char *s, char *search, char *replace);
+char *string_to_lower_tmp(char *s);
 void  string_tmp_reset();
 int   string_length(char *str);
 bool  string_equals(char *a, char *b);

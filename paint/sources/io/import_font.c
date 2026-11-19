@@ -10,7 +10,8 @@ void import_font_run_on_next_frame(slot_font_t_array_t *font_slots) {
 	}
 }
 
-void import_font_run(char *path) {
+// meta is the saved metadata of the font, given to the first slot (NULL = none)
+void import_font_run_meta(char *path, meta_t *meta) {
 	for (i32 i = 0; i < g_project->_->fonts->length; ++i) {
 		slot_font_t *f = g_project->_->fonts->buffer[i];
 		if (string_equals(f->file, path)) {
@@ -35,10 +36,17 @@ void import_font_run(char *path) {
 		}
 
 		slot_font_t *font_slot = slot_font_create(name, f, path);
+		if (font_slots->length == 0) {
+			font_slot->meta = meta;
+		}
 		any_array_push(font_slots, font_slot);
 	}
 
 	sys_notify_on_next_frame(&import_font_run_on_next_frame, font_slots);
 
 	ui_dock_redraw(TAB_AREA_STATUS);
+}
+
+void import_font_run(char *path) {
+	import_font_run_meta(path, NULL);
 }

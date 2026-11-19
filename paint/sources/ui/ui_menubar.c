@@ -362,7 +362,7 @@ void ui_menubar_draw_category_items() {
 		ui_menu_separator();
 
 		// History steps
-		i32  history_max     = g_config->undo_steps + 1;
+		i32  history_max     = history_steps->length > g_config->undo_steps + 1 ? history_steps->length : g_config->undo_steps + 1; // Groups hold several steps
 		i32  history_active  = history_steps->length - 1 - history_redos;
 		i32  history_index   = history_active;
 		bool history_changed = false;

@@ -304,6 +304,15 @@ bool ends_with(char *s, char *end) {
 	return strncmp(s + len_s - len_end, end, len_end) == 0;
 }
 
+char *string_to_lower_tmp(char *s) {
+	size_t len = strlen(s);
+	char  *r   = string_tmp_alloc((int)len + 1);
+	for (size_t i = 0; i < len; ++i) {
+		r[i] = tolower(s[i]);
+	}
+	return r;
+}
+
 char *to_lower_case(char *s) {
 	char *r = string_alloc(strlen(s) + 1);
 	strcpy(r, s);
