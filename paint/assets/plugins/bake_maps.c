@@ -343,21 +343,37 @@ void inpaint_stroke() {
 	plugin_tool_set_overlay(inpaint_tool, bake_maps_inpaint_mask(), 0xa6ff0d0d);
 }
 
+// Repairs the maps of one result (or the atlas maps when atlas is true), returns the number of maps repaired
+int inpaint_apply_maps(bool atlas) {
+	int targets[13];
+	int count = inpaint_targets(targets);
+	int done  = 0;
+	for (int k = 0; k < count; ++k) {
+		if (inpaint_target > 0 && inpaint_target != k + 1) {
+			continue;
+		}
+		int  i          = targets[k];
+		bool per_object = map_per_object(i);
+		if (per_object == atlas) {
+			continue;
+		}
+		bool vector = string_index_of(map_suffixes[i], "normal") >= 0;
+		if (bake_maps_inpaint_apply(map_path(i), inpaint_mode, vector, per_object)) {
+			done = done + 1;
+		}
+	}
+	return done;
+}
+
 void inpaint_stroke_end() {
 	if (inpaint_ready) {
-		int targets[13];
-		int count = inpaint_targets(targets);
-		int done  = 0;
-		for (int k = 0; k < count; ++k) {
-			if (inpaint_target > 0 && inpaint_target != k + 1) {
-				continue;
-			}
-			int  i      = targets[k];
-			bool vector = string_index_of(map_suffixes[i], "normal") >= 0;
-			if (bake_maps_inpaint_apply(map_path(i), inpaint_mode, vector, map_per_object(i))) {
-				done = done + 1;
-			}
+		// The stroke repairs every result it touched (object and tile), then the maps of the whole layout
+		int done = 0;
+		for (int r = bake_maps_inpaint_next_result(-1); r >= 0; r = bake_maps_inpaint_next_result(r)) {
+			bake_maps_inpaint_set_result(r);
+			done = done + inpaint_apply_maps(false);
 		}
+		done = done + inpaint_apply_maps(true);
 		if (done > 0) { // A stroke outside the maps leaves them as they are
 			console_info(string("Inpaint: %d maps repaired", done));
 		}
