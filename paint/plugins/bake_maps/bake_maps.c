@@ -2545,6 +2545,13 @@ static f32 inpaint_radius() {
 	return sx > 0.0 ? world / sx : world;
 }
 
+// Results of bake_maps_inpaint_begin
+#define INPAINT_BEGIN_OK        0
+#define INPAINT_BEGIN_NO_MAP    1 // The baked map is not loaded in the project
+#define INPAINT_BEGIN_BUSY      2 // A bake is running
+#define INPAINT_BEGIN_NO_LAYOUT 3 // The paint objects have no uv layout
+#define INPAINT_BEGIN_NO_PAIR   4 // The map was baked per object and the per object result is not available
+
 static asset_t *inpaint_find_asset(char *path) {
 	asset_t *asset = NULL;
 	for (i32 i = 0; path != NULL && i < g_project->_->assets->length; ++i) {
@@ -2557,8 +2564,8 @@ static asset_t *inpaint_find_asset(char *path) {
 }
 
 // Uv layout of a map w x h: the current per object result (one tile) or the whole layout (cpu map without udim
-// tiles, gpu atlas). The mask follows the layout, the stamps of the stroke are replayed into it when it changes.
-static bool inpaint_layout(i32 w, i32 h, bool per_object) {
+// tiles, gpu atlas), an INPAINT_BEGIN_ result. The mask follows the layout, the stamps of the stroke are replayed into it when it changes.
+static i32 inpaint_layout(i32 w, i32 h, bool per_object) {
 	if (bake_rays_lp != NULL && bake_maps_low_key != bake_maps_paint_objects_key()) {
 		bake_rays_free_images();
 		bake_rays_free_low(); // Paint objects changed
@@ -2567,11 +2574,11 @@ static bool inpaint_layout(i32 w, i32 h, bool per_object) {
 		inpaint_mask_pair = -2;
 	}
 	if (!bake_rays_prepare_layout(w, h)) {
-		return false;
+		return INPAINT_BEGIN_NO_LAYOUT;
 	}
 	i32 pair = per_object ? bake_rays_current_pair() : -1;
 	if (per_object && pair < 0) {
-		return false;
+		return INPAINT_BEGIN_NO_PAIR;
 	}
 	bake_rays_use_pair(pair);
 	if (bake_rays_island == NULL) {
@@ -2588,7 +2595,7 @@ static bool inpaint_layout(i32 w, i32 h, bool per_object) {
 		}
 		inpaint_dirty = true;
 	}
-	return true;
+	return INPAINT_BEGIN_OK;
 }
 
 // Result (object, tile pair) of a low poly triangle, -1 without per object results
@@ -2618,17 +2625,20 @@ static void inpaint_stamp(f32 *center, f32 radius) {
 	bake_rays_stamp(inpaint_mask, center, radius);
 }
 
-// bool bake_maps_inpaint_begin(char *path, bool per_object): uv layout at the resolution of the baked map, false
-// without uvs. per_object: the map was baked per object (udim project, cpu), it is the current result
+// int bake_maps_inpaint_begin(char *path, bool per_object): uv layout at the resolution of the baked map, an INPAINT_BEGIN_
+// result. per_object: the map was baked per object (udim project), it is the current result
 static minic_val_t bake_maps_inpaint_begin(minic_val_t *a, int n) {
 	asset_t *asset = inpaint_find_asset(bake_maps_arg_s(a, n, 0));
-	if (asset == NULL || bake_rays_working) {
-		return minic_val_int(0);
+	if (asset == NULL) {
+		return minic_val_int(INPAINT_BEGIN_NO_MAP);
 	}
-	return minic_val_int(inpaint_layout(asset->image->width, asset->image->height, bake_maps_arg_i(a, n, 1) != 0) ? 1 : 0);
+	if (bake_rays_working) {
+		return minic_val_int(INPAINT_BEGIN_BUSY);
+	}
+	return minic_val_int(inpaint_layout(asset->image->width, asset->image->height, bake_maps_arg_i(a, n, 1) != 0));
 }
 
-// void bake_maps_inpaint_stroke(): stamps the mask from the last mouse hit to the current one
+// bool bake_maps_inpaint_stroke(): stamps the mask from the last mouse hit to the current one, false when the mouse misses the mesh
 static minic_val_t bake_maps_inpaint_stroke(minic_val_t *a, int n) {
 	f32 hit[3];
 	i32 tri;
@@ -2640,7 +2650,7 @@ static minic_val_t bake_maps_inpaint_stroke(minic_val_t *a, int n) {
 		if (!inpaint_has_last && pair != inpaint_mask_pair) {
 			// A stroke starts on the result under the cursor, the mask follows it (nothing is stamped yet)
 			bake_rays_current = pair;
-			if (!inpaint_layout(inpaint_mask_w, inpaint_mask_h, true)) {
+			if (inpaint_layout(inpaint_mask_w, inpaint_mask_h, true) != INPAINT_BEGIN_OK) {
 				return minic_val_int(0);
 			}
 		}
@@ -2670,7 +2680,7 @@ static minic_val_t bake_maps_inpaint_stroke(minic_val_t *a, int n) {
 	inpaint_has_last = true;
 	inpaint_has_mask = true;
 	inpaint_dirty    = true;
-	return minic_val_int(0);
+	return minic_val_int(1);
 }
 
 // gpu_texture_t *bake_maps_inpaint_mask(): the painted mask in the red channel, for the viewport overlay
@@ -3023,7 +3033,7 @@ static minic_val_t bake_maps_inpaint_apply(minic_val_t *a, int n) {
 	free(blob->buffer);
 	free(blob);
 	// The maps of one stroke can be in different layouts (per object result, gpu atlas), the mask follows the map
-	if (px == NULL || !inpaint_layout(iw, ih, per_object) || bake_rays_texmap == NULL || bake_rays_island == NULL) {
+	if (px == NULL || inpaint_layout(iw, ih, per_object) != INPAINT_BEGIN_OK || bake_rays_texmap == NULL || bake_rays_island == NULL) {
 		if (px != NULL) {
 			stbi_image_free(px);
 		}
@@ -3234,8 +3244,8 @@ void bake_maps_init() {
 	minic_register("bake_maps_ui_column", "v(i)", bake_maps_ui_column);
 	minic_register("bake_maps_ui_section", "v(p)", bake_maps_ui_section);
 	minic_register("bake_maps_ui_enabled", "v(b)", bake_maps_ui_enabled);
-	minic_register("bake_maps_inpaint_begin", "b(p,b)", bake_maps_inpaint_begin);
-	minic_register("bake_maps_inpaint_stroke", "v()", bake_maps_inpaint_stroke);
+	minic_register("bake_maps_inpaint_begin", "i(p,b)", bake_maps_inpaint_begin);
+	minic_register("bake_maps_inpaint_stroke", "b()", bake_maps_inpaint_stroke);
 	minic_register("bake_maps_inpaint_mask", "p()", bake_maps_inpaint_mask);
 	minic_register("bake_maps_inpaint_clear", "v()", bake_maps_inpaint_clear);
 	minic_register("bake_maps_inpaint_apply", "b(p,i,b,b)", bake_maps_inpaint_apply);
