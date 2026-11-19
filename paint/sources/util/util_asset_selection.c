@@ -300,7 +300,7 @@ static bool         asset_marquee_moved  = false;
 static f32          asset_marquee_x      = 0.0;
 static f32          asset_marquee_y      = 0.0;
 
-void asset_selection_marquee_begin(asset_tray_t tray) {
+void asset_selection_marquee_begin() {
 	if (asset_marquee_items != NULL) {
 		array_delete(asset_marquee_items);
 		array_delete(asset_marquee_cells);
@@ -513,7 +513,7 @@ void asset_selection_update() {
 	asset_selection_validate_drag();
 
 	// Plain click on a selected item without dragging
-	if (asset_selection_collapse_to != NULL && (mouse_released("left") || !mouse_down("left"))) {
+	if (asset_selection_collapse_to != NULL && !mouse_down("left")) {
 		if (!base_is_dragging && asset_selection_has(asset_selection_collapse_to)) {
 			asset_selection_select_only(asset_selection_tray, asset_selection_collapse_to);
 			asset_selection_primary_set = true;
