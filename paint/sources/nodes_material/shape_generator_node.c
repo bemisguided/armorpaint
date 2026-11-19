@@ -51,14 +51,9 @@ typedef struct shape_generator_params {
 	f32 edge_softness;
 } shape_generator_params_t;
 
-static f32 shape_generator_node_button(ui_node_t *node, i32 i) {
-	return node->buttons->buffer[i]->default_value->buffer[0];
-}
-
 // Width and height of the image: Size 512, 1024, 2048 or 4096
 static i32 shape_generator_node_size(ui_node_t *node) {
-	i32 i = (i32)shape_generator_node_button(node, SHAPE_GENERATOR_BUTTON_SIZE);
-	return 512 << (i < 0 ? 0 : i > 3 ? 3 : i);
+	return make_image_node_size(node, SHAPE_GENERATOR_BUTTON_SIZE);
 }
 
 // Nothing depends on an image: a constant is captured
@@ -68,9 +63,9 @@ static char *shape_generator_node_capture(ui_node_t *node) {
 
 static void shape_generator_node_params(ui_node_t *node, void *params) {
 	shape_generator_params_t *p = params;
-	p->shape                    = (i32)shape_generator_node_button(node, SHAPE_GENERATOR_BUTTON_SHAPE);
-	p->invert                   = (i32)shape_generator_node_button(node, SHAPE_GENERATOR_BUTTON_INVERT);
-	p->wrap                     = (i32)shape_generator_node_button(node, SHAPE_GENERATOR_BUTTON_WRAP);
+	p->shape                    = (i32)make_image_node_button(node, SHAPE_GENERATOR_BUTTON_SHAPE);
+	p->invert                   = (i32)make_image_node_button(node, SHAPE_GENERATOR_BUTTON_INVERT);
+	p->wrap                     = (i32)make_image_node_button(node, SHAPE_GENERATOR_BUTTON_WRAP);
 	p->width                    = make_image_node_input_value(node, SHAPE_GENERATOR_INPUT_WIDTH);
 	p->height                   = make_image_node_input_value(node, SHAPE_GENERATOR_INPUT_HEIGHT);
 	p->position_x               = make_image_node_input_value(node, SHAPE_GENERATOR_INPUT_POSITION_X);
@@ -192,31 +187,6 @@ char *shape_generator_node_value(ui_node_t *node, ui_node_socket_t *socket) {
 	return string_tmp("%s.r", make_image_node_sample(node));
 }
 
-static ui_node_socket_t *shape_generator_node_socket(char *name, u32 color, f32 default_value, f32 min, f32 max, f32 precision) {
-	return ALLOC_INIT(ui_node_socket_t, {.id            = 0,
-	                                     .node_id       = 0,
-	                                     .name          = name,
-	                                     .type          = "VALUE",
-	                                     .color         = color,
-	                                     .default_value = f32_array_create_x(default_value),
-	                                     .min           = min,
-	                                     .max           = max,
-	                                     .precision     = precision,
-	                                     .display       = 0});
-}
-
-static ui_node_button_t *shape_generator_node_setting(char *name, char *type, f32 default_value, char *data) {
-	return ALLOC_INIT(ui_node_button_t, {.name          = name,
-	                                     .type          = type,
-	                                     .output        = -1,
-	                                     .default_value = f32_array_create_x(default_value),
-	                                     .data          = data != NULL ? u8_array_create_from_string(data) : NULL,
-	                                     .min           = 0.0,
-	                                     .max           = 1.0,
-	                                     .precision     = 100,
-	                                     .height        = 0});
-}
-
 void shape_generator_node_init() {
 	u32 value_color = 0xffa1a1a1;
 
@@ -230,27 +200,27 @@ void shape_generator_node_init() {
 	                .color  = NODES_MATERIAL_IMAGE_COLOR,
 	                .inputs = any_array_create_from_raw(
 	                    (void *[]){
-	                        shape_generator_node_socket(_tr("Width"), value_color, 0.5, 0.0, 1.0, 100),
-	                        shape_generator_node_socket(_tr("Height"), value_color, 0.5, 0.0, 1.0, 100),
-	                        shape_generator_node_socket(_tr("Position X"), value_color, 0.0, -1.0, 1.0, 100),
-	                        shape_generator_node_socket(_tr("Position Y"), value_color, 0.0, -1.0, 1.0, 100),
-	                        shape_generator_node_socket(_tr("Rotation"), value_color, 0.0, 0.0, 360.0, 10),
-	                        shape_generator_node_socket(_tr("Corner Radius"), value_color, 0.0, 0.0, 0.5, 100),
-	                        shape_generator_node_socket(_tr("Edge Softness"), value_color, 0.0, 0.0, 1.0, 100),
+	                        make_image_node_socket(_tr("Width"), "VALUE", value_color, f32_array_create_x(0.5), 0.0, 1.0, 100),
+	                        make_image_node_socket(_tr("Height"), "VALUE", value_color, f32_array_create_x(0.5), 0.0, 1.0, 100),
+	                        make_image_node_socket(_tr("Position X"), "VALUE", value_color, f32_array_create_x(0.0), -1.0, 1.0, 100),
+	                        make_image_node_socket(_tr("Position Y"), "VALUE", value_color, f32_array_create_x(0.0), -1.0, 1.0, 100),
+	                        make_image_node_socket(_tr("Rotation"), "VALUE", value_color, f32_array_create_x(0.0), 0.0, 360.0, 10),
+	                        make_image_node_socket(_tr("Corner Radius"), "VALUE", value_color, f32_array_create_x(0.0), 0.0, 0.5, 100),
+	                        make_image_node_socket(_tr("Edge Softness"), "VALUE", value_color, f32_array_create_x(0.0), 0.0, 1.0, 100),
 	                    },
 	                    7),
 	                .outputs = any_array_create_from_raw(
 	                    (void *[]){
-	                        shape_generator_node_socket(_tr("Image"), NODES_MATERIAL_IMAGE_COLOR, 0.0, 0.0, 1.0, 100),
+	                        make_image_node_socket(_tr("Image"), "VALUE", NODES_MATERIAL_IMAGE_COLOR, f32_array_create_x(0.0), 0.0, 1.0, 100),
 	                    },
 	                    1),
 	                .buttons = any_array_create_from_raw(
 	                    (void *[]){
-	                        shape_generator_node_setting(_tr("Size"), "ENUM", 1, "512\n1024\n2048\n4096"),
+	                        make_image_node_setting(_tr("Size"), "ENUM", 1, MAKE_IMAGE_NODE_SIZE_ITEMS),
 	                        make_image_node_state_button(),
-	                        shape_generator_node_setting(_tr("Shape"), "ENUM", 0, "Circle\nSquare\nRectangle"),
-	                        shape_generator_node_setting(_tr("Invert"), "BOOL", 0, NULL),
-	                        shape_generator_node_setting(_tr("Wrap Edges"), "BOOL", 1, NULL),
+	                        make_image_node_setting(_tr("Shape"), "ENUM", 0, "Circle\nSquare\nRectangle"),
+	                        make_image_node_setting(_tr("Invert"), "BOOL", 0, NULL),
+	                        make_image_node_setting(_tr("Wrap Edges"), "BOOL", 1, NULL),
 	                    },
 	                    5),
 	                .width = 0,
