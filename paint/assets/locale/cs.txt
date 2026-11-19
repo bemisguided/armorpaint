@@ -298,6 +298,7 @@ Zploštit
 
 Křivka čísla
 
+
 Zaokrouhlit dolů
 Modulo dolní
 Letět

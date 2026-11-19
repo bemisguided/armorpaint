@@ -298,6 +298,7 @@ Spłaszcz
 
 Krzywa liczby
 
+
 Zaokrąglij w dół
 Modulo z podłogą
 Latanie

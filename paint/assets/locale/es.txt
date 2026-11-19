@@ -298,6 +298,7 @@ Aplanar
 
 Curva de valor
 
+
 Piso
 Módulo hacia abajo
 Volar
