@@ -1220,7 +1220,6 @@ void                      texture_slot_update();
 void                      texture_slot_prepare(slot_layer_t *l);
 gpu_texture_t            *texture_slot_atlas(i32 btp);
 gpu_texture_t            *texture_slot_resolve(i32 btp);
-bool                      texture_slot_changed();
 void                      layer_write_tile_discard(node_shader_t *kong, slot_layer_t *l);
 bool                      slot_layer_all_objects(slot_layer_t *l);
 i32_array_t              *slot_layer_objects(slot_layer_t *l);
