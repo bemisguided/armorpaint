@@ -860,13 +860,9 @@ No objects
 objects
 No tiles
 tiles
-Limit this layer to the selected UDIM tiles.
-This layer's objects were deleted, so it covers nothing. Select objects or choose All to use it again.
 Objects
 Tiles
 Layer covers no objects
-No objects are selected for this layer or its group, so it covers nothing. Select objects or choose All to use it.
-No tiles are selected for this layer or its group, so it covers nothing. Select tiles or choose All to use it.
 Layer's objects are hidden or use another material
 On
 Off
@@ -909,3 +905,6 @@ The GPU bake could not prepare the meshes, baking on the CPU
 Tags
 Tags...
 Tag
+The GPU bake result could not be read, baking on the CPU
+The GPU bake result could not be read
+Not enough memory for the GPU bake, lower the resolution

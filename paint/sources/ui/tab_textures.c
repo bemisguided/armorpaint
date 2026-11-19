@@ -93,6 +93,9 @@ void tab_textures_delete_texture(asset_t *asset) {
 	if (g_project->_->assets->length > 1) {
 		g_context->texture = g_project->_->assets->buffer[index == g_project->_->assets->length - 1 ? index - 1 : index + 1];
 	}
+	else if (g_context->texture == asset) {
+		g_context->texture = NULL;
+	}
 	ui_dock_redraw(TAB_AREA_STATUS);
 
 	if (g_context->tool == TOOL_TYPE_COLORID && index == g_context->colorid) {

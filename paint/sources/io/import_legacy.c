@@ -84,10 +84,13 @@ ui_node_canvas_t_array_t *import_arm_get_node_canvas_array(any_map_t *map, char 
 
 bool import_arm_is_version(buffer_t *b, char *n) {
 	// 0xdf map, i32 count, 0xdb string, i32 len, "version", 0xdb string, i32 len, version value
-	if (b->buffer[10] != 'v') {
+	if (b == NULL || b->length < 22 || b->buffer[10] != 'v') {
 		return false;
 	}
 	uint32_t len = *(uint32_t *)(b->buffer + 18); // version value length
+	if (len > b->length - 22) {
+		return false;
+	}
 	char    *v   = (char *)(b->buffer + 22);      // version value
 	for (uint32_t i = 0; i < len; ++i) {
 		if (n[i] == '\0' || v[i] != n[i]) {
@@ -530,6 +533,9 @@ project_t *import_arm_from_version_0(any_map_t *old) {
 
 project_t *import_arm_from_old(buffer_t *b) {
 	any_map_t *old                   = armpack_decode_to_map(b);
+	if (old == NULL) { // Damaged data
+		return NULL;
+	}
 	project_t *(*fns[])(any_map_t *) = {
 	    import_arm_from_version_0,  import_arm_from_version_1,  import_arm_from_version_2,  import_arm_from_version_3,  import_arm_from_version_4,
 	    import_arm_from_version_5,  import_arm_from_version_6,  import_arm_from_version_7,  import_arm_from_version_8,  import_arm_from_version_9,
