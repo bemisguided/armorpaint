@@ -18,6 +18,7 @@ Adicionar Animação
 Adicionar Amostra
 Adicionar nova amostra
 Adicionar cor selecionada às amostras
+
 Tudo
 Todo o processamento é feito localmente no dispositivo
 Permitir Câmera Invertida
@@ -444,6 +445,7 @@ Espelhar
 Misturar
 Misturar Cor
 Misturar Mapa de Normais
+
 Móvel
 Modo
 Modelo
@@ -868,4 +870,5 @@ triângulos
 tipo
 sem título
 x
+
 {shortcut} e mover mouse

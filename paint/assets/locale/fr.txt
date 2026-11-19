@@ -18,6 +18,7 @@ Ajouter une animation
 Ajouter l'échantillon
 Ajouter nouvel échantillon
 Ajouter la couleur sélectionnée aux échantillons
+
 Tout
 Tout le traitement est effectué localement sur l'appareil
 Autoriser la caméra à l'envers
@@ -444,6 +445,7 @@ Miroir
 Mélanger
 Mélanger couleur
 Mélange de carte de normales
+
 Mobile
 Mode
 Modèle
@@ -868,4 +870,5 @@ triangles
 type
 sans titre
 x
+
 {shortcut} et déplacer la souris

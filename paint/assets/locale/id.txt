@@ -18,6 +18,7 @@ Tambah Animasi
 Tambah Contoh Warna
 Tambah contoh warna baru
 Tambah warna yang dipilih ke contoh warna
+
 Semua
 Semua pemrosesan dilakukan secara lokal di perangkat
 Izinkan Kamera Terbalik
@@ -444,6 +445,7 @@ Cermin
 Campur
 Campur Warna
 Campur Peta Normal
+
 Seluler
 Mode
 Model
@@ -868,4 +870,5 @@ segitiga
 jenis
 tanpa judul
 x
+
 {shortcut} dan gerakkan mouse

@@ -18,6 +18,7 @@ Animation hinzufügen
 Farbfeld hinzufügen
 Neues Farbfeld hinzufügen
 Gewählte Farbe zu Farbfeldern hinzufügen
+
 Alle
 Alle Verarbeitung erfolgt lokal auf dem Gerät
 Kamera über Kopf erlauben
@@ -444,6 +445,7 @@ Spiegeln
 Mix
 Farben mischen
 Mix Normal Map
+
 Mobil
 Modus
 Modell
@@ -868,4 +870,5 @@ Dreiecke
 Typ
 unbenannt
 x
+
 {shortcut} und Maus bewegen

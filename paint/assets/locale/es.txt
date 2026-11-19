@@ -18,6 +18,7 @@ Añadir animación
 Añadir muestra
 Añadir nueva muestra
 Añadir color seleccionado a muestras
+
 Todo
 Todo el procesamiento se realiza localmente en el dispositivo
 Permitir cámara invertida
@@ -444,6 +445,7 @@ Espejo
 Mezcla
 Mezclar color
 Mezclar mapas de normales
+
 Móvil
 Modo
 Modelo
@@ -868,4 +870,5 @@ Triángulos
 tipo
 Sin título
 x
+
 {shortcut} y mover ratón

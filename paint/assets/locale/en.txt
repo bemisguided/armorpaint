@@ -18,6 +18,7 @@ Add Animation
 Add Swatch
 Add new swatch
 Add picked color to swatches
+Add to all
 All
 All processing is done locally on device
 Allow Upside Down Camera
@@ -444,6 +445,7 @@ Mirror
 Mix
 Mix Color
 Mix Normal Map
+Mixed
 Mobile
 Mode
 Model
@@ -868,4 +870,5 @@ triangles
 type
 untitled
 x
+{count} items
 {shortcut} and move mouse

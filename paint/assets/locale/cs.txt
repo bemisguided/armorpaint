@@ -18,6 +18,7 @@ Přidat animaci
 Přidat vzorek
 Přidat nový vzorek
 Přidat vybranou barvu do vzorků
+
 Vše
 Veškeré zpracování probíhá lokálně na zařízení
 Povolit převrácenou kameru
@@ -444,6 +445,7 @@ Zrcadlit
 Smíchat
 Smíchat barvu
 Smíchat normálovou mapu
+
 Mobilní
 Režim
 Model
@@ -868,4 +870,5 @@ trojúhelníky
 typ
 bez názvu
 x
+
 {shortcut} a pohyb myší

@@ -18,6 +18,7 @@ Animáció hozzáadása
 Színminta hozzáadása
 Új színminta hozzáadása
 Kiválasztott szín hozzáadása a mintákhoz
+
 Összes
 Minden feldolgozás helyben történik
 Fejjel lefelé álló kamera engedélyezése
@@ -444,6 +445,7 @@ Tükrözés
 Keverés
 Szín keverése
 Normal Map keverése
+
 Mobil
 Mód
 Modell
@@ -868,4 +870,5 @@ Háromszögek
 típus
 Névtelen
 x
+
 {shortcut} és egér mozgatása
