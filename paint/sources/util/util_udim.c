@@ -1,18 +1,12 @@
 
 #include "../global.h"
 
-// Layer coverage: a layer applies to (object in objects or all objects) and (tile in tiles or all tiles).
-// Objects are persistent paint ids (mesh_object_t.paint_id), tiles are udim ids (1001..).
-// The sets are keys of the layer's metadata (slot_layer_t.meta, keys in enums.h): all objects and all tiles are bools that are
-// true when absent, the lists are i32 arrays that are empty when absent. A list is kept while all is on, so the ticks come back.
-// A NULL meta covers everything, so new and zero initialized temporary layers cover everything.
-// A layer's effective coverage is its own set and every ancestor group's set (masks and filters use their parent's).
-
 // Project tile list (g_project->_->udim_tiles): sorted, distinct, never empty, {1001} by default.
 // Slots are the positions in the list, the atlas has stride x stride slots (see util_udim_stride).
 // The configured project resolution (base_res_x/y) is per tile, layers and targets use the atlas size config_get_texture_res_x/y.
 
-#define UTIL_UDIM_MAX_SIDE 16384
+// Side of the atlas of a project with several tiles, the per tile resolution is lowered to fit. One tile keeps the configured size.
+#define UTIL_UDIM_MAX_SIDE 8192
 
 #define UTIL_UDIM_FIRST_TILE 1001
 #define UTIL_UDIM_LAST_TILE 2000
@@ -58,17 +52,23 @@ bool util_udim_active() {
 	return util_udim_count() > 1 || util_udim_tile(0) != 1001;
 }
 
-// Per tile resolution, the configured one unless the atlas would pass the max side
-i32 util_udim_tile_res_x() {
-	i32 max = UTIL_UDIM_MAX_SIDE / util_udim_stride();
-	i32 res = config_get_tile_res_x();
+// A requested per tile side, lowered when the atlas (side x stride) would pass max_side
+i32 util_udim_tile_side(i32 res, i32 max_side) {
+	i32 max = max_side / util_udim_stride();
 	return res < max ? res : max;
 }
 
+// Per tile resolution, the configured one unless the atlas of several tiles would pass the max side
+static i32 _util_udim_fit(i32 res) {
+	return util_udim_count() < 2 ? res : util_udim_tile_side(res, UTIL_UDIM_MAX_SIDE);
+}
+
+i32 util_udim_tile_res_x() {
+	return _util_udim_fit(config_get_tile_res_x());
+}
+
 i32 util_udim_tile_res_y() {
-	i32 max = UTIL_UDIM_MAX_SIDE / util_udim_stride();
-	i32 res = config_get_tile_res_y();
-	return res < max ? res : max;
+	return _util_udim_fit(config_get_tile_res_y());
 }
 
 // The per tile resolution was lowered to fit the atlas
@@ -346,7 +346,8 @@ void util_udim_tile_remove(i32 tile) {
 	array_delete(tiles);
 }
 
-static void _util_udim_warn_clamped() {
+// Console message when the tile resolution was lowered to keep the atlas within the max side
+void util_udim_warn_clamped() {
 	if (util_udim_count() < 2 || !util_udim_clamped()) {
 		return;
 	}
@@ -428,7 +429,7 @@ void util_udim_relayout(i32_array_t *tiles) {
 	history_reset();
 	sys_notify_on_next_frame(&_util_udim_update_fill_layers, NULL);
 	console_info(tr("Tile layout changed, undo history was cleared"));
-	_util_udim_warn_clamped();
+	util_udim_warn_clamped();
 }
 
 // Meshes just imported (tex tile-local, tile data or none for all in 1001) join the project layout.
@@ -493,7 +494,7 @@ void util_udim_import_meshes(any_array_t *mds, bool replace, bool cleared) {
 		for (i32 i = 0; i < mds->length; ++i) {
 			util_udim_apply_layout(mds->buffer[i]);
 		}
-		_util_udim_warn_clamped();
+		util_udim_warn_clamped();
 	}
 	else if (replace) {
 		// Layers kept: tiles in both lists keep their pixels, tiles only the previous meshes used are dropped
@@ -746,495 +747,4 @@ void util_udim_vertex_uv(mesh_data_t *md, i32 i, f32 *u, f32 *v) {
 	i32 tile = md->_->udim_tile->buffer[i];
 	*u       = md->_->udim_tex->buffer[i * 2] * inv + tile % 10;
 	*v       = 1.0 - md->_->udim_tex->buffer[i * 2 + 1] * inv + tile / 10;
-}
-
-mesh_object_t *project_object_by_id(i32 paint_id) {
-	for (i32 i = 0; paint_id > 0 && i < g_project->_->paint_objects->length; ++i) {
-		mesh_object_t *o = g_project->_->paint_objects->buffer[i];
-		if (o->paint_id == paint_id) {
-			return o;
-		}
-	}
-	return NULL;
-}
-
-slot_layer_t *slot_layer_coverage_owner(slot_layer_t *l) {
-	return (slot_layer_is_mask(l) || slot_layer_is_filter(l)) ? l->parent : l;
-}
-
-bool slot_layer_all_objects(slot_layer_t *l) {
-	return meta_get_bool(l->meta, META_ALL_OBJECTS, true);
-}
-
-static i32_array_t _coverage_none = {0}; // List of a kind with no ids
-
-// Stored paint ids, never NULL (empty when none), owned by the layer's meta: read only, change them with the setters below
-i32_array_t *slot_layer_objects(slot_layer_t *l) {
-	i32_array_t *ids = meta_get_i32_array(l->meta, META_OBJECTS);
-	return ids != NULL ? ids : &_coverage_none;
-}
-
-bool slot_layer_all_tiles(slot_layer_t *l) {
-	return meta_get_bool(l->meta, META_ALL_TILES, true);
-}
-
-// Stored udim tile ids, never NULL (empty when none), owned by the layer's meta: read only, change them with the setters below
-i32_array_t *slot_layer_tiles(slot_layer_t *l) {
-	i32_array_t *ids = meta_get_i32_array(l->meta, META_TILES);
-	return ids != NULL ? ids : &_coverage_none;
-}
-
-// ids may be NULL (an absent key read straight from a meta)
-static bool _coverage_has(i32_array_t *ids, i32 id) {
-	return ids != NULL && i32_array_index_of(ids, id) >= 0;
-}
-
-static bool _layer_level_objects(slot_layer_t *p) {
-	return !slot_layer_all_objects(p);
-}
-
-static bool _layer_level_tiles(slot_layer_t *p) {
-	return !slot_layer_all_tiles(p);
-}
-
-bool layer_covers_object_id(slot_layer_t *l, i32 paint_id) {
-	for (slot_layer_t *p = slot_layer_coverage_owner(l); p != NULL; p = p->parent) {
-		if (_layer_level_objects(p) && !_coverage_has(slot_layer_objects(p), paint_id)) {
-			return false;
-		}
-	}
-	return true;
-}
-
-bool layer_covers_object(slot_layer_t *l, mesh_object_t *o) {
-	return layer_covers_object_id(l, o->paint_id);
-}
-
-bool layer_covers_tile(slot_layer_t *l, i32 tile) {
-	for (slot_layer_t *p = slot_layer_coverage_owner(l); p != NULL; p = p->parent) {
-		if (_layer_level_tiles(p) && !_coverage_has(slot_layer_tiles(p), tile)) {
-			return false;
-		}
-	}
-	return true;
-}
-
-// Whether the groups above the layer (not the layer itself) leave the object or tile in its coverage
-bool layer_ancestors_cover_object_id(slot_layer_t *l, i32 paint_id) {
-	for (slot_layer_t *p = slot_layer_coverage_owner(l)->parent; p != NULL; p = p->parent) {
-		if (_layer_level_objects(p) && !_coverage_has(slot_layer_objects(p), paint_id)) {
-			return false;
-		}
-	}
-	return true;
-}
-
-bool layer_ancestors_cover_tile(slot_layer_t *l, i32 tile) {
-	for (slot_layer_t *p = slot_layer_coverage_owner(l)->parent; p != NULL; p = p->parent) {
-		if (_layer_level_tiles(p) && !_coverage_has(slot_layer_tiles(p), tile)) {
-			return false;
-		}
-	}
-	return true;
-}
-
-bool layer_objects_restricted(slot_layer_t *l) {
-	for (slot_layer_t *p = slot_layer_coverage_owner(l); p != NULL; p = p->parent) {
-		if (_layer_level_objects(p)) {
-			return true;
-		}
-	}
-	return false;
-}
-
-static bool layer_tiles_restricted(slot_layer_t *l) {
-	for (slot_layer_t *p = slot_layer_coverage_owner(l); p != NULL; p = p->parent) {
-		if (_layer_level_tiles(p)) {
-			return true;
-		}
-	}
-	return false;
-}
-
-bool layer_is_restricted(slot_layer_t *l) {
-	return layer_objects_restricted(l) || layer_tiles_restricted(l);
-}
-
-// Live paint objects in the effective coverage, all of them when unrestricted, caller frees
-mesh_object_t_array_t *layer_coverage_objects(slot_layer_t *l) {
-	mesh_object_t_array_t *ar = any_array_create_from_raw((void *[]){}, 0);
-	for (i32 i = 0; i < g_project->_->paint_objects->length; ++i) {
-		mesh_object_t *o = g_project->_->paint_objects->buffer[i];
-		if (layer_covers_object(l, o)) {
-			any_array_push(ar, o);
-		}
-	}
-	return ar;
-}
-
-// Ids every restricting level lists (the stored coverage, deleted ids included), NULL when objects are unrestricted, caller frees
-static i32_array_t *_layer_stored_objects(slot_layer_t *l) {
-	for (slot_layer_t *p = slot_layer_coverage_owner(l); p != NULL; p = p->parent) {
-		if (!_layer_level_objects(p)) {
-			continue;
-		}
-		i32_array_t *stored = slot_layer_objects(p);
-		i32_array_t *ids    = i32_array_create(0);
-		for (i32 i = 0; i < stored->length; ++i) {
-			i32 id = stored->buffer[i];
-			if (i32_array_index_of(ids, id) < 0 && layer_covers_object_id(l, id)) {
-				i32_array_push(ids, id);
-			}
-		}
-		return ids;
-	}
-	return NULL;
-}
-
-// Why a layer has nothing to apply to, LAYER_COVERAGE_SOME when it covers something
-layer_coverage_empty_t layer_coverage_empty_reason(slot_layer_t *l) {
-	if (layer_objects_restricted(l)) {
-		bool any = false;
-		for (i32 i = 0; i < g_project->_->paint_objects->length && !any; ++i) {
-			any = layer_covers_object(l, g_project->_->paint_objects->buffer[i]);
-		}
-		if (!any) {
-			i32_array_t *ids    = _layer_stored_objects(l);
-			bool         stored = ids != NULL && ids->length > 0;
-			array_delete(ids);
-			return stored ? LAYER_COVERAGE_OBJECTS_DELETED : LAYER_COVERAGE_NO_OBJECTS;
-		}
-	}
-	if (layer_tiles_restricted(l)) {
-		bool any = false;
-		for (i32 i = 0; i < util_udim_count() && !any; ++i) {
-			any = layer_covers_tile(l, util_udim_tile(i));
-		}
-		if (!any) {
-			return LAYER_COVERAGE_NO_TILES;
-		}
-	}
-	return LAYER_COVERAGE_SOME;
-}
-
-// Deleted objects, empty selections or removed tiles leave nothing to apply the layer to
-bool layer_covers_nothing(slot_layer_t *l) {
-	return layer_coverage_empty_reason(l) != LAYER_COVERAGE_SOME;
-}
-
-// Whether shaders test the tile for the layer: it leaves out one of several project tiles
-bool layer_tiles_tested(slot_layer_t *l) {
-	if (util_udim_count() < 2 || !layer_tiles_restricted(l)) {
-		return false;
-	}
-	for (i32 s = 0; s < util_udim_count(); ++s) {
-		if (!layer_covers_tile(l, util_udim_tile(s))) {
-			return true;
-		}
-	}
-	return false;
-}
-
-// Declares "int udim_slot" in the fragment from an atlas uv, use the primary uv: the tile is a property of the geometry
-void util_udim_write_slot(node_shader_t *kong, char *uv) {
-	node_shader_add_constant(kong, "float atlas_stride", "_atlas_stride");
-	// uv 1.0 at the atlas edge stays in the last row or column
-	node_shader_write_frag(kong, string_tmp("int udim_slot = int(min(floor(%s.x * constants.atlas_stride), constants.atlas_stride - 1.0)) + "
-	                                        "int(min(floor(%s.y * constants.atlas_stride), constants.atlas_stride - 1.0)) * int(constants.atlas_stride);",
-	                                        uv, uv));
-}
-
-// OR of the slot ranges the layer covers (covered) or leaves out (!covered, empty atlas cells included), "false" when there are none
-static void _layer_write_slot_ranges(node_shader_t *kong, slot_layer_t *l, bool covered) {
-	i32  count = util_udim_count();
-	bool first = true;
-	for (i32 s = 0; s < count; ++s) {
-		if (layer_covers_tile(l, util_udim_tile(s)) != covered) {
-			continue;
-		}
-		i32 a = s;
-		while (s + 1 < count && layer_covers_tile(l, util_udim_tile(s + 1)) == covered) {
-			++s;
-		}
-		if (!first) {
-			node_shader_write_frag(kong, " || ");
-		}
-		first = false;
-		if (a == s) {
-			node_shader_write_frag(kong, string_tmp("udim_slot == %s", i32_to_string(a)));
-		}
-		else {
-			node_shader_write_frag(kong, string_tmp("(udim_slot >= %s && ", i32_to_string(a)));
-			node_shader_write_frag(kong, string_tmp("udim_slot <= %s)", i32_to_string(s)));
-		}
-	}
-	i32 stride = util_udim_stride();
-	if (!covered && count < stride * stride) {
-		if (!first) {
-			node_shader_write_frag(kong, " || ");
-		}
-		first = false;
-		node_shader_write_frag(kong, string_tmp("udim_slot >= %s", i32_to_string(count)));
-	}
-	if (first) {
-		node_shader_write_frag(kong, "false");
-	}
-}
-
-// Discards fragments on tiles the layer leaves out, udim_slot must be declared (util_udim_write_slot) when layer_tiles_tested
-void layer_write_tile_discard(node_shader_t *kong, slot_layer_t *l) {
-	if (!layer_tiles_tested(l)) {
-		return;
-	}
-	node_shader_write_frag(kong, "if (");
-	_layer_write_slot_ranges(kong, l, false);
-	node_shader_write_frag(kong, ") { discard; }");
-}
-
-// Opens "if (...) {" around the layer for objects or tiles outside its coverage, false when nothing is written.
-// The tile part needs udim_slot (util_udim_write_slot) when layer_tiles_tested. With a single tile a tile restriction
-// either covers it (no test) or covers nothing (false, such layers are skipped before).
-bool layer_write_coverage_test(node_shader_t *kong, slot_layer_t *l) {
-	bool objects    = layer_objects_restricted(l);
-	bool tiles      = layer_tiles_tested(l);
-	bool tiles_none = !tiles && layer_tiles_restricted(l) && !layer_covers_tile(l, util_udim_tile(0)) && util_udim_count() < 2;
-	if (!objects && !tiles && !tiles_none) {
-		return false;
-	}
-	if (!objects) {
-		node_shader_write_frag(kong, "if (");
-		if (tiles) {
-			_layer_write_slot_ranges(kong, l, true);
-		}
-		else {
-			node_shader_write_frag(kong, "false");
-		}
-		node_shader_write_frag(kong, ") {");
-		return true;
-	}
-	bool both = tiles || tiles_none;
-
-	// Ranges of covered ids in the sorted live ids, gaps of deleted ids are skipped over
-	i32_array_t *live = i32_array_create(0);
-	for (i32 i = 0; i < g_project->_->paint_objects->length; ++i) {
-		i32 pid = g_project->_->paint_objects->buffer[i]->paint_id;
-		if (pid > 0 && i32_array_index_of(live, pid) < 0) {
-			i32_array_push(live, pid);
-		}
-	}
-	i32_array_sort(live, util_udim_compare_i32);
-
-	node_shader_add_constant(kong, "int object_pid", "_object_pid");
-	node_shader_write_frag(kong, both ? "if ((" : "if (");
-	bool first = true;
-	for (i32 i = 0; i < live->length; ++i) {
-		if (!layer_covers_object_id(l, live->buffer[i])) {
-			continue;
-		}
-		i32 a = live->buffer[i];
-		while (i + 1 < live->length && layer_covers_object_id(l, live->buffer[i + 1])) {
-			++i;
-		}
-		i32 b = live->buffer[i];
-		if (!first) {
-			node_shader_write_frag(kong, " || ");
-		}
-		first = false;
-		if (a == b) {
-			node_shader_write_frag(kong, string_tmp("constants.object_pid == %s", i32_to_string(a)));
-		}
-		else {
-			node_shader_write_frag(kong, string_tmp("(constants.object_pid >= %s && ", i32_to_string(a)));
-			node_shader_write_frag(kong, string_tmp("constants.object_pid <= %s)", i32_to_string(b)));
-		}
-	}
-	if (first) {
-		node_shader_write_frag(kong, "false");
-	}
-	if (both) {
-		node_shader_write_frag(kong, ") && (");
-		if (tiles) {
-			_layer_write_slot_ranges(kong, l, true);
-		}
-		else {
-			node_shader_write_frag(kong, "false");
-		}
-		node_shader_write_frag(kong, ")");
-	}
-	node_shader_write_frag(kong, ") {");
-	array_delete(live);
-	return true;
-}
-
-// Stores one kind of coverage: all (absent when on) and the list (absent when empty), ids may point into the current list.
-// A meta left without keys is freed, NULL covers everything.
-static void _coverage_store(slot_layer_t *l, i32 all_key, i32 list_key, bool all, i32 *ids, i32 count) {
-	if (l->meta == NULL) {
-		l->meta = meta_create();
-	}
-	if (all) {
-		meta_remove(l->meta, all_key);
-	}
-	else {
-		meta_set_bool(l->meta, all_key, false);
-	}
-	if (ids != NULL && count > 0) {
-		meta_set_i32_array(l->meta, list_key, ids, count);
-	}
-	else {
-		meta_remove(l->meta, list_key);
-	}
-	if (meta_is_empty(l->meta)) {
-		meta_free(l->meta);
-		l->meta = NULL;
-	}
-}
-
-static void _coverage_union(slot_layer_t *dst, slot_layer_t *src, i32 all_key, i32 list_key) {
-	bool         all = meta_get_bool(dst->meta, all_key, true) || meta_get_bool(src->meta, all_key, true);
-	i32_array_t *cur = meta_get_i32_array(dst->meta, list_key);
-	i32_array_t *add = meta_get_i32_array(src->meta, list_key);
-	i32_array_t *ids = cur != NULL ? i32_array_create_from_array(cur) : i32_array_create(0);
-	for (i32 i = 0; add != NULL && i < add->length; ++i) {
-		if (i32_array_index_of(ids, add->buffer[i]) < 0) {
-			i32_array_push(ids, add->buffer[i]);
-		}
-	}
-	_coverage_store(dst, all_key, list_key, all, ids->buffer, ids->length);
-	array_delete(ids);
-}
-
-static void _coverage_intersect(slot_layer_t *dst, slot_layer_t *group, i32 all_key, i32 list_key) {
-	if (meta_get_bool(group->meta, all_key, true)) {
-		return;
-	}
-	i32_array_t *keep = meta_get_i32_array(group->meta, list_key);
-	i32_array_t *cur  = meta_get_i32_array(dst->meta, list_key);
-	i32_array_t *ids  = i32_array_create(0);
-	if (meta_get_bool(dst->meta, all_key, true)) {
-		for (i32 i = 0; keep != NULL && i < keep->length; ++i) {
-			i32_array_push(ids, keep->buffer[i]);
-		}
-	}
-	else {
-		for (i32 i = 0; cur != NULL && i < cur->length; ++i) {
-			if (_coverage_has(keep, cur->buffer[i])) {
-				i32_array_push(ids, cur->buffer[i]);
-			}
-		}
-	}
-	_coverage_store(dst, all_key, list_key, false, ids->buffer, ids->length);
-	array_delete(ids);
-}
-
-// Merged pixels keep showing wherever either layer did
-void slot_layer_coverage_union(slot_layer_t *dst, slot_layer_t *src) {
-	_coverage_union(dst, src, META_ALL_OBJECTS, META_OBJECTS);
-	_coverage_union(dst, src, META_ALL_TILES, META_TILES);
-}
-
-// A group merged into its child restricts the result like it restricted the child
-void slot_layer_coverage_intersect(slot_layer_t *dst, slot_layer_t *group) {
-	_coverage_intersect(dst, group, META_ALL_OBJECTS, META_OBJECTS);
-	_coverage_intersect(dst, group, META_ALL_TILES, META_TILES);
-}
-
-// The list is replaced when ids are given or all is off, otherwise only all changes and the list is kept
-void slot_layer_set_objects(slot_layer_t *l, i32 *ids, i32 count, bool all) {
-	if (ids == NULL && all) {
-		i32_array_t *cur = slot_layer_objects(l);
-		_coverage_store(l, META_ALL_OBJECTS, META_OBJECTS, true, cur->buffer, cur->length);
-		return;
-	}
-	_coverage_store(l, META_ALL_OBJECTS, META_OBJECTS, all, ids, ids != NULL ? count : 0);
-}
-
-void slot_layer_set_tiles(slot_layer_t *l, i32 *ids, i32 count, bool all) {
-	if (ids == NULL && all) {
-		i32_array_t *cur = slot_layer_tiles(l);
-		_coverage_store(l, META_ALL_TILES, META_TILES, true, cur->buffer, cur->length);
-		return;
-	}
-	_coverage_store(l, META_ALL_TILES, META_TILES, all, ids, ids != NULL ? count : 0);
-}
-
-// Sets all of objects (tiles false) or tiles, the stored list stays
-void slot_layer_coverage_set_all(slot_layer_t *l, bool tiles, bool all) {
-	i32_array_t *cur = tiles ? slot_layer_tiles(l) : slot_layer_objects(l);
-	_coverage_store(l, tiles ? META_ALL_TILES : META_ALL_OBJECTS, tiles ? META_TILES : META_OBJECTS, all, cur->buffer, cur->length);
-}
-
-// Adds or removes one id of the stored objects (tiles false) or tiles list, all stays as it is
-void slot_layer_coverage_toggle(slot_layer_t *l, bool tiles, i32 id) {
-	i32_array_t *ids = i32_array_create_from_array(tiles ? slot_layer_tiles(l) : slot_layer_objects(l));
-	i32          pos = i32_array_index_of(ids, id);
-	if (pos >= 0) {
-		i32_array_splice(ids, pos, 1);
-	}
-	else {
-		i32_array_push(ids, id);
-	}
-	bool all = tiles ? slot_layer_all_tiles(l) : slot_layer_all_objects(l);
-	_coverage_store(l, tiles ? META_ALL_TILES : META_ALL_OBJECTS, tiles ? META_TILES : META_OBJECTS, all, ids->buffer, ids->length);
-	array_delete(ids);
-}
-
-// Whether slot_layer_set_objects / slot_layer_set_tiles with these arguments would change anything, the list compares as a set
-static bool _coverage_differs(bool cur_all, i32_array_t *cur, i32 *ids, i32 count, bool all) {
-	if (cur_all != all) {
-		return true;
-	}
-	if (ids == NULL && all) {
-		return false;
-	}
-	if (ids == NULL) {
-		count = 0;
-	}
-	for (i32 i = 0; i < count; ++i) {
-		if (i32_array_index_of(cur, ids[i]) < 0) {
-			return true;
-		}
-	}
-	for (i32 i = 0; i < cur->length; ++i) {
-		bool found = false;
-		for (i32 j = 0; j < count && !found; ++j) {
-			found = ids[j] == cur->buffer[i];
-		}
-		if (!found) {
-			return true;
-		}
-	}
-	return false;
-}
-
-bool slot_layer_objects_differ(slot_layer_t *l, i32 *ids, i32 count, bool all) {
-	return _coverage_differs(slot_layer_all_objects(l), slot_layer_objects(l), ids, count, all);
-}
-
-bool slot_layer_tiles_differ(slot_layer_t *l, i32 *ids, i32 count, bool all) {
-	return _coverage_differs(slot_layer_all_tiles(l), slot_layer_tiles(l), ids, count, all);
-}
-
-// New layers made while the list is filtered only cover the filtered object or tile
-void slot_layer_coverage_from_filter(slot_layer_t *l) {
-	if (g_context->layer_filter_object > 0) {
-		slot_layer_set_objects(l, &g_context->layer_filter_object, 1, false);
-	}
-	else if (g_context->layer_filter_tile > 0 && util_udim_slot(g_context->layer_filter_tile) >= 0) {
-		slot_layer_set_tiles(l, &g_context->layer_filter_tile, 1, false);
-	}
-}
-
-// Geometry of from now also lives in to (join, split), layers listing from also list to
-void layers_coverage_add_alias(i32 from, i32 to) {
-	for (i32 i = 0; g_project->_->layers != NULL && i < g_project->_->layers->length; ++i) {
-		slot_layer_t *l = g_project->_->layers->buffer[i];
-		i32_array_t *ids = slot_layer_objects(l);
-		if (_coverage_has(ids, from) && !_coverage_has(ids, to)) {
-			i32_array_t *add = i32_array_create_from_array(ids);
-			i32_array_push(add, to);
-			_coverage_store(l, META_ALL_OBJECTS, META_OBJECTS, slot_layer_all_objects(l), add->buffer, add->length);
-			array_delete(add);
-		}
-	}
 }
