@@ -338,7 +338,10 @@ f32 make_image_node_input_value(ui_node_t *node, i32 input) {
 	}
 	f32 v = pixels[0]; // A 1 x 1 target: its pixel centre is the image centre
 	free(pixels);
-	return v;
+	if (!isfinite(v)) {
+		return socket->default_value->buffer[0]; // A NaN (Square Root of a negative value) or infinity would turn the whole result into one
+	}
+	return v; // Huge finite values stay, the nodes clamp them
 }
 
 // Captures the node in image space. A new capture or parameter set makes the node pending, returns true then.
