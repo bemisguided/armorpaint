@@ -242,11 +242,12 @@ static i32 advanced_blur_node_process(u8 *pixels, i32 size, void *params, f32 *r
 	advanced_blur_params_t p  = *(advanced_blur_params_t *)params;
 	f32                   *px = (f32 *)pixels;
 	size_t                 n  = (size_t)size * size;
-	f32                   *a  = malloc(n * sizeof(f32));
-	f32                   *b  = malloc(n * sizeof(f32));
+	size_t                 plane_bytes = n * sizeof(f32);
+	f32                   *a           = make_image_node_plane_alloc(plane_bytes);
+	f32                   *b           = make_image_node_plane_alloc(plane_bytes);
 	if (a == NULL || b == NULL) {
-		free(a);
-		free(b);
+		make_image_node_plane_free(a, plane_bytes);
+		make_image_node_plane_free(b, plane_bytes);
 		return -1;
 	}
 	for (size_t i = 0; i < n; ++i) {
@@ -273,8 +274,8 @@ static i32 advanced_blur_node_process(u8 *pixels, i32 size, void *params, f32 *r
 		result[i * 4 + 2] = v;
 		result[i * 4 + 3] = 1.0f;
 	}
-	free(a);
-	free(b);
+	make_image_node_plane_free(a, plane_bytes);
+	make_image_node_plane_free(b, plane_bytes);
 	return 0;
 }
 
