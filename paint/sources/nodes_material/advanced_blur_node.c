@@ -9,6 +9,9 @@
 // Modes: Gaussian and Box blur along the Angle direction by Radius times Aspect and then across it by Radius
 // (Aspect 1 is a round blur, higher stretches it along Angle: anisotropic blur); Directional blurs only along
 // Angle by Radius (a line, like a motion blur). Radius is a fraction of Size.
+// Angle follows the rotation convention of all image nodes (armorpaint-admin specs/image-nodes/ROTATION_CONVENTION.md):
+// degrees, the direction is (cos Angle, sin Angle) on the y down image, so 0 is along x and 90 points down the image
+// (the same direction as Warp's Angle); a blur has no sense, 90 and 270 are the same line.
 // Radius, Angle and Aspect hold for the whole image (scalar, evaluated at the image centre when linked).
 // Mask multiplies the radius per pixel (Non-Uniform Blur): each pass takes the radius at the pixel it writes, so a
 // varying radius is an approximation, exact only where the mask is constant. Taps are never more than one pixel apart:
