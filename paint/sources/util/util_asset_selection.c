@@ -13,6 +13,81 @@ static bool         asset_selection_primary_set = false; // The tray made the pr
 static void        *asset_selection_collapse_to = NULL;  // Plain press on a selected item, collapse unless dragged
 static char        *asset_selection_filters[ASSET_TRAY_COUNT];
 
+// Set of item pointers, so that the per frame checks cost O(1) per item instead of a scan of the selection (a tray can hold hundreds of
+// items and all of them selected)
+typedef struct {
+	void **slots; // Open addressing, NULL is empty
+	i32    cap;   // Power of two, 0 while nothing is allocated
+	i32    count;
+} asset_set_t;
+
+static i32 asset_set_slot(void *item, i32 cap) {
+	return (i32)((((u64)(uintptr_t)item) * 0x9E3779B97F4A7C15ull) >> 40) & (cap - 1);
+}
+
+static void asset_set_clear(asset_set_t *set) {
+	free(set->slots);
+	set->slots = NULL;
+	set->cap   = 0;
+	set->count = 0;
+}
+
+static bool asset_set_has(asset_set_t *set, void *item) {
+	if (set->cap == 0 || item == NULL) {
+		return false;
+	}
+	for (i32 i = asset_set_slot(item, set->cap); set->slots[i] != NULL; i = (i + 1) & (set->cap - 1)) {
+		if (set->slots[i] == item) {
+			return true;
+		}
+	}
+	return false;
+}
+
+static void asset_set_add(asset_set_t *set, void *item) {
+	if (item == NULL || asset_set_has(set, item)) {
+		return;
+	}
+	if ((set->count + 1) * 2 > set->cap) {
+		void **old     = set->slots;
+		i32    old_cap = set->cap;
+		set->cap       = old_cap == 0 ? 16 : old_cap * 2;
+		set->slots     = calloc(set->cap, sizeof(void *));
+		set->count     = 0;
+		for (i32 i = 0; i < old_cap; ++i) {
+			if (old[i] != NULL) {
+				asset_set_add(set, old[i]);
+			}
+		}
+		free(old);
+	}
+	i32 i = asset_set_slot(item, set->cap);
+	while (set->slots[i] != NULL) {
+		i = (i + 1) & (set->cap - 1);
+	}
+	set->slots[i] = item;
+	set->count++;
+}
+
+static asset_set_t asset_set_from(any_array_t *items) {
+	asset_set_t set = {NULL, 0, 0};
+	for (i32 i = 0; i < items->length; ++i) {
+		asset_set_add(&set, items->buffer[i]);
+	}
+	return set;
+}
+
+// Lookup of asset_selection_items: kept in step by asset_selection_push, rebuilt after any other change
+static asset_set_t asset_selection_lookup;
+static bool        asset_selection_lookup_valid = false;
+
+static void asset_selection_push(void *item) {
+	any_array_push(asset_selection_items, item);
+	if (asset_selection_lookup_valid) {
+		asset_set_add(&asset_selection_lookup, item);
+	}
+}
+
 any_array_t *asset_selection_tray_items(asset_tray_t tray) {
 	switch (tray) {
 	case ASSET_TRAY_TEXTURES:
@@ -48,12 +123,13 @@ void *asset_selection_active(asset_tray_t tray) {
 }
 
 void asset_selection_clear() {
-	asset_selection_tray        = ASSET_TRAY_NONE;
-	asset_selection_items       = any_array_create_from_raw((void *[]){}, 0);
-	asset_selection_anchor      = NULL;
-	asset_selection_primary     = NULL;
-	asset_selection_primary_set = false;
-	asset_selection_collapse_to = NULL;
+	asset_selection_tray         = ASSET_TRAY_NONE;
+	asset_selection_items        = any_array_create_from_raw((void *[]){}, 0);
+	asset_selection_lookup_valid = false;
+	asset_selection_anchor       = NULL;
+	asset_selection_primary      = NULL;
+	asset_selection_primary_set  = false;
+	asset_selection_collapse_to  = NULL;
 }
 
 static void asset_selection_set_primary(void *item) {
@@ -64,7 +140,7 @@ static void asset_selection_set_primary(void *item) {
 static void asset_selection_select_only(asset_tray_t tray, void *item) {
 	asset_selection_clear();
 	asset_selection_tray = tray;
-	any_array_push(asset_selection_items, item);
+	asset_selection_push(item);
 	asset_selection_anchor = item;
 	asset_selection_set_primary(item);
 }
@@ -78,14 +154,22 @@ static void asset_selection_begin(asset_tray_t tray) {
 	asset_selection_clear();
 	asset_selection_tray = tray;
 	if (active != NULL && array_index_of(asset_selection_tray_items(tray), active) >= 0) {
-		any_array_push(asset_selection_items, active);
+		asset_selection_push(active);
 		asset_selection_anchor = active;
 		asset_selection_set_primary(active);
 	}
 }
 
 static bool asset_selection_has(void *item) {
-	return asset_selection_items != NULL && array_index_of(asset_selection_items, item) >= 0;
+	if (asset_selection_items == NULL) {
+		return false;
+	}
+	if (!asset_selection_lookup_valid) {
+		asset_set_clear(&asset_selection_lookup);
+		asset_selection_lookup       = asset_set_from(asset_selection_items);
+		asset_selection_lookup_valid = true;
+	}
+	return asset_set_has(&asset_selection_lookup, item);
 }
 
 bool asset_selection_contains(asset_tray_t tray, void *item) {
@@ -106,21 +190,23 @@ void *asset_selection_primary_item() {
 
 // Items in selection order, the active item alone when nothing else is selected
 any_array_t *asset_selection_get(asset_tray_t tray) {
-	any_array_t *result = any_array_create_from_raw((void *[]){}, 0);
-	any_array_t *items  = asset_selection_tray_items(tray);
+	any_array_t *result  = any_array_create_from_raw((void *[]){}, 0);
+	any_array_t *items   = asset_selection_tray_items(tray);
+	asset_set_t  in_tray = asset_set_from(items);
 	if (asset_selection_tray == tray) {
 		for (i32 i = 0; i < asset_selection_items->length; ++i) {
-			if (array_index_of(items, asset_selection_items->buffer[i]) >= 0) {
+			if (asset_set_has(&in_tray, asset_selection_items->buffer[i])) {
 				any_array_push(result, asset_selection_items->buffer[i]);
 			}
 		}
 	}
 	if (result->length == 0) {
 		void *active = asset_selection_active(tray);
-		if (active != NULL && array_index_of(items, active) >= 0) {
+		if (active != NULL && asset_set_has(&in_tray, active)) {
 			any_array_push(result, active);
 		}
 	}
+	asset_set_clear(&in_tray);
 	return result;
 }
 
@@ -129,11 +215,13 @@ any_array_t *asset_selection_get_tray_order(asset_tray_t tray) {
 	any_array_t *selected = asset_selection_get(tray);
 	any_array_t *items    = asset_selection_tray_items(tray);
 	any_array_t *result   = any_array_create_from_raw((void *[]){}, 0);
+	asset_set_t  chosen   = asset_set_from(selected);
 	for (i32 i = 0; i < items->length; ++i) {
-		if (array_index_of(selected, items->buffer[i]) >= 0) {
+		if (asset_set_has(&chosen, items->buffer[i])) {
 			any_array_push(result, items->buffer[i]);
 		}
 	}
+	asset_set_clear(&chosen);
 	return result;
 }
 
@@ -183,7 +271,7 @@ static void asset_selection_add_range(asset_tray_t tray, void *from, void *to, i
 	for (i32 i = a;; i += step) {
 		void *item = items->buffer[visible != NULL ? visible->buffer[i] : i];
 		if (!asset_selection_has(item)) {
-			any_array_push(asset_selection_items, item);
+			asset_selection_push(item);
 		}
 		if (i == b) {
 			break;
@@ -202,7 +290,8 @@ bool asset_selection_press(asset_tray_t tray, void *item, i32_array_t *visible) 
 		asset_selection_begin(tray);
 		void *anchor = asset_selection_anchor != NULL ? asset_selection_anchor : item;
 		if (!ctrl) {
-			asset_selection_items = any_array_create_from_raw((void *[]){}, 0);
+			asset_selection_items        = any_array_create_from_raw((void *[]){}, 0);
+			asset_selection_lookup_valid = false;
 		}
 		asset_selection_add_range(tray, anchor, item, visible);
 		asset_selection_anchor = anchor;
@@ -215,13 +304,14 @@ bool asset_selection_press(asset_tray_t tray, void *item, i32_array_t *visible) 
 		if (asset_selection_has(item)) {
 			if (asset_selection_items->length > 1) {
 				array_remove(asset_selection_items, item);
+				asset_selection_lookup_valid = false;
 				if (asset_selection_primary == item) {
 					asset_selection_set_primary(asset_selection_items->buffer[asset_selection_items->length - 1]);
 				}
 			}
 		}
 		else {
-			any_array_push(asset_selection_items, item);
+			asset_selection_push(item);
 			asset_selection_set_primary(item);
 		}
 		asset_selection_anchor = item;
@@ -254,7 +344,7 @@ void asset_selection_set(asset_tray_t tray, any_array_t *items, void *primary) {
 	asset_selection_clear();
 	asset_selection_tray = tray;
 	for (i32 i = 0; i < items->length; ++i) {
-		any_array_push(asset_selection_items, items->buffer[i]);
+		asset_selection_push(items->buffer[i]);
 	}
 	asset_selection_anchor = primary;
 	asset_selection_set_primary(primary);
@@ -279,9 +369,9 @@ void asset_selection_select_all(asset_tray_t tray, i32_array_t *visible) {
 	asset_selection_clear();
 	asset_selection_tray = tray;
 	for (i32 i = 0; i < count; ++i) {
-		any_array_push(asset_selection_items, items->buffer[visible != NULL ? visible->buffer[i] : i]);
+		asset_selection_push(items->buffer[visible != NULL ? visible->buffer[i] : i]);
 	}
-	void *primary = active != NULL && asset_selection_has(active) ? active : asset_selection_items->buffer[0];
+	void *primary          = active != NULL && asset_selection_has(active) ? active : asset_selection_items->buffer[0];
 	asset_selection_anchor = primary;
 	asset_selection_set_primary(primary);
 	ui_dock_redraw(TAB_AREA_SIDEBAR1);
@@ -382,44 +472,55 @@ void asset_selection_marquee_end(asset_tray_t tray) {
 		}
 	}
 
-	void        *active = asset_selection_active(tray);
-	any_array_t *items  = any_array_create_from_raw((void *[]){}, 0);
+	void        *active   = asset_selection_active(tray);
+	any_array_t *items    = any_array_create_from_raw((void *[]){}, 0);
+	asset_set_t  hit_set  = asset_set_from(hit);
+	asset_set_t  base_set = asset_set_from(asset_marquee_base);
+	asset_set_t  taken    = {NULL, 0, 0};
 	if (g_ui->is_shift_down) {
 		for (i32 i = 0; i < asset_marquee_base->length; ++i) {
 			any_array_push(items, asset_marquee_base->buffer[i]);
+			asset_set_add(&taken, asset_marquee_base->buffer[i]);
 		}
 		for (i32 i = 0; i < hit->length; ++i) {
-			if (array_index_of(items, hit->buffer[i]) == -1) {
+			if (!asset_set_has(&taken, hit->buffer[i])) {
 				any_array_push(items, hit->buffer[i]);
+				asset_set_add(&taken, hit->buffer[i]);
 			}
 		}
 	}
 	else if (g_ui->is_ctrl_down) {
 		for (i32 i = 0; i < asset_marquee_base->length; ++i) {
-			if (array_index_of(hit, asset_marquee_base->buffer[i]) == -1) {
+			if (!asset_set_has(&hit_set, asset_marquee_base->buffer[i])) {
 				any_array_push(items, asset_marquee_base->buffer[i]);
+				asset_set_add(&taken, asset_marquee_base->buffer[i]);
 			}
 		}
 		for (i32 i = 0; i < hit->length; ++i) {
-			if (array_index_of(asset_marquee_base, hit->buffer[i]) == -1) {
+			if (!asset_set_has(&base_set, hit->buffer[i])) {
 				any_array_push(items, hit->buffer[i]);
+				asset_set_add(&taken, hit->buffer[i]);
 			}
 		}
 	}
 	else {
 		for (i32 i = 0; i < hit->length; ++i) {
 			any_array_push(items, hit->buffer[i]);
+			asset_set_add(&taken, hit->buffer[i]);
 		}
 	}
-	if (active != NULL && array_index_of(items, active) == -1) {
+	if (active != NULL && !asset_set_has(&taken, active)) {
 		any_array_push(items, active);
 	}
+	asset_set_clear(&hit_set);
+	asset_set_clear(&base_set);
+	asset_set_clear(&taken);
 	array_delete(hit);
 
 	asset_selection_clear();
 	asset_selection_tray = tray;
 	for (i32 i = 0; i < items->length; ++i) {
-		any_array_push(asset_selection_items, items->buffer[i]);
+		asset_selection_push(items->buffer[i]);
 	}
 	array_delete(items);
 	asset_selection_anchor = active;
@@ -526,12 +627,15 @@ void asset_selection_update() {
 	}
 
 	// Drop items that are gone
-	any_array_t *items = asset_selection_tray_items(asset_selection_tray);
+	any_array_t *items   = asset_selection_tray_items(asset_selection_tray);
+	asset_set_t  in_tray = asset_set_from(items);
 	for (i32 i = asset_selection_items->length - 1; i >= 0; --i) {
-		if (array_index_of(items, asset_selection_items->buffer[i]) == -1) {
+		if (!asset_set_has(&in_tray, asset_selection_items->buffer[i])) {
 			array_splice(asset_selection_items, i, 1);
+			asset_selection_lookup_valid = false;
 		}
 	}
+	asset_set_clear(&in_tray);
 
 	// The active item was changed by something else (arrow keys, new item, undo, scripts)
 	void *active = asset_selection_active(asset_selection_tray);
@@ -546,19 +650,21 @@ void asset_selection_update() {
 // Moves the items as one block to the drop position (0 to length), keeping their tray order.
 // on_move is called with the old and new index of every single move made.
 void asset_selection_reorder(any_array_t *items, any_array_t *moving, i32 drop_pos, void (*on_move)(i32, i32)) {
-	any_array_t *order = any_array_create_from_raw((void *[]){}, 0);
+	any_array_t *order     = any_array_create_from_raw((void *[]){}, 0);
+	asset_set_t  moving_in = asset_set_from(moving);
 	for (i32 i = 0; i <= items->length; ++i) {
 		if (i == drop_pos) {
 			for (i32 j = 0; j < items->length; ++j) {
-				if (array_index_of(moving, items->buffer[j]) >= 0) {
+				if (asset_set_has(&moving_in, items->buffer[j])) {
 					any_array_push(order, items->buffer[j]);
 				}
 			}
 		}
-		if (i < items->length && array_index_of(moving, items->buffer[i]) == -1) {
+		if (i < items->length && !asset_set_has(&moving_in, items->buffer[i])) {
 			any_array_push(order, items->buffer[i]);
 		}
 	}
+	asset_set_clear(&moving_in);
 
 	// Single moves from later positions keep the existing index remapping of each tray valid
 	for (i32 to = 0; to < order->length; ++to) {
