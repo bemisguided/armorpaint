@@ -210,7 +210,7 @@ void project_format_load_object_ids(project_t *raw) {
 	}
 	i32 max_id = raw->next_object_id;
 	for (i32 i = 0; i < objects->length; ++i) {
-		objects->buffer[i]->paint_id = raw->mesh_ids->buffer[i];
+		project_set_object_id(objects->buffer[i], raw->mesh_ids->buffer[i]);
 		if (raw->mesh_ids->buffer[i] > max_id) {
 			max_id = raw->mesh_ids->buffer[i];
 		}
