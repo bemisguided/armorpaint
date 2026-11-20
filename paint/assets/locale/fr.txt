@@ -192,6 +192,8 @@ Supprimer matériau
 Supprimer groupe de nœuds
 Supprimer l'échantillon
 Supprimer les inutilisées
+
+
 Delta
 Profondeur
 Rejet par profondeur

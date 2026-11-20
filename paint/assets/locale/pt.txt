@@ -192,6 +192,8 @@ Apagar Material
 Apagar Grupo de Nós
 Apagar Amostra
 Apagar Não Usadas
+
+
 Delta
 Profundidade
 Rejeição de Profundidade

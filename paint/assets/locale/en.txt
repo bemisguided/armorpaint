@@ -22,6 +22,7 @@ Add Animation
 Add Swatch
 Add new swatch
 Add picked color to swatches
+Add stop
 Advanced Blur
 All
 All processing is done locally on device
@@ -192,6 +193,7 @@ Delete Material
 Delete Node Group
 Delete Swatch
 Delete Unused
+Delete active stop
 Delta
 Depth
 Depth Reject

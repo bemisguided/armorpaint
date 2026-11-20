@@ -192,6 +192,8 @@ Smazat materiál
 Smazat skupinu uzlů
 Smazat vzorek
 Smazat nepoužité
+
+
 Delta
 Hloubka
 Odmítnout hloubku

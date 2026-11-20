@@ -192,6 +192,8 @@ Eliminar material
 Eliminar grupo de nodos
 Eliminar muestra
 Eliminar no usadas
+
+
 Delta
 Profundidad
 Rechazar por profundidad

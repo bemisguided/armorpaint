@@ -192,6 +192,8 @@ Usuń materiał
 Usuń grupę węzłów
 Usuń próbkę koloru
 Usuń nieużywane
+
+
 Delta
 Głębia
 Odrzucenie głębi
