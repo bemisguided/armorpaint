@@ -75,6 +75,17 @@ static void shape_generator_node_params(ui_node_t *node, void *params) {
 	p->edge_softness            = make_image_node_input_value(node, SHAPE_GENERATOR_INPUT_EDGE_SOFTNESS);
 }
 
+// What the shape uses (see shape_generator_node_coverage): a Square takes its Height from Width, a Circle (an ellipse) has no
+// corners. Rotation is used by every shape. A linked socket still shows (ui_node_item_hidden).
+static bool shape_generator_node_input_hidden(i32 shape, i32 input) {
+	return (input == SHAPE_GENERATOR_INPUT_HEIGHT && shape == SHAPE_GENERATOR_SQUARE) ||
+	       (input == SHAPE_GENERATOR_INPUT_CORNER_RADIUS && shape == SHAPE_GENERATOR_CIRCLE);
+}
+
+static bool shape_generator_node_item_hidden(ui_node_t *node, ui_node_item_t kind, i32 index) {
+	return kind == UI_NODE_ITEM_INPUT && shape_generator_node_input_hidden((i32)make_image_node_button(node, SHAPE_GENERATOR_BUTTON_SHAPE), index);
+}
+
 static f32 shape_generator_node_clamp(f32 v, f32 lo, f32 hi) {
 	return v < lo ? lo : v > hi ? hi : v;
 }
@@ -229,5 +240,6 @@ void shape_generator_node_init() {
 	any_array_push(nodes_material_pattern, shape_generator_node_def);
 	any_map_set(parser_material_node_values, "TEX_SHAPE_GENERATOR", shape_generator_node_value);
 	any_map_set(parser_material_node_vectors, "TEX_SHAPE_GENERATOR", shape_generator_node_vector);
+	any_map_set(ui_nodes_hidden_rules, "TEX_SHAPE_GENERATOR", shape_generator_node_item_hidden);
 	make_image_node_register(&shape_generator_node_image_type);
 }
