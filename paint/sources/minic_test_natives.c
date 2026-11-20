@@ -427,6 +427,33 @@ f32 script_node_socket_row(ui_node_t *node, i32 is_input, i32 index) {
 	return y / UI_LINE_H();
 }
 
+// Sections of a node (the list its node type registered, make_image_node_sections): how many, whether one is closed, and set it
+i32 script_node_section_count(ui_node_t *node) {
+	const ui_node_section_t *sections = node == NULL ? NULL : ui_viewnodes_on_sections(node);
+	i32                      n        = 0;
+	while (sections != NULL && sections[n].title != NULL) {
+		n++;
+	}
+	return n;
+}
+
+i32 script_node_section_closed(ui_node_t *node, i32 section) {
+	return section >= 0 && section < script_node_section_count(node) && ui_node_section_closed(node, section) ? 1 : 0;
+}
+
+// Sets the state like a click on the header does (the flag bit is toggled away from the default, no undo step)
+void script_node_set_section_closed(ui_node_t *node, i32 section, i32 closed) {
+	if (section >= 0 && section < script_node_section_count(node) && (script_node_section_closed(node, section) != 0) != (closed != 0)) {
+		node->flags ^= UI_NODE_FLAG_SECTION_0 << section;
+	}
+}
+
+// The section whose header row sits in front of the item (kind 0 input, 2 button), -1 when none
+i32 script_node_section_header(ui_node_t *node, i32 kind, i32 index) {
+	ui_node_canvas_t *canvas = script_material_canvas();
+	return node == NULL || canvas == NULL ? -1 : ui_node_section_header_at(canvas, node, (ui_node_item_t)kind, index);
+}
+
 // Test only: enable a plugin like the Preferences dialog does (name as in the plugins folder, e.g. bake_maps.c)
 void script_plugin_enable(char *name) {
 	if (name != NULL) {
