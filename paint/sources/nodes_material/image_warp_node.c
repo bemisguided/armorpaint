@@ -279,6 +279,6 @@ void image_warp_node_init() {
 	any_map_set(parser_material_node_values, "TEX_IMAGE_WARP", image_warp_node_value);
 	any_map_set(parser_material_node_vectors, "TEX_IMAGE_WARP", image_warp_node_vector);
 	any_map_set(ui_nodes_hidden_rules, "TEX_IMAGE_WARP", image_warp_node_item_hidden);
-	make_image_node_sections("TEX_IMAGE_WARP", NULL, 0);
+	make_image_node_sections(image_warp_node_def, NULL, 0, 1); // General: the settings and Image
 	make_image_node_register(&image_warp_node_image_type);
 }
