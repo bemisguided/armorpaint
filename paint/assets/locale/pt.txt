@@ -339,6 +339,7 @@ Saída de Grupo
 Dureza
 Altura
 Mistura de Altura
+
 Ajuda
 Ocultar Visualização 3D
 Alto Polígonos

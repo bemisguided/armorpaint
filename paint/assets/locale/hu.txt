@@ -339,6 +339,7 @@ Csoport kimenet
 Keménység
 Magasság
 Magasság keverése
+
 Súgó
 3D Nézet elrejtése
 High Poly

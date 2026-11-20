@@ -339,6 +339,7 @@ Výstup skupiny
 Tvrdost
 Výška
 Míchání výšky
+
 Nápověda
 Skrýt 3D pohled
 Vysoký počet polygonů
