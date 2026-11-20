@@ -809,6 +809,10 @@ void                   script_show_node_editor(bool only, f32 zoom, f32 pan_x, f
 i32                    script_node_item_hidden(ui_node_t *node, i32 kind, i32 index);
 f32                    script_node_rows(ui_node_t *node);
 f32                    script_node_socket_row(ui_node_t *node, i32 is_input, i32 index);
+i32                    script_node_section_count(ui_node_t *node);
+i32                    script_node_section_closed(ui_node_t *node, i32 section);
+void                   script_node_set_section_closed(ui_node_t *node, i32 section, i32 closed);
+i32                    script_node_section_header(ui_node_t *node, i32 kind, i32 index);
 void                   script_key_down(char *key);
 void                   script_key_up(char *key);
 char                  *script_asset_selection(i32 tray);
