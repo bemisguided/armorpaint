@@ -15,6 +15,7 @@
 #define MAKE_IMAGE_NODE_DEBOUNCE 0.5
 static bool make_image_node_trace = false; // ARMORPAINT_IMAGE_NODE_TRACE in the environment: every capture is logged with its time
 static i32 make_image_node_captures = 0; // Captures made since the start, see make_image_node_capture_count
+static i32 make_image_node_capture_dst = 0; // Width of the target of the running capture, see make_image_node_box_taps
 #define MAKE_IMAGE_NODE_BIG_PLANE ((size_t)64 << 20) // A 4096 x 4096 float plane is exactly this
 
 #if !defined(IRON_WINDOWS)
@@ -95,7 +96,6 @@ static ui_node_canvas_t        *make_image_node_capture_group   = NULL;
 static ui_node_t_array_t       *make_image_node_capture_parents = NULL;
 static i32                      make_image_node_capture_input   = 0; // Input of make_image_node_input_value
 static i32                      make_image_node_capture_k       = 0; // Capture of a type with several, see make_image_node_capture_index
-static i32                      make_image_node_capture_dst     = 0; // Width of the target of the running capture, see make_image_node_box_taps
 
 static void make_image_node_update(void *_);
 static void make_image_node_state_row(i32 node_id);
