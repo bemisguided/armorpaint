@@ -395,6 +395,7 @@ Réteg UV méretezése
 Réteg UV típusa
 Réteg láthatósága
 Rétegek
+
 Lusta sugár
 Lusta lépés
 Balra
@@ -416,6 +417,7 @@ Egyedivé tétel
 Kézikönyv
 Tartomány leképzése
 Leképzés
+
 Maszk
 Maszk színe
 Massza
@@ -556,6 +558,7 @@ Csípés
 Ping-Pong
 Középpont (Pivot)
 Pixel méret
+
 Plató
 Lejátszás
 Player
