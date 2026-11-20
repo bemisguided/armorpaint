@@ -1126,12 +1126,18 @@ void make_image_node_regenerate() {
 	make_image_node_schedule();
 }
 
-// Taps per axis of a capture reading an image node of size source: 1 unless the source is at least twice as large as the
-// target of the capture (a larger inner node, e.g. a 4096 Shape into a 512 node, would be point sampled and lose its
-// antialiased edge), then source / target, at most 4 (16 taps). The 1 x 1 capture of a scalar input keeps its single tap.
-static i32 make_image_node_box_taps(i32 source) {
-	i32 dst = make_image_node_capture_dst;
-	if (!parser_material_image_space || dst <= 1 || source < 2 * dst) {
+// Taps per axis of a capture reading the result of the image node at the filter: 1 unless the node is at least twice as large as
+// the target of the capture (a larger inner node, e.g. a 4096 Shape into a 512 node, would be point sampled and lose its
+// antialiased edge), then size / target, at most 4 (16 taps). Nearest reads (discrete results) and the 1 x 1 capture of a scalar
+// input keep their single tap.
+static i32 make_image_node_box_taps(ui_node_t *node, i32 filter) {
+	i32                dst  = make_image_node_capture_dst;
+	image_node_type_t *type = make_image_node_type_of(node->type);
+	if (!parser_material_image_space || dst <= 1 || filter == IMAGE_FILTER_NEAREST || type == NULL) {
+		return 1;
+	}
+	i32 source = type->size(node);
+	if (source < 2 * dst) {
 		return 1;
 	}
 	i32 n = source / dst;
@@ -1241,14 +1247,16 @@ char *make_image_node_sample(ui_node_t *node) {
 		if (!parser_material_image_space) {
 			node_shader_context_add_elem(parser_material_kong->context, "tex", "short2norm");
 		}
-		i32 n = filter == IMAGE_FILTER_NEAREST || type == NULL ? 1 : make_image_node_box_taps(type->size(node));
+		i32 n = make_image_node_box_taps(node, filter);
 		if (n > 1) {
-			// The source is at least twice as large as the target: n x n taps spread over the footprint of one target pixel
-			// (a box filter), each tap read like the single one
+			// The source is at least twice as large as the target: n x n taps spread over the footprint of one target pixel (a box
+			// filter), each one hardware bilinear at the wrapped uv, one statement per tap (a shader block is limited in statements;
+			// the hand written wrapping bilinear of make_image_node_write_fetch is about 15 statements)
 			for (i32 j = 0; j < n; ++j) {
 				for (i32 i = 0; i < n; ++i) {
 					char *uv = string_tmp("tex_coord + float2(%f, %f) / %f", ((i + 0.5) / n - 0.5), ((j + 0.5) / n - 0.5), (f64)make_image_node_capture_dst);
-					make_image_node_write_fetch(string_tmp("%s_b%d", var, j * n + i), tex_name, uv, filter);
+					parser_material_write(parser_material_kong, string_tmp("float2 %s_u%d = %s;", var, j * n + i, uv));
+					parser_material_write(parser_material_kong, string_tmp("float4 %s_b%d = sample_lod(%s, sampler_linear, %s_u%d - floor(%s_u%d), 0.0);", var, j * n + i, tex_name, var, j * n + i, var, j * n + i));
 				}
 			}
 			char *sum = string_tmp("%s_b0", var);
