@@ -310,6 +310,7 @@ Difuminado
 V
 Textura Gabor
 Gama
+
 Generado
 Geometría
 Geometria al origen
@@ -535,6 +536,7 @@ Relleno
 Pintar
 Capa de pintura
 Máscara de pintura
+
 Paramétrico
 Padre
 Derivada parcial

@@ -310,6 +310,7 @@ Keburaman
 G
 Tekstur Gabor
 Gamma
+
 Dihasilkan
 Geometri
 Geometri ke Asal
@@ -535,6 +536,7 @@ Padding
 Lukis
 Lapisan Lukis
 Masker Lukis
+
 Parametrik
 Induk
 Turunan Parsial

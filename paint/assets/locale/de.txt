@@ -310,6 +310,7 @@ Unschärfe
 G
 Gabor Textur
 Gamma
+
 Generiert
 Geometrie
 Geometrie in den Ursprung
@@ -535,6 +536,7 @@ Abstand
 Malen
 Malebene
 Zeichenmaske
+
 Parametrisch
 Eltern
 Partielle Ableitung
