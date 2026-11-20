@@ -506,6 +506,13 @@ typedef enum ui_node_flag {
 	UI_NODE_FLAG_CODE_HIDE = 4,
 } ui_node_flag_t;
 
+// Kinds of rows of a node, for ui_nodes_on_item_hidden
+typedef enum ui_node_item {
+	UI_NODE_ITEM_INPUT,
+	UI_NODE_ITEM_OUTPUT,
+	UI_NODE_ITEM_BUTTON,
+} ui_node_item_t;
+
 typedef struct ui_node {
 	int                     id;
 	char                   *name;
@@ -596,6 +603,7 @@ extern void (*ui_nodes_on_socket_released)(int);
 extern void (*ui_nodes_on_link_drag)(int, bool);
 extern void (*ui_nodes_on_node_remove)(ui_node_t *);
 extern void (*ui_nodes_on_node_changed)(ui_node_t *);
+extern bool (*ui_nodes_on_item_hidden)(ui_node_t *, ui_node_item_t, int);
 extern bool ui_nodes_grid_snap;
 
 void     ui_node_canvas_encode(ui_node_canvas_t *canvas);
@@ -606,9 +614,10 @@ float UI_NODE_X(ui_node_t *node);
 float UI_NODE_Y(ui_node_t *node);
 float UI_NODE_W(ui_node_t *node);
 float UI_NODE_H(ui_node_canvas_t *canvas, ui_node_t *node);
-float UI_OUTPUT_Y(ui_node_t *node, int pos);
+bool  ui_node_item_hidden(ui_node_canvas_t *canvas, ui_node_t *node, ui_node_item_t kind, int index);
+float UI_OUTPUT_Y(ui_node_canvas_t *canvas, ui_node_t *node, int pos);
 float UI_INPUT_Y(ui_node_canvas_t *canvas, ui_node_t *node, int pos);
-float UI_OUTPUTS_H(ui_node_t *node, int length);
+float UI_OUTPUTS_H(ui_node_canvas_t *canvas, ui_node_t *node, int length);
 float UI_BUTTONS_H(ui_node_t *node);
 float UI_LINE_H();
 float UI_NODES_PAN_X();
