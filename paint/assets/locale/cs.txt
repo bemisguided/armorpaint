@@ -320,6 +320,7 @@ Neostrost
 G
 Gaborova textura
 Gama
+
 Generováno
 Geometrie
 Geometrie do počátku
@@ -561,6 +562,7 @@ Odsazení
 Malování
 Malovací vrstva
 Malovací maska
+
 Parametrický
 Rodič
 Částečná derivace
