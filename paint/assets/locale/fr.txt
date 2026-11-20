@@ -307,6 +307,7 @@ Flou
 V
 Texture Gabor
 Gamma
+
 Générées
 Géométrie
 Géométrie vers origine
@@ -533,6 +534,7 @@ Marge
 Peindre
 Calque de peinture
 Masque de peinture
+
 Paramétrique
 Parent
 Dérivée partielle

@@ -521,12 +521,17 @@ typedef enum ui_node_item {
 
 // A collapsible section of a node: a header row (triangle and title) in front of a contiguous range of inputs or of buttons
 // (settings) of the node. The range is by index, the order of the node def, so nothing is stored in the canvas.
+// A BUTTON section may also hold the inputs inputs_first .. inputs_first + inputs_count - 1 (a mixed section): the buttons are drawn above
+// the inputs, so the rows are contiguous when the buttons end the button list and the inputs start the input list. One header, in front
+// of the first button; it shows when one of the buttons is shown by the rules.
 typedef struct ui_node_section {
 	const char     *title;             // Translated with ui_tr when drawn; a list of sections ends with an entry whose title is NULL
-	ui_node_item_t  kind;              // UI_NODE_ITEM_INPUT or UI_NODE_ITEM_BUTTON, never both in one section
+	ui_node_item_t  kind;              // UI_NODE_ITEM_INPUT or UI_NODE_ITEM_BUTTON (first and count are of this kind)
 	int             first;             // Index of the first member
 	int             count;             // Number of members
 	bool            closed_by_default; // State while the flag bit is clear
+	int             inputs_first;      // Mixed section (kind BUTTON only): index of its first input
+	int             inputs_count;      // Mixed section: number of inputs, 0 for a section of one kind
 } ui_node_section_t;
 
 typedef struct ui_node {

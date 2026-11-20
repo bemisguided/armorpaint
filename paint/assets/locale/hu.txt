@@ -307,6 +307,7 @@ Bolyhosság
 G
 Gabor textúra
 Gamma
+
 Generált
 Geometria
 Geometria az origóba
@@ -533,6 +534,7 @@ Kitöltés (Padding)
 Festés
 Festő réteg
 Festő maszk
+
 Parametrikus
 Szülő
 Parciális derivált
