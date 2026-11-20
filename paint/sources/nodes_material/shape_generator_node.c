@@ -7,7 +7,8 @@
 // Square: Width only). Per pixel the signed distance to the shape in pixels gives the value 1 - smoothstep(-w, w, d),
 // w = Edge Softness in pixels, at least 1 so the edge is antialiased. Wrap Edges adds up the coverage of the nine image
 // copies of the shape (clamped to 1, so a shape as large as the image stays 1 on its border), so a shape that crosses the image border continues on the other side (the centre is reduced into the image first, more
-// copies each way when the shape extent plus the softness reaches farther than one image).
+// copies each way when the shape extent plus the softness reaches farther than one image). Wrap Edges off: the shape continues
+// beyond the image where it covers the border (see shape_generator_node_border_shift), so such a border texel is not an edge.
 // The number inputs hold for the whole image (scalars, evaluated at the image centre when linked).
 // Rotation follows the rotation convention of all image nodes (armorpaint-admin specs/image-nodes/ROTATION_CONVENTION.md):
 // degrees, a positive angle turns the shape clockwise as seen in the editor view (y down), about the shape centre, after
@@ -106,6 +107,54 @@ static f32 shape_generator_node_distance(i32 shape, f32 x, f32 y, f32 hx, f32 hy
 	return sqrtf(ox * ox + oy * oy) + (m < 0.0f ? m : 0.0f) - r;
 }
 
+// The shape placed in the image: half extents, corner radius, centre and rotation (already reduced for Wrap Edges)
+typedef struct shape_generator_frame {
+	i32 shape;
+	f32 hx, hy, r, cx, cy, ca, sa;
+} shape_generator_frame_t;
+
+// Signed distance in pixels of the image point (x, y) to the copy of the shape shifted by (ox, oy) images
+static f32 shape_generator_node_frame_distance(shape_generator_frame_t *f, f32 size, f32 x, f32 y, i32 ox, i32 oy) {
+	f32 dx = x - (f->cx + (f32)ox * size);
+	f32 dy = y - (f->cy + (f32)oy * size);
+	f32 rx = dx * f->ca + dy * f->sa; // The pixel in the frame of the shape: inverse of the clockwise turn
+	f32 ry = -dx * f->sa + dy * f->ca;
+	return shape_generator_node_distance(f->shape, rx, ry, f->hx, f->hy, f->r);
+}
+
+static f32 shape_generator_node_smooth_coverage(f32 di, f32 w) {
+	f32 t = shape_generator_node_clamp((di + w) / (2.0f * w), 0.0f, 1.0f);
+	return 1.0f - t * t * (3.0f - 2.0f * t);
+}
+
+// Wrap Edges off: the shape continues beyond the image. A shape edge that lies on the image border would give the outermost
+// texel row/column the antialiased half coverage (0.84) of an edge that is not there, so on one side the texel is sampled at
+// its inner edge (half a texel inwards) when the shape covers the whole border segment of the texel (the border line one texel
+// long, centred on the texel, is inside the shape) and its edge there runs along the border (the distance falls by the
+// whole half texel the sample moved, tested in shape_generator_node_coverage). A circle touching the border, or a corner,
+// does not cover the segment and keeps its value; a shape whose edge crosses the border obliquely keeps its value too. Only
+// the outermost texels are touched. Returns the shift of the sample position along one axis: +0.5 / -0.5 inwards, 0 when the
+// shape does not cover the border segment. `horizontal` tells the axis.
+static f32 shape_generator_node_border_shift(shape_generator_frame_t *f, f32 size, f32 x, f32 y, bool horizontal) {
+	f32  a     = horizontal ? x : y;
+	bool low   = a < 1.0f;
+	bool high  = a > size - 1.0f;
+	if (!low && !high) {
+		return 0.0f;
+	}
+	f32 line   = low ? 0.0f : size;
+	f32 inward = low ? 0.5f : -0.5f;
+	f32 eps    = 0.001f;
+	for (i32 k = -1; k <= 1; ++k) {
+		f32 across = (horizontal ? y : x) + (f32)k * 0.5f;
+		f32 d      = horizontal ? shape_generator_node_frame_distance(f, size, line, across, 0, 0) : shape_generator_node_frame_distance(f, size, across, line, 0, 0);
+		if (d > eps) {
+			return 0.0f;
+		}
+	}
+	return inward;
+}
+
 // Value of the mask at the pixel (x, y) of a size x size image
 static f32 shape_generator_node_coverage(shape_generator_params_t *p, i32 size, f32 x, f32 y) {
 	f32 s    = (f32)size;
@@ -136,19 +185,26 @@ static f32 shape_generator_node_coverage(shape_generator_params_t *p, i32 size, 
 	n         = n < 1 ? 1 : n > 4 ? 4 : n;
 	i32 from  = p->wrap ? -n : 0;
 	i32 to    = p->wrap ? n : 0;
+	shape_generator_frame_t f = {.shape = p->shape, .hx = hx, .hy = hy, .r = r, .cx = cx, .cy = cy, .ca = ca, .sa = sa};
 	f32 v    = 0.0f;
 	for (i32 oy = from; oy <= to; ++oy) {
 		for (i32 ox = from; ox <= to; ++ox) {
-			f32 dx = x - (cx + (f32)ox * s);
-			f32 dy = y - (cy + (f32)oy * s);
-			f32 rx = dx * ca + dy * sa; // The pixel in the frame of the shape: inverse of the clockwise turn
-			f32 ry = -dx * sa + dy * ca;
-			f32 di = shape_generator_node_distance(p->shape, rx, ry, hx, hy, r);
-			f32 t  = shape_generator_node_clamp((di + w) / (2.0f * w), 0.0f, 1.0f);
-			v += 1.0f - t * t * (3.0f - 2.0f * t); // The coverages of the copies add up: two copies that abut share one antialiased edge (0.84 + 0.16)
+			v += shape_generator_node_smooth_coverage(shape_generator_node_frame_distance(&f, s, x, y, ox, oy), w); // The coverages of the copies add up: two copies that abut share one antialiased edge (0.84 + 0.16)
 		}
 	}
 	v = v > 1.0f ? 1.0f : v;
+	if (!p->wrap && (x < 1.0f || y < 1.0f || x > s - 1.0f || y > s - 1.0f)) {
+		f32 d_own = shape_generator_node_frame_distance(&f, s, x, y, 0, 0);
+		f32 sx    = shape_generator_node_border_shift(&f, s, x, y, true);
+		f32 sy    = shape_generator_node_border_shift(&f, s, x, y, false);
+		if (sx != 0.0f || sy != 0.0f) {
+			f32 d_in = shape_generator_node_frame_distance(&f, s, x + sx, y + sy, 0, 0);
+			if (d_in <= d_own - 0.499f) { // the edge runs along the border: the distance falls by the whole shift
+				f32 vs = shape_generator_node_smooth_coverage(d_in, w);
+				v      = vs > v ? vs : v;
+			}
+		}
+	}
 	return p->invert ? 1.0f - v : v;
 }
 
