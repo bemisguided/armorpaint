@@ -308,6 +308,7 @@ Borrosidade
 G
 Textura Gabor
 Gama
+
 Gerada
 Geometria
 Geometria para Origem
@@ -533,6 +534,7 @@ Preenchimento
 Pintar
 Camada de Pintura
 Máscara de Pintura
+
 Paramétrico
 Pai
 Derivada Parcial
