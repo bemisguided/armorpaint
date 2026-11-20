@@ -148,5 +148,6 @@ void seamless_node_init() {
 	any_array_push(nodes_material_filter, seamless_node_def);
 	any_map_set(parser_material_node_values, "TEX_SEAMLESS", seamless_node_value);
 	any_map_set(parser_material_node_vectors, "TEX_SEAMLESS", seamless_node_vector);
+	make_image_node_sections("TEX_SEAMLESS", NULL, 0);
 	make_image_node_register(&seamless_node_image_type);
 }
