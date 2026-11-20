@@ -326,6 +326,7 @@ Group Output
 Hardness
 Height
 Height Blend
+Height to Normal
 Help
 Hide 3D View
 High Poly

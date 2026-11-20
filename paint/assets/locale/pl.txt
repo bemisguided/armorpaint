@@ -326,6 +326,7 @@ Wyjście grupy
 Twardość
 Wysokość
 Mieszanie wysokości
+
 Pomoc
 Ukryj widok 3D
 Wysoki poly

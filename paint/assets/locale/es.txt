@@ -326,6 +326,7 @@ Salida de grupo
 Dureza
 Altura
 Mezcla de altura
+
 Ayuda
 Ocultar vista 3D
 High Poly
