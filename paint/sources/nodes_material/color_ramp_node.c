@@ -243,6 +243,7 @@ void nodes_material_color_ramp_button(i32 node_id) {
 	i32                 hit  = ui_stops_update(&state->stops, &ops, &ramp, g_ui->_x, g_ui->_y, g_ui->_w, bar_h, marker_h);
 	if (hit & UI_STOPS_CONSUMED) {
 		nodes->_input_started = false;
+		g_context->select_time = 0; // Two quick presses on handles are not a node double click (2D view)
 	}
 	g_ui->_y += UI_LINE_H() + marker_h;
 
@@ -255,13 +256,21 @@ void nodes_material_color_ramp_button(i32 node_id) {
 	    },
 	    3);
 	ui_row(row);
-	if (ui_button("+", UI_ALIGN_CENTER, tr("Add stop"))) {
+	bool add_stop = ui_button("+", UI_ALIGN_CENTER, "");
+	if (g_ui->is_hovered) {
+		ui_tooltip(tr("Add stop"));
+	}
+	if (add_stop) {
 		i32 added = color_ramp_stops_add(&ramp, ui_stops_gap_pos(color_ramp_stops_get_pos, &ramp, color_ramp_stops_count(&ramp)));
 		if (added >= 0) {
 			state->stops.active = added;
 		}
 	}
-	if (ui_button("-", UI_ALIGN_CENTER, tr("Delete active stop")) && ui_stops_can_remove(color_ramp_stops_count(&ramp), COLOR_RAMP_MIN_STOPS)) {
+	bool delete_stop = ui_button("-", UI_ALIGN_CENTER, "");
+	if (g_ui->is_hovered) {
+		ui_tooltip(tr("Delete active stop"));
+	}
+	if (delete_stop && ui_stops_can_remove(color_ramp_stops_count(&ramp), COLOR_RAMP_MIN_STOPS)) {
 		i32 active = state->stops.active;
 		color_ramp_stops_remove(&ramp, active);
 		state->stops.active = ui_stops_after_remove(active, active, color_ramp_stops_count(&ramp));
