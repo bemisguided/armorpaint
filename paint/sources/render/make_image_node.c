@@ -1334,3 +1334,15 @@ ui_node_button_t *make_image_node_state_button() {
 	                                     .precision     = 100,
 	                                     .height        = 1});
 }
+
+// Registers the sections of an image node type: its own (own may be NULL), then the shared Bake section, which holds the Size
+// setting and the state row, the first two buttons of every image node, closed by default (every node def calls this once).
+// The Bake section is last in the list, so its flag bit is 8 + own_count; the sections of a node keep their order.
+void make_image_node_sections(char *node_type, ui_node_section_t *own, i32 own_count) {
+	ui_node_section_t *list = calloc(own_count + 2, sizeof(ui_node_section_t));
+	for (i32 i = 0; i < own_count; ++i) {
+		list[i] = own[i];
+	}
+	list[own_count] = (ui_node_section_t){.title = _tr("Bake"), .kind = UI_NODE_ITEM_BUTTON, .first = 0, .count = 2, .closed_by_default = true};
+	any_map_set(ui_nodes_sections, node_type, list); // The list ends with the zeroed entry
+}
