@@ -266,5 +266,6 @@ void edge_detect_node_init() {
 	any_array_push(nodes_material_filter, edge_detect_node_def);
 	any_map_set(parser_material_node_values, "TEX_EDGE_DETECT", edge_detect_node_value);
 	any_map_set(parser_material_node_vectors, "TEX_EDGE_DETECT", edge_detect_node_vector);
+	make_image_node_sections("TEX_EDGE_DETECT", NULL, 0);
 	make_image_node_register(&edge_detect_node_image_type);
 }
