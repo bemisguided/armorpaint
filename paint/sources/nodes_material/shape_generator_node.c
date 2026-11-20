@@ -241,5 +241,6 @@ void shape_generator_node_init() {
 	any_map_set(parser_material_node_values, "TEX_SHAPE_GENERATOR", shape_generator_node_value);
 	any_map_set(parser_material_node_vectors, "TEX_SHAPE_GENERATOR", shape_generator_node_vector);
 	any_map_set(ui_nodes_hidden_rules, "TEX_SHAPE_GENERATOR", shape_generator_node_item_hidden);
+	make_image_node_sections("TEX_SHAPE_GENERATOR", NULL, 0); // Bake only: Placement needs the size inputs above it, see the input order
 	make_image_node_register(&shape_generator_node_image_type);
 }
