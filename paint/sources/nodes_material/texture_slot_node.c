@@ -77,7 +77,7 @@ static char *texture_slot_node_sample(ui_node_t *node) {
 	char *store   = parser_material_store_var_name(node);
 	char *uv_name = parser_material_tex_coord;
 	if (parser_material_tex_coord_atlas != NULL) {
-		parser_material_write(parser_material_kong, string_tmp("float2 %s_atlas = %s;", store, parser_material_tex_coord_atlas));
+		parser_material_write(parser_material_kong, string_tmp("float2 %s_atlas = %s;", store, make_texcoord_atlas_uv(parser_material_kong)));
 		uv_name = string_tmp("%s_atlas", store);
 	}
 	if (parser_material_is_frag) {
