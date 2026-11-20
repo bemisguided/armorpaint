@@ -5,10 +5,14 @@
 -Y
 -Z
 .cube LUT
+
+
 2D
 Tampilan 2D
+
 3D
 Tampilan 3D
+
 A
 Tentang
 Tentang...
@@ -64,6 +68,7 @@ Bevel
 Bias
 Bit
 Masker Hitam
+
 Eksekusi Blender
 Path eksekusi Blender belum diatur
 Pencampuran

@@ -5,10 +5,14 @@ Empacotado
 -Y
 -Z
 .cube LUT
+
+
 2D
 Visualização 2D
+
 3D
 Visualização 3D
+
 A
 Sobre
 Sobre...
@@ -64,6 +68,7 @@ Chanfro
 Viés
 Bits
 Máscara Preta
+
 Executável do Blender
 Caminho do executável do Blender não definido
 Mistura

@@ -5,10 +5,14 @@
 -Y
 -Z
 .cube LUT
+
+
 2D
 2D Ansicht
+
 3D
 3D Ansicht
+
 A
 Über
 Über...
@@ -64,6 +68,7 @@ Abschrägung
 Bias
 Bits
 Schwarze Maske
+
 Blender Programm
 Blender Programmpfad nicht gesetzt
 Vermischen

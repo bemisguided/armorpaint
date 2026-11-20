@@ -5,10 +5,14 @@
 -Y
 -Z
 .cube LUT
+1 Pattern
+2 Patterns
 2D
 2D View
+3 Patterns
 3D
 3D View
+4 Patterns
 A
 About
 About...
@@ -64,6 +68,7 @@ Bevel
 Bias
 Bits
 Black Mask
+Blend
 Blender Executable
 Blender executable path not set
 Blending
