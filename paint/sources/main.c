@@ -272,6 +272,7 @@ void plugins_init();
 void _kickstart() {
 	_render_path_cached_shader_contexts = any_map_create();
 	ui_nodes_custom_buttons             = any_map_create();
+	ui_nodes_hidden_rules               = any_map_create();
 
 	box_export_channels = any_array_create_from_raw(
 	    (void *[]){
