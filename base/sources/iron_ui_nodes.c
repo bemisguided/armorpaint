@@ -38,6 +38,7 @@ void (*ui_nodes_on_socket_released)(int)                 = NULL;
 void (*ui_nodes_on_link_drag)(int, bool)                 = NULL;
 void (*ui_nodes_on_node_remove)(ui_node_t *)             = NULL;
 void (*ui_nodes_on_node_changed)(ui_node_t *)            = NULL;
+bool (*ui_nodes_on_item_hidden)(ui_node_t *, ui_node_item_t, int) = NULL; // Whether an input, output or button of a node is not shown
 bool ui_nodes_grid_snap                                  = true;
 int  ui_nodes_grid_snap_w                                = 40;
 
@@ -96,6 +97,9 @@ float UI_BUTTONS_H(ui_node_t *node) {
 	float h = 0.0;
 	for (int i = 0; i < node->buttons->length; ++i) {
 		ui_node_button_t *but = node->buttons->buffer[i];
+		if (ui_node_item_hidden(NULL, node, UI_NODE_ITEM_BUTTON, i)) {
+			continue;
+		}
 		if (strcmp(but->type, "RGBA") == 0) {
 			float ratio = node->width > 0 ? node->width / 140.0 : 1.0; // Node resized
 			h += 104.0 * ratio * UI_NODES_SCALE() + UI_LINE_H() * 5.0; // Color wheel + controls
@@ -113,11 +117,14 @@ float UI_BUTTONS_H(ui_node_t *node) {
 	return h;
 }
 
-float UI_OUTPUTS_H(ui_node_t *node, int length) {
+float UI_OUTPUTS_H(ui_node_canvas_t *canvas, ui_node_t *node, int length) {
 	if (node->flags & UI_NODE_FLAG_COLLAPSED)
 		return 0.0;
 	float h = 0.0;
 	for (int i = 0; i < (length < 0 ? node->outputs->length : length); ++i) {
+		if (ui_node_item_hidden(canvas, node, UI_NODE_ITEM_OUTPUT, i)) {
+			continue;
+		}
 		h += UI_LINE_H();
 	}
 	return h;
@@ -133,9 +140,38 @@ bool ui_input_linked(ui_node_canvas_t *canvas, int node_id, int i) {
 	return false;
 }
 
-float UI_INPUTS_H(ui_node_canvas_t *canvas, ui_node_socket_t **sockets, int sockets_count, int length) {
+bool ui_output_linked(ui_node_canvas_t *canvas, int node_id, int i) {
+	for (int x = 0; x < canvas->links->length; ++x) {
+		ui_node_link_t *l = canvas->links->buffer[x];
+		if (l->from_id == node_id && l->from_socket == i) {
+			return true;
+		}
+	}
+	return false;
+}
+
+// The app decides through ui_nodes_on_item_hidden; a linked socket is never hidden, so a hidden socket has no link to draw.
+// A hidden socket keeps its index, value and link data, only its row is skipped. canvas may be NULL for buttons.
+bool ui_node_item_hidden(ui_node_canvas_t *canvas, ui_node_t *node, ui_node_item_t kind, int index) {
+	if (ui_nodes_on_item_hidden == NULL || !ui_nodes_on_item_hidden(node, kind, index)) {
+		return false;
+	}
+	if (kind == UI_NODE_ITEM_INPUT) {
+		return !ui_input_linked(canvas, node->id, index);
+	}
+	if (kind == UI_NODE_ITEM_OUTPUT) {
+		return !ui_output_linked(canvas, node->id, index);
+	}
+	return true;
+}
+
+float UI_INPUTS_H(ui_node_canvas_t *canvas, ui_node_t *node, int length) {
+	ui_node_socket_t **sockets = node->inputs->buffer;
 	float h = 0.0;
-	for (int i = 0; i < (length < 0 ? sockets_count : length); ++i) {
+	for (int i = 0; i < (length < 0 ? node->inputs->length : length); ++i) {
+		if (ui_node_item_hidden(canvas, node, UI_NODE_ITEM_INPUT, i)) {
+			continue;
+		}
 		if (strcmp(sockets[i]->type, "VECTOR") == 0 && sockets[i]->display == 1 && !ui_input_linked(canvas, sockets[i]->node_id, i)) {
 			h += UI_LINE_H() * 4;
 		}
@@ -149,7 +185,7 @@ float UI_INPUTS_H(ui_node_canvas_t *canvas, ui_node_socket_t **sockets, int sock
 float UI_NODE_H(ui_node_canvas_t *canvas, ui_node_t *node) {
 	if (node->flags & UI_NODE_FLAG_COLLAPSED)
 		return UI_LINE_H() * 1.2;
-	return UI_LINE_H() * 1.2 + UI_INPUTS_H(canvas, node->inputs->buffer, node->inputs->length, -1) + UI_OUTPUTS_H(node, -1) + UI_BUTTONS_H(node);
+	return UI_LINE_H() * 1.2 + UI_INPUTS_H(canvas, node, -1) + UI_OUTPUTS_H(canvas, node, -1) + UI_BUTTONS_H(node);
 }
 
 float UI_NODE_W(ui_node_t *node) {
@@ -167,13 +203,13 @@ float UI_NODE_Y(ui_node_t *node) {
 float UI_INPUT_Y(ui_node_canvas_t *canvas, ui_node_t *node, int pos) {
 	if (node->flags & UI_NODE_FLAG_COLLAPSED)
 		return UI_LINE_H() * 0.5;
-	return UI_LINE_H() * 1.62 + UI_INPUTS_H(canvas, node->inputs->buffer, node->inputs->length, pos);
+	return UI_LINE_H() * 1.62 + UI_INPUTS_H(canvas, node, pos);
 }
 
-float UI_OUTPUT_Y(ui_node_t *node, int pos) {
+float UI_OUTPUT_Y(ui_node_canvas_t *canvas, ui_node_t *node, int pos) {
 	if (node->flags & UI_NODE_FLAG_COLLAPSED)
 		return UI_LINE_H() * 0.5;
-	return UI_LINE_H() * 1.62 + UI_OUTPUTS_H(node, pos);
+	return UI_LINE_H() * 1.62 + UI_OUTPUTS_H(canvas, node, pos);
 }
 
 float ui_p(float f) {
@@ -461,14 +497,20 @@ void ui_node_draw_body(ui_node_t *node, ui_node_canvas_t *canvas, float nx, floa
 	// Outputs
 	for (int i = 0; i < node->outputs->length; ++i) {
 		ui_node_socket_t *out = node->outputs->buffer[i];
+		if (ui_node_item_hidden(canvas, node, UI_NODE_ITEM_OUTPUT, i)) {
+			continue;
+		}
 		ny += lineh;
 		draw_set_color(out->color);
 		draw_scaled_image(&ui_socket_image, nx + w - ui_p(6), ny - ui_p(3), ui_p(12), ui_p(12));
 	}
-	ny -= lineh * node->outputs->length;
+	ny -= UI_OUTPUTS_H(canvas, node, -1);
 	draw_set_color(current->ops->theme->LABEL_COL);
 	for (int i = 0; i < node->outputs->length; ++i) {
 		ui_node_socket_t *out = node->outputs->buffer[i];
+		if (ui_node_item_hidden(canvas, node, UI_NODE_ITEM_OUTPUT, i)) {
+			continue;
+		}
 		ny += lineh;
 		float strw = draw_string_width(current->ops->font, current->font_size, ui_tr(out->name));
 		draw_string(ui_tr(out->name), nx + w - strw - ui_p(12), ny - ui_p(3));
@@ -486,6 +528,9 @@ void ui_node_draw_body(ui_node_t *node, ui_node_canvas_t *canvas, float nx, floa
 	for (int buti = 0; buti < node->buttons->length; ++buti) {
 		ui_node_button_t *but = node->buttons->buffer[buti];
 		float            *val = but->output == -1 ? but->default_value->buffer : node->outputs->buffer[but->output]->default_value->buffer;
+		if (ui_node_item_hidden(canvas, node, UI_NODE_ITEM_BUTTON, buti)) {
+			continue;
+		}
 
 		if (strcmp(but->type, "RGBA") == 0) {
 			ny += lineh;             // 18 + 2 separator
@@ -627,6 +672,9 @@ void ui_node_draw_body(ui_node_t *node, ui_node_canvas_t *canvas, float nx, floa
 	// Inputs
 	for (int i = 0; i < node->inputs->length; ++i) {
 		ui_node_socket_t *inp = node->inputs->buffer[i];
+		if (ui_node_item_hidden(canvas, node, UI_NODE_ITEM_INPUT, i)) {
+			continue;
+		}
 		ny += lineh;
 		draw_set_color(inp->color);
 		draw_scaled_image(&ui_socket_image, nx - ui_p(6), ny - ui_p(3), ui_p(12), ui_p(12));
@@ -901,9 +949,9 @@ void ui_node_canvas(ui_nodes_t *nodes, ui_node_canvas_t *canvas) {
 		ui_node_t      *from   = ui_get_node(canvas->nodes, link->from_id);
 		ui_node_t      *to     = ui_get_node(canvas->nodes, link->to_id);
 		float           from_x = from == NULL ? current->input_x : wx + UI_NODE_X(from) + UI_NODE_W(from);
-		float           from_y = from == NULL ? current->input_y : wy + UI_NODE_Y(from) + UI_OUTPUT_Y(from, link->from_socket);
+		float           from_y = from == NULL ? current->input_y : wy + UI_NODE_Y(from) + UI_OUTPUT_Y(canvas, from, link->from_socket);
 		float           to_x   = to == NULL ? current->input_x : wx + UI_NODE_X(to);
-		float to_y = to == NULL ? current->input_y : wy + UI_NODE_Y(to) + UI_INPUT_Y(canvas, to, link->to_socket) + UI_OUTPUTS_H(to, -1) + UI_BUTTONS_H(to);
+		float to_y = to == NULL ? current->input_y : wy + UI_NODE_Y(to) + UI_INPUT_Y(canvas, to, link->to_socket) + UI_OUTPUTS_H(canvas, to, -1) + UI_BUTTONS_H(to);
 
 		// Cull
 		float left   = to_x > from_x ? from_x : to_x;
@@ -936,8 +984,11 @@ void ui_node_canvas(ui_nodes_t *nodes, ui_node_canvas_t *canvas) {
 				if (ui_input_in_rect(rx, ry, rw, rh)) {
 					if (from == NULL && node->id != to->id) { // Snap to output
 						for (int k = 0; k < node->outputs->length; ++k) {
+							if (ui_node_item_hidden(canvas, node, UI_NODE_ITEM_OUTPUT, k)) {
+								continue;
+							}
 							float sx = wx + UI_NODE_X(node) + UI_NODE_W(node);
-							float sy = wy + UI_NODE_Y(node) + UI_OUTPUT_Y(node, k);
+							float sy = wy + UI_NODE_Y(node) + UI_OUTPUT_Y(canvas, node, k);
 							float rx = sx - UI_LINE_H() / 2;
 							float ry = sy - UI_LINE_H() / 2;
 							if (ui_input_in_rect(rx, ry, UI_LINE_H(), UI_LINE_H())) {
@@ -951,8 +1002,11 @@ void ui_node_canvas(ui_nodes_t *nodes, ui_node_canvas_t *canvas) {
 					}
 					else if (to == NULL && node->id != from->id) { // Snap to input
 						for (int k = 0; k < node->inputs->length; ++k) {
+							if (ui_node_item_hidden(canvas, node, UI_NODE_ITEM_INPUT, k)) {
+								continue;
+							}
 							float sx = wx + UI_NODE_X(node);
-							float sy = wy + UI_NODE_Y(node) + UI_INPUT_Y(canvas, node, k) + UI_OUTPUTS_H(node, -1) + UI_BUTTONS_H(node);
+							float sy = wy + UI_NODE_Y(node) + UI_INPUT_Y(canvas, node, k) + UI_OUTPUTS_H(canvas, node, -1) + UI_BUTTONS_H(node);
 							float rx = sx - UI_LINE_H() / 2.0;
 							float ry = sy - UI_LINE_H() / 2.0;
 							if (ui_input_in_rect(rx, ry, UI_LINE_H(), UI_LINE_H())) {
@@ -994,7 +1048,7 @@ void ui_node_canvas(ui_nodes_t *nodes, ui_node_canvas_t *canvas) {
 
 		// Resize node
 		float node_h = UI_NODE_H(canvas, node);
-		float top_h  = UI_LINE_H() + UI_OUTPUTS_H(node, -1) + ui_p(5);
+		float top_h  = UI_LINE_H() + UI_OUTPUTS_H(canvas, node, -1) + ui_p(5);
 		if (current->input_enabled && (ui_input_in_rect(wx + UI_NODE_X(node) + UI_NODE_W(node), wy + UI_NODE_Y(node), 5, UI_LINE_H()) ||
 		                               ui_input_in_rect(wx + UI_NODE_X(node) + UI_NODE_W(node), wy + UI_NODE_Y(node) + top_h, 5, node_h - top_h))) {
 
@@ -1039,8 +1093,11 @@ void ui_node_canvas(ui_nodes_t *nodes, ui_node_canvas_t *canvas) {
 			// Check sockets
 			if (current_nodes->link_drag_id == -1) {
 				for (int j = 0; j < node->outputs->length; ++j) {
+					if (ui_node_item_hidden(canvas, node, UI_NODE_ITEM_OUTPUT, j)) {
+						continue;
+					}
 					float sx = wx + UI_NODE_X(node) + UI_NODE_W(node);
-					float sy = wy + UI_NODE_Y(node) + UI_OUTPUT_Y(node, j);
+					float sy = wy + UI_NODE_Y(node) + UI_OUTPUT_Y(canvas, node, j);
 					if (ui_input_in_rect(sx - UI_LINE_H() / 2.0, sy - UI_LINE_H() / 2.0, UI_LINE_H(), UI_LINE_H())) {
 						// New link from output
 						ui_node_link_t *l = (ui_node_link_t *)malloc(sizeof(ui_node_link_t)); // TODO: store at canvas->links without malloc
@@ -1058,8 +1115,11 @@ void ui_node_canvas(ui_nodes_t *nodes, ui_node_canvas_t *canvas) {
 			}
 			if (current_nodes->link_drag_id == -1) {
 				for (int j = 0; j < node->inputs->length; ++j) {
+					if (ui_node_item_hidden(canvas, node, UI_NODE_ITEM_INPUT, j)) {
+						continue;
+					}
 					float sx = wx + UI_NODE_X(node);
-					float sy = wy + UI_NODE_Y(node) + UI_INPUT_Y(canvas, node, j) + UI_OUTPUTS_H(node, -1) + UI_BUTTONS_H(node);
+					float sy = wy + UI_NODE_Y(node) + UI_INPUT_Y(canvas, node, j) + UI_OUTPUTS_H(canvas, node, -1) + UI_BUTTONS_H(node);
 					if (ui_input_in_rect(sx - UI_LINE_H() / 2.0, sy - UI_LINE_H() / 2.0, UI_LINE_H(), UI_LINE_H())) {
 						// Already has a link - disconnect
 						for (int k = 0; k < canvas->links->length; ++k) {
