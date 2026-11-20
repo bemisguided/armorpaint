@@ -17,6 +17,15 @@
 
 #define EDGE_DETECT_WIDTH_MAX 0.1 // Maximum of the Edge Width slider
 
+// Defaults: Gradient, Edge Width 0, Tolerance 0. The widening scales the blurred edge image by 4 w / 3 so that a one pixel
+// wide line still peaks at 1; a smooth input (noise, a distance field) has gradient everywhere, not lines, and any
+// Edge Width above the antialiasing threshold multiplies it by that gain (Edge Width 0.005: all white, measured 99 percent
+// of a Perlin noise above 0.9). Edge Width 0 gives the gradient magnitude relative to its largest value (a soft slope map on
+// smooth input, mean 0.32 on noise) and a clean antialiased line of about 2.7 pixels on a hard edge. A Tolerance above 0 would
+// cut a smooth input to black (its raw slopes are far below 0.01). Both stay sliders: the user widens the line when needed.
+#define EDGE_DETECT_DEFAULT_WIDTH     0.0
+#define EDGE_DETECT_DEFAULT_TOLERANCE 0.0
+
 // Input socket indices
 enum {
 	EDGE_DETECT_INPUT_IMAGE      = 0,
@@ -310,8 +319,8 @@ void edge_detect_node_init() {
 	                .inputs = any_array_create_from_raw(
 	                    (void *[]){
 	                        make_image_node_socket(_tr("Image"), "VALUE", NODES_MATERIAL_IMAGE_COLOR, f32_array_create_x(1.0), 0.0, 1.0, 100),
-	                        make_image_node_socket(_tr("Edge Width"), "VALUE", value_color, f32_array_create_x(0.005), 0.0, EDGE_DETECT_WIDTH_MAX, 1000),
-	                        make_image_node_socket(_tr("Tolerance"), "VALUE", value_color, f32_array_create_x(0.0), 0.0, 1.0, 100),
+	                        make_image_node_socket(_tr("Edge Width"), "VALUE", value_color, f32_array_create_x(EDGE_DETECT_DEFAULT_WIDTH), 0.0, EDGE_DETECT_WIDTH_MAX, 1000),
+	                        make_image_node_socket(_tr("Tolerance"), "VALUE", value_color, f32_array_create_x(EDGE_DETECT_DEFAULT_TOLERANCE), 0.0, 1.0, 100),
 	                    },
 	                    3),
 	                .outputs = any_array_create_from_raw(
