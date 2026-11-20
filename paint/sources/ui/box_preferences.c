@@ -313,6 +313,9 @@ void box_preferences_theme_tab() {
 			continue;
 		}
 		u32 *field  = u32_theme + i;
+		if (*field == 0 && string_equals(key, "SELECTION_COL")) {
+			*field = g_theme->HIGHLIGHT_COL; // A theme file without a selection colour: show what it falls back to
+		}
 		u32  val    = *field;
 		bool is_hex = ends_with(key, "_COL");
 

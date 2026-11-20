@@ -1205,7 +1205,7 @@ bool ui_menubar_button(char *text) {
 const char *ui_theme_keys[] = {"WINDOW_BG_COL", "HOVER_COL",         "BUTTON_COL", "PRESSED_COL",   "TEXT_COL",       "LABEL_COL",  "SEPARATOR_COL",
                                "HIGHLIGHT_COL", "FONT_SIZE",         "ELEMENT_W",  "ELEMENT_H",     "ELEMENT_OFFSET", "ARROW_SIZE", "BUTTON_H",
                                "CHECK_SIZE",    "CHECK_SELECT_SIZE", "SCROLL_W",   "SCROLL_MINI_W", "TEXT_OFFSET",    "TAB_W",      "FILL_BUTTON_BG",
-                               "FULL_TABS",     "SHADOWS",           "LINK_STYLE", "VIEWPORT_COL"};
+                               "FULL_TABS",     "SHADOWS",           "LINK_STYLE", "VIEWPORT_COL", "SELECTION_COL"};
 
 int ui_theme_keys_count = sizeof(ui_theme_keys) / sizeof(ui_theme_keys[0]);
 

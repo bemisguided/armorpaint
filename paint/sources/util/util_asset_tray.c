@@ -55,13 +55,19 @@ static u32 asset_tray_mix(u32 a, u32 b, f32 t) {
 	return result;
 }
 
+// Base colour of the selection mark: the theme's selection colour, the highlight colour for a theme without one (0, a theme file
+// written before the key existed)
+static u32 asset_tray_selection_col(u32 selection_col, u32 highlight_col) {
+	return selection_col != 0 ? selection_col : highlight_col;
+}
+
 // Colours of the selection mark, all derived from the theme and opaque: ui_rect_round blends a translucent colour wrongly in its
-// corners. The ring is the highlight colour mixed towards the text colour until it reads on the window background (3:1 and more,
+// corners. The ring is the selection colour mixed towards the text colour until it reads on the window background (3:1 and more,
 // the light theme is the limit), the active ring mixes further than the selected one. The plate is the window background with a
-// few percent of the highlight colour, a bit more for the active item.
-static void asset_tray_frame_colors(u32 bg_col, u32 text_col, u32 highlight_col, bool active, u32 *plate, u32 *ring) {
-	*ring  = asset_tray_mix(highlight_col, text_col, active ? 0.5f : 0.34f);
-	*plate = asset_tray_mix(bg_col, highlight_col, active ? 0.15f : 0.08f);
+// few percent of the selection colour, a bit more for the active item.
+static void asset_tray_frame_colors(u32 bg_col, u32 text_col, u32 selection_col, bool active, u32 *plate, u32 *ring) {
+	*ring  = asset_tray_mix(selection_col, text_col, active ? 0.5f : 0.34f);
+	*plate = asset_tray_mix(bg_col, selection_col, active ? 0.15f : 0.08f);
 }
 
 static f32 asset_tray_ring_thickness(bool active, f32 scale) {
@@ -82,7 +88,7 @@ static void asset_tray_plate_rect(f32 ox, f32 oy, f32 x, f32 y, f32 w, f32 h, f3
 // Nothing is drawn for an item that is not selected. x, y, w, h: the box of the ring in ui units relative to the item cell, the
 // same arguments ui_rect_round takes. cell_x, cell_y: the ui position of the item cell (g_ui->_x, _y read before the preview).
 
-// Step 1, before the preview: a plate tinted with the highlight colour (stronger for the active item).
+// Step 1, before the preview: a plate tinted with the selection colour (stronger for the active item).
 void asset_tray_plate_draw(asset_tray_t tray, void *item, f32 cell_x, f32 cell_y, f32 x, f32 y, f32 w, f32 h) {
 	bool active = asset_selection_active(tray) == item;
 	if (!active && !asset_selection_contains(tray, item)) {
@@ -90,7 +96,7 @@ void asset_tray_plate_draw(asset_tray_t tray, void *item, f32 cell_x, f32 cell_y
 	}
 	u32 plate_col;
 	u32 ring_col;
-	asset_tray_frame_colors(g_theme->WINDOW_BG_COL, g_theme->TEXT_COL, g_theme->HIGHLIGHT_COL, active, &plate_col, &ring_col);
+	asset_tray_frame_colors(g_theme->WINDOW_BG_COL, g_theme->TEXT_COL, asset_tray_selection_col(g_theme->SELECTION_COL, g_theme->HIGHLIGHT_COL), active, &plate_col, &ring_col);
 	i32 px, py, pw, ph;
 	asset_tray_plate_rect(cell_x, cell_y, x, y, w, h, UI_SCALE(), asset_tray_ring_thickness(active, UI_SCALE()), &px, &py, &pw, &ph);
 	draw_set_color(plate_col);
@@ -106,7 +112,7 @@ void asset_tray_ring_draw(asset_tray_t tray, void *item, f32 cell_x, f32 cell_y,
 	}
 	u32 plate_col;
 	u32 ring_col;
-	asset_tray_frame_colors(g_theme->WINDOW_BG_COL, g_theme->TEXT_COL, g_theme->HIGHLIGHT_COL, active, &plate_col, &ring_col);
+	asset_tray_frame_colors(g_theme->WINDOW_BG_COL, g_theme->TEXT_COL, asset_tray_selection_col(g_theme->SELECTION_COL, g_theme->HIGHLIGHT_COL), active, &plate_col, &ring_col);
 	f32 _x   = g_ui->_x;
 	f32 _y   = g_ui->_y;
 	g_ui->_x = cell_x;

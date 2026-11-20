@@ -60,6 +60,7 @@ typedef struct ui_theme {
 	/*bool*/ int SHADOWS;
 	int          LINK_STYLE;
 	int          VIEWPORT_COL;
+	int          SELECTION_COL; // Selection mark of the asset trays, 0 = HIGHLIGHT_COL. Last: the theme json is read by position
 } ui_theme_t;
 
 typedef struct ui_options {
