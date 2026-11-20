@@ -659,5 +659,5 @@ int   ui_stops_after_remove(int active, int removed, int count_after);
 bool  ui_stops_can_add(int count, int max_count);
 bool  ui_stops_can_remove(int count, int min_count);
 bool  ui_stops_is_double_click(double now, double last_time, int last_hit, int hit);
-int   ui_stops_update(ui_stops_t *s, const ui_stops_ops_t *ops, void *data, float x, float y, float w, float bar_h, float marker_h);
+int   ui_stops_update(ui_stops_t *s, const ui_stops_ops_t *ops, void *data, float x, float y, float w, float bar_h, float marker_h, float hit_h);
 void  ui_stops_draw_pin(float cx, float y, float w, float h, uint32_t fill, bool active);
