@@ -12,6 +12,10 @@
 // Tolerance, else 0 (soft sides after the widening). The result is kept in 32 bit float.
 // Edge Width and Tolerance hold for the whole image (scalar, evaluated at the image centre when linked): the blur
 // width has to be known per bake, and a per pixel link has no neighbours to compare in image space.
+// A linked Edge Width is clamped to the slider range 0 to EDGE_DETECT_WIDTH_MAX (a huge value saturates the ridge
+// normalisation and gave an all white image; not a number and negative values give 0).
+
+#define EDGE_DETECT_WIDTH_MAX 0.1 // Maximum of the Edge Width slider
 
 // Input socket indices
 enum {
@@ -51,7 +55,8 @@ static void edge_detect_node_params(ui_node_t *node, void *params) {
 	edge_detect_params_t *p = params;
 	p->boundary             = make_image_node_button(node, EDGE_DETECT_BUTTON_MODE) != 0.0;
 	p->wrap                 = make_image_node_button(node, EDGE_DETECT_BUTTON_WRAP) != 0.0;
-	p->edge_width           = make_image_node_input_value(node, EDGE_DETECT_INPUT_EDGE_WIDTH);
+	f32 width               = make_image_node_input_value(node, EDGE_DETECT_INPUT_EDGE_WIDTH);
+	p->edge_width           = !(width > 0.0) ? 0.0 : width > EDGE_DETECT_WIDTH_MAX ? EDGE_DETECT_WIDTH_MAX : width; // Not a number gives 0
 	p->tolerance            = make_image_node_input_value(node, EDGE_DETECT_INPUT_TOLERANCE);
 }
 
@@ -305,7 +310,7 @@ void edge_detect_node_init() {
 	                .inputs = any_array_create_from_raw(
 	                    (void *[]){
 	                        make_image_node_socket(_tr("Image"), "VALUE", NODES_MATERIAL_IMAGE_COLOR, f32_array_create_x(1.0), 0.0, 1.0, 100),
-	                        make_image_node_socket(_tr("Edge Width"), "VALUE", value_color, f32_array_create_x(0.005), 0.0, 0.1, 1000),
+	                        make_image_node_socket(_tr("Edge Width"), "VALUE", value_color, f32_array_create_x(0.005), 0.0, EDGE_DETECT_WIDTH_MAX, 1000),
 	                        make_image_node_socket(_tr("Tolerance"), "VALUE", value_color, f32_array_create_x(0.0), 0.0, 1.0, 100),
 	                    },
 	                    3),
