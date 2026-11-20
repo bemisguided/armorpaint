@@ -1366,6 +1366,10 @@ bool ui_viewnodes_on_item_hidden(ui_node_t *node, ui_node_item_t kind, i32 index
 	return rule != NULL && rule(node, kind, index);
 }
 
+const ui_node_section_t *ui_viewnodes_on_sections(ui_node_t *node) {
+	return any_map_get(ui_nodes_sections, node->type);
+}
+
 void ui_viewnodes_init() {
 	ui_nodes_preview_texture = ui_nodes_get_node_preview_image;
 
@@ -1376,6 +1380,8 @@ void ui_viewnodes_init() {
 	ui_nodes_on_node_changed = ui_viewnodes_on_node_changed;
 
 	ui_nodes_on_item_hidden = ui_viewnodes_on_item_hidden;
+
+	ui_nodes_on_sections = ui_viewnodes_on_sections;
 
 	ui_nodes_on_socket_released = ui_viewnodes_on_socket_released;
 
