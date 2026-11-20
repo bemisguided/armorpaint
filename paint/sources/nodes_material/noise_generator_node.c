@@ -8,9 +8,11 @@
 // The Mode setting decides the maths and which inputs and settings are shown (ui_nodes_hidden_rules, a linked socket is
 // always shown). Modes are rows of a table (noise_generator_modes_init); the spec describes how to add one.
 //
-// The noise point is p = (uv, z): uv in 0..1 across the image, z = 0.5 + 0.5 * frac(Seed) a constant slice (the integer part of
-// Seed picks the hash seed, the fraction moves the slice), then every octave multiplies p by its frequency (Scale = lattice cells
-// across the image for the first octave).
+// The noise point is p = (uv, z): uv in 0..1 across the image, z = 0.3 + 0.4 * frac(Seed) a constant slice (the integer part of
+// Seed picks the hash seed, the fraction moves the slice). Every octave multiplies x and y of p by its frequency (Scale = lattice
+// cells across the image for the first octave), z stays: the slice is inside the first z cell of every octave, never on a lattice
+// plane (z * frequency must not be an integer: a slice exactly on a z lattice plane is a 2D noise of the 12 gradients projected, which
+// shows axis aligned streaks and triangular crests, seen with z = 0 and with z = 0.5 at Scale 5).
 //
 // Mode Perlin: gradient noise (improved Perlin, the 12 edge midpoint gradients), fade 6t^5 - 15t^4 + 10t^3.
 //   - Lattice coordinates wrap at 65536 cells (a bound for the int conversion), or at the period when Tileable (at most 65536).
@@ -87,7 +89,7 @@ float perlin_octave(float3 p, float freq, float tileable, int seed) { \
 		f = max(1.0, floor(freq + 0.5)); \
 		period = f; \
 	} \
-	return perlin_noise_3d(p * f, period, seed); \
+	return perlin_noise_3d(float3(p.x * f, p.y * f, p.z), period, seed); \
 } \
 float perlin_signed(float3 p, float freq, float tileable, int seed) { \
 	return clamp(perlin_octave(p, freq, tileable, seed) * 1.3, -1.0, 1.0); \
@@ -122,7 +124,7 @@ float perlin_factor(float3 p, float scale, float detail, float roughness, float 
 	return 0.5 + 0.5 * clamp(n * 1.3, -1.0, 1.0); \
 } \
 float perlin_image(float u, float v, float scale, float detail, float roughness, float lacunarity, float distortion, float tileable, float seed) { \
-	float z = 0.5 + 0.5 * (seed - floor(seed)); \
+	float z = 0.3 + 0.4 * (seed - floor(seed)); \
 	return perlin_factor(float3(u, v, z), scale, detail, roughness, lacunarity, distortion, tileable, seed); \
 } \
 ";
