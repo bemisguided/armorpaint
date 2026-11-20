@@ -1167,6 +1167,7 @@ char                     *make_material_blend_mode(node_shader_t *kong, i32 blen
 void                      ui_viewnodes_init();
 void                      ui_viewnodes_on_node_remove(ui_node_t *n);
 void                      ui_viewnodes_on_node_changed(ui_node_t *n);
+bool                      ui_viewnodes_on_item_hidden(ui_node_t *node, ui_node_item_t kind, i32 index);
 void                      ui_viewnodes_on_canvas_capture_output(void *_);
 void                      ui_viewnodes_on_canvas_released_duplicate(void *_);
 void                      ui_viewnodes_on_canvas_delete_on_next_frame(void *_);
