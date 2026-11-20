@@ -397,6 +397,7 @@ Layer UV Scale
 Layer UV Type
 Layer Visibility
 Layers
+Layout
 Lazy Radius
 Lazy Step
 Left
@@ -418,6 +419,7 @@ Make Unique
 Manual
 Map Range
 Mapping
+Maps
 Mask
 Mask Color
 Mass
@@ -559,6 +561,7 @@ Pinch
 Ping-Pong
 Pivot
 Pixel Size
+Placement
 Plateau
 Play
 Player

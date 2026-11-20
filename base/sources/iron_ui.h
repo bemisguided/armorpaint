@@ -504,7 +504,30 @@ typedef enum ui_node_flag {
 	UI_NODE_FLAG_COLLAPSED = 1,
 	UI_NODE_FLAG_PREVIEW   = 2,
 	UI_NODE_FLAG_CODE_HIDE = 4,
+	// Bits 8 and up: section n (ui_node_section_t, index in the list of its node type) uses bit 8 + n, at most UI_NODE_SECTIONS_MAX sections.
+	// A set bit means "toggled away from the default of the section" (closed_by_default), so 0, the value of every node saved before and of every new node,
+	// is the default state of all sections. Presentation only: no undo step, no compile, no format change (flags is saved as is).
+	UI_NODE_FLAG_SECTION_0 = 256,
 } ui_node_flag_t;
+
+#define UI_NODE_SECTIONS_MAX 23
+
+// Kinds of rows of a node, for ui_nodes_on_item_hidden
+typedef enum ui_node_item {
+	UI_NODE_ITEM_INPUT,
+	UI_NODE_ITEM_OUTPUT,
+	UI_NODE_ITEM_BUTTON,
+} ui_node_item_t;
+
+// A collapsible section of a node: a header row (triangle and title) in front of a contiguous range of inputs or of buttons
+// (settings) of the node. The range is by index, the order of the node def, so nothing is stored in the canvas.
+typedef struct ui_node_section {
+	const char     *title;             // Translated with ui_tr when drawn; a list of sections ends with an entry whose title is NULL
+	ui_node_item_t  kind;              // UI_NODE_ITEM_INPUT or UI_NODE_ITEM_BUTTON, never both in one section
+	int             first;             // Index of the first member
+	int             count;             // Number of members
+	bool            closed_by_default; // State while the flag bit is clear
+} ui_node_section_t;
 
 typedef struct ui_node {
 	int                     id;
@@ -596,6 +619,8 @@ extern void (*ui_nodes_on_socket_released)(int);
 extern void (*ui_nodes_on_link_drag)(int, bool);
 extern void (*ui_nodes_on_node_remove)(ui_node_t *);
 extern void (*ui_nodes_on_node_changed)(ui_node_t *);
+extern bool (*ui_nodes_on_item_hidden)(ui_node_t *, ui_node_item_t, int);
+extern const ui_node_section_t *(*ui_nodes_on_sections)(ui_node_t *);
 extern bool ui_nodes_grid_snap;
 
 void     ui_node_canvas_encode(ui_node_canvas_t *canvas);
@@ -606,9 +631,12 @@ float UI_NODE_X(ui_node_t *node);
 float UI_NODE_Y(ui_node_t *node);
 float UI_NODE_W(ui_node_t *node);
 float UI_NODE_H(ui_node_canvas_t *canvas, ui_node_t *node);
-float UI_OUTPUT_Y(ui_node_t *node, int pos);
+int   ui_node_section_header_at(ui_node_canvas_t *canvas, ui_node_t *node, ui_node_item_t kind, int index);
+bool  ui_node_section_closed(ui_node_t *node, int section);
+bool  ui_node_item_hidden(ui_node_canvas_t *canvas, ui_node_t *node, ui_node_item_t kind, int index);
+float UI_OUTPUT_Y(ui_node_canvas_t *canvas, ui_node_t *node, int pos);
 float UI_INPUT_Y(ui_node_canvas_t *canvas, ui_node_t *node, int pos);
-float UI_OUTPUTS_H(ui_node_t *node, int length);
+float UI_OUTPUTS_H(ui_node_canvas_t *canvas, ui_node_t *node, int length);
 float UI_BUTTONS_H(ui_node_t *node);
 float UI_LINE_H();
 float UI_NODES_PAN_X();

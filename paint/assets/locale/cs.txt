@@ -397,6 +397,7 @@ Měřítko UV vrstvy
 Typ UV vrstvy
 Viditelnost vrstvy
 Vrstvy
+
 Líný poloměr
 Líný krok
 Vlevo
@@ -418,6 +419,7 @@ Učinit jedinečným
 Manuál
 Mapovat rozsah
 Mapování
+
 Maska
 Barva masky
 Hmotnost
@@ -559,6 +561,7 @@ Sevřít
 Ping-pong
 Střed otáčení
 Velikost pixelu
+
 Plošina
 Přehrát
 Přehrávač
