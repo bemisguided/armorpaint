@@ -506,6 +506,7 @@ No response
 Node
 Node Previews
 Nodes
+Noise Generator
 Noise Grain
 Noise Texture
 None
@@ -555,6 +556,7 @@ Pattern Mode
 By Map
 Color Map
 Pattern Map
+Perlin
 Pivot X
 Pivot Y
 Position X
@@ -804,6 +806,7 @@ Tile
 Tile Generator
 Tile X
 Tile Y
+Tileable
 Tiled
 Tiles X
 Tiles Y

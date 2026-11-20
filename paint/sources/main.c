@@ -80,6 +80,7 @@
 #include "nodes_material/math2_node.c"
 #include "nodes_material/mix_color_node.c"
 #include "nodes_material/mix_normal_map_node.c"
+#include "nodes_material/noise_generator_node.c"
 #include "nodes_material/noise_texture_node.c"
 #include "nodes_material/normal_converter_node.c"
 #include "nodes_material/normal_map_node.c"

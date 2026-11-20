@@ -506,6 +506,7 @@ Ne
 Uzel
 Náhledy uzlů
 Uzly
+
 Šum zrna
 Šumová textura
 Žádný
@@ -551,6 +552,7 @@ Počátek na geometrii
 Ortografie
 Výstup
 Překrytí
+
 
 
 
@@ -804,6 +806,7 @@ Dlaždice
 
 Dlaždice X
 Dlaždice Y
+
 Dlaždicový
 Dlaždic X
 Dlaždic Y

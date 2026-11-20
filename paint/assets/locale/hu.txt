@@ -506,6 +506,7 @@ Nincs válasz
 Csomópont
 Csomópont előnézetek
 Csomópontok
+
 Zaj szemcse
 Zaj textúra
 Nincs
@@ -551,6 +552,7 @@ Origó a geometriához
 Ortografikus
 Kimenet
 Átfedés (Overlay)
+
 
 
 
@@ -804,6 +806,7 @@ Mozaik
 
 Mozaik X
 Mozaik Y
+
 Csempézett
 Mozaikok X
 Mozaikok Y

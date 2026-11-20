@@ -506,6 +506,7 @@ Aucune réponse
 Nœud
 Aperçus de nœuds
 Nœuds
+
 Grain du bruit
 Texture de bruit
 Aucun
@@ -551,6 +552,7 @@ Origine vers la géométrie
 Orthographique
 Sortie
 Superposer
+
 
 
 
@@ -804,6 +806,7 @@ Tuile
 
 Tuile X
 Tuile Y
+
 Carrelé
 Tuiles X
 Tuiles Y

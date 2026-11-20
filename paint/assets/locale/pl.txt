@@ -506,6 +506,7 @@ Brak odpowiedzi
 Węzeł
 Podglądy węzłów
 Węzły
+
 Ziarnistość szumu
 Tekstura szumu
 Brak
@@ -551,6 +552,7 @@ Orientacja 3D
 Ortograficzny
 Wyjście
 Nakładka
+
 
 
 
@@ -804,6 +806,7 @@ Kafelek
 
 Kafelek X
 Kafelek Y
+
 Kafelkowany
 Kafelków X
 Kafelków Y

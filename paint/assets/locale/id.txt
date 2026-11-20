@@ -506,6 +506,7 @@ Tidak ada respons
 Node
 Pratinjau Node
 Node
+
 Butiran Noise
 Tekstur Noise
 Tidak Ada
@@ -551,6 +552,7 @@ Origin ke Geometri
 Ortografis
 Keluar
 Hampar
+
 
 
 
@@ -804,6 +806,7 @@ Petak
 
 Petak X
 Petak Y
+
 Diubin
 Jumlah Petak X
 Jumlah Petak Y

@@ -506,6 +506,7 @@ Sem resposta
 Nó
 Pré-visualizações de Nós
 Nós
+
 Grão de Ruído
 Textura de Ruído
 Nenhum
@@ -551,6 +552,7 @@ Origem para Geometria
 Ortográfica
 Saída
 Sobrepor
+
 
 
 
@@ -804,6 +806,7 @@ Bloco
 
 Bloco X
 Bloco Y
+
 Ladrilhado
 Blocos X
 Blocos Y

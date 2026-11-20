@@ -506,6 +506,7 @@ Sin respuesta
 Nodo
 Vistas previas de nodos
 Nodos
+
 Grano de ruido
 Ruido
 Ninguno
@@ -551,6 +552,7 @@ Origen a la geometría
 Ortográfica
 Salida
 Superponer
+
 
 
 
@@ -804,6 +806,7 @@ Mosaico
 
 Mosaico X
 Mosaico Y
+
 Tileado
 Mosaicos X
 Mosaicos Y
