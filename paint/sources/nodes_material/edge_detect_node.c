@@ -5,7 +5,9 @@
 // per node, R = Image (the edge mask). The texture is sampled like an Image Texture at tex_coord, repeating (Tile UV places it on the uv).
 //
 // A one pixel edge (Sobel gradient magnitude) widened by Edge Width (a fraction of Size) with an isotropic blur, see
-// edge_detect_node_process. Gradient mode: ramps from 0 at Tolerance to 1 at the largest gradient of the image, so a
+// edge_detect_node_process. Edge Width 0 (below about 0.0007 at Size 1024) is not widened but antialiased: the captured
+// grey (one sample per pixel, so a diagonal border is a hard staircase) is smoothed with [1 2 1] / 4 before the Sobel,
+// giving a line 1 to 2.5 pixels wide whose slope has no stairs. Gradient mode: ramps from 0 at Tolerance to 1 at the largest gradient of the image, so a
 // smooth input (noise, distance fields) still gives visible edges. Boundary mode: 1 where the gradient exceeds
 // Tolerance, else 0 (soft sides after the widening). The result is kept in 32 bit float.
 // Edge Width and Tolerance hold for the whole image (scalar, evaluated at the image centre when linked): the blur
@@ -100,19 +102,61 @@ static void edge_detect_node_box_pass(f32 *src, f32 *dst, i32 size, i32 w, bool 
 	make_image_node_parallel(size, edge_detect_node_box_lines, &c);
 }
 
+typedef struct edge_detect_binomial_ctx {
+	f32 *src;
+	f32 *dst;
+	i32  src_stride; // Floats between two pixels of src: 4 for the captured RGBA, 1 for a plane
+	i32  size;
+	bool wrap;
+	bool horizontal;
+} edge_detect_binomial_ctx_t;
+
+// Rows [begin, end) of the output of one [1 2 1] / 4 pass along x (horizontal) or y, wrapping or clamping
+static void edge_detect_node_binomial_rows(void *param, i32 begin, i32 end) {
+	edge_detect_binomial_ctx_t *c = param;
+	f32 *src = c->src, *dst = c->dst;
+	i32  size = c->size, stride = c->src_stride;
+	for (i32 y = begin; y < end; ++y) {
+		f32 *out = dst + (size_t)y * size;
+		if (c->horizontal) {
+			f32 *row = src + (size_t)y * size * stride;
+			for (i32 x = 0; x < size; ++x) {
+				i32 xm = edge_detect_node_wrap_index(x - 1, size, c->wrap);
+				i32 xp = edge_detect_node_wrap_index(x + 1, size, c->wrap);
+				out[x] = 0.25f * row[(size_t)xm * stride] + 0.5f * row[(size_t)x * stride] + 0.25f * row[(size_t)xp * stride];
+			}
+		}
+		else {
+			f32 *rm = src + (size_t)edge_detect_node_wrap_index(y - 1, size, c->wrap) * size * stride;
+			f32 *r0 = src + (size_t)y * size * stride;
+			f32 *rp = src + (size_t)edge_detect_node_wrap_index(y + 1, size, c->wrap) * size * stride;
+			for (i32 x = 0; x < size; ++x) {
+				out[x] = 0.25f * rm[(size_t)x * stride] + 0.5f * r0[(size_t)x * stride] + 0.25f * rp[(size_t)x * stride];
+			}
+		}
+	}
+}
+
+static void edge_detect_node_binomial_pass(f32 *src, i32 src_stride, f32 *dst, i32 size, bool wrap, bool horizontal) {
+	edge_detect_binomial_ctx_t c = {.src = src, .dst = dst, .src_stride = src_stride, .size = size, .wrap = wrap, .horizontal = horizontal};
+	make_image_node_parallel(size, edge_detect_node_binomial_rows, &c);
+}
+
 typedef struct edge_detect_sobel_ctx {
 	f32 *pixels;
+	i32  stride; // Floats between two pixels of pixels: 4 for the captured RGBA, 1 for a plane
 	f32 *e;
 	f32 *max_rows; // Largest magnitude of every row
+	f32  scale;    // 0.25 gives a step of 1 the magnitude 1; 1 / 3 for a [1 2 1] smoothed input (a smoothed step gives 0.75)
 	i32  size;
 	bool wrap;
 } edge_detect_sobel_ctx_t;
 
-// Rows [begin, end) of the Sobel gradient magnitude of the captured grey (a step of 1 gives 1)
+// Rows [begin, end) of the Sobel gradient magnitude of the grey (a step of 1 gives 1)
 static void edge_detect_node_sobel_rows(void *param, i32 begin, i32 end) {
 	edge_detect_sobel_ctx_t *c = param;
 	f32 *pixels = c->pixels;
-	i32  size = c->size;
+	i32  size = c->size, stride = c->stride;
 	for (i32 y = begin; y < end; ++y) {
 		f32 row_max = 0.0;
 		for (i32 x = 0; x < size; ++x) {
@@ -120,11 +164,11 @@ static void edge_detect_node_sobel_rows(void *param, i32 begin, i32 end) {
 			i32 xp = edge_detect_node_wrap_index(x + 1, size, c->wrap);
 			i32 ym = edge_detect_node_wrap_index(y - 1, size, c->wrap);
 			i32 yp = edge_detect_node_wrap_index(y + 1, size, c->wrap);
-#define ED_AT(px_, py_) pixels[((size_t)(py_) * size + (px_)) * 4]
+#define ED_AT(px_, py_) pixels[((size_t)(py_) * size + (px_)) * stride]
 			f32 gx  = (ED_AT(xp, ym) + 2.0f * ED_AT(xp, y) + ED_AT(xp, yp)) - (ED_AT(xm, ym) + 2.0f * ED_AT(xm, y) + ED_AT(xm, yp));
 			f32 gy  = (ED_AT(xm, yp) + 2.0f * ED_AT(x, yp) + ED_AT(xp, yp)) - (ED_AT(xm, ym) + 2.0f * ED_AT(x, ym) + ED_AT(xp, ym));
 #undef ED_AT
-			f32 mag = sqrtf(gx * gx + gy * gy) * 0.25f;
+			f32 mag = sqrtf(gx * gx + gy * gy) * c->scale;
 			c->e[(size_t)y * size + x] = mag;
 			row_max                    = mag > row_max ? mag : row_max;
 		}
@@ -137,6 +181,9 @@ static void edge_detect_node_sobel_rows(void *param, i32 begin, i32 end) {
 // (three box passes in x and y, a Gaussian within a few percent, isotropic) and scaled back so a straight edge peaks at
 // 1. Every direction is treated alike, so a diagonal border has no gaps or stairs (comparing eight neighbours at a
 // distance does). Sigma is 0.85 times the Edge Width in pixels, so the ridge is about twice Edge Width wide at half height.
+// Without widening (sigma < 0.6) the input is smoothed with [1 2 1] / 4 (x then y) before the Sobel and the magnitude is
+// scaled by 4 / 3, so a step of 1 still gives 1 but its slope spreads over two pixels: a diagonal border does not
+// show the texel staircase of the capture (which has no coverage information) in the surface slope Bump reads.
 static i32 edge_detect_node_process(u8 *bytes, i32 size, void *params, f32 *result) {
 	f32 *pixels = (f32 *)bytes; // Float capture
 	edge_detect_params_t p = *(edge_detect_params_t *)params;
@@ -158,8 +205,24 @@ static i32 edge_detect_node_process(u8 *bytes, i32 size, void *params, f32 *resu
 		make_image_node_plane_free(t, plane_bytes);
 		return -1;
 	}
-	edge_detect_sobel_ctx_t sc = {.pixels = pixels, .e = e, .max_rows = max_rows, .size = size, .wrap = p.wrap};
+	f32 sigma = 0.85f * width_px;
+	bool smooth = sigma < 0.6f; // No widening follows: antialias the input instead
+	edge_detect_sobel_ctx_t sc = {.pixels = pixels, .stride = 4, .e = e, .max_rows = max_rows, .scale = 0.25f, .size = size, .wrap = p.wrap};
+	if (smooth) {
+		// pixels -> t (x) -> e (y), the Sobel reads e and writes t, which then becomes the edge plane
+		edge_detect_node_binomial_pass(pixels, 4, t, size, p.wrap, true);
+		edge_detect_node_binomial_pass(t, 1, e, size, p.wrap, false);
+		sc.pixels = e;
+		sc.stride = 1;
+		sc.e      = t;
+		sc.scale  = 0.25f * (4.0f / 3.0f);
+	}
 	make_image_node_parallel(size, edge_detect_node_sobel_rows, &sc);
+	if (smooth) {
+		f32 *s = e;
+		e      = t;
+		t      = s;
+	}
 	f32 max_e = 0.0;
 	for (i32 y = 0; y < size; ++y) {
 		max_e = max_rows[y] > max_e ? max_rows[y] : max_e;
@@ -176,8 +239,7 @@ static i32 edge_detect_node_process(u8 *bytes, i32 size, void *params, f32 *resu
 			e[i] = v > 1.0f ? 1.0f : v;
 		}
 	}
-	f32 sigma = 0.85f * width_px;
-	if (sigma >= 0.6f) {
+	if (!smooth) {
 		i32 w = 2 * (i32)((sqrtf(4.0f * sigma * sigma + 1.0f) - 1.0f) * 0.5f + 0.5f) + 1; // Odd, three boxes of w: sigma^2 = (w^2 - 1) / 4
 		w     = w > size - 1 ? size - 1 : w;
 		for (i32 k = 0; k < 3; ++k) {
