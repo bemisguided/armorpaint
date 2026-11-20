@@ -408,6 +408,7 @@ Escala UV da Camada
 Tipo de UV da Camada
 Visibilidade da Camada
 Camadas
+
 Raio Preguiçoso
 Passo Preguiçoso
 Esquerda
@@ -430,6 +431,7 @@ Manual
 
 Mapear Intervalo
 Mapeamento
+
 Máscara
 Cor da Máscara
 Massa
@@ -588,6 +590,7 @@ Beliscar
 Ping-Pong
 Pivô
 Tamanho do Pixel
+
 Platô
 Reproduzir
 Player

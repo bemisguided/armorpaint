@@ -1153,6 +1153,7 @@ i32                       make_image_node_result_count(ui_node_t *node);
 void                      make_image_node_bake_now(ui_node_t *node);
 #endif
 ui_node_button_t         *make_image_node_state_button();
+void                      make_image_node_sections(char *node_type, ui_node_section_t *own, i32 own_count);
 f32                       make_image_node_button(ui_node_t *node, i32 i);
 i32                       make_image_node_size(ui_node_t *node, i32 button);
 ui_node_socket_t         *make_image_node_socket(char *name, char *type, u32 color, f32_array_t *default_value, f32 min, f32 max, f32 precision);
