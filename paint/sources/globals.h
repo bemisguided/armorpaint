@@ -6,7 +6,7 @@
 #include <iron.h>
 
 char *manifest_title           = "ArmorPaint";
-char *manifest_version         = "1.1rc2";
+char *manifest_version         = "1.1";
 char *manifest_version_project = "23";
 char *manifest_version_config  = "4";
 char *manifest_url             = "https://armorpaint.org";
@@ -23,6 +23,7 @@ ui_theme_t  *g_theme;
 any_map_t   *g_plugins;
 
 any_map_t       *ui_nodes_custom_buttons;
+any_map_t       *ui_nodes_hidden_rules; // Node type -> bool (*)(ui_node_t *, ui_node_item_t, i32) telling which rows of the node are hidden
 gpu_texture_t   *lut_image             = NULL;
 i32              lut_size              = 0;
 gpu_texture_t   *layers_temp_image     = NULL;
@@ -280,6 +281,8 @@ extern i32            ui_files_selected;
 extern i32            path_point_dragging;
 extern i32            path_layer_last_active;
 extern float          util_uv_unwrap_margin;
+extern int            util_uv_unwrap_rotation;
+extern float          util_uv_unwrap_angle;
 i32                   ui_header_default_h = 30;
 i32                   ui_header_h;
 ui_window_t          *ui_header_handle;
