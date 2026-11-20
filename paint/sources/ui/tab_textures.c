@@ -495,17 +495,14 @@ void tab_textures_draw(i32 *htab) {
 						ui_view2d_hwnd->redraws = 2;
 					}
 
-					u32 color = asset_tray_frame_color(ASSET_TRAY_TEXTURES, asset);
-					if (color != 0) {
-						f32 _uix = g_ui->_x;
-						f32 _uiy = g_ui->_y;
-						g_ui->_x = uix;
-						g_ui->_y = uiy;
-						i32 w    = 50 * a;
-						ui_rect_round(1, 1, w + 2, w + 2, color, 2 * UI_SCALE());
-						g_ui->_x = _uix;
-						g_ui->_y = _uiy;
-					}
+					f32 _uix = g_ui->_x;
+					f32 _uiy = g_ui->_y;
+					g_ui->_x = uix;
+					g_ui->_y = uiy;
+					i32 w    = 50 * a;
+					asset_tray_frame_draw(ASSET_TRAY_TEXTURES, asset, 1, 1, w + 2, w + 2);
+					g_ui->_x = _uix;
+					g_ui->_y = _uiy;
 
 					bool is_packed = g_project->packed_assets != NULL && project_packed_asset_exists(g_project->packed_assets, asset->file);
 
