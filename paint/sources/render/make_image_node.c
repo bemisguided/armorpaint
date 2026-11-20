@@ -404,6 +404,66 @@ static u8 *make_image_node_capture_pixels(ui_node_t *node, char *(*expr)(ui_node
 	return pixels;
 }
 
+// Default of input i / setting i in the definition of the node type, 0 when the definition has no such item. The safety net of the
+// accessors below for a node that has fewer inputs or settings than its definition.
+static f32 make_image_node_def_input_default(ui_node_t *node, i32 i) {
+	ui_node_t *def = nodes_material_get_node_t(node->type);
+	return def != NULL && i >= 0 && i < def->inputs->length ? def->inputs->buffer[i]->default_value->buffer[0] : 0.0f;
+}
+
+static f32 make_image_node_def_button_default(ui_node_t *node, i32 i) {
+	ui_node_t *def = nodes_material_get_node_t(node->type);
+	return def != NULL && i >= 0 && i < def->buttons->length ? def->buttons->buffer[i]->default_value->buffer[0] : 0.0f;
+}
+
+// Completes a node saved by an older build with the inputs and settings its definition has now. A saved node keeps the length it was
+// created with, the code indexes by the enums of the definition. The fork only ever appends inputs and settings at the end of a
+// definition (never reorders, inserts or removes: that breaks old saves, which is accepted), so the missing items are the tail of the
+// definition, appended with its defaults. Links address inputs by index, so they stay valid. nodes is the canvas the node is in (new
+// sockets get free ids). Called when the node is traversed for its capture and when the node editor lays it out; cheap when nothing is missing.
+// Returns true when something was added.
+bool make_image_node_reconcile(ui_node_t *node, ui_node_t_array_t *nodes) {
+	if (node->inputs == NULL || node->buttons == NULL) {
+		return false;
+	}
+	ui_node_t *def = nodes_material_get_node_t(node->type);
+	if (def == NULL || (node->inputs->length >= def->inputs->length && node->buttons->length >= def->buttons->length)) {
+		return false;
+	}
+	for (i32 i = node->inputs->length; i < def->inputs->length; ++i) {
+		ui_node_socket_t *d   = def->inputs->buffer[i];
+		ui_node_socket_t *soc = ALLOC_INIT(ui_node_socket_t, {0});
+		soc->id               = ui_get_socket_id(nodes);
+		soc->node_id          = node->id;
+		soc->name             = string_copy(d->name);
+		soc->type             = string_copy(d->type);
+		soc->color            = d->color;
+		soc->default_value    = f32_array_create_from_array(d->default_value);
+		soc->min              = d->min;
+		soc->max              = d->max;
+		soc->precision        = d->precision;
+		soc->display          = d->display;
+		any_array_push(node->inputs, soc);
+	}
+	for (i32 i = node->buttons->length; i < def->buttons->length; ++i) {
+		ui_node_button_t *d   = def->buttons->buffer[i];
+		ui_node_button_t *but = ALLOC_INIT(ui_node_button_t, {0});
+		but->name             = string_copy(d->name);
+		but->type             = string_copy(d->type);
+		but->output           = d->output;
+		but->default_value    = f32_array_create_from_array(d->default_value);
+		if (d->data != NULL) {
+			but->data = u8_array_create_from_array(d->data);
+		}
+		but->min       = d->min;
+		but->max       = d->max;
+		but->precision = d->precision;
+		but->height    = d->height;
+		any_array_push(node->buttons, but);
+	}
+	return true;
+}
+
 static char *make_image_node_input_expr(ui_node_t *node) {
 	char *v = parser_material_parse_value_input(node->inputs->buffer[make_image_node_capture_input], false);
 	return string_tmp("float4(%s, %s, %s, 1.0)", v, v, v);
@@ -450,6 +510,9 @@ void make_image_node_parallel(i32 count, void (*fn)(void *ctx, i32 begin, i32 en
 // Value of a number input of the node being captured, for the whole image: the default value when unlinked,
 // else the linked graph evaluated once at the image centre. Called from the type's params callback.
 f32 make_image_node_input_value(ui_node_t *node, i32 input) {
+	if (input < 0 || input >= node->inputs->length) {
+		return make_image_node_def_input_default(node, input); // A node saved with fewer inputs than its definition (see make_image_node_reconcile)
+	}
 	ui_node_socket_t *socket = node->inputs->buffer[input];
 	if (make_image_node_capturing == NULL || parser_material_get_input_link(socket) == NULL) {
 		return socket->default_value->buffer[0];
@@ -948,6 +1011,7 @@ static void make_image_node_update(void *_) {
 
 // Node preview traversal hook (make_material_bake_node_preview), linked = refresh during a paint stroke
 void make_image_node_on_traverse(ui_node_t *node, ui_node_canvas_t *group, ui_node_t_array_t *parents, bool linked) {
+	make_image_node_reconcile(node, group != NULL ? group->nodes : g_context->material->canvas->nodes);
 	char *id = make_material_node_preview_id(node, parents);
 	any_array_push(g_context->node_previews_used, id); // Keeps the baked result
 	make_image_node_state_t *s = make_image_node_get_state(id, node);
@@ -1213,6 +1277,9 @@ static void make_image_node_state_row(i32 node_id) {
 
 // Value of a setting of the node (the default value of button i)
 f32 make_image_node_button(ui_node_t *node, i32 i) {
+	if (i < 0 || i >= node->buttons->length) {
+		return make_image_node_def_button_default(node, i); // A node saved with fewer settings than its definition (see make_image_node_reconcile)
+	}
 	return node->buttons->buffer[i]->default_value->buffer[0];
 }
 
