@@ -39,12 +39,23 @@ enum {
 	TILE_GENERATOR_INPUT_TILES_X           = 9,
 	TILE_GENERATOR_INPUT_TILES_Y           = 10,
 	TILE_GENERATOR_INPUT_SCALE             = 11,
-	TILE_GENERATOR_INPUT_SCALE_RANDOM      = 12,
-	TILE_GENERATOR_INPUT_ROTATION          = 13,
+	TILE_GENERATOR_INPUT_ROTATION          = 12,
+	TILE_GENERATOR_INPUT_SCALE_RANDOM      = 13,
 	TILE_GENERATOR_INPUT_ROTATION_RANDOM   = 14,
 	TILE_GENERATOR_INPUT_OFFSET_RANDOM     = 15,
 	TILE_GENERATOR_INPUT_BRIGHTNESS_RANDOM = 16,
 	TILE_GENERATOR_INPUT_SEED              = 17,
+};
+
+// Sections of the node: a contiguous range of inputs each (Pattern 1 to 4 stay above them), see make_image_node_sections.
+// The input order puts every group in one run: Maps 4 to 8, Layout 9 to 12, Randomness 13 to 17.
+enum {
+	TILE_GENERATOR_SECTION_MAPS_FIRST        = TILE_GENERATOR_INPUT_MASK,
+	TILE_GENERATOR_SECTION_MAPS_COUNT        = TILE_GENERATOR_INPUT_PATTERN_MAP - TILE_GENERATOR_INPUT_MASK + 1,
+	TILE_GENERATOR_SECTION_LAYOUT_FIRST      = TILE_GENERATOR_INPUT_TILES_X,
+	TILE_GENERATOR_SECTION_LAYOUT_COUNT      = TILE_GENERATOR_INPUT_ROTATION - TILE_GENERATOR_INPUT_TILES_X + 1,
+	TILE_GENERATOR_SECTION_RANDOMNESS_FIRST  = TILE_GENERATOR_INPUT_SCALE_RANDOM,
+	TILE_GENERATOR_SECTION_RANDOMNESS_COUNT  = TILE_GENERATOR_INPUT_SEED - TILE_GENERATOR_INPUT_SCALE_RANDOM + 1,
 };
 
 // Node button indices (settings)
@@ -385,8 +396,8 @@ void tile_generator_node_init() {
 	                        make_image_node_socket(_tr("Tiles X"), "VALUE", value_color, f32_array_create_x(4.0), 0.0, TILE_GENERATOR_MAX_TILES, 1),
 	                        make_image_node_socket(_tr("Tiles Y"), "VALUE", value_color, f32_array_create_x(4.0), 0.0, TILE_GENERATOR_MAX_TILES, 1),
 	                        make_image_node_socket(_tr("Scale"), "VALUE", value_color, f32_array_create_x(0.9), 0.0, 2.0, 100),
-	                        make_image_node_socket(_tr("Scale Random"), "VALUE", value_color, f32_array_create_x(0.0), 0.0, 1.0, 100),
 	                        make_image_node_socket(_tr("Rotation"), "VALUE", value_color, f32_array_create_x(0.0), 0.0, 360.0, 10), // Degrees
+	                        make_image_node_socket(_tr("Scale Random"), "VALUE", value_color, f32_array_create_x(0.0), 0.0, 1.0, 100),
 	                        make_image_node_socket(_tr("Rotation Random"), "VALUE", value_color, f32_array_create_x(0.0), 0.0, 1.0, 100),
 	                        make_image_node_socket(_tr("Offset Random"), "VALUE", value_color, f32_array_create_x(0.0), 0.0, 1.0, 100),
 	                        make_image_node_socket(_tr("Brightness Random"), "VALUE", value_color, f32_array_create_x(0.0), 0.0, 1.0, 100),
@@ -418,5 +429,11 @@ void tile_generator_node_init() {
 	any_map_set(parser_material_node_values, "TEX_TILE_GENERATOR", tile_generator_node_value);
 	any_map_set(parser_material_node_vectors, "TEX_TILE_GENERATOR", tile_generator_node_vector);
 	any_map_set(ui_nodes_hidden_rules, "TEX_TILE_GENERATOR", tile_generator_node_item_hidden);
+	ui_node_section_t sections[] = {
+	    {.title = _tr("Maps"), .kind = UI_NODE_ITEM_INPUT, .first = TILE_GENERATOR_SECTION_MAPS_FIRST, .count = TILE_GENERATOR_SECTION_MAPS_COUNT, .closed_by_default = true},
+	    {.title = _tr("Layout"), .kind = UI_NODE_ITEM_INPUT, .first = TILE_GENERATOR_SECTION_LAYOUT_FIRST, .count = TILE_GENERATOR_SECTION_LAYOUT_COUNT, .closed_by_default = false},
+	    {.title = _tr("Randomness"), .kind = UI_NODE_ITEM_INPUT, .first = TILE_GENERATOR_SECTION_RANDOMNESS_FIRST, .count = TILE_GENERATOR_SECTION_RANDOMNESS_COUNT, .closed_by_default = true},
+	};
+	make_image_node_sections("TEX_TILE_GENERATOR", sections, 3);
 	make_image_node_register(&tile_generator_node_image_type);
 }
