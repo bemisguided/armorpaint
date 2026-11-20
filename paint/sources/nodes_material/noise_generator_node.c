@@ -6,7 +6,7 @@
 // Modes are rows of a table (noise_generator_modes_init); specs/noise/NOISE_GENERATOR.md describes how to add one.
 //
 // Mode Perlin: gradient noise (improved Perlin, the 12 edge midpoint gradients), fade 6t^5 - 15t^4 + 10t^3.
-//   - Lattice coordinates wrap at 65536 cells (a bound for the int conversion), or at the period when Tileable.
+//   - Lattice coordinates wrap at 65536 cells (a bound for the int conversion), or at the period when Tileable (at most 65536).
 //   - Integer hash (no sin) of the lattice corner and the seed, so the CPU host test and the GPU agree.
 //   - fBM like Noise Texture: Detail 0 is one octave, Detail d has floor(d) + 1 octaves and a fractional part blends
 //     the next octave in, Roughness is the gain, Lacunarity the frequency step; the sum is divided by the sum of the
@@ -19,8 +19,8 @@
 
 char *str_noise_generator_perlin = "\
 float perlin_wrap(float i, float period) { \
-	float m = period; \
-	if (m < 0.5) { m = 65536.0; } \
+	float m = 65536.0; \
+	if (period >= 0.5) { m = min(period, 65536.0); } \
 	return i - m * floor((i + 0.5) / m); \
 } \
 int perlin_hash(float ix, float iy, float iz, int seed) { \
