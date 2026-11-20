@@ -285,6 +285,24 @@ float UI_OUTPUT_Y(ui_node_canvas_t *canvas, ui_node_t *node, int pos) {
 	return UI_LINE_H() * 1.62 + UI_OUTPUTS_H(canvas, node, pos);
 }
 
+// Triangle of a section header as the 6 coordinates x0 y0 x1 y1 x2 y2. Open points down (2s wide, s tall), closed points right
+// (s wide, 2s tall): the same area s * s and the same centre (nx + 10u + s, ny + 2u + s / 2) for both. u = ui_p(1), s = UI_ARROW_SIZE().
+// The left edge stays 4u right of the socket dot (which ends at nx + 6u) in both states.
+static void ui_node_section_arrow(bool closed, float s, float u, float nx, float ny, float *p) {
+	float cx = nx + u * 10.0 + s;
+	float cy = ny + u * 2.0 + s / 2.0;
+	if (closed) {
+		p[0] = cx - s / 2.0; p[1] = cy - s;
+		p[2] = cx + s / 2.0; p[3] = cy;
+		p[4] = cx - s / 2.0; p[5] = cy + s;
+	}
+	else {
+		p[0] = cx - s; p[1] = cy - s / 2.0;
+		p[2] = cx + s; p[3] = cy - s / 2.0;
+		p[4] = cx;     p[5] = cy + s / 2.0;
+	}
+}
+
 float ui_p(float f) {
 	return f * UI_NODES_SCALE();
 }
@@ -576,16 +594,10 @@ static void ui_node_draw_section_header(ui_node_t *node, ui_node_canvas_t *canva
 		current_nodes->_input_started = current->input_started = false;
 	}
 	draw_set_color(current->ops->theme->LABEL_COL);
-	float s  = UI_ARROW_SIZE();
-	float ax = nx + ui_p(6);
-	float ay = ny + ui_p(2);
-	if (closed) {
-		draw_filled_triangle(ax, ay, ax + s, ay + s / 2.0, ax, ay + s);
-	}
-	else {
-		draw_filled_triangle(ax, ay, ax + s * 2, ay, ax + s, ay + s);
-	}
-	draw_string(ui_tr((char *)sec->title), nx + ui_p(22), ny - ui_p(3));
+	float tri[6];
+	ui_node_section_arrow(closed, UI_ARROW_SIZE(), ui_p(1), nx, ny, tri);
+	draw_filled_triangle(tri[0], tri[1], tri[2], tri[3], tri[4], tri[5]);
+	draw_string(ui_tr((char *)sec->title), nx + ui_p(28), ny - ui_p(3));
 	if (closed && sec->kind == UI_NODE_ITEM_INPUT) {
 		for (int i = sec->first; i < sec->first + sec->count && i < node->inputs->length; ++i) {
 			if (ui_input_linked(canvas, node->id, i)) {
