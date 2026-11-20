@@ -18,6 +18,7 @@ Animation hinzufügen
 Farbfeld hinzufügen
 Neues Farbfeld hinzufügen
 Gewählte Farbe zu Farbfeldern hinzufügen
+
 Alle
 Alle Verarbeitung erfolgt lokal auf dem Gerät
 Kamera über Kopf erlauben
@@ -178,6 +179,7 @@ Material Löschen
 Node Gruppe löschen
 Farbfeld löschen
 Unbenutzte löschen
+
 Delta
 Tiefe
 Tiefe verwerfen

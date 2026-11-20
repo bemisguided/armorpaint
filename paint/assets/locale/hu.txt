@@ -18,6 +18,7 @@ Animáció hozzáadása
 Színminta hozzáadása
 Új színminta hozzáadása
 Kiválasztott szín hozzáadása a mintákhoz
+
 Összes
 Minden feldolgozás helyben történik
 Fejjel lefelé álló kamera engedélyezése
@@ -178,6 +179,7 @@ Anyag törlése
 Csomópont csoport törlése
 Színminta törlése
 Nem használtak törlése
+
 Delta
 Mélység
 Mélység elvetése

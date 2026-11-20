@@ -18,6 +18,7 @@ Přidat animaci
 Přidat vzorek
 Přidat nový vzorek
 Přidat vybranou barvu do vzorků
+
 Vše
 Veškeré zpracování probíhá lokálně na zařízení
 Povolit převrácenou kameru
@@ -178,6 +179,7 @@ Smazat materiál
 Smazat skupinu uzlů
 Smazat vzorek
 Smazat nepoužité
+
 Delta
 Hloubka
 Odmítnout hloubku

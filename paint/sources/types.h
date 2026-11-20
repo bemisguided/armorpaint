@@ -1087,6 +1087,7 @@ typedef struct ui_nodes_editor_state {
 	f32              index[4];
 	f32              x;
 	f32              y;
+	ui_stops_t       stops;
 	i32              interp;
 	ui_color_state_t color_state;
 	i32              line;

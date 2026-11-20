@@ -620,3 +620,44 @@ ui_node_link_t *ui_get_link(ui_node_link_array_t *links, int id);
 int             ui_next_link_id(ui_node_link_array_t *links);
 ui_node_t      *ui_get_node(ui_node_array_t *nodes, int id);
 int             ui_next_node_id(ui_node_array_t *nodes);
+
+// Stops control: handles on a 0..1 bar that are selected, dragged, added and deleted (iron_ui_stops.c).
+// Generic: the consumer owns the data (through ui_stops_ops_t) and draws the bar, the control draws the handles.
+// ui_stops begin
+#define UI_STOPS_MAX 64 // Most stops the pure helpers look at
+#define UI_STOPS_CHANGED 1 // Data changed (ui->changed is set as well)
+#define UI_STOPS_SELECTED 2 // Active stop changed
+#define UI_STOPS_CONSUMED 4 // The press was used, the caller should not pass it on
+
+typedef struct ui_stops {
+	int    active; // Index of the active stop
+	int    drag;   // 1 while the active stop is dragged
+	bool   moved;  // The drag moved the stop
+	float  grab;   // Stop position minus mouse position at the press
+	int    last_hit; // Stop of the last press, for double click
+	double last_time;
+} ui_stops_t;
+
+typedef float (*ui_stops_get_pos_t)(void *data, int i);
+
+typedef struct ui_stops_ops {
+	int (*count)(void *data);
+	float (*get_pos)(void *data, int i);
+	void (*set_pos)(void *data, int i, float pos);
+	int (*add)(void *data, float pos); // Inserts a stop and returns its index, or -1
+	void (*remove)(void *data, int i);
+	void (*draw)(void *data, int i, float cx, float y, float w, float h, bool active);
+	int min_count;
+	int max_count;
+} ui_stops_ops_t;
+// ui_stops end
+
+float ui_stops_clamp(float pos);
+int   ui_stops_hit(ui_stops_get_pos_t get_pos, void *data, int count, float mouse_x, float bar_x, float bar_w, float radius, int active);
+float ui_stops_gap_pos(ui_stops_get_pos_t get_pos, void *data, int count);
+int   ui_stops_after_remove(int active, int removed, int count_after);
+bool  ui_stops_can_add(int count, int max_count);
+bool  ui_stops_can_remove(int count, int min_count);
+bool  ui_stops_is_double_click(double now, double last_time, int last_hit, int hit);
+int   ui_stops_update(ui_stops_t *s, const ui_stops_ops_t *ops, void *data, float x, float y, float w, float bar_h, float marker_h);
+void  ui_stops_draw_pin(float cx, float y, float w, float h, uint32_t fill, bool active);
