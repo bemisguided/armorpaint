@@ -285,21 +285,24 @@ float UI_OUTPUT_Y(ui_node_canvas_t *canvas, ui_node_t *node, int pos) {
 	return UI_LINE_H() * 1.62 + UI_OUTPUTS_H(canvas, node, pos);
 }
 
-// Triangle of a section header as the 6 coordinates x0 y0 x1 y1 x2 y2. Open points down (2s wide, s tall), closed points right
-// (s wide, 2s tall): the same area s * s and the same centre (nx + 10u + s, ny + 2u + s / 2) for both. u = ui_p(1), s = UI_ARROW_SIZE().
-// The left edge stays 4u right of the socket dot (which ends at nx + 6u) in both states.
-static void ui_node_section_arrow(bool closed, float s, float u, float nx, float ny, float *p) {
-	float cx = nx + u * 10.0 + s;
-	float cy = ny + u * 2.0 + s / 2.0;
+// Triangle of a section header as the 6 coordinates x0 y0 x1 y1 x2 y2. One isosceles triangle with base 10u and height 7.5u (u = ui_p(1)):
+// open points down (10u wide, 7.5u tall), closed is the same triangle rotated by 90 degrees and points right (7.5u wide, 10u tall).
+// Both share the centre (nx + 15u, ny + 5.5u), so they have the same size and the same area (37.5u^2) and fit inside the row (lineh = 25u,
+// the larger dimension is 10u). The left edge is at least 5u right of the socket dot (which ends at nx + 6u) in both states.
+static void ui_node_section_arrow(bool closed, float u, float nx, float ny, float *p) {
+	float cx = nx + u * 15.0;
+	float cy = ny + u * 5.5;
+	float b  = u * 5.0;  // half base
+	float h  = u * 3.75; // half height
 	if (closed) {
-		p[0] = cx - s / 2.0; p[1] = cy - s;
-		p[2] = cx + s / 2.0; p[3] = cy;
-		p[4] = cx - s / 2.0; p[5] = cy + s;
+		p[0] = cx - h; p[1] = cy - b;
+		p[2] = cx + h; p[3] = cy;
+		p[4] = cx - h; p[5] = cy + b;
 	}
 	else {
-		p[0] = cx - s; p[1] = cy - s / 2.0;
-		p[2] = cx + s; p[3] = cy - s / 2.0;
-		p[4] = cx;     p[5] = cy + s / 2.0;
+		p[0] = cx - b; p[1] = cy - h;
+		p[2] = cx + b; p[3] = cy - h;
+		p[4] = cx;     p[5] = cy + h;
 	}
 }
 
@@ -595,7 +598,7 @@ static void ui_node_draw_section_header(ui_node_t *node, ui_node_canvas_t *canva
 	}
 	draw_set_color(current->ops->theme->LABEL_COL);
 	float tri[6];
-	ui_node_section_arrow(closed, UI_ARROW_SIZE(), ui_p(1), nx, ny, tri);
+	ui_node_section_arrow(closed, ui_p(1), nx, ny, tri);
 	draw_filled_triangle(tri[0], tri[1], tri[2], tri[3], tri[4], tri[5]);
 	draw_string(ui_tr((char *)sec->title), nx + ui_p(28), ny - ui_p(3));
 	if (closed && sec->kind == UI_NODE_ITEM_INPUT) {
