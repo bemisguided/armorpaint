@@ -1391,14 +1391,35 @@ ui_node_button_t *make_image_node_state_button() {
 	                                     .height        = 1});
 }
 
-// Registers the sections of an image node type: its own (own may be NULL), then the shared Bake section, which holds the Size
-// setting and the state row, the first two buttons of every image node, closed by default (every node def calls this once).
-// The Bake section is last in the list, so its flag bit is 8 + own_count; the sections of a node keep their order.
-void make_image_node_sections(char *node_type, ui_node_section_t *own, i32 own_count) {
-	ui_node_section_t *list = calloc(own_count + 2, sizeof(ui_node_section_t));
-	for (i32 i = 0; i < own_count; ++i) {
-		list[i] = own[i];
+// Registers the sections of an image node type. Every row of the node is in a section, in this order of the list (= flag bits 8, 9, ...):
+// 0 Texture: the Size setting and the state row, the first two buttons of every image node, closed by default.
+// 1 General: a mixed section (one header) with all the other buttons and the first n_general_inputs inputs, open by default.
+// then the own sections (own, may be NULL) of the node: ranges of the other inputs; without own sections the remaining inputs
+// (from n_general_inputs on) form one open section Parameters.
+// n_general_inputs < 0 leaves the node without General and Parameters (Seamless: Image and Blend Width stay plain rows).
+// The ranges are by index in the node def, so the button and input order of the def must be: Size, state row, settings; general inputs first.
+void make_image_node_sections(ui_node_t *def, ui_node_section_t *own, i32 own_count, i32 n_general_inputs) {
+	i32                n_buttons = def->buttons->length;
+	i32                n_inputs  = def->inputs->length;
+	bool               general   = n_general_inputs >= 0;
+	bool               params    = general && own_count == 0 && n_inputs > n_general_inputs;
+	ui_node_section_t *list      = calloc(own_count + 4, sizeof(ui_node_section_t));
+	i32                n         = 0;
+	list[n++]                    = (ui_node_section_t){.title = _tr("Texture"), .kind = UI_NODE_ITEM_BUTTON, .first = 0, .count = 2, .closed_by_default = true};
+	if (general) {
+		list[n++] = (ui_node_section_t){.title             = _tr("General"),
+		                                .kind              = UI_NODE_ITEM_BUTTON,
+		                                .first             = 2,
+		                                .count             = n_buttons - 2,
+		                                .closed_by_default = false,
+		                                .inputs_first      = 0,
+		                                .inputs_count      = n_general_inputs};
 	}
-	list[own_count] = (ui_node_section_t){.title = _tr("Bake"), .kind = UI_NODE_ITEM_BUTTON, .first = 0, .count = 2, .closed_by_default = true};
-	any_map_set(ui_nodes_sections, node_type, list); // The list ends with the zeroed entry
+	for (i32 i = 0; i < own_count; ++i) {
+		list[n++] = own[i];
+	}
+	if (params) {
+		list[n++] = (ui_node_section_t){.title = _tr("Parameters"), .kind = UI_NODE_ITEM_INPUT, .first = n_general_inputs, .count = n_inputs - n_general_inputs, .closed_by_default = false};
+	}
+	any_map_set(ui_nodes_sections, def->type, list); // The list ends with the zeroed entry
 }

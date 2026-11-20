@@ -309,6 +309,7 @@ Rozmycie
 G
 Tekstura Gabora
 Gamma
+
 Wygenerowane
 Geometria
 Geometria do początku układu
@@ -543,6 +544,7 @@ Wypełnienie
 Malowanie
 Warstwa malowania
 Maska malowania
+
 Parametryczny
 Rodzic
 Częściowa pochodna
