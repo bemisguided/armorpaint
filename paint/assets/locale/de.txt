@@ -394,6 +394,7 @@ Ebenen UV Skalierung
 Ebenen UV Typ
 Ebenensichtbarkeit
 Ebenen
+
 Träger Radius
 Träger Schritt
 Links
@@ -416,6 +417,7 @@ Handbuch
 
 Bereich abbilden
 Mapping
+
 Maske
 Maskenfarbe
 Masse
@@ -556,6 +558,7 @@ Zusammenziehen
 Ping-Pong
 Drehpunkt
 Pixelgröße
+
 Plateau
 Abspielen
 Player

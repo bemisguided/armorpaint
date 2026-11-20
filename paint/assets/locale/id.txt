@@ -394,6 +394,7 @@ Skala UV Lapisan
 Jenis UV Lapisan
 Visibilitas Lapisan
 Lapisan
+
 Radius Malas
 Langkah Malas
 Kiri
@@ -416,6 +417,7 @@ Manual
 
 Petakan Rentang
 Pemetaan
+
 Masker
 Warna Masker
 Massa
@@ -556,6 +558,7 @@ Cubit
 Ping-Pong
 Poros
 Ukuran Piksel
+
 Dataran
 Mainkan
 Pemutar
