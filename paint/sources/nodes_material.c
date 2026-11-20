@@ -34,6 +34,7 @@ void nodes_material_init() {
 	gradient_texture_node_init();
 	image_texture_node_init();
 	magic_texture_node_init();
+	noise_generator_node_init();
 	noise_texture_node_init();
 	text_texture_node_init();
 	voronoi_texture_node_init();

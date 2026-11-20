@@ -476,6 +476,7 @@ Tidak ada respons
 Node
 Pratinjau Node
 Node
+
 Butiran Noise
 Tekstur Noise
 Tidak Ada
@@ -536,6 +537,7 @@ Pena
 Pensil
 Per Objek
 Per Tile UDIM
+
 Perspektif
 Fase
 Ofset Fase
@@ -643,6 +645,7 @@ Sculpt
 Lapisan Sculpt
 Cari
 Cari node
+
 Segmen
 Pilih
 Pilih Semua
@@ -740,6 +743,7 @@ Ketebalan
 Petak
 Petak X
 Petak Y
+
 Diubin
 Jumlah Petak X
 Jumlah Petak Y

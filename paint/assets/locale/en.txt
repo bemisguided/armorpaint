@@ -476,6 +476,7 @@ No response
 Node
 Node Previews
 Nodes
+Noise Generator
 Noise Grain
 Noise Texture
 None
@@ -536,6 +537,7 @@ Pen
 Pencil
 Per Object
 Per Udim Tile
+Perlin
 Perspective
 Phase
 Phase Offset
@@ -643,6 +645,7 @@ Sculpt
 Sculpt Layer
 Search
 Search for nodes
+Seed
 Segments
 Select
 Select All
@@ -740,6 +743,7 @@ Thickness
 Tile
 Tile X
 Tile Y
+Tileable
 Tiled
 Tiles X
 Tiles Y

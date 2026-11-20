@@ -476,6 +476,7 @@ Nincs válasz
 Csomópont
 Csomópont előnézetek
 Csomópontok
+
 Zaj szemcse
 Zaj textúra
 Nincs
@@ -536,6 +537,7 @@ Toll
 Ceruza
 Objektumonként
 UDIM csempénként
+
 Perspektivikus
 Fázis
 Fáziseltolás
@@ -643,6 +645,7 @@ Szobrászat
 Szobrász réteg
 Keresés
 Csomópontok keresése
+
 Szegmensek
 Kijelölés
 Összes kijelölése
@@ -740,6 +743,7 @@ Vastagság
 Mozaik
 Mozaik X
 Mozaik Y
+
 Csempézett
 Mozaikok X
 Mozaikok Y
