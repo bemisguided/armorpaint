@@ -12,9 +12,14 @@
 // Cubic is Catmull-Rom (make_image_node_sample_rgba, the shared cpu sampler), not Tile UV's B-spline: it passes through the texels, so the default settings give back
 // the input pixel for pixel. No mipmaps: a source shrunk by more than about 2x aliases.
 //
+// A linked Scale of 0 or below is clamped to the slider minimum 0.01 (no mirror). The source position is computed in f64 and, for
+// Tile and Mirror, reduced to the period of the tiling before the f32 sampler, so a huge Offset (1e6) behaves like its fraction.
+//
 // Rotation and Scale are used as set for every Tiling mode. The output of a Tile Transform is periodic with period 1
 // only when the rotation maps the lattice onto itself (multiples of 90 degrees with an integer 1 / Scale), otherwise
 // it shows a seam when tiled (known limit). The maths is in armorpaint-admin specs/image-nodes/IMAGE_NODES.md, section Transform.
+
+#define TRANSFORM_SCALE_MIN 0.01 // Minimum of the Scale sliders
 
 // Input socket indices
 enum {
@@ -101,26 +106,41 @@ static void transform_node_params(ui_node_t *node, void *params) {
 	p->flip_y             = make_image_node_button(node, TRANSFORM_BUTTON_FLIP_Y) != 0.0f;
 }
 
+// Source position c (f64) reduced to its period before it goes into the f32 sampler: Tile repeats with period 1, Mirror with 2
+// (the same texels the sampler would pick), so a huge Offset keeps its precision (1e6 in f32 steps by 1/16)
+static f32 transform_node_wrap(f64 c, i32 tiling) {
+	if (tiling == IMAGE_TILING_TILE) {
+		return (f32)(c - floor(c));
+	}
+	if (tiling == IMAGE_TILING_MIRROR) {
+		return (f32)(c - 2.0 * floor(c * 0.5));
+	}
+	return (f32)c;
+}
+
 static void transform_node_rows(void *param, i32 begin, i32 end) {
 	transform_ctx_t    *c    = param;
 	transform_params_t *p    = c->p;
 	i32                 size = c->size;
-	f32                 a    = p->rotation * (3.14159265f / 180.0f);
-	f32                 ca   = cosf(a);
-	f32                 sa   = sinf(a);
-	f32                 sx   = p->scale_x < 0.0001f ? 0.0001f : p->scale_x;
-	f32                 sy   = p->scale_y < 0.0001f ? 0.0001f : p->scale_y;
+	f64                 a    = (f64)p->rotation * (3.14159265358979323846 / 180.0);
+	f64                 ca   = cos(a);
+	f64                 sa   = sin(a);
+	// Scale below the slider minimum (a linked 0 or negative value) is clamped to it, no mirror; not a number gives it too
+	f64                 sx   = !(p->scale_x > TRANSFORM_SCALE_MIN) ? TRANSFORM_SCALE_MIN : p->scale_x;
+	f64                 sy   = !(p->scale_y > TRANSFORM_SCALE_MIN) ? TRANSFORM_SCALE_MIN : p->scale_y;
 	for (i32 y = begin; y < end; ++y) {
 		for (i32 x = 0; x < size; ++x) {
-			f32 dx = ((f32)x + 0.5f) / (f32)size - p->pivot_x - p->offset_x;
-			f32 dy = ((f32)y + 0.5f) / (f32)size - p->pivot_y - p->offset_y;
-			f32 rx = dx * ca + dy * sa; // inverse(R) (q - pivot - offset): the source is read where the image content came from
-			f32 ry = -dx * sa + dy * ca;
+			f64 dx = ((f64)x + 0.5) / (f64)size - (f64)p->pivot_x - (f64)p->offset_x;
+			f64 dy = ((f64)y + 0.5) / (f64)size - (f64)p->pivot_y - (f64)p->offset_y;
+			f64 rx = dx * ca + dy * sa; // inverse(R) (q - pivot - offset): the source is read where the image content came from
+			f64 ry = -dx * sa + dy * ca;
 			rx /= sx;
 			ry /= sy;
 			rx = p->flip_x ? -rx : rx;
 			ry = p->flip_y ? -ry : ry;
-			make_image_node_sample_rgba(c->pixels, size, p->pivot_x + rx, p->pivot_y + ry, p->filter, p->tiling, c->result + ((size_t)y * size + x) * 4);
+			f32 u = transform_node_wrap((f64)p->pivot_x + rx, p->tiling);
+			f32 v = transform_node_wrap((f64)p->pivot_y + ry, p->tiling);
+			make_image_node_sample_rgba(c->pixels, size, u, v, p->filter, p->tiling, c->result + ((size_t)y * size + x) * 4);
 		}
 	}
 }
@@ -168,8 +188,8 @@ void transform_node_init() {
 	                        make_image_node_socket(_tr("Offset X"), "VALUE", value_color, f32_array_create_x(0.0), -1.0, 1.0, 100),
 	                        make_image_node_socket(_tr("Offset Y"), "VALUE", value_color, f32_array_create_x(0.0), -1.0, 1.0, 100),
 	                        make_image_node_socket(_tr("Rotation"), "VALUE", value_color, f32_array_create_x(0.0), 0.0, 360.0, 10),
-	                        make_image_node_socket(_tr("Scale X"), "VALUE", value_color, f32_array_create_x(1.0), 0.01, 8.0, 100),
-	                        make_image_node_socket(_tr("Scale Y"), "VALUE", value_color, f32_array_create_x(1.0), 0.01, 8.0, 100),
+	                        make_image_node_socket(_tr("Scale X"), "VALUE", value_color, f32_array_create_x(1.0), TRANSFORM_SCALE_MIN, 8.0, 100),
+	                        make_image_node_socket(_tr("Scale Y"), "VALUE", value_color, f32_array_create_x(1.0), TRANSFORM_SCALE_MIN, 8.0, 100),
 	                        make_image_node_socket(_tr("Pivot X"), "VALUE", value_color, f32_array_create_x(0.5), 0.0, 1.0, 100),
 	                        make_image_node_socket(_tr("Pivot Y"), "VALUE", value_color, f32_array_create_x(0.5), 0.0, 1.0, 100),
 	                    },
