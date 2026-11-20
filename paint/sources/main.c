@@ -93,6 +93,7 @@
 #include "nodes_material/texture_coordinate_node.c"
 #include "nodes_material/tilesheet_animation_node.c"
 #include "nodes_material/tilesheet_node.c"
+#include "nodes_material/tile_uv_node.c"
 #include "nodes_material/uv_map_node.c"
 #include "nodes_material/value_node.c"
 #include "nodes_material/vector_curves_node.c"
@@ -142,6 +143,7 @@
 #include "render/make_curvature.c"
 #include "render/make_depth.c"
 #include "render/make_discard.c"
+#include "render/make_image_node.c"
 #include "render/make_material.c"
 #include "render/make_mesh.c"
 #include "render/make_mesh_preview.c"
@@ -234,6 +236,7 @@
 #include "util/util_ui.c"
 #include "util/util_uv.c"
 #include "util/util_uv_unwrap.c"
+#include "util/util_version.c"
 
 #include "account.c"
 #include "agent.c"
@@ -271,6 +274,7 @@ void _kickstart() {
 	_render_path_cached_shader_contexts = any_map_create();
 	ui_nodes_custom_buttons             = any_map_create();
 	ui_nodes_hidden_rules               = any_map_create();
+	ui_nodes_sections                   = any_map_create();
 
 	box_export_channels = any_array_create_from_raw(
 	    (void *[]){
@@ -378,22 +382,26 @@ void _kickstart() {
 	    (void *[]){
 	        _tr("Input"),
 	        _tr("Texture"),
+	        _tr("Pattern"),
+	        _tr("Filter"),
 	        _tr("Color"),
 	        _tr("Utilities"),
 	        _tr("Neural"),
 	        _tr("Group"),
 	    },
-	    6);
+	    8);
 #else
 	nodes_material_categories = any_array_create_from_raw(
 	    (void *[]){
 	        _tr("Input"),
 	        _tr("Texture"),
+	        _tr("Pattern"),
+	        _tr("Filter"),
 	        _tr("Color"),
 	        _tr("Utilities"),
 	        _tr("Group"),
 	    },
-	    5);
+	    7);
 #endif
 
 #if defined(IRON_ANDROID) || defined(IRON_IOS)

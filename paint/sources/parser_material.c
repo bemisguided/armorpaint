@@ -41,6 +41,15 @@ static void parser_material_free_scratch() {
 	parser_material_canvases = NULL;
 }
 
+// The parents array of a group being parsed, owned by the caller: init must not free it
+void parser_material_set_parents(ui_node_t_array_t *parents) {
+	if (parser_material_owns_parents) {
+		array_delete(parser_material_parents);
+	}
+	parser_material_parents      = parents;
+	parser_material_owns_parents = false;
+}
+
 void parser_material_init() {
 	parser_material_free_scratch();
 
@@ -284,6 +293,17 @@ void parser_material_push_group(ui_node_canvas_t *g) {
 	parser_material_links = g->links;
 }
 
+// Starts parsing inside group, the innermost group of a nested chain: pushes one canvas per parent level, outermost first,
+// like parser_material_parse_group does, so the canvas stack mirrors the parents (a group input pops one of each).
+// The parents array stays owned by the caller.
+void parser_material_push_group_chain(ui_node_canvas_t *group, ui_node_t_array_t *parents) {
+	for (i32 i = 0; parents != NULL && i < parents->length - 1; ++i) {
+		parser_material_push_group(parser_material_get_group(parents->buffer[i]->name));
+	}
+	parser_material_push_group(group);
+	parser_material_set_parents(parents);
+}
+
 void parser_material_pop_group() {
 	array_pop(parser_material_canvases);
 	ui_node_canvas_t *g   = parser_material_canvases->buffer[parser_material_canvases->length - 1];
@@ -369,7 +389,59 @@ char *parser_material_parse_vector_input(ui_node_socket_t *inp) {
 	}
 }
 
+// Image space (parser_material_image_space, image nodes): the graph is evaluated over the square of tex_coord, with no mesh.
+// Outputs that read the mesh, its layers, its bakes or the camera give a neutral value instead,
+// positions give the image uv. NULL for every other output.
+#define PARSER_MATERIAL_IMAGE_SPACE_POSITION "float3(tex_coord.x, tex_coord.y, 0.0)"
+#define PARSER_MATERIAL_IMAGE_SPACE_NORMAL   "float3(0.0, 0.0, 1.0)"
+
+static char *parser_material_image_space_vector(ui_node_t *node, ui_node_socket_t *socket) {
+	i32   i    = parser_material_socket_index(node, socket);
+	char *type = node->type;
+	if (string_equals(type, "NEW_GEOMETRY")) { // Position, Normal, Tangent, Incoming, Parametric
+		return i == 0 || i == 4 ? PARSER_MATERIAL_IMAGE_SPACE_POSITION : i == 2 ? "float3(0.0, 0.0, 0.0)" : PARSER_MATERIAL_IMAGE_SPACE_NORMAL;
+	}
+	if (string_equals(type, "TEX_COORD")) { // Generated, Normal, UV, Object, Camera, Window
+		return i == 1 ? PARSER_MATERIAL_IMAGE_SPACE_NORMAL : PARSER_MATERIAL_IMAGE_SPACE_POSITION;
+	}
+	if (string_equals(type, "UVMAP")) {
+		return PARSER_MATERIAL_IMAGE_SPACE_POSITION;
+	}
+	if (string_equals(type, "ATTRIBUTE") && i == 0) { // Vertex color
+		return "float3(0.0, 0.0, 0.0)";
+	}
+	if (string_equals(type, "LAYER")) { // Base Color, Normal Map
+		return i == 0 ? "float3(0.0, 0.0, 0.0)" : "float3(0.5, 0.5, 1.0)";
+	}
+	if (string_equals(type, "VECT_TRANSFORM")) { // Object, world and camera space are the same
+		return parser_material_parse_vector_input(node->inputs->buffer[0]);
+	}
+	if (string_equals(type, "OBJECT_INFO") || string_equals(type, "TEX_CAMERA") || string_equals(type, "TEX_BAKE")) {
+		return "float3(0.0, 0.0, 0.0)";
+	}
+	return NULL;
+}
+
+static char *parser_material_image_space_value(ui_node_t *node, ui_node_socket_t *socket) {
+	i32   i    = parser_material_socket_index(node, socket);
+	char *type = node->type;
+	if (string_equals(type, "LAYER")) { // Occlusion of an empty layer is 1
+		return i == 2 ? "1.0" : "0.0";
+	}
+	if (string_equals(type, "NEW_GEOMETRY") || string_equals(type, "OBJECT_INFO") || string_equals(type, "LAYER_MASK") ||
+	    string_equals(type, "BAKE_CURVATURE") || string_equals(type, "WIREFRAME")) {
+		return "0.0";
+	}
+	return NULL;
+}
+
 char *parser_material_parse_vector(ui_node_t *node, ui_node_socket_t *socket) {
+	if (parser_material_image_space) {
+		char *neutral = parser_material_image_space_vector(node, socket);
+		if (neutral != NULL) {
+			return neutral;
+		}
+	}
 	char *(*node_vector)(ui_node_t *, ui_node_socket_t *) = any_map_get(parser_material_node_vectors, node->type);
 	if (node_vector != NULL) {
 		return node_vector(node, socket);
@@ -409,6 +481,12 @@ char *parser_material_parse_value_input(ui_node_socket_t *inp, bool vector_as_gr
 }
 
 char *parser_material_parse_value(ui_node_t *node, ui_node_socket_t *socket) {
+	if (parser_material_image_space) {
+		char *neutral = parser_material_image_space_value(node, socket);
+		if (neutral != NULL) {
+			return neutral;
+		}
+	}
 	char *(*node_value)(ui_node_t *, ui_node_socket_t *) = any_map_get(parser_material_node_values, node->type);
 	if (node_value != NULL) {
 		return node_value(node, socket);
@@ -427,6 +505,9 @@ char *parser_material_parse_value(ui_node_t *node, ui_node_socket_t *socket) {
 char *parser_material_get_coord(ui_node_t *node) {
 	if (parser_material_get_input_link(node->inputs->buffer[0]) != NULL) {
 		return parser_material_parse_vector_input(node->inputs->buffer[0]);
+	}
+	else if (parser_material_image_space) {
+		return PARSER_MATERIAL_IMAGE_SPACE_POSITION;
 	}
 	else {
 		parser_material_kong->frag_bposition = true;

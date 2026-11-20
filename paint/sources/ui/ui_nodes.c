@@ -427,6 +427,11 @@ void ui_viewnodes_on_canvas_context_menu() {
 			ui_dock_redraw(TAB_AREA_STATUS);
 		}
 	}
+	if (ui_nodes_canvas_type == CANVAS_TYPE_MATERIAL && selected != NULL && make_image_node_type_of(selected->type) != NULL) {
+		if (ui_menu_button(tr("Regenerate Image Nodes"), "", ICON_SYNC)) {
+			make_image_node_regenerate();
+		}
+	}
 	if (ui_nodes_canvas_type != CANVAS_TYPE_MESH && ui_menu_button(tr("Capture Output"), "", ICON_PHOTO)) {
 		sys_notify_on_next_frame(&ui_viewnodes_on_canvas_capture_output, NULL);
 	}
@@ -779,8 +784,14 @@ void ui_nodes_draw_menubar() {
 	string_array_t *cats = ui_nodes_get_categories();
 	for (i32 i = 0; i < cats->length; ++i) {
 
-		if (!full && i == 4) { // MATERIAL_NODE_CATEGORY_GROUP
+		if (!full && string_equals(cats->buffer[i], "Group")) {
 			break;
+		}
+
+		// A category without nodes has no menu (the Image category until an image node is added), Group lists the groups
+		node_list_t_array_t *lists = ui_nodes_get_node_list();
+		if (i < lists->length && ((ui_node_t_array_t *)lists->buffer[i])->length == 0 && !string_equals(cats->buffer[i], "Group")) {
+			continue;
 		}
 
 		if ((ui_menubar_button(tr(cats->buffer[i]))) || (g_ui->is_hovered && ui_nodes_show_menu)) {
@@ -1311,6 +1322,13 @@ bool ui_viewnodes_on_item_hidden(ui_node_t *node, ui_node_item_t kind, i32 index
 	return rule != NULL && rule(node, kind, index);
 }
 
+const ui_node_section_t *ui_viewnodes_on_sections(ui_node_t *node) {
+	if (ui_nodes_canvas_type == CANVAS_TYPE_MATERIAL && make_image_node_type_of(node->type) != NULL) {
+		make_image_node_reconcile(node, ui_nodes_get_canvas(true)->nodes); // A node of an older save is completed before its rows are laid out
+	}
+	return any_map_get(ui_nodes_sections, node->type);
+}
+
 void ui_viewnodes_init() {
 	ui_nodes_preview_texture = ui_nodes_get_node_preview_image;
 
@@ -1321,6 +1339,8 @@ void ui_viewnodes_init() {
 	ui_nodes_on_node_changed = ui_viewnodes_on_node_changed;
 
 	ui_nodes_on_item_hidden = ui_viewnodes_on_item_hidden;
+
+	ui_nodes_on_sections = ui_viewnodes_on_sections;
 
 	ui_nodes_on_socket_released = ui_viewnodes_on_socket_released;
 

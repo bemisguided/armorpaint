@@ -54,6 +54,8 @@ Bake
 Bake Material...
 Bake Tekstur
 Bake ke Tekstur
+
+
 Pita
 Dasar
 Warna Dasar
@@ -305,6 +307,7 @@ Keburaman
 G
 Tekstur Gabor
 Gamma
+
 Dihasilkan
 Geometri
 Geometri ke Asal
@@ -342,7 +345,10 @@ Rona/Saturasi/Nilai
 Kosinus Hiperbolik
 Sinus Hiperbolik
 Tangen Hiperbolik
+
 Tekstur Gambar
+
+
 Gambar ke PBR
 Impor
 Impor Mesh
@@ -389,6 +395,7 @@ Skala UV Lapisan
 Jenis UV Lapisan
 Visibilitas Lapisan
 Lapisan
+
 Radius Malas
 Langkah Malas
 Kiri
@@ -410,6 +417,7 @@ Jadikan Unik
 Manual
 Petakan Rentang
 Pemetaan
+
 Masker
 Warna Masker
 Massa
@@ -496,6 +504,8 @@ Info Objek
 Normal Objek
 Okklusi
 Ofset
+
+
 Warna Lama
 Opasitas
 Mode Opasitas
@@ -524,6 +534,7 @@ Padding
 Lukis
 Lapisan Lukis
 Masker Lukis
+
 Parametrik
 Induk
 Turunan Parsial
@@ -532,6 +543,7 @@ Tempel
 Jalur
 Jejak Jalur
 Pelacak Jalur
+
 Jeda
 Pena
 Pensil
@@ -549,6 +561,7 @@ Cubit
 Ping-Pong
 Poros
 Ukuran Piksel
+
 Dataran
 Mainkan
 Pemutar
@@ -589,6 +602,7 @@ Terbaru
 Ulangi {step}
 Refleksikan
 Segarkan
+
 Impor Ulang
 Impor Ulang Mesh
 Impor Ulang Tekstur
@@ -638,6 +652,7 @@ Skala
 Skala X
 Layar
 Skrip
+
 Node Skrip
 Skrip dibuka
 Skrip
@@ -751,6 +766,7 @@ Tilesheet
 Animasi Tilesheet
 Waktu
 Garis Waktu
+
 Ke Derajat
 Ke Lapisan Isi
 Ke Masker Isi

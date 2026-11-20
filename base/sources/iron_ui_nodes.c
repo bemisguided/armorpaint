@@ -39,6 +39,7 @@ void (*ui_nodes_on_link_drag)(int, bool)                 = NULL;
 void (*ui_nodes_on_node_remove)(ui_node_t *)             = NULL;
 void (*ui_nodes_on_node_changed)(ui_node_t *)            = NULL;
 bool (*ui_nodes_on_item_hidden)(ui_node_t *, ui_node_item_t, int) = NULL; // Whether an input, output or button of a node is not shown
+const ui_node_section_t *(*ui_nodes_on_sections)(ui_node_t *) = NULL; // The sections of a node, ends with an entry without title
 bool ui_nodes_grid_snap                                  = true;
 int  ui_nodes_grid_snap_w                                = 40;
 
@@ -91,12 +92,16 @@ float UI_LINE_H() {
 	return current_nodes->ELEMENT_H * UI_NODES_SCALE();
 }
 
-float UI_BUTTONS_H(ui_node_t *node) {
+// Height of the first length buttons (all for a negative length)
+static float ui_node_buttons_h(ui_node_t *node, int length) {
 	if (node->flags & UI_NODE_FLAG_COLLAPSED)
 		return 0.0;
 	float h = 0.0;
-	for (int i = 0; i < node->buttons->length; ++i) {
+	for (int i = 0; i < (length < 0 ? node->buttons->length : length); ++i) {
 		ui_node_button_t *but = node->buttons->buffer[i];
+		if (ui_node_section_header_at(NULL, node, UI_NODE_ITEM_BUTTON, i) >= 0) {
+			h += UI_LINE_H();
+		}
 		if (ui_node_item_hidden(NULL, node, UI_NODE_ITEM_BUTTON, i)) {
 			continue;
 		}
@@ -115,6 +120,10 @@ float UI_BUTTONS_H(ui_node_t *node) {
 		}
 	}
 	return h;
+}
+
+float UI_BUTTONS_H(ui_node_t *node) {
+	return ui_node_buttons_h(node, -1);
 }
 
 float UI_OUTPUTS_H(ui_node_canvas_t *canvas, ui_node_t *node, int length) {
@@ -150,9 +159,9 @@ bool ui_output_linked(ui_node_canvas_t *canvas, int node_id, int i) {
 	return false;
 }
 
-// The app decides through ui_nodes_on_item_hidden; a linked socket is never hidden, so a hidden socket has no link to draw.
+// The app decides through ui_nodes_on_item_hidden; a linked socket is never hidden by it, so a socket hidden by it has no link to draw.
 // A hidden socket keeps its index, value and link data, only its row is skipped. canvas may be NULL for buttons.
-bool ui_node_item_hidden(ui_node_canvas_t *canvas, ui_node_t *node, ui_node_item_t kind, int index) {
+static bool ui_node_item_hidden_by_rule(ui_node_canvas_t *canvas, ui_node_t *node, ui_node_item_t kind, int index) {
 	if (ui_nodes_on_item_hidden == NULL || !ui_nodes_on_item_hidden(node, kind, index)) {
 		return false;
 	}
@@ -165,10 +174,76 @@ bool ui_node_item_hidden(ui_node_canvas_t *canvas, ui_node_t *node, ui_node_item
 	return true;
 }
 
+// The section of the node that holds the item, or -1
+static int ui_node_section_of(ui_node_t *node, ui_node_item_t kind, int index) {
+	if (ui_nodes_on_sections == NULL || kind == UI_NODE_ITEM_OUTPUT) {
+		return -1;
+	}
+	const ui_node_section_t *sections = ui_nodes_on_sections(node);
+	for (int n = 0; sections != NULL && sections[n].title != NULL && n < UI_NODE_SECTIONS_MAX; ++n) {
+		if ((sections[n].kind == kind && index >= sections[n].first && index < sections[n].first + sections[n].count) ||
+		    (kind == UI_NODE_ITEM_INPUT && index >= sections[n].inputs_first && index < sections[n].inputs_first + sections[n].inputs_count)) {
+			return n;
+		}
+	}
+	return -1;
+}
+
+static const ui_node_section_t *ui_node_section(ui_node_t *node, int n) {
+	return &ui_nodes_on_sections(node)[n];
+}
+
+bool ui_node_section_closed(ui_node_t *node, int n) {
+	bool toggled = (node->flags & (UI_NODE_FLAG_SECTION_0 << n)) != 0;
+	return toggled != ui_node_section(node, n)->closed_by_default;
+}
+
+// A section shows its header when at least one member is shown by the rules or linked. A mixed section is decided by its buttons
+// alone (the button heights are measured without a canvas, so the header row must not depend on the links).
+static bool ui_node_section_visible(ui_node_canvas_t *canvas, ui_node_t *node, int n) {
+	const ui_node_section_t *sec = ui_node_section(node, n);
+	for (int i = sec->first; i < sec->first + sec->count; ++i) {
+		if (!ui_node_item_hidden_by_rule(canvas, node, sec->kind, i)) {
+			return true;
+		}
+		if (sec->kind == UI_NODE_ITEM_INPUT && canvas != NULL && ui_input_linked(canvas, node->id, i)) {
+			return true;
+		}
+	}
+	return false;
+}
+
+// The section whose header row sits in front of this item (the item is its first member), or -1
+int ui_node_section_header_at(ui_node_canvas_t *canvas, ui_node_t *node, ui_node_item_t kind, int index) {
+	int n = ui_node_section_of(node, kind, index);
+	if (n < 0 || ui_node_section(node, n)->kind != kind || ui_node_section(node, n)->first != index || !ui_node_section_visible(canvas, node, n)) {
+		return -1;
+	}
+	return n;
+}
+
+// Row of the header of the section of an input that sits in a closed section, else -1: links to it end on the header
+static int ui_node_input_in_closed_section(ui_node_t *node, int index) {
+	int n = ui_node_section_of(node, UI_NODE_ITEM_INPUT, index);
+	return n >= 0 && ui_node_section_closed(node, n) ? n : -1;
+}
+
+// A member of a closed section is not shown, the rules hide an item as long as it is not linked
+bool ui_node_item_hidden(ui_node_canvas_t *canvas, ui_node_t *node, ui_node_item_t kind, int index) {
+	int n = ui_node_section_of(node, kind, index);
+	if (n >= 0 && ui_node_section_closed(node, n)) {
+		return true;
+	}
+	return ui_node_item_hidden_by_rule(canvas, node, kind, index);
+}
+
 float UI_INPUTS_H(ui_node_canvas_t *canvas, ui_node_t *node, int length) {
 	ui_node_socket_t **sockets = node->inputs->buffer;
 	float h = 0.0;
 	for (int i = 0; i < (length < 0 ? node->inputs->length : length); ++i) {
+		if (ui_node_section_header_at(canvas, node, UI_NODE_ITEM_INPUT, i) >= 0) {
+			h += UI_LINE_H();
+		}
 		if (ui_node_item_hidden(canvas, node, UI_NODE_ITEM_INPUT, i)) {
 			continue;
 		}
@@ -203,13 +278,43 @@ float UI_NODE_Y(ui_node_t *node) {
 float UI_INPUT_Y(ui_node_canvas_t *canvas, ui_node_t *node, int pos) {
 	if (node->flags & UI_NODE_FLAG_COLLAPSED)
 		return UI_LINE_H() * 0.5;
-	return UI_LINE_H() * 1.62 + UI_INPUTS_H(canvas, node, pos);
+	// The row of the header in front of the section for a first member, for a member of a closed section the header itself
+	int closed = ui_node_input_in_closed_section(node, pos);
+	if (closed >= 0 && ui_node_section(node, closed)->kind == UI_NODE_ITEM_BUTTON) {
+		// Mixed section: its header sits among the buttons, the callers add the whole height of the buttons to the result
+		return UI_LINE_H() * 1.62 + ui_node_buttons_h(node, ui_node_section(node, closed)->first) - UI_BUTTONS_H(node);
+	}
+	if (closed >= 0) {
+		return UI_LINE_H() * 1.62 + UI_INPUTS_H(canvas, node, ui_node_section(node, closed)->first);
+	}
+	return UI_LINE_H() * 1.62 + UI_INPUTS_H(canvas, node, pos) + (ui_node_section_header_at(canvas, node, UI_NODE_ITEM_INPUT, pos) >= 0 ? UI_LINE_H() : 0.0);
 }
 
 float UI_OUTPUT_Y(ui_node_canvas_t *canvas, ui_node_t *node, int pos) {
 	if (node->flags & UI_NODE_FLAG_COLLAPSED)
 		return UI_LINE_H() * 0.5;
 	return UI_LINE_H() * 1.62 + UI_OUTPUTS_H(canvas, node, pos);
+}
+
+// Triangle of a section header as the 6 coordinates x0 y0 x1 y1 x2 y2. One isosceles triangle with base 10u and height 7.5u (u = ui_p(1)):
+// open points down (10u wide, 7.5u tall), closed is the same triangle rotated by 90 degrees and points right (7.5u wide, 10u tall).
+// Both share the centre (nx + 15u, ny + 5.5u), so they have the same size and the same area (37.5u^2) and fit inside the row (lineh = 25u,
+// the larger dimension is 10u). The left edge is at least 5u right of the socket dot (which ends at nx + 6u) in both states.
+static void ui_node_section_arrow(bool closed, float u, float nx, float ny, float *p) {
+	float cx = nx + u * 15.0;
+	float cy = ny + u * 5.5;
+	float b  = u * 5.0;  // half base
+	float h  = u * 3.75; // half height
+	if (closed) {
+		p[0] = cx - h; p[1] = cy - b;
+		p[2] = cx + h; p[3] = cy;
+		p[4] = cx - h; p[5] = cy + b;
+	}
+	else {
+		p[0] = cx - b; p[1] = cy - h;
+		p[2] = cx + b; p[3] = cy - h;
+		p[4] = cx;     p[5] = cy + h;
+	}
 }
 
 float ui_p(float f) {
@@ -486,6 +591,40 @@ static char           temp_label[64];
 static char           temp_texts_data[256][64];
 static char          *temp_texts[256];
 
+// Header row of a section: triangle (open or closed) and title; a click toggles the bit of the section in node->flags.
+// ny is the y of a row as the inputs use it (a button row starts lineh / 3 above it). A closed section with a linked input
+// shows the socket dot of the first linked one: the links of its members end here.
+static void ui_node_draw_section_header(ui_node_t *node, ui_node_canvas_t *canvas, int n, float nx, float ny) {
+	ui_t                    *current = ui_get_current();
+	const ui_node_section_t *sec     = ui_node_section(node, n);
+	float                    lineh   = UI_LINE_H();
+	float                    w       = UI_NODE_W(node);
+	bool                     closed  = ui_node_section_closed(node, n);
+	float                    top     = ny - lineh / 3.0;
+	if (current->input_enabled && current->input_started && current->input_x > current->_window_x + nx && current->input_x < current->_window_x + nx + w &&
+	    current->input_y > current->_window_y + top && current->input_y < current->_window_y + top + lineh) {
+		node->flags ^= UI_NODE_FLAG_SECTION_0 << n;
+		closed = !closed;
+		current_nodes->_input_started = current->input_started = false;
+	}
+	draw_set_color(current->ops->theme->LABEL_COL);
+	float tri[6];
+	ui_node_section_arrow(closed, ui_p(1), nx, ny, tri);
+	draw_filled_triangle(tri[0], tri[1], tri[2], tri[3], tri[4], tri[5]);
+	draw_string(ui_tr((char *)sec->title), nx + ui_p(28), ny - ui_p(3));
+	if (closed && (sec->kind == UI_NODE_ITEM_INPUT || sec->inputs_count > 0)) {
+		int first = sec->kind == UI_NODE_ITEM_INPUT ? sec->first : sec->inputs_first;
+		int count = sec->kind == UI_NODE_ITEM_INPUT ? sec->count : sec->inputs_count;
+		for (int i = first; i < first + count && i < node->inputs->length; ++i) {
+			if (ui_input_linked(canvas, node->id, i)) {
+				draw_set_color(node->inputs->buffer[i]->color);
+				draw_scaled_image(&ui_socket_image, nx - ui_p(6), ny - ui_p(3), ui_p(12), ui_p(12));
+				break;
+			}
+		}
+	}
+}
+
 void ui_node_draw_body(ui_node_t *node, ui_node_canvas_t *canvas, float nx, float ny) {
 	ui_t *current = ui_get_current();
 	float wx      = current->_window_x;
@@ -528,6 +667,11 @@ void ui_node_draw_body(ui_node_t *node, ui_node_canvas_t *canvas, float nx, floa
 	for (int buti = 0; buti < node->buttons->length; ++buti) {
 		ui_node_button_t *but = node->buttons->buffer[buti];
 		float            *val = but->output == -1 ? but->default_value->buffer : node->outputs->buffer[but->output]->default_value->buffer;
+		int               section = ui_node_section_header_at(canvas, node, UI_NODE_ITEM_BUTTON, buti);
+		if (section >= 0) {
+			ny += lineh;
+			ui_node_draw_section_header(node, canvas, section, nx, ny + lineh / 3.0);
+		}
 		if (ui_node_item_hidden(canvas, node, UI_NODE_ITEM_BUTTON, buti)) {
 			continue;
 		}
@@ -672,6 +816,11 @@ void ui_node_draw_body(ui_node_t *node, ui_node_canvas_t *canvas, float nx, floa
 	// Inputs
 	for (int i = 0; i < node->inputs->length; ++i) {
 		ui_node_socket_t *inp = node->inputs->buffer[i];
+		int               section = ui_node_section_header_at(canvas, node, UI_NODE_ITEM_INPUT, i);
+		if (section >= 0) {
+			ny += lineh;
+			ui_node_draw_section_header(node, canvas, section, nx, ny);
+		}
 		if (ui_node_item_hidden(canvas, node, UI_NODE_ITEM_INPUT, i)) {
 			continue;
 		}

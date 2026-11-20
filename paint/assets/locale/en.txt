@@ -54,6 +54,8 @@ Bake
 Bake Material...
 Bake Texture
 Bake to Textures
+Baked
+Baking
 Bands
 Base
 Base Color
@@ -305,6 +307,7 @@ Fuzziness
 G
 Gabor Texture
 Gamma
+General
 Generated
 Geometry
 Geometry to Origin
@@ -342,7 +345,10 @@ Hue/Saturation/Value
 Hyperbolic Cosine
 Hyperbolic Sine
 Hyperbolic Tangent
+Image
 Image Texture
+Image node bake: out of memory
+Image node loop: looped input reads black
 Image to PBR
 Import
 Import Mesh
@@ -389,6 +395,7 @@ Layer UV Scale
 Layer UV Type
 Layer Visibility
 Layers
+Layout
 Lazy Radius
 Lazy Step
 Left
@@ -410,6 +417,7 @@ Make Unique
 Manual
 Map Range
 Mapping
+Maps
 Mask
 Mask Color
 Mass
@@ -496,6 +504,8 @@ Object Info
 Object Normal
 Occlusion
 Offset
+Offset X
+Offset Y
 Old Color
 Opacity
 Opacity Mode
@@ -524,6 +534,7 @@ Padding
 Paint
 Paint Layer
 Paint Mask
+Parameters
 Parametric
 Parent
 Partial Derivative
@@ -532,6 +543,7 @@ Paste
 Path
 Path Traced
 Path Tracer
+Pattern
 Pause
 Pen
 Pencil
@@ -549,6 +561,7 @@ Pinch
 Ping-Pong
 Pivot
 Pixel Size
+Placement
 Plateau
 Play
 Player
@@ -589,6 +602,7 @@ Recent
 Redo {step}
 Reflect
 Refresh
+Regenerate Image Nodes
 Reimport
 Reimport Mesh
 Reimport Textures
@@ -636,6 +650,7 @@ Saving project
 Saw
 Scale
 Scale X
+Scale Y
 Screen
 Script
 Script Nodes
@@ -747,6 +762,7 @@ Tileable
 Tiled
 Tiles X
 Tiles Y
+Tile UV
 Tilesheet
 Tilesheet Animation
 Time

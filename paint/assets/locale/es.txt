@@ -54,6 +54,8 @@ Hornear
 Hornear material...
 Hornear textura
 Hornear a texturas
+
+
 Bandas
 Base
 Color base
@@ -305,6 +307,7 @@ Difuminado
 V
 Textura Gabor
 Gama
+
 Generado
 Geometría
 Geometria al origen
@@ -342,7 +345,10 @@ Tono/Saturación/Valor
 Coseno hiperbólico
 Seno hiperbólico
 Tangente hiperbólica
+
 Imagen
+
+
 Imagen a PBR
 Importar
 Importar malla
@@ -389,6 +395,7 @@ Escala UV de capa
 Tipo UV de capa
 Visibilidad de capa
 Capas
+
 Radio perezoso
 Paso perezoso
 Izquierda
@@ -410,6 +417,7 @@ Hacer único
 Manual
 Mapear Rango
 Mapeado
+
 Máscara
 Color de máscara
 Masa
@@ -496,6 +504,8 @@ Información del objeto
 Normales del objeto
 Oclusión
 Compensación
+
+
 Color antiguo
 Opacidad
 Modo de opacidad
@@ -524,6 +534,7 @@ Relleno
 Pintar
 Capa de pintura
 Máscara de pintura
+
 Paramétrico
 Padre
 Derivada parcial
@@ -532,6 +543,7 @@ Pegar
 Ruta
 Trazado de ruta
 Trazador de rutas
+
 Pausar
 Stylus
 Lápiz
@@ -549,6 +561,7 @@ Pellizcar
 Ping - Pong
 Pivote
 Tamaño de píxel
+
 Meseta
 Reproducir
 Reproductor
@@ -589,6 +602,7 @@ Reciente
 Rehacer {step}
 Reflejar
 Actualizar
+
 Reimportar
 Reimportar malla
 Reimportar texturas
@@ -638,6 +652,7 @@ Escala
 Escalar en X
 Trama
 Script
+
 Nodos de script
 Script abierto
 Scripts
@@ -751,6 +766,7 @@ Hoja de mosaicos
 Animación de hoja de mosaicos
 Tiempo
 Línea de tiempo
+
 A grados
 Rellenar Capa
 a máscara de relleno

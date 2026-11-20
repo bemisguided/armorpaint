@@ -54,6 +54,8 @@ Cozinhar
 Cozinhar Material
 Cozinhar Textura
 Cozinhar para Texturas
+
+
 Faixas
 Base
 Cor Base
@@ -305,6 +307,7 @@ Borrosidade
 G
 Textura Gabor
 Gama
+
 Gerada
 Geometria
 Geometria para Origem
@@ -342,7 +345,10 @@ Matiz/Saturação/Valor
 Cosseno Hiperbólico
 Seno Hiperbólico
 Tangente Hiperbólica
+
 Textura de Imagem
+
+
 Imagem para PBR
 Importar
 Importar Malha
@@ -389,6 +395,7 @@ Escala UV da Camada
 Tipo de UV da Camada
 Visibilidade da Camada
 Camadas
+
 Raio Preguiçoso
 Passo Preguiçoso
 Esquerda
@@ -410,6 +417,7 @@ Tornar Único
 Manual
 Mapear Intervalo
 Mapeamento
+
 Máscara
 Cor da Máscara
 Massa
@@ -496,6 +504,8 @@ Informação do Objeto
 Normal do Objeto
 Oclusão
 Deslocamento
+
+
 Cor Antiga
 Opacidade
 Modo de Opacidade
@@ -524,6 +534,7 @@ Preenchimento
 Pintar
 Camada de Pintura
 Máscara de Pintura
+
 Paramétrico
 Pai
 Derivada Parcial
@@ -532,6 +543,7 @@ Colar
 Caminho
 Traçado de Caminho
 Traçador de Caminho
+
 Pausar
 Caneta
 Lápis
@@ -549,6 +561,7 @@ Beliscar
 Ping-Pong
 Pivô
 Tamanho do Pixel
+
 Platô
 Reproduzir
 Player
@@ -589,6 +602,7 @@ Recente
 Refazer {step}
 Refletir
 Atualizar
+
 Reimportar
 Reimportar Malha
 Reimportar Texturas
@@ -638,6 +652,7 @@ Escala
 Escala X
 Tela
 Script
+
 Nós de Script
 Script aberto
 Scripts
@@ -751,6 +766,7 @@ Folha de Blocos
 Animação de Folha de Blocos
 Tempo
 Linha do Tempo
+
 Para Graus
 Para Camada de Preenchimento
 Para Máscara de Preenchimento

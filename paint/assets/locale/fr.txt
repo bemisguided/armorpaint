@@ -54,6 +54,8 @@ Rendu
 Exporter le matériau...
 Rendu de texture
 Rendu des textures
+
+
 Bandes
 Base
 Couleur de base
@@ -305,6 +307,7 @@ Flou
 V
 Texture Gabor
 Gamma
+
 Générées
 Géométrie
 Géométrie vers origine
@@ -342,7 +345,10 @@ Teinte/Saturation/Valeur
 Cosinus hyperbolique
 Sinus hyperbolique
 Tangente hyperbolique
+
 Texture image
+
+
 Image vers PBR
 Importer
 Importer le maillage
@@ -389,6 +395,7 @@ Opacité du calque
 Type UV du calque
 Visibilité du calque
 Calques
+
 Rayon du ralenti
 Étape du ralenti
 Gauche
@@ -410,6 +417,7 @@ Rendre unique
 Manuel
 Plage de carte
 Mappage
+
 Masque
 Couleur de masque
 Masse
@@ -496,6 +504,8 @@ Info d'objet
 Normale objet
 Occlusion
 Décalage
+
+
 Ancienne couleur
 Opacité
 Mode d'opacité
@@ -524,6 +534,7 @@ Marge
 Peindre
 Calque de peinture
 Masque de peinture
+
 Paramétrique
 Parent
 Dérivée partielle
@@ -532,6 +543,7 @@ Coller
 Chemin
 Tracé de chemin
 Traceur de chemins
+
 Pause
 Stylo
 Crayon
@@ -549,6 +561,7 @@ Pincer
 Ping-pong
 Pivot
 Taille de pixel
+
 Plateau
 Lecture
 Lecteur
@@ -589,6 +602,7 @@ Récent
 Refaire {step}
 Refléter
 Rafraîchir
+
 Ré-importer
 Ré-importer le maillage
 Ré-importer les textures
@@ -638,6 +652,7 @@ Dents de scie
 Échelle X
 Écran
 Script
+
 Nœuds de script
 Script ouvert
 Scripts
@@ -751,6 +766,7 @@ Feuille de tuiles
 Animation de feuille de tuiles
 Temps
 Chronologie
+
 En degrés
 Vers calque de remplissage
 Vers masque de remplissage

@@ -54,6 +54,8 @@ Wypalanie
 Wypalanie materiału...
 Wypalanie tekstury
 Wypal do tekstur
+
+
 Pasma
 Podstawowy
 Kolor bazowy
@@ -305,6 +307,7 @@ Rozmycie
 G
 Tekstura Gabora
 Gamma
+
 Wygenerowane
 Geometria
 Geometria do początku układu
@@ -342,7 +345,10 @@ Odcień/Nasycenie/Wartość
 Cosinus hiperboliczny
 Sinus hiperboliczny
 Tangens hiperboliczny
+
 Tekstura obrazu
+
+
 Obraz do PBR
 Importuj
 Importuj model
@@ -389,6 +395,7 @@ Skala UV warstwy
 Typ UV warstwy
 Widoczność warstwy
 Warstwy
+
 Promień leniwy
 Krok leniwy
 Lewy
@@ -410,6 +417,7 @@ Uczyń unikalnym
 Instrukcja
 Mapa zakresu
 Mapowanie
+
 Maska
 Kolor maski
 Masa
@@ -496,6 +504,8 @@ Informacje o obiekcie
 Normalna obiektu
 Okluzja
 Przesunięcie
+
+
 Stary kolor
 Krycie
 Tryb krycia
@@ -524,6 +534,7 @@ Wypełnienie
 Malowanie
 Warstwa malowania
 Maska malowania
+
 Parametryczny
 Rodzic
 Częściowa pochodna
@@ -532,6 +543,7 @@ Wklej
 Ścieżka
 Śledzenie ścieżek
 Śledzenie ścieżek
+
 Pauza
 Pióro
 Ołówek
@@ -549,6 +561,7 @@ Przypnij do nagłówka
 Ping-Pong
 Punkt obrotu
 Rozmiar piksela
+
 Płaskowyż
 Odtwórz
 Odtwarzacz
@@ -589,6 +602,7 @@ Ostatnie
 Powtórz {step}
 Odbij
 Odśwież
+
 Zaimportuj ponownie
 Zaimportuj model ponownie
 Zaimportuj tekstury ponownie
@@ -638,6 +652,7 @@ Skala
 Skala X
 Ekran
 Skrypt
+
 Węzły skryptów
 Skrypt otwarty
 Skrypty
@@ -751,6 +766,7 @@ Arkusz kafelków
 Animacja arkusza kafelków
 Czas
 Oś czasu
+
 Do stopni
 Do warstwy wypełnienia
 Do maski wypełnienia

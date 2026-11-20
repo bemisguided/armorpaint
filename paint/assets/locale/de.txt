@@ -54,6 +54,8 @@ Baken
 Material baken...
 Textur baken
 Auf Textur backen
+
+
 Bänder
 Basis
 Base Color
@@ -305,6 +307,7 @@ Unschärfe
 G
 Gabor Textur
 Gamma
+
 Generiert
 Geometrie
 Geometrie in den Ursprung
@@ -342,7 +345,10 @@ Farbton/Sättigung/Helligkeit
 Kosinus Hyperbolicus
 Sinus Hyperbolicus
 Tangens Hyperbolicus
+
 Bild Textur
+
+
 Bild zu PBR
 Importieren
 Mesh importieren
@@ -389,6 +395,7 @@ Ebenen UV Skalierung
 Ebenen UV Typ
 Ebenensichtbarkeit
 Ebenen
+
 Träger Radius
 Träger Schritt
 Links
@@ -410,6 +417,7 @@ Einzigartig machen
 Handbuch
 Bereich abbilden
 Mapping
+
 Maske
 Maskenfarbe
 Masse
@@ -496,6 +504,8 @@ Objekt Information
 Objekt Normale
 Occlusion
 Offset
+
+
 Alte Farbe
 Deckkraft
 Deckkraft Modus
@@ -524,6 +534,7 @@ Abstand
 Malen
 Malebene
 Zeichenmaske
+
 Parametrisch
 Eltern
 Partielle Ableitung
@@ -532,6 +543,7 @@ Einfügen
 Pfad
 Pfadverfolgung
 Pfadverfolger
+
 Pause
 Stift
 Bleistift
@@ -549,6 +561,7 @@ Zusammenziehen
 Ping-Pong
 Drehpunkt
 Pixelgröße
+
 Plateau
 Abspielen
 Player
@@ -589,6 +602,7 @@ Neuste
 Wiederherstellen {step}
 Spiegeln
 Aktualisieren
+
 Erneut importieren
 Mesh neu importieren
 Texturen neu importieren
@@ -636,6 +650,7 @@ Projekt wird gespeichert
 Sägezahn
 Skalierung
 X skalieren
+
 Verdecken
 Skript
 Skript-Nodes
@@ -747,6 +762,7 @@ Kachel Y
 Gekachelt
 Kacheln X
 Kacheln Y
+
 Tilesheet
 Tilesheet Animation
 Zeit

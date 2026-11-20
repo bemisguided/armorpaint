@@ -23,6 +23,7 @@ ui_theme_t  *g_theme;
 any_map_t   *g_plugins;
 
 any_map_t       *ui_nodes_custom_buttons;
+any_map_t       *ui_nodes_sections; // Node type -> ui_node_section_t array (ends with an entry without title) of the collapsible sections of the node
 any_map_t       *ui_nodes_hidden_rules; // Node type -> bool (*)(ui_node_t *, ui_node_item_t, i32) telling which rows of the node are hidden
 gpu_texture_t   *lut_image             = NULL;
 i32              lut_size              = 0;
@@ -253,6 +254,7 @@ char                 *parser_material_sample_uv_scale       = "1.0";
 bool                  parser_material_transform_color_space = true;
 bool                  parser_material_blur_passthrough      = false;
 bool                  parser_material_warp_passthrough      = false;
+bool                  parser_material_image_space           = false; // Image space: over the square of tex_coord, no mesh (image nodes)
 bool                  parser_material_atlas_uv              = false; // tex_coord_atlas holds the udim atlas uv
 ui_node_canvas_t     *parser_material_start_group           = NULL;
 ui_node_t_array_t    *parser_material_start_parents         = NULL;
@@ -323,6 +325,8 @@ any_map_t            *nodes_brush_creates;
 string_array_t       *nodes_material_categories;
 ui_node_t_array_t    *nodes_material_input;
 ui_node_t_array_t    *nodes_material_texture;
+ui_node_t_array_t    *nodes_material_pattern;
+ui_node_t_array_t    *nodes_material_filter;
 ui_node_t_array_t    *nodes_material_color;
 ui_node_t_array_t    *nodes_material_utilities;
 ui_node_t_array_t    *nodes_material_neural;

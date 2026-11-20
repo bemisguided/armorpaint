@@ -54,6 +54,8 @@ Sütés (Bake)
 Anyag sütése...
 Textúra sütése
 Sütés textúrákra
+
+
 Sávok
 Alap
 Alapszín
@@ -305,6 +307,7 @@ Bolyhosság
 G
 Gabor textúra
 Gamma
+
 Generált
 Geometria
 Geometria az origóba
@@ -342,7 +345,10 @@ Hogyan használd
 Hiperbolikus koszinusz
 Hiperbolikus szinusz
 Hiperbolikus tangens
+
 Kép textúra
+
+
 Képből PBR
 Importálás
 Háló importálása
@@ -389,6 +395,7 @@ Réteg UV méretezése
 Réteg UV típusa
 Réteg láthatósága
 Rétegek
+
 Lusta sugár
 Lusta lépés
 Balra
@@ -410,6 +417,7 @@ Egyedivé tétel
 Kézikönyv
 Tartomány leképzése
 Leképzés
+
 Maszk
 Maszk színe
 Massza
@@ -496,6 +504,8 @@ Objektum Infó
 Objektum Normál
 Okklúzió (AO)
 Eltolás
+
+
 Régi szín
 Átlátszatlanság
 Átlátszatlanság mód
@@ -524,6 +534,7 @@ Kitöltés (Padding)
 Festés
 Festő réteg
 Festő maszk
+
 Parametrikus
 Szülő
 Parciális derivált
@@ -532,6 +543,7 @@ Beillesztés
 Útvonal
 Path Traced
 Path Tracer
+
 Szünet
 Toll
 Ceruza
@@ -549,6 +561,7 @@ Csípés
 Ping-Pong
 Középpont (Pivot)
 Pixel méret
+
 Plató
 Lejátszás
 Player
@@ -589,6 +602,7 @@ Legutóbbi
 Mégsem von vissza: {step}
 Visszatükröződés
 Frissítés
+
 Újraimportálás
 Háló újraimportálása
 Textúrák újraimportálása
@@ -638,6 +652,7 @@ Méretezés
 X méretezés
 Képernyő (Screen)
 Szkript
+
 Szkript csomópontok
 Szkript megnyitva
 Szkriptek
@@ -751,6 +766,7 @@ Mozaiklap
 Mozaiklap animáció
 Idő
 Időszalag
+
 Fokra
 Kitöltő réteggé
 Kitöltő maszkká
