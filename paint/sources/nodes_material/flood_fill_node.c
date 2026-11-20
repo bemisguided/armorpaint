@@ -162,6 +162,6 @@ void flood_fill_node_init() {
 	any_array_push(nodes_material_pattern, flood_fill_node_def);
 	any_map_set(parser_material_node_values, "TEX_FLOOD_FILL", flood_fill_node_value);
 	any_map_set(parser_material_node_vectors, "TEX_FLOOD_FILL", flood_fill_node_vector);
-	make_image_node_sections("TEX_FLOOD_FILL", NULL, 0);
+	make_image_node_sections(flood_fill_node_def, NULL, 0, 1); // General: the settings and Image
 	make_image_node_register(&flood_fill_node_image_type);
 }
