@@ -47,7 +47,7 @@ enum {
 	TILE_GENERATOR_INPUT_SEED              = 17,
 };
 
-// Sections of the node: a contiguous range of inputs each (Pattern 1 to 4 stay above them), see make_image_node_sections.
+// Own sections of the node: a contiguous range of inputs each (Pattern 1 to 4 belong to the General section), see make_image_node_sections.
 // The input order puts every group in one run: Maps 4 to 8, Layout 9 to 12, Randomness 13 to 17.
 enum {
 	TILE_GENERATOR_SECTION_MAPS_FIRST        = TILE_GENERATOR_INPUT_MASK,
@@ -434,6 +434,6 @@ void tile_generator_node_init() {
 	    {.title = _tr("Layout"), .kind = UI_NODE_ITEM_INPUT, .first = TILE_GENERATOR_SECTION_LAYOUT_FIRST, .count = TILE_GENERATOR_SECTION_LAYOUT_COUNT, .closed_by_default = false},
 	    {.title = _tr("Randomness"), .kind = UI_NODE_ITEM_INPUT, .first = TILE_GENERATOR_SECTION_RANDOMNESS_FIRST, .count = TILE_GENERATOR_SECTION_RANDOMNESS_COUNT, .closed_by_default = true},
 	};
-	make_image_node_sections("TEX_TILE_GENERATOR", sections, 3);
+	make_image_node_sections(tile_generator_node_def, sections, 3, TILE_GENERATOR_SECTION_MAPS_FIRST); // General: the settings and Pattern 1 to 4
 	make_image_node_register(&tile_generator_node_image_type);
 }
