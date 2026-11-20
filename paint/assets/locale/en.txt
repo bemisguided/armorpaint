@@ -307,6 +307,7 @@ Fuzziness
 G
 Gabor Texture
 Gamma
+General
 Generated
 Geometry
 Geometry to Origin
@@ -532,6 +533,7 @@ Padding
 Paint
 Paint Layer
 Paint Mask
+Parameters
 Parametric
 Parent
 Partial Derivative
