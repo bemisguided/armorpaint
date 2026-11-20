@@ -1306,6 +1306,11 @@ void ui_nodes_accept_swatch_drop(swatch_color_t *swatch) {
 	    1);
 }
 
+bool ui_viewnodes_on_item_hidden(ui_node_t *node, ui_node_item_t kind, i32 index) {
+	bool (*rule)(ui_node_t *, ui_node_item_t, i32) = any_map_get(ui_nodes_hidden_rules, node->type);
+	return rule != NULL && rule(node, kind, index);
+}
+
 void ui_viewnodes_init() {
 	ui_nodes_preview_texture = ui_nodes_get_node_preview_image;
 
@@ -1314,6 +1319,8 @@ void ui_viewnodes_init() {
 	ui_nodes_on_node_remove = ui_viewnodes_on_node_remove;
 
 	ui_nodes_on_node_changed = ui_viewnodes_on_node_changed;
+
+	ui_nodes_on_item_hidden = ui_viewnodes_on_item_hidden;
 
 	ui_nodes_on_socket_released = ui_viewnodes_on_socket_released;
 

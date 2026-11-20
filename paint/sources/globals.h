@@ -23,6 +23,7 @@ ui_theme_t  *g_theme;
 any_map_t   *g_plugins;
 
 any_map_t       *ui_nodes_custom_buttons;
+any_map_t       *ui_nodes_hidden_rules; // Node type -> bool (*)(ui_node_t *, ui_node_item_t, i32) telling which rows of the node are hidden
 gpu_texture_t   *lut_image             = NULL;
 i32              lut_size              = 0;
 gpu_texture_t   *layers_temp_image     = NULL;
