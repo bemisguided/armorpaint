@@ -39,9 +39,9 @@ float perlin_grad(int h, float x, float y, float z) { \
 	if (k < 4) { v = y; } \
 	if (k == 12 || k == 14) { v = x; } \
 	float su = u; \
-	if ((k & 1) != 0) { su = -u; } \
+	if ((k & 1) != 0) { su = 0.0 - u; } \
 	float sv = v; \
-	if ((k & 2) != 0) { sv = -v; } \
+	if ((k & 2) != 0) { sv = 0.0 - v; } \
 	return su + sv; \
 } \
 float perlin_fade(float t) { return t * t * t * (t * (t * 6.0 - 15.0) + 10.0); } \
