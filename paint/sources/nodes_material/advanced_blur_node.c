@@ -348,5 +348,6 @@ void advanced_blur_node_init() {
 	any_map_set(parser_material_node_values, "TEX_ADVANCED_BLUR", advanced_blur_node_value);
 	any_map_set(parser_material_node_vectors, "TEX_ADVANCED_BLUR", advanced_blur_node_vector);
 	any_map_set(ui_nodes_hidden_rules, "TEX_ADVANCED_BLUR", advanced_blur_node_item_hidden);
+	make_image_node_sections("TEX_ADVANCED_BLUR", NULL, 0);
 	make_image_node_register(&advanced_blur_node_image_type);
 }
