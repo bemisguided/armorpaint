@@ -490,9 +490,11 @@ Tekstur Noise
 Tidak Ada
 Normal
 Campur Normal
+
 Peta Normal
 Peta Normal 1
 Peta Normal 2
+
 Normalisasi
 Tidak tersedia di build debug
 Belum diimplementasikan

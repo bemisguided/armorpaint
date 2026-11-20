@@ -490,9 +490,11 @@ Noise Texture
 None
 Normal
 Normal Blend
+Normal Converter
 Normal Map
 Normal Map 1
 Normal Map 2
+Normal to Height
 Normalize
 Not available in debug build
 Not implemented

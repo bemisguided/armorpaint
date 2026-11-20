@@ -44,7 +44,7 @@ void nodes_material_init() {
 	// Pattern nodes, keep alphabetical by English name (the menu lists them in this order)
 	tile_uv_node_init();
 	// Filter nodes, keep alphabetical by English name (the menu lists them in this order)
-	height_to_normal_node_init();
+	normal_converter_node_init();
 
 	nodes_material_color = any_array_create_from_raw((void *[]){}, 0);
 	blur_node_init();
