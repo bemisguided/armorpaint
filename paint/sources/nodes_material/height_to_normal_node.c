@@ -12,12 +12,14 @@
 // Maths, per texel with the 3 x 3 neighbourhood h (rows y down, columns x right, wrap or clamp at the border):
 //   gx = (h[x+1][y-1] + 2 h[x+1][y] + h[x+1][y+1]) - (h[x-1][y-1] + 2 h[x-1][y] + h[x-1][y+1])   (Sobel)
 //   gy = (h[x-1][y+1] + 2 h[x][y+1] + h[x+1][y+1]) - (h[x-1][y-1] + 2 h[x][y-1] + h[x+1][y-1])
-//   sx = Strength * gx / 8, sy = Strength * gy / 8    height change per texel in x and y, a ramp of 1 per texel is 1
+//   sx = Strength * gx / 8 * Size / 1024, sy likewise    height change per texel at Size 1024 (per image width / 1024 at any Size), a ramp of 1 per texel at Size 1024 is 1
 //   d  = normalize(-sx, sy, 1)                        the detail normal of the height; green up on the image (up is -y rows)
+// The slope does not depend on Size: the 1/8 is the Sobel weight sum (4) times the two texel central difference, Size / 1024 turns
+// the per texel difference into one per image width (a larger Size has smaller differences per texel for the same picture), so
+// Strength 1 gives the same look at 512 and at 4096 (at 1024 a texel is the unit; a ridge of Edge Width w is w * Size texels wide).
 // OpenGL convention only (+Y up, green channel up): the one the engine's Normal Map handling expects (a DirectX map is
-// converted to it on import, image_texture_node.c). A height step of 1 per texel at Strength 1 tilts 45 degrees, a ramp of
-// height 1 over 100 texels 0.6 degrees: the slope is per texel, so the same height at a larger Size gives a gentler normal
-// (use Strength to compensate). Strength scales the slope of the height linearly and nothing else.
+// converted to it on import, image_texture_node.c). At Size 1024 a ramp of 1 per texel at Strength 1 tilts 45
+// degrees, a height of 1 over the whole image at Strength 1 only 0.056 degrees. Strength scales the slope of the height linearly and nothing else.
 // Normal input (like the Bump node's Normal input; unlinked it is the flat normal (0.5, 0.5, 1), meaning no incoming normal):
 // an encoded tangent space normal, decoded (2 v - 1) and renormalised per texel. The height detail is combined with it by
 // Reoriented Normal Mapping (base = incoming normal b, detail d):
@@ -101,7 +103,7 @@ static void height_to_normal_node_rnm(const f32 *b, const f32 *d, f32 *n) {
 typedef struct height_to_normal_ctx {
 	f32 *pixels; // Captured RGBA: the height in R, the incoming normal encoded in GBA
 	f32 *result;
-	f32  scale; // Strength / 8
+	f32  scale; // Strength / 8 * Size / 1024
 	i32  size;
 	bool wrap;
 } height_to_normal_ctx_t;
@@ -165,7 +167,7 @@ static i32 height_to_normal_node_process(u8 *bytes, i32 size, void *params, f32 
 	f32 strength = p.strength;
 	strength     = !(strength > 0.0f) ? 0.0f : strength > 1000.0f ? 1000.0f : strength; // Also keeps NaN out
 	strength     = p.invert ? -strength : strength;
-	height_to_normal_ctx_t c = {.pixels = (f32 *)bytes, .result = result, .scale = strength / 8.0f, .size = size, .wrap = p.wrap != 0};
+	height_to_normal_ctx_t c = {.pixels = (f32 *)bytes, .result = result, .scale = strength / 8.0f * (f32)size / 1024.0f, .size = size, .wrap = p.wrap != 0};
 	make_image_node_parallel(size, height_to_normal_node_rows, &c);
 	return 0;
 }
@@ -203,7 +205,7 @@ void height_to_normal_node_init() {
 	                .color  = NODES_MATERIAL_IMAGE_COLOR,
 	                .inputs = any_array_create_from_raw(
 	                    (void *[]){
-	                        make_image_node_socket(_tr("Strength"), "VALUE", value_color, f32_array_create_x(1.0), 0.0, 10.0, 100),
+	                        make_image_node_socket(_tr("Strength"), "VALUE", value_color, f32_array_create_x(4.0), 0.0, 100.0, 100),
 	                        make_image_node_socket(_tr("Height"), "VALUE", NODES_MATERIAL_IMAGE_COLOR, f32_array_create_x(1.0), 0.0, 1.0, 100),
 	                        make_image_node_socket(_tr("Normal"), "VECTOR", 0xff6363c7, f32_array_create_xyz(0.5, 0.5, 1.0), 0.0, 1.0, 100),
 	                    },
