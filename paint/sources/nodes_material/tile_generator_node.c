@@ -106,6 +106,23 @@ static i32 tile_generator_node_patterns(ui_node_t *node) {
 	return 1 + (i < 0 ? 0 : i > TILE_GENERATOR_MAX_PATTERNS - 1 ? TILE_GENERATOR_MAX_PATTERNS - 1 : i);
 }
 
+// Pattern k + 1 above the Patterns setting is not used, and Pattern Map only matters when Pattern Mode is By Map: hidden
+// in the node (a linked socket still shows, see ui_node_item_hidden). Settings and indices are untouched.
+static bool tile_generator_node_input_hidden(i32 patterns, i32 mode, i32 input) {
+	if (input > TILE_GENERATOR_INPUT_PATTERN && input < TILE_GENERATOR_INPUT_PATTERN + TILE_GENERATOR_MAX_PATTERNS) {
+		return input - TILE_GENERATOR_INPUT_PATTERN >= patterns;
+	}
+	return input == TILE_GENERATOR_INPUT_PATTERN_MAP && mode != TILE_GENERATOR_MODE_BY_MAP;
+}
+
+static bool tile_generator_node_item_hidden(ui_node_t *node, ui_node_item_t kind, i32 index) {
+	if (kind != UI_NODE_ITEM_INPUT) {
+		return false;
+	}
+	i32 mode = (i32)make_image_node_button(node, TILE_GENERATOR_BUTTON_PATTERN_MODE);
+	return tile_generator_node_input_hidden(tile_generator_node_patterns(node), mode, index);
+}
+
 // The pattern captures, then two small captures of the per tile maps
 static i32 tile_generator_node_capture_count(ui_node_t *node) {
 	return tile_generator_node_patterns(node) + 2;
@@ -400,5 +417,6 @@ void tile_generator_node_init() {
 	any_array_push(nodes_material_pattern, tile_generator_node_def);
 	any_map_set(parser_material_node_values, "TEX_TILE_GENERATOR", tile_generator_node_value);
 	any_map_set(parser_material_node_vectors, "TEX_TILE_GENERATOR", tile_generator_node_vector);
+	any_map_set(ui_nodes_hidden_rules, "TEX_TILE_GENERATOR", tile_generator_node_item_hidden);
 	make_image_node_register(&tile_generator_node_image_type);
 }
