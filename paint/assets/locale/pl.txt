@@ -397,6 +397,7 @@ Skala UV warstwy
 Typ UV warstwy
 Widoczność warstwy
 Warstwy
+
 Promień leniwy
 Krok leniwy
 Lewy
@@ -418,6 +419,7 @@ Uczyń unikalnym
 Instrukcja
 Mapa zakresu
 Mapowanie
+
 Maska
 Kolor maski
 Masa
@@ -570,6 +572,7 @@ Przypnij do nagłówka
 Ping-Pong
 Punkt obrotu
 Rozmiar piksela
+
 Płaskowyż
 Odtwórz
 Odtwarzacz
