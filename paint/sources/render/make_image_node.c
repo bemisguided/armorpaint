@@ -94,6 +94,7 @@ static make_image_node_state_t *make_image_node_capturing       = NULL;  // Coll
 static ui_node_canvas_t        *make_image_node_capture_group   = NULL;
 static ui_node_t_array_t       *make_image_node_capture_parents = NULL;
 static i32                      make_image_node_capture_input   = 0; // Input of make_image_node_input_value
+static i32                      make_image_node_capture_dst     = 0; // Width of the target of the running capture, see make_image_node_box_taps
 
 static void make_image_node_update(void *_);
 static void make_image_node_state_row(i32 node_id);
@@ -354,7 +355,9 @@ static shader_context_t *make_image_node_capture_shader(ui_node_t *node, char *(
 // Renders expr(node) over the image square into a size x size target of format and reads it back.
 // Returns the pixels (the caller frees them), or NULL when the readback fails.
 static u8 *make_image_node_capture_pixels(ui_node_t *node, char *(*expr)(ui_node_t *), i32 size, gpu_texture_format_t format) {
-	shader_context_t *scon = make_image_node_capture_shader(node, expr, format == GPU_TEXTURE_FORMAT_RGBA128 ? "RGBA128" : "RGBA32");
+	make_image_node_capture_dst = size;
+	shader_context_t *scon      = make_image_node_capture_shader(node, expr, format == GPU_TEXTURE_FORMAT_RGBA128 ? "RGBA128" : "RGBA32");
+	make_image_node_capture_dst = 0;
 	if (util_render_screen_aligned_full_vb == NULL) {
 		util_render_create_screen_aligned_full_data();
 	}
@@ -1123,6 +1126,18 @@ void make_image_node_regenerate() {
 	make_image_node_schedule();
 }
 
+// Taps per axis of a capture reading an image node of size source: 1 unless the source is at least twice as large as the
+// target of the capture (a larger inner node, e.g. a 4096 Shape into a 512 node, would be point sampled and lose its
+// antialiased edge), then source / target, at most 4 (16 taps). The 1 x 1 capture of a scalar input keeps its single tap.
+static i32 make_image_node_box_taps(i32 source) {
+	i32 dst = make_image_node_capture_dst;
+	if (!parser_material_image_space || dst <= 1 || source < 2 * dst) {
+		return 1;
+	}
+	i32 n = source / dst;
+	return n > 4 ? 4 : n;
+}
+
 // Writes the fetch of the node's baked result at the float2 expression uv, once per variable. Repeating: the uv is wrapped
 // and snapped to the texel centre, so the one linear sampler never blends two texels. Black until the first bake.
 static void make_image_node_write_fetch(char *var, char *tex_name, char *uv, i32 filter) {
@@ -1226,7 +1241,25 @@ char *make_image_node_sample(ui_node_t *node) {
 		if (!parser_material_image_space) {
 			node_shader_context_add_elem(parser_material_kong->context, "tex", "short2norm");
 		}
-		make_image_node_write_fetch(var, tex_name, "tex_coord", filter);
+		i32 n = filter == IMAGE_FILTER_NEAREST || type == NULL ? 1 : make_image_node_box_taps(type->size(node));
+		if (n > 1) {
+			// The source is at least twice as large as the target: n x n taps spread over the footprint of one target pixel
+			// (a box filter), each tap read like the single one
+			for (i32 j = 0; j < n; ++j) {
+				for (i32 i = 0; i < n; ++i) {
+					char *uv = string_tmp("tex_coord + float2(%f, %f) / %f", ((i + 0.5) / n - 0.5), ((j + 0.5) / n - 0.5), (f64)make_image_node_capture_dst);
+					make_image_node_write_fetch(string_tmp("%s_b%d", var, j * n + i), tex_name, uv, filter);
+				}
+			}
+			char *sum = string_tmp("%s_b0", var);
+			for (i32 k = 1; k < n * n; ++k) {
+				sum = string_tmp("%s + %s_b%d", sum, var, k);
+			}
+			parser_material_write(parser_material_kong, string_tmp("float4 %s = (%s) / %d.0;", var, sum, n * n));
+		}
+		else {
+			make_image_node_write_fetch(var, tex_name, "tex_coord", filter);
+		}
 	}
 	return var;
 }
