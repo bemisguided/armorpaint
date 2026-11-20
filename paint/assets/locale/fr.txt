@@ -5,10 +5,14 @@
 -Y
 -Z
 .cube LUT
+
+
 2D
 Vue 2D
+
 3D
 Vue 3D
+
 A
 À propos
 À propos...
@@ -65,6 +69,7 @@ Biseau
 Biais
 Bits
 Masque noir
+
 
 Exécutable Blender
 Chemin vers l'exécutable Blender non défini

@@ -5,10 +5,14 @@
 -Y
 -Z
 .cube LUT
+
+
 2D
 2D pohled
+
 3D
 3D pohled
+
 A
 O programu
 O programu...
@@ -65,6 +69,7 @@ Zkosení
 Odchylka
 Bity
 Černá maska
+
 
 Spustitelný soubor Blenderu
 Cesta ke spustitelnému souboru Blenderu není nastavena

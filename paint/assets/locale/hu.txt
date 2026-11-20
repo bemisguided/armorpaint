@@ -5,10 +5,14 @@
 -Y
 -Z
 .cube LUT
+
+
 2D
 2D Nézet
+
 3D
 3D Nézet
+
 A
 Névjegy
 Névjegy...
@@ -65,6 +69,7 @@ Hajlított normál
 Eltérés (Bias)
 Bitek
 Fekete maszk
+
 
 Blender futtatható fájl
 A Blender elérési útja nincs beállítva

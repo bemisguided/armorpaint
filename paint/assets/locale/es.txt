@@ -5,10 +5,14 @@
 -Y
 -Z
 .cube LUT
+
+
 2D
 Vista 2D
+
 3D
 Vista 3D
+
 A
 Acerca de
 Acerca de...
@@ -65,6 +69,7 @@ Bisel
 Sesgo
 Bits
 Mascara negra
+
 
 Ejecutable de Blender
 Ruta al ejecutable de Blender no establecida

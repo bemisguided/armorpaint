@@ -11,8 +11,11 @@
 // Per tile maps (Mask, Scale Map, Rotation Map, Color Map, Pattern Map): grey images in image space read once per tile at
 // the centre of its grid cell, so they are captured at a small fixed size (TILE_GENERATOR_MAP_SIZE, two captures: the maps
 // are packed R = B = first, G = second, A = third) and read bilinear. Color Map multiplies the colour of the tile.
-// Tiles are drawn in row order, a later tile covers an earlier one where they overlap (Scale above 1, jitter), and
-// nothing is clipped to the cell. With Wrap Edges (default on) the image wraps, so a tile leaving one side comes back on the
+// Tiles are drawn in row order and nothing is clipped to the cell. Where tiles overlap (Scale above 1, Offset Random,
+// Rotation) the Blend setting decides the Image: Max (default) keeps the larger value of every colour channel, so the black
+// background of a pattern's square does not cut a tile drawn earlier; Replace lets the later tile cover the earlier one, its
+// whole square included. Mask, ID and Position always keep the footprint of the tile (the whole square of the later tile, by
+// design: they describe the tile, not the pattern's shape). With Wrap Edges (default on) the image wraps, so a tile leaving one side comes back on the
 // other and the result repeats seamlessly; with it off the tiles are clipped at the image borders (Mask, ID and Position too).
 // The texture is sampled like an Image Texture at tex_coord, repeating (Tile UV places it on the uv).
 // Rotation follows the rotation convention of all image nodes (armorpaint-admin specs/image-nodes/ROTATION_CONVENTION.md):
@@ -65,6 +68,7 @@ enum {
 	TILE_GENERATOR_BUTTON_PATTERN_MODE = 3,
 	TILE_GENERATOR_BUTTON_WRAP_EDGES   = 4,
 	TILE_GENERATOR_BUTTON_FILTER       = 5,
+	TILE_GENERATOR_BUTTON_BLEND        = 6, // Appended last: scripts and saves address the buttons by index
 };
 
 // Filter setting values (the order of the combo); the sampler takes IMAGE_FILTER_*, mapped in tile_generator_node_params
@@ -72,6 +76,12 @@ enum {
 	TILE_GENERATOR_FILTER_LINEAR,
 	TILE_GENERATOR_FILTER_CUBIC,
 	TILE_GENERATOR_FILTER_NEAREST,
+};
+
+// Blend setting values (the order of the combo): how a tile is drawn over the earlier ones
+enum {
+	TILE_GENERATOR_BLEND_MAX,
+	TILE_GENERATOR_BLEND_REPLACE,
 };
 
 // Output socket indices
@@ -95,6 +105,7 @@ typedef struct tile_generator_params {
 	i32 mode; // Pattern Mode
 	i32 wrap; // Wrap Edges, 1 or 0
 	i32 filter; // IMAGE_FILTER_*
+	i32 blend;  // TILE_GENERATOR_BLEND_*
 	i32 tiles_x;
 	i32 tiles_y;
 	f32 scale;
@@ -179,6 +190,8 @@ static void tile_generator_node_params(ui_node_t *node, void *params) {
 	p->wrap                    = make_image_node_button(node, TILE_GENERATOR_BUTTON_WRAP_EDGES) != 0.0 ? 1 : 0;
 	i32 filter                 = (i32)make_image_node_button(node, TILE_GENERATOR_BUTTON_FILTER);
 	p->filter                  = filter == TILE_GENERATOR_FILTER_CUBIC ? IMAGE_FILTER_CUBIC : filter == TILE_GENERATOR_FILTER_NEAREST ? IMAGE_FILTER_NEAREST : IMAGE_FILTER_LINEAR;
+	i32 blend                  = (i32)make_image_node_button(node, TILE_GENERATOR_BUTTON_BLEND);
+	p->blend                   = blend == TILE_GENERATOR_BLEND_REPLACE ? TILE_GENERATOR_BLEND_REPLACE : TILE_GENERATOR_BLEND_MAX;
 	f32 tx                     = make_image_node_input_value(node, TILE_GENERATOR_INPUT_TILES_X);
 	f32 ty                     = make_image_node_input_value(node, TILE_GENERATOR_INPUT_TILES_Y);
 	p->tiles_x                 = (i32)tile_generator_node_clamp(math_floor(tx + 0.5), 1.0, TILE_GENERATOR_MAX_TILES);
@@ -210,7 +223,7 @@ static f32 tile_generator_node_random(u32 tile_hash, u32 i) {
 // Draws one tile (pattern at pixels, size * size RGBA float) over result (colour and ID) and position (the uv in the tile),
 // wrapping at the image edges or clipped at them
 static void tile_generator_node_draw_tile(f32 *pattern, i32 size, f32 *result, f32 *position, f32 center_x, f32 center_y, f32 half_x, f32 half_y, f32 angle,
-                                          f32 brightness, f32 id, i32 filter, bool wrap) {
+                                          f32 brightness, f32 id, i32 filter, bool wrap, bool blend_max) {
 	f32 c      = math_cos(angle);
 	f32 s      = math_sin(angle);
 	f32 radius = math_sqrt(half_x * half_x + half_y * half_y);
@@ -243,9 +256,10 @@ static void tile_generator_node_draw_tile(f32 *pattern, i32 size, f32 *result, f
 			i32 wx   = wrap ? ((ix % size) + size) % size : ix;
 			size_t o = ((size_t)wy * size + wx) * 4;
 			f32 *r   = &result[o];
-			r[0]     = tile_generator_node_clamp(c[0] * brightness, 0.0, 1.0);
-			r[1]     = tile_generator_node_clamp(c[1] * brightness, 0.0, 1.0);
-			r[2]     = tile_generator_node_clamp(c[2] * brightness, 0.0, 1.0);
+			for (i32 k = 0; k < 3; ++k) {
+				f32 value = tile_generator_node_clamp(c[k] * brightness, 0.0, 1.0);
+				r[k]      = blend_max && r[k] > value ? r[k] : value;
+			}
 			r[3]     = id;
 			f32 *q   = &position[o];
 			q[0]     = u;
@@ -321,7 +335,7 @@ static i32 tile_generator_node_process(u8 *bytes, i32 size, void *params, f32 *r
 				continue;
 			}
 			tile_generator_node_draw_tile(pixels + one * k, size, result, position, center_x, center_y, half_x, half_y, angle, brightness, id, p->filter,
-			                              p->wrap != 0);
+			                              p->wrap != 0, p->blend == TILE_GENERATOR_BLEND_MAX);
 		}
 	}
 	return p->tiles_x * p->tiles_y;
@@ -416,12 +430,13 @@ void tile_generator_node_init() {
 	                    (void *[]){
 	                        make_image_node_setting(_tr("Size"), "ENUM", 1, MAKE_IMAGE_NODE_SIZE_ITEMS),
 	                        make_image_node_state_button(),
-	                        make_image_node_setting(_tr("Patterns"), "ENUM", 0, "1\n2\n3\n4"),
+	                        make_image_node_setting(_tr("Patterns"), "ENUM", 0, "1 Pattern\n2 Patterns\n3 Patterns\n4 Patterns"),
 	                        make_image_node_setting(_tr("Pattern Mode"), "ENUM", 0, "Random\nCycle\nBy Map"),
 	                        make_image_node_setting(_tr("Wrap Edges"), "BOOL", 1, NULL),
 	                        make_image_node_setting(_tr("Filter"), "ENUM", TILE_GENERATOR_FILTER_LINEAR, "Linear\nCubic\nNearest"),
+	                        make_image_node_setting(_tr("Blend"), "ENUM", TILE_GENERATOR_BLEND_MAX, "Max\nReplace"),
 	                    },
-	                    6),
+	                    7),
 	                .width = 0,
 	                .flags = 0});
 

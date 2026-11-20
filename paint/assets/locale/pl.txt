@@ -5,10 +5,14 @@
 -Y
 -Z
 .cube LUT
+
+
 2D
 Podgląd 2D
+
 3D
 Podgląd 3D
+
 A
 O programie
 O...
@@ -65,6 +69,7 @@ Wygięta normalna
 Odchylenie
 Bity
 Czarna maska
+
 
 Plik wykonywalny Blendera
 Ścieżka do pliku wykonywalnego Blendera nie ustawiona
