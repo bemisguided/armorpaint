@@ -15,6 +15,7 @@
 #define MAKE_IMAGE_NODE_DEBOUNCE 0.5
 static bool make_image_node_trace = false; // ARMORPAINT_IMAGE_NODE_TRACE in the environment: every capture is logged with its time
 static i32 make_image_node_captures = 0; // Captures made since the start, see make_image_node_capture_count
+static i32 make_image_node_capture_dst = 0; // Width of the target of the running capture, see make_image_node_box_taps
 #define MAKE_IMAGE_NODE_BIG_PLANE ((size_t)64 << 20) // A 4096 x 4096 float plane is exactly this
 
 #if !defined(IRON_WINDOWS)
@@ -354,7 +355,9 @@ static shader_context_t *make_image_node_capture_shader(ui_node_t *node, char *(
 // Renders expr(node) over the image square into a size x size target of format and reads it back.
 // Returns the pixels (the caller frees them), or NULL when the readback fails.
 static u8 *make_image_node_capture_pixels(ui_node_t *node, char *(*expr)(ui_node_t *), i32 size, gpu_texture_format_t format) {
-	shader_context_t *scon = make_image_node_capture_shader(node, expr, format == GPU_TEXTURE_FORMAT_RGBA128 ? "RGBA128" : "RGBA32");
+	make_image_node_capture_dst = size;
+	shader_context_t *scon      = make_image_node_capture_shader(node, expr, format == GPU_TEXTURE_FORMAT_RGBA128 ? "RGBA128" : "RGBA32");
+	make_image_node_capture_dst = 0;
 	if (util_render_screen_aligned_full_vb == NULL) {
 		util_render_create_screen_aligned_full_data();
 	}
@@ -399,6 +402,66 @@ static u8 *make_image_node_capture_pixels(ui_node_t *node, char *(*expr)(ui_node
 	b->buffer  = NULL; // Kept, gpu_delete_texture frees the rest
 	gpu_delete_texture(target);
 	return pixels;
+}
+
+// Default of input i / setting i in the definition of the node type, 0 when the definition has no such item. The safety net of the
+// accessors below for a node that has fewer inputs or settings than its definition.
+static f32 make_image_node_def_input_default(ui_node_t *node, i32 i) {
+	ui_node_t *def = nodes_material_get_node_t(node->type);
+	return def != NULL && i >= 0 && i < def->inputs->length ? def->inputs->buffer[i]->default_value->buffer[0] : 0.0f;
+}
+
+static f32 make_image_node_def_button_default(ui_node_t *node, i32 i) {
+	ui_node_t *def = nodes_material_get_node_t(node->type);
+	return def != NULL && i >= 0 && i < def->buttons->length ? def->buttons->buffer[i]->default_value->buffer[0] : 0.0f;
+}
+
+// Completes a node saved by an older build with the inputs and settings its definition has now. A saved node keeps the length it was
+// created with, the code indexes by the enums of the definition. The fork only ever appends inputs and settings at the end of a
+// definition (never reorders, inserts or removes: that breaks old saves, which is accepted), so the missing items are the tail of the
+// definition, appended with its defaults. Links address inputs by index, so they stay valid. nodes is the canvas the node is in (new
+// sockets get free ids). Called when the node is traversed for its capture and when the node editor lays it out; cheap when nothing is missing.
+// Returns true when something was added.
+bool make_image_node_reconcile(ui_node_t *node, ui_node_t_array_t *nodes) {
+	if (node->inputs == NULL || node->buttons == NULL) {
+		return false;
+	}
+	ui_node_t *def = nodes_material_get_node_t(node->type);
+	if (def == NULL || (node->inputs->length >= def->inputs->length && node->buttons->length >= def->buttons->length)) {
+		return false;
+	}
+	for (i32 i = node->inputs->length; i < def->inputs->length; ++i) {
+		ui_node_socket_t *d   = def->inputs->buffer[i];
+		ui_node_socket_t *soc = ALLOC_INIT(ui_node_socket_t, {0});
+		soc->id               = ui_get_socket_id(nodes);
+		soc->node_id          = node->id;
+		soc->name             = string_copy(d->name);
+		soc->type             = string_copy(d->type);
+		soc->color            = d->color;
+		soc->default_value    = f32_array_create_from_array(d->default_value);
+		soc->min              = d->min;
+		soc->max              = d->max;
+		soc->precision        = d->precision;
+		soc->display          = d->display;
+		any_array_push(node->inputs, soc);
+	}
+	for (i32 i = node->buttons->length; i < def->buttons->length; ++i) {
+		ui_node_button_t *d   = def->buttons->buffer[i];
+		ui_node_button_t *but = ALLOC_INIT(ui_node_button_t, {0});
+		but->name             = string_copy(d->name);
+		but->type             = string_copy(d->type);
+		but->output           = d->output;
+		but->default_value    = f32_array_create_from_array(d->default_value);
+		if (d->data != NULL) {
+			but->data = u8_array_create_from_array(d->data);
+		}
+		but->min       = d->min;
+		but->max       = d->max;
+		but->precision = d->precision;
+		but->height    = d->height;
+		any_array_push(node->buttons, but);
+	}
+	return true;
 }
 
 static char *make_image_node_input_expr(ui_node_t *node) {
@@ -447,6 +510,9 @@ void make_image_node_parallel(i32 count, void (*fn)(void *ctx, i32 begin, i32 en
 // Value of a number input of the node being captured, for the whole image: the default value when unlinked,
 // else the linked graph evaluated once at the image centre. Called from the type's params callback.
 f32 make_image_node_input_value(ui_node_t *node, i32 input) {
+	if (input < 0 || input >= node->inputs->length) {
+		return make_image_node_def_input_default(node, input); // A node saved with fewer inputs than its definition (see make_image_node_reconcile)
+	}
 	ui_node_socket_t *socket = node->inputs->buffer[input];
 	if (make_image_node_capturing == NULL || parser_material_get_input_link(socket) == NULL) {
 		return socket->default_value->buffer[0];
@@ -945,6 +1011,7 @@ static void make_image_node_update(void *_) {
 
 // Node preview traversal hook (make_material_bake_node_preview), linked = refresh during a paint stroke
 void make_image_node_on_traverse(ui_node_t *node, ui_node_canvas_t *group, ui_node_t_array_t *parents, bool linked) {
+	make_image_node_reconcile(node, group != NULL ? group->nodes : g_context->material->canvas->nodes);
 	char *id = make_material_node_preview_id(node, parents);
 	any_array_push(g_context->node_previews_used, id); // Keeps the baked result
 	make_image_node_state_t *s = make_image_node_get_state(id, node);
@@ -1022,6 +1089,24 @@ i32 make_image_node_capture_count() {
 void make_image_node_regenerate() {
 	make_image_node_force_all = true;
 	make_image_node_schedule();
+}
+
+// Taps per axis of a capture reading the result of the image node at the filter: 1 unless the node is at least twice as large as
+// the target of the capture (a larger inner node, e.g. a 4096 Shape into a 512 node, would be point sampled and lose its
+// antialiased edge), then size / target, at most 4 (16 taps). Nearest reads (discrete results) and the 1 x 1 capture of a scalar
+// input keep their single tap.
+static i32 make_image_node_box_taps(ui_node_t *node, i32 filter) {
+	i32                dst  = make_image_node_capture_dst;
+	image_node_type_t *type = make_image_node_type_of(node->type);
+	if (!parser_material_image_space || dst <= 1 || filter == IMAGE_FILTER_NEAREST || type == NULL) {
+		return 1;
+	}
+	i32 source = type->size(node);
+	if (source < 2 * dst) {
+		return 1;
+	}
+	i32 n = source / dst;
+	return n > 4 ? 4 : n;
 }
 
 // Writes the fetch of the node's baked result at the float2 expression uv, once per variable. Repeating: the uv is wrapped
@@ -1127,7 +1212,27 @@ char *make_image_node_sample(ui_node_t *node) {
 		if (!parser_material_image_space) {
 			node_shader_context_add_elem(parser_material_kong->context, "tex", "short2norm");
 		}
-		make_image_node_write_fetch(var, tex_name, "tex_coord", filter);
+		i32 n = make_image_node_box_taps(node, filter);
+		if (n > 1) {
+			// The source is at least twice as large as the target: n x n taps spread over the footprint of one target pixel (a box
+			// filter), each one hardware bilinear at the wrapped uv, one statement per tap (a shader block is limited in statements;
+			// the hand written wrapping bilinear of make_image_node_write_fetch is about 15 statements)
+			for (i32 j = 0; j < n; ++j) {
+				for (i32 i = 0; i < n; ++i) {
+					char *uv = string_tmp("tex_coord + float2(%f, %f) / %f", ((i + 0.5) / n - 0.5), ((j + 0.5) / n - 0.5), (f64)make_image_node_capture_dst);
+					parser_material_write(parser_material_kong, string_tmp("float2 %s_u%d = %s;", var, j * n + i, uv));
+					parser_material_write(parser_material_kong, string_tmp("float4 %s_b%d = sample_lod(%s, sampler_linear, %s_u%d - floor(%s_u%d), 0.0);", var, j * n + i, tex_name, var, j * n + i, var, j * n + i));
+				}
+			}
+			char *sum = string_tmp("%s_b0", var);
+			for (i32 k = 1; k < n * n; ++k) {
+				sum = string_tmp("%s + %s_b%d", sum, var, k);
+			}
+			parser_material_write(parser_material_kong, string_tmp("float4 %s = (%s) / %d.0;", var, sum, n * n));
+		}
+		else {
+			make_image_node_write_fetch(var, tex_name, "tex_coord", filter);
+		}
 	}
 	return var;
 }
@@ -1172,6 +1277,9 @@ static void make_image_node_state_row(i32 node_id) {
 
 // Value of a setting of the node (the default value of button i)
 f32 make_image_node_button(ui_node_t *node, i32 i) {
+	if (i < 0 || i >= node->buttons->length) {
+		return make_image_node_def_button_default(node, i); // A node saved with fewer settings than its definition (see make_image_node_reconcile)
+	}
 	return node->buttons->buffer[i]->default_value->buffer[0];
 }
 
