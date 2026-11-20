@@ -285,16 +285,13 @@ void tab_materials_draw_slots(bool mini) {
 
 			// Highligh selected
 			slot_material_t *material = g_project->_->materials->buffer[i];
-			u32              color    = asset_tray_frame_color(ASSET_TRAY_MATERIALS, material);
-			if (color != 0) {
-				if (mini) {
-					f32 w = g_ui->_w / (float)UI_SCALE();
-					ui_rect_round(0, -2, w - 2, w - 4, color, 3);
-				}
-				else {
-					i32 w = 50 * a;
-					ui_rect_round(-1, -1, w + 2, w + 2, color, 2 * UI_SCALE());
-				}
+			if (mini) {
+				f32 w = g_ui->_w / (float)UI_SCALE();
+				asset_tray_frame_draw(ASSET_TRAY_MATERIALS, material, 0, -2, w - 2, w - 4);
+			}
+			else {
+				i32 w = 50 * a;
+				asset_tray_frame_draw(ASSET_TRAY_MATERIALS, material, -1, -1, w + 2, w + 2);
 			}
 
 			// Draw material icon

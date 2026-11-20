@@ -898,7 +898,7 @@ char                     *asset_selection_unique_path(char *dir, char *name, cha
 i32_array_t              *asset_tray_filter(asset_tray_t tray, char *search);
 void                      asset_tray_begin(asset_tray_t tray, char *search, i32_array_t *visible);
 void                      asset_tray_end(asset_tray_t tray);
-u32                       asset_tray_frame_color(asset_tray_t tray, void *item);
+void                      asset_tray_frame_draw(asset_tray_t tray, void *item, f32 x, f32 y, f32 w, f32 h);
 void                     *asset_tray_press(asset_tray_t tray, void *item, i32_array_t *visible, bool *can_drag);
 bool                      asset_tray_drag_begin(f32 uix, f32 uiy);
 void                      asset_tray_delete_selected(asset_tray_t tray, void (*delete_item)(void *), bool (*can_delete)(void *), i32 keep, bool grouped);
