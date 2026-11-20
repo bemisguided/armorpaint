@@ -28,7 +28,7 @@ enum {
 	TRANSFORM_INPUT_PIVOT_Y  = 7,
 };
 
-// Sections of the node, a contiguous range of inputs each (Image stays above them), see make_image_node_sections
+// Own sections of the node, a contiguous range of inputs each (Image belongs to the General section), see make_image_node_sections
 enum {
 	TRANSFORM_SECTION_LAYOUT_FIRST = TRANSFORM_INPUT_OFFSET_X,
 	TRANSFORM_SECTION_LAYOUT_COUNT = TRANSFORM_INPUT_SCALE_Y - TRANSFORM_INPUT_OFFSET_X + 1,
@@ -199,6 +199,6 @@ void transform_node_init() {
 	    {.title = _tr("Layout"), .kind = UI_NODE_ITEM_INPUT, .first = TRANSFORM_SECTION_LAYOUT_FIRST, .count = TRANSFORM_SECTION_LAYOUT_COUNT, .closed_by_default = false},
 	    {.title = _tr("Pivot"), .kind = UI_NODE_ITEM_INPUT, .first = TRANSFORM_SECTION_PIVOT_FIRST, .count = TRANSFORM_SECTION_PIVOT_COUNT, .closed_by_default = true},
 	};
-	make_image_node_sections("TEX_TRANSFORM", sections, 2);
+	make_image_node_sections(transform_node_def, sections, 2, TRANSFORM_SECTION_LAYOUT_FIRST); // General: the settings and Image
 	make_image_node_register(&transform_node_image_type);
 }
