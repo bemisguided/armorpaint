@@ -55,6 +55,16 @@ typedef struct advanced_blur_params {
 	i32 wrap; // Wrap Edges: samples outside the image wrap around (1) or clamp to the edge (0); part of the node signature
 } advanced_blur_params_t;
 
+// Gaussian and Box use Angle and Aspect (anisotropic blur); Directional is one pass along Angle by Radius and has no Aspect.
+// A linked Aspect still shows (ui_node_item_hidden).
+static bool advanced_blur_node_input_hidden(i32 mode, i32 input) {
+	return input == ADVANCED_BLUR_INPUT_ASPECT && mode == ADVANCED_BLUR_MODE_DIRECTIONAL;
+}
+
+static bool advanced_blur_node_item_hidden(ui_node_t *node, ui_node_item_t kind, i32 index) {
+	return kind == UI_NODE_ITEM_INPUT && advanced_blur_node_input_hidden((i32)make_image_node_button(node, ADVANCED_BLUR_BUTTON_MODE), index);
+}
+
 // Width and height of the image: Size 512, 1024, 2048 or 4096
 static i32 advanced_blur_node_size(ui_node_t *node) {
 	return make_image_node_size(node, ADVANCED_BLUR_BUTTON_SIZE);
@@ -337,5 +347,6 @@ void advanced_blur_node_init() {
 	any_array_push(nodes_material_filter, advanced_blur_node_def);
 	any_map_set(parser_material_node_values, "TEX_ADVANCED_BLUR", advanced_blur_node_value);
 	any_map_set(parser_material_node_vectors, "TEX_ADVANCED_BLUR", advanced_blur_node_vector);
+	any_map_set(ui_nodes_hidden_rules, "TEX_ADVANCED_BLUR", advanced_blur_node_item_hidden);
 	make_image_node_register(&advanced_blur_node_image_type);
 }
