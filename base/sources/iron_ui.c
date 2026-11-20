@@ -3168,4 +3168,5 @@ void ui_theme_default(ui_theme_t *t) {
 	t->SHADOWS           = true;
 	t->LINK_STYLE        = UI_LINK_STYLE_LINE;
 	t->VIEWPORT_COL      = 0xff070707;
+	t->SELECTION_COL     = 0xff205d9c;
 }
