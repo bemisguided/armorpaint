@@ -1324,7 +1324,7 @@ bool ui_viewnodes_on_item_hidden(ui_node_t *node, ui_node_item_t kind, i32 index
 
 const ui_node_section_t *ui_viewnodes_on_sections(ui_node_t *node) {
 	if (ui_nodes_canvas_type == CANVAS_TYPE_MATERIAL && make_image_node_type_of(node->type) != NULL) {
-		make_image_node_reconcile(node, ui_nodes_get_canvas(true)->nodes); // A node of an older save is completed before its rows are laid out
+		make_image_node_reconcile(node, ui_nodes_get_canvas(true)); // A node of an older save is completed before its rows are laid out
 	}
 	return any_map_get(ui_nodes_sections, node->type);
 }
