@@ -1,21 +1,30 @@
-
 #include "../global.h"
 
-// Noise Generator: one shader node (per pixel, resolution independent, 3D) with a Mode setting. The mode decides the
-// maths and which inputs, outputs and settings are shown (ui_nodes_hidden_rules, a linked socket is always shown).
-// Modes are rows of a table (noise_generator_modes_init); specs/noise/NOISE_GENERATOR.md describes how to add one.
+// Noise Generator (Pattern menu): a tileable noise image. An image node (render/make_image_node.c) that generates its image
+// itself: the capture shader writes the noise per pixel in image space (uv across the image, float, grey), the result is the
+// baked texture at the Size setting, sampled by Tile UV like every other pattern node. No Vector input (image space rule).
+// Next to Noise Texture (Blender style 3D procedural noise on the mesh, no resolution limit) it is the Substance style
+// generator: modes, tileable by construction, composes with the other image nodes (specs/noise/NOISE_GENERATOR.md).
+// The Mode setting decides the maths and which inputs and settings are shown (ui_nodes_hidden_rules, a linked socket is
+// always shown). Modes are rows of a table (noise_generator_modes_init); the spec describes how to add one.
+//
+// The noise point is p = (uv, z): uv in 0..1 across the image, z = 0.3 + 0.4 * frac(Seed) a constant slice (the integer part of
+// Seed picks the hash seed, the fraction moves the slice). Every octave multiplies x and y of p by its frequency (Scale = lattice
+// cells across the image for the first octave), z stays: the slice is inside the first z cell of every octave, never on a lattice
+// plane (z * frequency must not be an integer: a slice exactly on a z lattice plane is a 2D noise of the 12 gradients projected, which
+// shows axis aligned streaks and triangular crests, seen with z = 0 and with z = 0.5 at Scale 5).
 //
 // Mode Perlin: gradient noise (improved Perlin, the 12 edge midpoint gradients), fade 6t^5 - 15t^4 + 10t^3.
 //   - Lattice coordinates wrap at 65536 cells (a bound for the int conversion), or at the period when Tileable (at most 65536).
 //   - Integer hash (no sin) of the lattice corner and the seed, so the CPU host test and the GPU agree.
 //   - fBM like Noise Texture: Detail 0 is one octave, Detail d has floor(d) + 1 octaves and a fractional part blends
 //     the next octave in, Roughness is the gain, Lacunarity the frequency step; the sum is divided by the sum of the
-//     gains. Each octave has its own seed, Color uses three seeds.
+//     gains. Each octave has its own seed.
 //   - Distortion displaces the point by a noise vector (in lattice units of Scale) before the fBM.
 //   - Output 0.5 + 0.5 * clamp(PERLIN_NORM * n, -1, 1): about 0..1 centred on 0.5 (PERLIN_NORM = 1.3 is the measured
 //     99.9 percentile of |n| (0.756) rounded so that the practical range of one octave fills 0..1: automation/host/noise_generator).
-//   - Tileable: the lattice repeats every round(Scale * Lacunarity^k) cells in each octave k (Scale is snapped to an
-//     integer first), so the output has period 1 in x, y and z of the Vector input.
+//   - Tileable (default on, the generator's Wrap Edges): the lattice repeats every round(Scale * Lacunarity^k) cells in
+//     each octave k (Scale is snapped to an integer first), so the image repeats exactly: the value at uv 0 equals the value at uv 1.
 
 char *str_noise_generator_perlin = "\
 float perlin_wrap(float i, float period) { \
@@ -80,7 +89,7 @@ float perlin_octave(float3 p, float freq, float tileable, int seed) { \
 		f = max(1.0, floor(freq + 0.5)); \
 		period = f; \
 	} \
-	return perlin_noise_3d(p * f, period, seed); \
+	return perlin_noise_3d(float3(p.x * f, p.y * f, p.z), period, seed); \
 } \
 float perlin_signed(float3 p, float freq, float tileable, int seed) { \
 	return clamp(perlin_octave(p, freq, tileable, seed) * 1.3, -1.0, 1.0); \
@@ -104,8 +113,8 @@ float perlin_fbm(float3 p, float scale, float detail, float roughness, float lac
 	} \
 	return sum / maxamp; \
 } \
-float perlin_channel(float3 p, float scale, float detail, float roughness, float lacunarity, float distortion, float tileable, float seed, int channel) { \
-	int sd = int(floor(seed)) + channel * 7919; \
+float perlin_factor(float3 p, float scale, float detail, float roughness, float lacunarity, float distortion, float tileable, float seed) { \
+	int sd = int(floor(seed)); \
 	float3 q = p; \
 	if (distortion != 0.0) { \
 		float se = perlin_base_scale(scale, tileable); \
@@ -114,18 +123,14 @@ float perlin_channel(float3 p, float scale, float detail, float roughness, float
 	float n = perlin_fbm(q, scale, detail, roughness, lacunarity, tileable, sd); \
 	return 0.5 + 0.5 * clamp(n * 1.3, -1.0, 1.0); \
 } \
-float perlin_factor(float3 p, float scale, float detail, float roughness, float lacunarity, float distortion, float tileable, float seed) { \
-	return perlin_channel(p, scale, detail, roughness, lacunarity, distortion, tileable, seed, 0); \
-} \
-float3 perlin_color(float3 p, float scale, float detail, float roughness, float lacunarity, float distortion, float tileable, float seed) { \
-	return float3(perlin_channel(p, scale, detail, roughness, lacunarity, distortion, tileable, seed, 0), \
-	              perlin_channel(p, scale, detail, roughness, lacunarity, distortion, tileable, seed, 1), \
-	              perlin_channel(p, scale, detail, roughness, lacunarity, distortion, tileable, seed, 2)); \
+float perlin_image(float u, float v, float scale, float detail, float roughness, float lacunarity, float distortion, float tileable, float seed) { \
+	float z = 0.3 + 0.4 * (seed - floor(seed)); \
+	return perlin_factor(float3(u, v, z), scale, detail, roughness, lacunarity, distortion, tileable, seed); \
 } \
 ";
 
+// Input socket indices (all in the Parameters section)
 enum {
-	NOISE_GENERATOR_INPUT_VECTOR,
 	NOISE_GENERATOR_INPUT_SCALE,
 	NOISE_GENERATOR_INPUT_DETAIL,
 	NOISE_GENERATOR_INPUT_ROUGHNESS,
@@ -134,14 +139,11 @@ enum {
 	NOISE_GENERATOR_INPUT_SEED,
 };
 
+// Node button indices (settings): Size, the state row, then the General section
 enum {
-	NOISE_GENERATOR_OUTPUT_FACTOR,
-	NOISE_GENERATOR_OUTPUT_COLOR,
-};
-
-enum {
-	NOISE_GENERATOR_BUTTON_MODE,
-	NOISE_GENERATOR_BUTTON_TILEABLE,
+	NOISE_GENERATOR_BUTTON_SIZE = 0, // The state row is button 1
+	NOISE_GENERATOR_BUTTON_MODE = 2,
+	NOISE_GENERATOR_BUTTON_TILEABLE = 3,
 };
 
 // One value per mode, in the order of the Mode list. The count is the last entry: a new mode goes before it.
@@ -150,60 +152,62 @@ enum {
 	NOISE_GENERATOR_MODE_COUNT,
 };
 
-// A mode: its name in the Mode list, the rows it hides (bit n of a mask = input, output or setting n of the node) and
-// the function that returns the shader expression of an output (Factor: float, Color: float3).
+// A mode: its name in the Mode list, the rows it hides (bit n of a mask = input or setting n of the node) and the function
+// that returns the shader expression (float, 0..1) of the pixel; it is written in the capture shader, tex_coord is the image uv.
 typedef struct noise_generator_mode {
 	char *name;
 	i32   hidden_inputs;
-	i32   hidden_outputs;
 	i32   hidden_buttons;
-	char *(*emit)(ui_node_t *node, i32 output);
+	char *(*emit)(ui_node_t *node);
 } noise_generator_mode_t;
 
 static noise_generator_mode_t noise_generator_modes[NOISE_GENERATOR_MODE_COUNT];
 
-static void noise_generator_mode_set(i32 mode, char *name, i32 hidden_inputs, i32 hidden_outputs, i32 hidden_buttons,
-                                     char *(*emit)(ui_node_t *node, i32 output)) {
+static void noise_generator_mode_set(i32 mode, char *name, i32 hidden_inputs, i32 hidden_buttons, char *(*emit)(ui_node_t *node)) {
 	noise_generator_modes[mode].name           = name;
 	noise_generator_modes[mode].hidden_inputs  = hidden_inputs;
-	noise_generator_modes[mode].hidden_outputs = hidden_outputs;
 	noise_generator_modes[mode].hidden_buttons = hidden_buttons;
 	noise_generator_modes[mode].emit           = emit;
 }
 
-static f32 noise_generator_node_button(ui_node_t *node, i32 index) {
-	return node->buttons->buffer[index]->default_value->buffer[0];
-}
-
 static i32 noise_generator_node_mode(ui_node_t *node) {
-	i32 mode = (i32)noise_generator_node_button(node, NOISE_GENERATOR_BUTTON_MODE);
+	i32 mode = (i32)make_image_node_button(node, NOISE_GENERATOR_BUTTON_MODE);
 	return mode >= 0 && mode < NOISE_GENERATOR_MODE_COUNT ? mode : 0;
 }
 
+// The input as a shader value: a literal, or per pixel when linked
+static char *noise_generator_node_input(ui_node_t *node, i32 input) {
+	if (input >= node->inputs->length) {
+		return "0.0"; // A node saved with fewer inputs (make_image_node_reconcile completes it, this is the safety net)
+	}
+	return parser_material_parse_value_input(node->inputs->buffer[input], false);
+}
+
 // Perlin shows every row of the node.
-static char *noise_generator_perlin_emit(ui_node_t *node, i32 output) {
+static char *noise_generator_perlin_emit(ui_node_t *node) {
 	node_shader_add_function(parser_material_kong, str_noise_generator_perlin);
-	char *co         = parser_material_get_coord(node);
-	char *scale      = parser_material_parse_value_input(node->inputs->buffer[NOISE_GENERATOR_INPUT_SCALE], false);
-	char *detail     = parser_material_parse_value_input(node->inputs->buffer[NOISE_GENERATOR_INPUT_DETAIL], false);
-	char *roughness  = parser_material_parse_value_input(node->inputs->buffer[NOISE_GENERATOR_INPUT_ROUGHNESS], false);
-	char *lacunarity = parser_material_parse_value_input(node->inputs->buffer[NOISE_GENERATOR_INPUT_LACUNARITY], false);
-	char *distortion = parser_material_parse_value_input(node->inputs->buffer[NOISE_GENERATOR_INPUT_DISTORTION], false);
-	char *seed       = parser_material_parse_value_input(node->inputs->buffer[NOISE_GENERATOR_INPUT_SEED], false);
-	char *tileable   = noise_generator_node_button(node, NOISE_GENERATOR_BUTTON_TILEABLE) > 0.5 ? "1.0" : "0.0";
-	return string_tmp("perlin_%s(%s, %s, %s, %s, %s, %s, %s, %s)", output == NOISE_GENERATOR_OUTPUT_FACTOR ? "factor" : "color", co, scale, detail,
-	                  roughness, lacunarity, distortion, tileable, seed);
+	char *scale      = noise_generator_node_input(node, NOISE_GENERATOR_INPUT_SCALE);
+	char *detail     = noise_generator_node_input(node, NOISE_GENERATOR_INPUT_DETAIL);
+	char *roughness  = noise_generator_node_input(node, NOISE_GENERATOR_INPUT_ROUGHNESS);
+	char *lacunarity = noise_generator_node_input(node, NOISE_GENERATOR_INPUT_LACUNARITY);
+	char *distortion = noise_generator_node_input(node, NOISE_GENERATOR_INPUT_DISTORTION);
+	char *seed       = noise_generator_node_input(node, NOISE_GENERATOR_INPUT_SEED);
+	char *tileable   = make_image_node_button(node, NOISE_GENERATOR_BUTTON_TILEABLE) > 0.5 ? "1.0" : "0.0";
+	return string_tmp("perlin_image(tex_coord.x, tex_coord.y, %s, %s, %s, %s, %s, %s, %s)", scale, detail, roughness, lacunarity, distortion, tileable, seed);
 }
 
 static void noise_generator_modes_init() {
-	noise_generator_mode_set(NOISE_GENERATOR_MODE_PERLIN, _tr("Perlin"), 0, 0, 0, noise_generator_perlin_emit);
+	noise_generator_mode_set(NOISE_GENERATOR_MODE_PERLIN, _tr("Perlin"), 0, 0, noise_generator_perlin_emit);
 }
 
 static bool noise_generator_node_item_hidden_for_mode(i32 mode, ui_node_item_t kind, i32 index) {
 	if (mode < 0 || mode >= NOISE_GENERATOR_MODE_COUNT || index < 0 || index > 30) {
 		return false;
 	}
-	i32 mask = kind == UI_NODE_ITEM_INPUT ? noise_generator_modes[mode].hidden_inputs : kind == UI_NODE_ITEM_OUTPUT ? noise_generator_modes[mode].hidden_outputs : noise_generator_modes[mode].hidden_buttons;
+	if (kind == UI_NODE_ITEM_OUTPUT) {
+		return false; // One output
+	}
+	i32 mask = kind == UI_NODE_ITEM_INPUT ? noise_generator_modes[mode].hidden_inputs : noise_generator_modes[mode].hidden_buttons;
 	return ((mask >> index) & 1) != 0;
 }
 
@@ -211,33 +215,48 @@ static bool noise_generator_node_item_hidden(ui_node_t *node, ui_node_item_t kin
 	return noise_generator_node_item_hidden_for_mode(noise_generator_node_mode(node), kind, index);
 }
 
+// Width and height of the image: Size 512, 1024, 2048 or 4096
+static i32 noise_generator_node_size(ui_node_t *node) {
+	return make_image_node_size(node, NOISE_GENERATOR_BUTTON_SIZE);
+}
+
+// The capture is the generator: the noise of the mode per pixel, float, the same value in R, G and B
+static char *noise_generator_node_capture(ui_node_t *node) {
+	char *value = noise_generator_modes[noise_generator_node_mode(node)].emit(node);
+	char *var   = string_tmp("%s_noise", parser_material_store_var_name(node));
+	parser_material_write(parser_material_kong, string_tmp("float %s = %s;", var, value));
+	return string_tmp("float4(%s, %s, %s, 1.0)", var, var, var);
+}
+
+// Everything is in the shader (and so in the signature of the captured pixels): no processing parameters
+static void noise_generator_node_params(ui_node_t *node, void *params) {
+}
+
+// The result is the capture: copied into the RGBA result
+static i32 noise_generator_node_process(u8 *bytes, i32 size, void *params, f32 *result) {
+	memcpy(result, bytes, (size_t)size * size * 4 * sizeof(f32));
+	return 0;
+}
+
+static image_node_type_t noise_generator_node_image_type = {
+    .type          = "TEX_NOISE_GENERATOR",
+    .result_format = GPU_TEXTURE_FORMAT_RGBA128, // Float: a Bump node or a blur reads the slopes of the noise, half floats would band
+    .params_size   = 0,
+    .size          = noise_generator_node_size,
+    .capture       = noise_generator_node_capture,
+    .capture_float = true,
+    .smooth_sample = true,
+    .params        = noise_generator_node_params,
+    .process       = noise_generator_node_process,
+};
+
 char *noise_generator_node_vector(ui_node_t *node, ui_node_socket_t *socket) {
-	i32 mode = noise_generator_node_mode(node);
-	if (socket == node->outputs->buffer[NOISE_GENERATOR_OUTPUT_COLOR]) {
-		return noise_generator_modes[mode].emit(node, NOISE_GENERATOR_OUTPUT_COLOR);
-	}
-	return string_tmp("(float3(1.0, 1.0, 1.0) * %s)", noise_generator_modes[mode].emit(node, NOISE_GENERATOR_OUTPUT_FACTOR));
+	char *v = string_tmp("%s.r", make_image_node_sample(node));
+	return string_tmp("float3(%s, %s, %s)", v, v, v);
 }
 
 char *noise_generator_node_value(ui_node_t *node, ui_node_socket_t *socket) {
-	i32 mode = noise_generator_node_mode(node);
-	if (socket == node->outputs->buffer[NOISE_GENERATOR_OUTPUT_COLOR]) {
-		return string_tmp("%s.x", noise_generator_modes[mode].emit(node, NOISE_GENERATOR_OUTPUT_COLOR));
-	}
-	return noise_generator_modes[mode].emit(node, NOISE_GENERATOR_OUTPUT_FACTOR);
-}
-
-static ui_node_socket_t *noise_generator_node_value_input(char *name, f32 value, f32 min, f32 max) {
-	return ALLOC_INIT(ui_node_socket_t, {.id            = 0,
-	                                     .node_id       = 0,
-	                                     .name          = name,
-	                                     .type          = "VALUE",
-	                                     .color         = 0xffa1a1a1,
-	                                     .default_value = f32_array_create_x(value),
-	                                     .min           = min,
-	                                     .max           = max,
-	                                     .precision     = 100,
-	                                     .display       = 0});
+	return string_tmp("%s.r", make_image_node_sample(node));
 }
 
 void noise_generator_node_init() {
@@ -246,85 +265,46 @@ void noise_generator_node_init() {
 	for (i32 i = 0; i < NOISE_GENERATOR_MODE_COUNT; ++i) {
 		mode_items = i == 0 ? string_tmp("%s", noise_generator_modes[i].name) : string_tmp("%s\n%s", mode_items, noise_generator_modes[i].name);
 	}
+	u32 value_color = 0xffa1a1a1;
 
-	ui_node_t *noise_generator_node_def = ALLOC_INIT(
-	    ui_node_t, {.id     = 0,
+	ui_node_t *noise_generator_node_def =
+	    ALLOC_INIT(ui_node_t,
+	               {.id     = 0,
 	                .name   = _tr("Noise Generator"),
 	                .type   = "TEX_NOISE_GENERATOR",
 	                .x      = 0,
 	                .y      = 0,
-	                .color  = 0xff4982a0,
+	                .color  = NODES_MATERIAL_IMAGE_COLOR,
 	                .inputs = any_array_create_from_raw(
 	                    (void *[]){
-	                        ALLOC_INIT(ui_node_socket_t, {.id            = 0,
-	                                                      .node_id       = 0,
-	                                                      .name          = _tr("Vector"),
-	                                                      .type          = "VECTOR",
-	                                                      .color         = 0xff6363c7,
-	                                                      .default_value = f32_array_create_xyz(0.0, 0.0, 0.0),
-	                                                      .min           = 0.0,
-	                                                      .max           = 1.0,
-	                                                      .precision     = 100,
-	                                                      .display       = 0}),
-	                        noise_generator_node_value_input(_tr("Scale"), 5.0, 0.0, 256.0),
-	                        noise_generator_node_value_input(_tr("Detail"), 0.0, 0.0, 8.0),
-	                        noise_generator_node_value_input(_tr("Roughness"), 0.5, 0.0, 1.0),
-	                        noise_generator_node_value_input(_tr("Lacunarity"), 2.0, 0.0, 10.0),
-	                        noise_generator_node_value_input(_tr("Distortion"), 0.0, -10.0, 10.0),
-	                        noise_generator_node_value_input(_tr("Seed"), 0.0, 0.0, 1000.0),
+	                        make_image_node_socket(_tr("Scale"), "VALUE", value_color, f32_array_create_x(5.0), 0.0, 256.0, 100),
+	                        make_image_node_socket(_tr("Detail"), "VALUE", value_color, f32_array_create_x(0.0), 0.0, 8.0, 100),
+	                        make_image_node_socket(_tr("Roughness"), "VALUE", value_color, f32_array_create_x(0.5), 0.0, 1.0, 100),
+	                        make_image_node_socket(_tr("Lacunarity"), "VALUE", value_color, f32_array_create_x(2.0), 0.0, 10.0, 100),
+	                        make_image_node_socket(_tr("Distortion"), "VALUE", value_color, f32_array_create_x(0.0), -10.0, 10.0, 100),
+	                        make_image_node_socket(_tr("Seed"), "VALUE", value_color, f32_array_create_x(0.0), 0.0, 1000.0, 100),
 	                    },
-	                    7),
+	                    6),
 	                .outputs = any_array_create_from_raw(
 	                    (void *[]){
-	                        ALLOC_INIT(ui_node_socket_t, {.id            = 0,
-	                                                      .node_id       = 0,
-	                                                      .name          = _tr("Factor"),
-	                                                      .type          = "VALUE",
-	                                                      .color         = 0xffa1a1a1,
-	                                                      .default_value = f32_array_create_x(0.5),
-	                                                      .min           = 0.0,
-	                                                      .max           = 1.0,
-	                                                      .precision     = 100,
-	                                                      .display       = 0}),
-	                        ALLOC_INIT(ui_node_socket_t, {.id            = 0,
-	                                                      .node_id       = 0,
-	                                                      .name          = _tr("Color"),
-	                                                      .type          = "RGBA",
-	                                                      .color         = 0xffc7c729,
-	                                                      .default_value = f32_array_create_xyzw(0.5, 0.5, 0.5, 1.0),
-	                                                      .min           = 0.0,
-	                                                      .max           = 1.0,
-	                                                      .precision     = 100,
-	                                                      .display       = 0}),
+	                        make_image_node_socket(_tr("Image"), "VALUE", NODES_MATERIAL_IMAGE_COLOR, f32_array_create_x(0.0), 0.0, 1.0, 100),
 	                    },
-	                    2),
+	                    1),
 	                .buttons = any_array_create_from_raw(
 	                    (void *[]){
-	                        ALLOC_INIT(ui_node_button_t, {.name          = _tr("Mode"),
-	                                                      .type          = "ENUM",
-	                                                      .output        = -1,
-	                                                      .default_value = f32_array_create_x(0),
-	                                                      .data          = u8_array_create_from_string(mode_items),
-	                                                      .min           = 0.0,
-	                                                      .max           = (f32)(NOISE_GENERATOR_MODE_COUNT - 1),
-	                                                      .precision     = 100,
-	                                                      .height        = 0}),
-	                        ALLOC_INIT(ui_node_button_t, {.name          = _tr("Tileable"),
-	                                                      .type          = "BOOL",
-	                                                      .output        = -1,
-	                                                      .default_value = f32_array_create_x(0),
-	                                                      .data          = NULL,
-	                                                      .min           = 0.0,
-	                                                      .max           = 1.0,
-	                                                      .precision     = 100,
-	                                                      .height        = 0}),
+	                        make_image_node_setting(_tr("Size"), "ENUM", 1, MAKE_IMAGE_NODE_SIZE_ITEMS),
+	                        make_image_node_state_button(),
+	                        make_image_node_setting(_tr("Mode"), "ENUM", 0, mode_items),
+	                        make_image_node_setting(_tr("Tileable"), "BOOL", 1, NULL),
 	                    },
-	                    2),
+	                    4),
 	                .width = 0,
 	                .flags = 0});
 
-	any_array_push(nodes_material_texture, noise_generator_node_def);
+	any_array_push(nodes_material_pattern, noise_generator_node_def);
 	any_map_set(parser_material_node_vectors, "TEX_NOISE_GENERATOR", noise_generator_node_vector);
 	any_map_set(parser_material_node_values, "TEX_NOISE_GENERATOR", noise_generator_node_value);
 	any_map_set(ui_nodes_hidden_rules, "TEX_NOISE_GENERATOR", noise_generator_node_item_hidden);
+	make_image_node_sections(noise_generator_node_def, NULL, 0, 0); // General: Mode and Tileable; Parameters: all inputs
+	make_image_node_register(&noise_generator_node_image_type);
 }

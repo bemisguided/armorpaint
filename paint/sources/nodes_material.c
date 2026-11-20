@@ -34,7 +34,6 @@ void nodes_material_init() {
 	gradient_texture_node_init();
 	image_texture_node_init();
 	magic_texture_node_init();
-	noise_generator_node_init();
 	noise_texture_node_init();
 	text_texture_node_init();
 	texture_slot_node_init();
@@ -45,6 +44,7 @@ void nodes_material_init() {
 	nodes_material_filter  = any_array_create_from_raw((void *[]){}, 0); // Image nodes that filter an image
 	// Pattern nodes, keep alphabetical by English name (the menu lists them in this order)
 	flood_fill_node_init();
+	noise_generator_node_init();
 	shape_generator_node_init();
 	tile_generator_node_init();
 	tile_uv_node_init();

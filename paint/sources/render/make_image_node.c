@@ -420,50 +420,86 @@ static f32 make_image_node_def_button_default(ui_node_t *node, i32 i) {
 	return def != NULL && i >= 0 && i < def->buttons->length ? def->buttons->buffer[i]->default_value->buffer[0] : 0.0f;
 }
 
-// Completes a node saved by an older build with the inputs and settings its definition has now. A saved node keeps the length it was
-// created with, the code indexes by the enums of the definition. The fork only ever appends inputs and settings at the end of a
-// definition (never reorders, inserts or removes: that breaks old saves, which is accepted), so the missing items are the tail of the
-// definition, appended with its defaults. Links address inputs by index, so they stay valid. nodes is the canvas the node is in (new
-// sockets get free ids). Called when the node is traversed for its capture and when the node editor lays it out; cheap when nothing is missing.
-// Returns true when something was added.
-bool make_image_node_reconcile(ui_node_t *node, ui_node_t_array_t *nodes) {
-	if (node->inputs == NULL || node->buttons == NULL) {
+// Copies of the items of a definition for a saved node (the shared definition is never used directly). Sockets get free ids in nodes.
+static ui_node_socket_t *make_image_node_socket_copy(ui_node_socket_t *d, ui_node_t *node, ui_node_t_array_t *nodes) {
+	ui_node_socket_t *soc = ALLOC_INIT(ui_node_socket_t, {0});
+	soc->id               = ui_get_socket_id(nodes);
+	soc->node_id          = node->id;
+	soc->name             = string_copy(d->name);
+	soc->type             = string_copy(d->type);
+	soc->color            = d->color;
+	soc->default_value    = f32_array_create_from_array(d->default_value);
+	soc->min              = d->min;
+	soc->max              = d->max;
+	soc->precision        = d->precision;
+	soc->display          = d->display;
+	return soc;
+}
+
+static ui_node_button_t *make_image_node_button_copy(ui_node_button_t *d) {
+	ui_node_button_t *but = ALLOC_INIT(ui_node_button_t, {0});
+	but->name             = string_copy(d->name);
+	but->type             = string_copy(d->type);
+	but->output           = d->output;
+	but->default_value    = f32_array_create_from_array(d->default_value);
+	if (d->data != NULL) {
+		but->data = u8_array_create_from_array(d->data);
+	}
+	but->min       = d->min;
+	but->max       = d->max;
+	but->precision = d->precision;
+	but->height    = d->height;
+	return but;
+}
+
+// Completes a node saved by an older build with the inputs, outputs and settings its definition has now. A saved node keeps the length it
+// was created with, the code indexes by the enums of the definition. The fork only ever appends items at the end of a definition, so the
+// missing items are the tail of the definition, appended with its defaults. Links address inputs by index, so they stay valid.
+// A saved node with MORE items than its definition (a node type that was rebuilt with fewer, e.g. Noise Generator, a shader node
+// with a Vector input and two outputs before it became an image node) has a layout the code cannot read: it is reset to the
+// definition (every item default, new socket ids) and the links of the node are removed. Nothing else of the node is kept.
+// canvas is the canvas the node is in (new sockets get free ids, the links of a reset node are removed from it). Called when the node is
+// traversed for its capture and when the node editor lays it out; cheap when nothing is wrong.
+// Returns true when something was changed.
+bool make_image_node_reconcile(ui_node_t *node, ui_node_canvas_t *canvas) {
+	if (node->inputs == NULL || node->outputs == NULL || node->buttons == NULL) {
 		return false;
 	}
 	ui_node_t *def = nodes_material_get_node_t(node->type);
-	if (def == NULL || (node->inputs->length >= def->inputs->length && node->buttons->length >= def->buttons->length)) {
+	if (def == NULL) {
 		return false;
 	}
+	bool longer = node->inputs->length > def->inputs->length || node->outputs->length > def->outputs->length || node->buttons->length > def->buttons->length;
+	if (!longer && node->inputs->length == def->inputs->length && node->outputs->length == def->outputs->length && node->buttons->length == def->buttons->length) {
+		return false;
+	}
+	if (longer) {
+		i32 i = 0;
+		while (i < canvas->links->length) {
+			ui_node_link_t *l = canvas->links->buffer[i];
+			if (l->from_id == node->id || l->to_id == node->id) {
+				for (i32 j = i; j < canvas->links->length - 1; ++j) {
+					canvas->links->buffer[j] = canvas->links->buffer[j + 1];
+				}
+				canvas->links->buffer[canvas->links->length - 1] = NULL;
+				canvas->links->length--;
+			}
+			else {
+				i++;
+			}
+		}
+		node->inputs->length  = 0;
+		node->outputs->length = 0;
+		node->buttons->length = 0;
+	}
 	for (i32 i = node->inputs->length; i < def->inputs->length; ++i) {
-		ui_node_socket_t *d   = def->inputs->buffer[i];
-		ui_node_socket_t *soc = ALLOC_INIT(ui_node_socket_t, {0});
-		soc->id               = ui_get_socket_id(nodes);
-		soc->node_id          = node->id;
-		soc->name             = string_copy(d->name);
-		soc->type             = string_copy(d->type);
-		soc->color            = d->color;
-		soc->default_value    = f32_array_create_from_array(d->default_value);
-		soc->min              = d->min;
-		soc->max              = d->max;
-		soc->precision        = d->precision;
-		soc->display          = d->display;
-		any_array_push(node->inputs, soc);
+		any_array_push(node->inputs, make_image_node_socket_copy(def->inputs->buffer[i], node, canvas->nodes));
+	}
+	for (i32 i = node->outputs->length; i < def->outputs->length; ++i) {
+		any_array_push(node->outputs, make_image_node_socket_copy(def->outputs->buffer[i], node, canvas->nodes));
 	}
 	for (i32 i = node->buttons->length; i < def->buttons->length; ++i) {
-		ui_node_button_t *d   = def->buttons->buffer[i];
-		ui_node_button_t *but = ALLOC_INIT(ui_node_button_t, {0});
-		but->name             = string_copy(d->name);
-		but->type             = string_copy(d->type);
-		but->output           = d->output;
-		but->default_value    = f32_array_create_from_array(d->default_value);
-		if (d->data != NULL) {
-			but->data = u8_array_create_from_array(d->data);
-		}
-		but->min       = d->min;
-		but->max       = d->max;
-		but->precision = d->precision;
-		but->height    = d->height;
-		any_array_push(node->buttons, but);
+		any_array_push(node->buttons, make_image_node_button_copy(def->buttons->buffer[i]));
 	}
 	return true;
 }
@@ -1163,7 +1199,7 @@ static void make_image_node_update(void *_) {
 
 // Node preview traversal hook (make_material_bake_node_preview), linked = refresh during a paint stroke
 void make_image_node_on_traverse(ui_node_t *node, ui_node_canvas_t *group, ui_node_t_array_t *parents, bool linked) {
-	make_image_node_reconcile(node, group != NULL ? group->nodes : g_context->material->canvas->nodes);
+	make_image_node_reconcile(node, group != NULL ? group : g_context->material->canvas);
 	char *id = make_material_node_preview_id(node, parents);
 	any_array_push(g_context->node_previews_used, id); // Keeps the baked result
 	make_image_node_state_t *s = make_image_node_get_state(id, node);
