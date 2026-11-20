@@ -497,14 +497,20 @@ void ui_node_draw_body(ui_node_t *node, ui_node_canvas_t *canvas, float nx, floa
 	// Outputs
 	for (int i = 0; i < node->outputs->length; ++i) {
 		ui_node_socket_t *out = node->outputs->buffer[i];
+		if (ui_node_item_hidden(canvas, node, UI_NODE_ITEM_OUTPUT, i)) {
+			continue;
+		}
 		ny += lineh;
 		draw_set_color(out->color);
 		draw_scaled_image(&ui_socket_image, nx + w - ui_p(6), ny - ui_p(3), ui_p(12), ui_p(12));
 	}
-	ny -= lineh * node->outputs->length;
+	ny -= UI_OUTPUTS_H(canvas, node, -1);
 	draw_set_color(current->ops->theme->LABEL_COL);
 	for (int i = 0; i < node->outputs->length; ++i) {
 		ui_node_socket_t *out = node->outputs->buffer[i];
+		if (ui_node_item_hidden(canvas, node, UI_NODE_ITEM_OUTPUT, i)) {
+			continue;
+		}
 		ny += lineh;
 		float strw = draw_string_width(current->ops->font, current->font_size, ui_tr(out->name));
 		draw_string(ui_tr(out->name), nx + w - strw - ui_p(12), ny - ui_p(3));
@@ -522,6 +528,9 @@ void ui_node_draw_body(ui_node_t *node, ui_node_canvas_t *canvas, float nx, floa
 	for (int buti = 0; buti < node->buttons->length; ++buti) {
 		ui_node_button_t *but = node->buttons->buffer[buti];
 		float            *val = but->output == -1 ? but->default_value->buffer : node->outputs->buffer[but->output]->default_value->buffer;
+		if (ui_node_item_hidden(canvas, node, UI_NODE_ITEM_BUTTON, buti)) {
+			continue;
+		}
 
 		if (strcmp(but->type, "RGBA") == 0) {
 			ny += lineh;             // 18 + 2 separator
@@ -663,6 +672,9 @@ void ui_node_draw_body(ui_node_t *node, ui_node_canvas_t *canvas, float nx, floa
 	// Inputs
 	for (int i = 0; i < node->inputs->length; ++i) {
 		ui_node_socket_t *inp = node->inputs->buffer[i];
+		if (ui_node_item_hidden(canvas, node, UI_NODE_ITEM_INPUT, i)) {
+			continue;
+		}
 		ny += lineh;
 		draw_set_color(inp->color);
 		draw_scaled_image(&ui_socket_image, nx - ui_p(6), ny - ui_p(3), ui_p(12), ui_p(12));
@@ -972,6 +984,9 @@ void ui_node_canvas(ui_nodes_t *nodes, ui_node_canvas_t *canvas) {
 				if (ui_input_in_rect(rx, ry, rw, rh)) {
 					if (from == NULL && node->id != to->id) { // Snap to output
 						for (int k = 0; k < node->outputs->length; ++k) {
+							if (ui_node_item_hidden(canvas, node, UI_NODE_ITEM_OUTPUT, k)) {
+								continue;
+							}
 							float sx = wx + UI_NODE_X(node) + UI_NODE_W(node);
 							float sy = wy + UI_NODE_Y(node) + UI_OUTPUT_Y(canvas, node, k);
 							float rx = sx - UI_LINE_H() / 2;
@@ -987,6 +1002,9 @@ void ui_node_canvas(ui_nodes_t *nodes, ui_node_canvas_t *canvas) {
 					}
 					else if (to == NULL && node->id != from->id) { // Snap to input
 						for (int k = 0; k < node->inputs->length; ++k) {
+							if (ui_node_item_hidden(canvas, node, UI_NODE_ITEM_INPUT, k)) {
+								continue;
+							}
 							float sx = wx + UI_NODE_X(node);
 							float sy = wy + UI_NODE_Y(node) + UI_INPUT_Y(canvas, node, k) + UI_OUTPUTS_H(canvas, node, -1) + UI_BUTTONS_H(node);
 							float rx = sx - UI_LINE_H() / 2.0;
@@ -1075,6 +1093,9 @@ void ui_node_canvas(ui_nodes_t *nodes, ui_node_canvas_t *canvas) {
 			// Check sockets
 			if (current_nodes->link_drag_id == -1) {
 				for (int j = 0; j < node->outputs->length; ++j) {
+					if (ui_node_item_hidden(canvas, node, UI_NODE_ITEM_OUTPUT, j)) {
+						continue;
+					}
 					float sx = wx + UI_NODE_X(node) + UI_NODE_W(node);
 					float sy = wy + UI_NODE_Y(node) + UI_OUTPUT_Y(canvas, node, j);
 					if (ui_input_in_rect(sx - UI_LINE_H() / 2.0, sy - UI_LINE_H() / 2.0, UI_LINE_H(), UI_LINE_H())) {
@@ -1094,6 +1115,9 @@ void ui_node_canvas(ui_nodes_t *nodes, ui_node_canvas_t *canvas) {
 			}
 			if (current_nodes->link_drag_id == -1) {
 				for (int j = 0; j < node->inputs->length; ++j) {
+					if (ui_node_item_hidden(canvas, node, UI_NODE_ITEM_INPUT, j)) {
+						continue;
+					}
 					float sx = wx + UI_NODE_X(node);
 					float sy = wy + UI_NODE_Y(node) + UI_INPUT_Y(canvas, node, j) + UI_OUTPUTS_H(canvas, node, -1) + UI_BUTTONS_H(node);
 					if (ui_input_in_rect(sx - UI_LINE_H() / 2.0, sy - UI_LINE_H() / 2.0, UI_LINE_H(), UI_LINE_H())) {
