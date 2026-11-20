@@ -131,6 +131,10 @@ int ui_stops_update(ui_stops_t *s, const ui_stops_ops_t *ops, void *data, float 
 	ui_t *ui    = ui_get_current();
 	int   flags = 0;
 	int   n     = ops->count(data);
+	if (n <= 0) {
+		s->drag = 0;
+		return 0;
+	}
 	if (s->active >= n) {
 		s->active = n - 1;
 	}

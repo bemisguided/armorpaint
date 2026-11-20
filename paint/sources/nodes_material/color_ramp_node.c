@@ -208,8 +208,13 @@ void nodes_material_color_ramp_button(i32 node_id) {
 	f32                      ny     = g_ui->_y;
 	f32_array_t             *vals   = but->default_value; // [r, g, b, a, pos, r, g, b, a, pos, ..]
 	f32                      sw     = g_ui->_w / (float)UI_NODES_SCALE();
-	i32                      len    = (i32)(vals->length / 5);
-	i32                      interp = but->data->buffer[0];
+	if (vals->length < 5) { // The handles need a stop to work with
+		f32 black[] = {0.0f, 0.0f, 0.0f, 1.0f, 0.0f};
+		for (i32 i = 0; i < 5; i++)
+			f32_array_push(vals, black[i]);
+	}
+	i32 len    = (i32)(vals->length / 5);
+	i32 interp = but->data->buffer[0];
 
 	// Sort stops by position for preview
 	i32 sorted[len];
