@@ -1,8 +1,8 @@
 #include "../global.h"
 
 // Tile Generator (Pattern menu): a grid of tiles, each one a copy of a pattern with random scale, rotation, offset and
-// brightness, composed into one image. An image node (render/make_image_node.c): every pattern input (Image, Image 2
-// to Image 4, as many as Patterns says) is one colour capture (32 bit float) of the node's image square, read through the
+// brightness, composed into one image. An image node (render/make_image_node.c): every pattern input (Pattern 1, Pattern 2
+// to Pattern 4, as many as Patterns says) is one colour capture (32 bit float) of the node's image square, read through the
 // shared cpu sampler with the Filter setting (Linear, Cubic, Nearest) and the tiles are drawn on the cpu into two RGBA64
 // textures per node (second_result), because a colour image leaves no channel for Position:
 // first texture:  R, G, B = Image (the composed pattern colour), A = ID (a random grey per tile, floored to 1/1024 so that
@@ -30,7 +30,7 @@
 
 // Input socket indices
 enum {
-	TILE_GENERATOR_INPUT_IMAGE             = 0, // Image 2 to 4 follow
+	TILE_GENERATOR_INPUT_PATTERN           = 0, // Pattern 2 to 4 follow
 	TILE_GENERATOR_INPUT_MASK              = 4,
 	TILE_GENERATOR_INPUT_SCALE_MAP         = 5,
 	TILE_GENERATOR_INPUT_ROTATION_MAP      = 6,
@@ -135,7 +135,7 @@ static char *tile_generator_node_capture(ui_node_t *node) {
 		char *pattern = tile_generator_node_input(node, TILE_GENERATOR_INPUT_PATTERN_MAP);
 		return string_tmp("float4(%s, %s, %s, 1.0)", color, pattern, color);
 	}
-	char *image = parser_material_parse_vector_input(node->inputs->buffer[TILE_GENERATOR_INPUT_IMAGE + k]);
+	char *image = parser_material_parse_vector_input(node->inputs->buffer[TILE_GENERATOR_INPUT_PATTERN + k]);
 	return string_tmp("float4(%s, 1.0)", image);
 }
 
@@ -356,10 +356,10 @@ void tile_generator_node_init() {
 	                .color  = NODES_MATERIAL_IMAGE_COLOR,
 	                .inputs = any_array_create_from_raw(
 	                    (void *[]){
-	                        make_image_node_socket(_tr("Image"), "RGBA", image_color, f32_array_create_xyzw(1.0, 1.0, 1.0, 1.0), 0.0, 1.0, 100),
-	                        make_image_node_socket(_tr("Image 2"), "RGBA", image_color, f32_array_create_xyzw(1.0, 1.0, 1.0, 1.0), 0.0, 1.0, 100),
-	                        make_image_node_socket(_tr("Image 3"), "RGBA", image_color, f32_array_create_xyzw(1.0, 1.0, 1.0, 1.0), 0.0, 1.0, 100),
-	                        make_image_node_socket(_tr("Image 4"), "RGBA", image_color, f32_array_create_xyzw(1.0, 1.0, 1.0, 1.0), 0.0, 1.0, 100),
+	                        make_image_node_socket(_tr("Pattern 1"), "RGBA", image_color, f32_array_create_xyzw(1.0, 1.0, 1.0, 1.0), 0.0, 1.0, 100),
+	                        make_image_node_socket(_tr("Pattern 2"), "RGBA", image_color, f32_array_create_xyzw(1.0, 1.0, 1.0, 1.0), 0.0, 1.0, 100),
+	                        make_image_node_socket(_tr("Pattern 3"), "RGBA", image_color, f32_array_create_xyzw(1.0, 1.0, 1.0, 1.0), 0.0, 1.0, 100),
+	                        make_image_node_socket(_tr("Pattern 4"), "RGBA", image_color, f32_array_create_xyzw(1.0, 1.0, 1.0, 1.0), 0.0, 1.0, 100),
 	                        make_image_node_socket(_tr("Mask"), "VALUE", image_color, f32_array_create_x(1.0), 0.0, 1.0, 100),
 	                        make_image_node_socket(_tr("Scale Map"), "VALUE", image_color, f32_array_create_x(1.0), 0.0, 1.0, 100),
 	                        make_image_node_socket(_tr("Rotation Map"), "VALUE", image_color, f32_array_create_x(0.0), 0.0, 1.0, 100),

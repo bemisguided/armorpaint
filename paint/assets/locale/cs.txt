@@ -359,9 +359,6 @@ Hyperbolický sinus
 Hyperbolický tangens
 
 
-
-
-
 Textura obrázku
 
 
@@ -570,6 +567,10 @@ Vložit
 Cesta
 Trasovaná cesta
 Trasovač cest
+
+
+
+
 
 Pozastavit
 Pero

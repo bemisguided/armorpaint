@@ -359,9 +359,6 @@ Sinus hyperbolique
 Tangente hyperbolique
 
 
-
-
-
 Texture image
 
 
@@ -570,6 +567,10 @@ Coller
 Chemin
 Tracé de chemin
 Traceur de chemins
+
+
+
+
 
 Pause
 Stylo
