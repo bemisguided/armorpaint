@@ -1293,12 +1293,14 @@ static char *make_image_node_sample_texture(ui_node_t *node, char *texture_id, c
 		}
 		i32 n = make_image_node_box_taps(node, filter);
 		if (n > 1) {
-			// The source is at least twice as large as the target: n x n taps spread over the footprint of one target pixel
-			// (a box filter), each tap read like the single one
+			// The source is at least twice as large as the target: n x n taps spread over the footprint of one target pixel (a box
+			// filter), each one hardware bilinear at the wrapped uv, one statement per tap (a shader block is limited in statements;
+			// the hand written wrapping bilinear of make_image_node_write_fetch is about 15 statements)
 			for (i32 j = 0; j < n; ++j) {
 				for (i32 i = 0; i < n; ++i) {
 					char *uv = string_tmp("tex_coord + float2(%f, %f) / %f", ((i + 0.5) / n - 0.5), ((j + 0.5) / n - 0.5), (f64)make_image_node_capture_dst);
-					make_image_node_write_fetch(string_tmp("%s_b%d", var, j * n + i), tex_name, uv, filter);
+					parser_material_write(parser_material_kong, string_tmp("float2 %s_u%d = %s;", var, j * n + i, uv));
+					parser_material_write(parser_material_kong, string_tmp("float4 %s_b%d = sample_lod(%s, sampler_linear, %s_u%d - floor(%s_u%d), 0.0);", var, j * n + i, tex_name, var, j * n + i, var, j * n + i));
 				}
 			}
 			char *sum = string_tmp("%s_b0", var);
