@@ -16,6 +16,14 @@
 //
 // Mode Perlin: gradient noise (improved Perlin, the 12 edge midpoint gradients), fade 6t^5 - 15t^4 + 10t^3.
 //   - Lattice coordinates wrap at 65536 cells (a bound for the int conversion), or at the period when Tileable (at most 65536).
+//   - Octave k >= 1 turns the lattice by the angle perlin_turn(k) (a table of fractions of a quarter turn, the first octave stays
+//     axis aligned so Detail 0 is the plain noise): every octave of a gradient noise has its power on the lattice axes, equal
+//     octaves stack that into a grid bias (faint horizontal and vertical streaks after an edge detect). The turned lookup is the
+//     point (a x - b y, b x + a y) with (a, b) = f (cos, sin); Tileable rounds a and b to integers: the matrix [[a, -b], [b, a]]
+//     maps the integer lattice onto the sublattice it spans, and the lattice cells are reduced modulo that sublattice
+//     (perlin_wrap_i, perlin_wrap_j) so uv + (1, 0) and uv + (0, 1) land on the same cell: the image still repeats exactly
+//     with no shorter repeat (the sublattice has index a^2 + b^2 = the number of cells of the image). The octave frequency becomes
+//     sqrt(a^2 + b^2) (within a few percent of f at f >= 8). Not Tileable uses the exact cos and sin.
 //   - Integer hash (no sin) of the lattice corner and the seed, so the CPU host test and the GPU agree.
 //   - fBM like Noise Texture: Detail 0 is one octave, Detail d has floor(d) + 1 octaves and a fractional part blends
 //     the next octave in, Roughness is the gain, Lacunarity the frequency step; the sum is divided by the sum of the
@@ -82,17 +90,74 @@ float perlin_base_scale(float scale, float tileable) { \
 	if (tileable > 0.5) { return max(1.0, floor(scale + 0.5)); } \
 	return max(scale, 0.0001); \
 } \
-float perlin_octave(float3 p, float freq, float tileable, int seed) { \
+float perlin_wrap_i(float i, float j, float a, float b, float n2) { \
+	if (n2 < 0.5) { return perlin_wrap(i, 0.0); } \
+	float u = floor((a * i + b * j) / n2); \
+	float w = floor((0.0 - b * i + a * j) / n2); \
+	return perlin_wrap(i - (a * u - b * w), 0.0); \
+} \
+float perlin_wrap_j(float i, float j, float a, float b, float n2) { \
+	if (n2 < 0.5) { return perlin_wrap(j, 0.0); } \
+	float u = floor((a * i + b * j) / n2); \
+	float w = floor((0.0 - b * i + a * j) / n2); \
+	return perlin_wrap(j - (b * u + a * w), 0.0); \
+} \
+float perlin_corner(float cx, float cy, float z, float dx, float dy, float dz, float a, float b, float n2, int seed) { \
+	return perlin_grad(perlin_hash(perlin_wrap_i(cx, cy, a, b, n2), perlin_wrap_j(cx, cy, a, b, n2), z, seed), dx, dy, dz); \
+} \
+float perlin_noise_rot(float3 p, float a, float b, float n2, int seed) { \
+	float3 fl = floor(p); \
+	float fx = p.x - fl.x; \
+	float fy = p.y - fl.y; \
+	float fz = p.z - fl.z; \
+	float z0 = perlin_wrap(fl.z, 0.0); \
+	float z1 = perlin_wrap(fl.z + 1.0, 0.0); \
+	float n000 = perlin_corner(fl.x, fl.y, z0, fx, fy, fz, a, b, n2, seed); \
+	float n100 = perlin_corner(fl.x + 1.0, fl.y, z0, fx - 1.0, fy, fz, a, b, n2, seed); \
+	float n010 = perlin_corner(fl.x, fl.y + 1.0, z0, fx, fy - 1.0, fz, a, b, n2, seed); \
+	float n110 = perlin_corner(fl.x + 1.0, fl.y + 1.0, z0, fx - 1.0, fy - 1.0, fz, a, b, n2, seed); \
+	float n001 = perlin_corner(fl.x, fl.y, z1, fx, fy, fz - 1.0, a, b, n2, seed); \
+	float n101 = perlin_corner(fl.x + 1.0, fl.y, z1, fx - 1.0, fy, fz - 1.0, a, b, n2, seed); \
+	float n011 = perlin_corner(fl.x, fl.y + 1.0, z1, fx, fy - 1.0, fz - 1.0, a, b, n2, seed); \
+	float n111 = perlin_corner(fl.x + 1.0, fl.y + 1.0, z1, fx - 1.0, fy - 1.0, fz - 1.0, a, b, n2, seed); \
+	float u = perlin_fade(fx); \
+	float v = perlin_fade(fy); \
+	float w = perlin_fade(fz); \
+	return lerp(lerp(lerp(n000, n100, u), lerp(n010, n110, u), v), lerp(lerp(n001, n101, u), lerp(n011, n111, u), v), w); \
+} \
+float perlin_turn(int k) { \
+	if (k == 1) { return 0.5; } \
+	if (k == 2) { return 0.4; } \
+	if (k == 3) { return 0.15; } \
+	if (k == 4) { return 0.65; } \
+	if (k == 5) { return 0.3; } \
+	if (k == 6) { return 0.8; } \
+	if (k == 7) { return 0.05; } \
+	if (k == 8) { return 0.55; } \
+	if (k == 9) { return 0.9; } \
+	return 0.0; \
+} \
+float perlin_octave(float3 p, float freq, float tileable, int seed, int k) { \
 	float f = freq; \
 	float period = 0.0; \
 	if (tileable > 0.5) { \
 		f = max(1.0, floor(freq + 0.5)); \
 		period = f; \
 	} \
-	return perlin_noise_3d(float3(p.x * f, p.y * f, p.z), period, seed); \
+	if (k == 0) { return perlin_noise_3d(float3(p.x * f, p.y * f, p.z), period, seed); } \
+	float ang = perlin_turn(k) * 1.5707963; \
+	float a = f * cos(ang); \
+	float b = f * sin(ang); \
+	float n2 = 0.0; \
+	if (tileable > 0.5) { \
+		a = floor(a + 0.5); \
+		b = floor(b + 0.5); \
+		n2 = a * a + b * b; \
+	} \
+	return perlin_noise_rot(float3(a * p.x - b * p.y, b * p.x + a * p.y, p.z), a, b, n2, seed); \
 } \
 float perlin_signed(float3 p, float freq, float tileable, int seed) { \
-	return clamp(perlin_octave(p, freq, tileable, seed) * 1.3, -1.0, 1.0); \
+	return clamp(perlin_octave(p, freq, tileable, seed, 0) * 1.3, -1.0, 1.0); \
 } \
 float perlin_fbm(float3 p, float scale, float detail, float roughness, float lacunarity, float tileable, int seed) { \
 	float freq = perlin_base_scale(scale, tileable); \
@@ -101,14 +166,14 @@ float perlin_fbm(float3 p, float scale, float detail, float roughness, float lac
 	float sum = 0.0; \
 	int n = int(clamp(detail, 0.0, 8.0)); \
 	for (int ii = 0; ii <= n; ii += 1) { \
-		sum = sum + amp * perlin_octave(p, freq, tileable, seed + ii * 31); \
+		sum = sum + amp * perlin_octave(p, freq, tileable, seed + ii * 31, ii); \
 		maxamp = maxamp + amp; \
 		amp = amp * roughness; \
 		freq = freq * lacunarity; \
 	} \
 	float rmd = clamp(detail, 0.0, 8.0) - floor(clamp(detail, 0.0, 8.0)); \
 	if (rmd > 0.0) { \
-		float t = perlin_octave(p, freq, tileable, seed + (n + 1) * 31); \
+		float t = perlin_octave(p, freq, tileable, seed + (n + 1) * 31, n + 1); \
 		return lerp(sum / maxamp, (sum + t * amp) / (maxamp + amp), rmd); \
 	} \
 	return sum / maxamp; \
