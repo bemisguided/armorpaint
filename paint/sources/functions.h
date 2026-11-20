@@ -1172,6 +1172,7 @@ void                      ui_viewnodes_init();
 void                      ui_viewnodes_on_node_remove(ui_node_t *n);
 void                      ui_viewnodes_on_node_changed(ui_node_t *n);
 bool                      ui_viewnodes_on_item_hidden(ui_node_t *node, ui_node_item_t kind, i32 index);
+const ui_node_section_t  *ui_viewnodes_on_sections(ui_node_t *node);
 void                      ui_viewnodes_on_canvas_capture_output(void *_);
 void                      ui_viewnodes_on_canvas_released_duplicate(void *_);
 void                      ui_viewnodes_on_canvas_delete_on_next_frame(void *_);
