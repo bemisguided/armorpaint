@@ -897,7 +897,7 @@ any_array_t *export_texture_run_embed() {
 	box_export_preset            = preset;
 	g_context->layers_export     = EXPORT_MODE_VISIBLE;
 	export_texture_embedded      = any_array_create_from_raw((void *[]){}, 0);
-	export_texture_run_layers("", g_project->_->layers, "", false);
+	export_texture_run_layers("", g_project->_->layers, "", false, 0, 0);
 	any_array_t *textures    = export_texture_embedded;
 	export_texture_embedded  = NULL;
 	box_export_preset        = last_preset;
