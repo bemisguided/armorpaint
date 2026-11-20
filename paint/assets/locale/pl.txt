@@ -511,9 +511,11 @@ Tekstura szumu
 Brak
 Normalna
 Mieszanie normalnych
+
 Mapa normalnych
 Mapa normalnych 1
 Mapa normalnych 2
+
 Normalizuj
 Niedostępne w kompilacji debugowania
 Nie zaimplementowano

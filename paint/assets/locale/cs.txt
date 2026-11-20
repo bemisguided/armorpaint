@@ -511,9 +511,11 @@ Uzly
 Žádný
 Normála
 Míchání normál
+
 Normálová mapa
 Normálová mapa 1
 Normálová mapa 2
+
 Normalizovat
 Není dostupné v ladicím buildu
 Neimplementováno

@@ -511,9 +511,11 @@ Zaj textúra
 Nincs
 Normál
 Normál keverés
+
 Normal Map
 Normal Map 1
 Normal Map 2
+
 Normalizálás
 Nem elérhető hibakereső változatban
 Nincs megvalósítva
