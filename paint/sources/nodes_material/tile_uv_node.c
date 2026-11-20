@@ -153,6 +153,6 @@ void tile_uv_node_init() {
 	any_array_push(nodes_material_pattern, tile_uv_node_def);
 	any_map_set(parser_material_node_values, "TEX_TILE_UV", tile_uv_node_value);
 	any_map_set(parser_material_node_vectors, "TEX_TILE_UV", tile_uv_node_vector);
-	make_image_node_sections("TEX_TILE_UV", NULL, 0);
+	make_image_node_sections(tile_uv_node_def, NULL, 0, 1);
 	make_image_node_register(&tile_uv_node_image_type);
 }
