@@ -394,6 +394,7 @@ Opacité du calque
 Type UV du calque
 Visibilité du calque
 Calques
+
 Rayon du ralenti
 Étape du ralenti
 Gauche
@@ -415,6 +416,7 @@ Rendre unique
 Manuel
 Plage de carte
 Mappage
+
 Masque
 Couleur de masque
 Masse
@@ -555,6 +557,7 @@ Pincer
 Ping-pong
 Pivot
 Taille de pixel
+
 Plateau
 Lecture
 Lecteur
