@@ -396,6 +396,7 @@ Escala UV de capa
 Tipo UV de capa
 Visibilidad de capa
 Capas
+
 Radio perezoso
 Paso perezoso
 Izquierda
@@ -417,6 +418,7 @@ Hacer único
 Manual
 Mapear Rango
 Mapeado
+
 Máscara
 Color de máscara
 Masa
@@ -557,6 +559,7 @@ Pellizcar
 Ping - Pong
 Pivote
 Tamaño de píxel
+
 Meseta
 Reproducir
 Reproductor

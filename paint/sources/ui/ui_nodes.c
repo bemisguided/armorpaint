@@ -224,10 +224,10 @@ void ui_viewnodes_on_link_drag(i32 link_drag_id, bool is_new_link) {
 	i32                     link_y    = g_ui->_window_y + UI_NODE_Y(node);
 	if (link_drag->from_id > -1) {
 		link_x += UI_NODE_W(node);
-		link_y += UI_OUTPUT_Y(node, link_drag->from_socket);
+		link_y += UI_OUTPUT_Y(ui_nodes_get_canvas(true), node, link_drag->from_socket);
 	}
 	else {
-		link_y += ui_nodes_INPUT_Y(ui_nodes_get_canvas(true), node, link_drag->to_socket) + UI_OUTPUTS_H(node, -1) + UI_BUTTONS_H(node);
+		link_y += ui_nodes_INPUT_Y(ui_nodes_get_canvas(true), node, link_drag->to_socket) + UI_OUTPUTS_H(ui_nodes_get_canvas(true), node, -1) + UI_BUTTONS_H(node);
 	}
 
 	if (math_abs(mouse_x - link_x) > 5 || math_abs(mouse_y - link_y) > 5) { // Link length
@@ -1317,6 +1317,15 @@ void ui_nodes_accept_swatch_drop(swatch_color_t *swatch) {
 	    1);
 }
 
+bool ui_viewnodes_on_item_hidden(ui_node_t *node, ui_node_item_t kind, i32 index) {
+	bool (*rule)(ui_node_t *, ui_node_item_t, i32) = any_map_get(ui_nodes_hidden_rules, node->type);
+	return rule != NULL && rule(node, kind, index);
+}
+
+const ui_node_section_t *ui_viewnodes_on_sections(ui_node_t *node) {
+	return any_map_get(ui_nodes_sections, node->type);
+}
+
 void ui_viewnodes_init() {
 	ui_nodes_preview_texture = ui_nodes_get_node_preview_image;
 
@@ -1325,6 +1334,10 @@ void ui_viewnodes_init() {
 	ui_nodes_on_node_remove = ui_viewnodes_on_node_remove;
 
 	ui_nodes_on_node_changed = ui_viewnodes_on_node_changed;
+
+	ui_nodes_on_item_hidden = ui_viewnodes_on_item_hidden;
+
+	ui_nodes_on_sections = ui_viewnodes_on_sections;
 
 	ui_nodes_on_socket_released = ui_viewnodes_on_socket_released;
 
