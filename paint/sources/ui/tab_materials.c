@@ -283,20 +283,18 @@ void tab_materials_draw_slots(bool mini) {
 			gpu_texture_t *img      = UI_SCALE() > 1 ? g_project->_->materials->buffer[i]->image : g_project->_->materials->buffer[i]->image_icon;
 			gpu_texture_t *img_full = g_project->_->materials->buffer[i]->image;
 
-			// Highligh selected
+			// Selection plate behind the icon, the ring follows after it
 			slot_material_t *material = g_project->_->materials->buffer[i];
-			if (mini) {
-				f32 w = g_ui->_w / (float)UI_SCALE();
-				asset_tray_frame_draw(ASSET_TRAY_MATERIALS, material, 0, -2, w - 2, w - 4);
-			}
-			else {
-				i32 w = 50 * a;
-				asset_tray_frame_draw(ASSET_TRAY_MATERIALS, material, -1, -1, w + 2, w + 2);
-			}
+			uix                       = g_ui->_x;
+			uiy                       = g_ui->_y;
+			f32 frame_x               = mini ? 0 : -1;
+			f32 frame_y               = mini ? -2 : -1;
+			i32 cell_w                = 50 * a;
+			f32 frame_w               = mini ? g_ui->_w / (float)UI_SCALE() - 2 : cell_w + 2;
+			f32 frame_h               = mini ? g_ui->_w / (float)UI_SCALE() - 4 : cell_w + 2;
+			asset_tray_plate_draw(ASSET_TRAY_MATERIALS, material, uix, uiy, frame_x, frame_y, frame_w, frame_h);
 
 			// Draw material icon
-			uix      = g_ui->_x;
-			uiy      = g_ui->_y;
 			i32 tile = UI_SCALE() > 1 ? 100 : 50;
 			f32 imgh = mini ? ui_sidebar_w_mini * 0.85 : 50 * a * UI_SCALE();
 			asset_selection_marquee_cell(material, uix, uiy, mini ? g_ui->_w : imgw_val, imgh);
@@ -310,6 +308,7 @@ void tab_materials_draw_slots(bool mini) {
 			                               ? ui_image(img, 0xffffffff, imgh)
 			                               : ui_sub_image(resource_get("icons.k"), 0xffffffff, imgh, tile, tile, tile, tile);
 			g_ui->image_scroll_align = true;
+			asset_tray_ring_draw(ASSET_TRAY_MATERIALS, material, uix, uiy, frame_x, frame_y, frame_w, frame_h);
 
 			if (state == UI_STATE_HOVERED && base_drag_material != NULL) {
 				tab_materials_drag_pos = (mouse_x > uix + g_ui->_window_x + imgw_val / 2.0) ? i + 1 : i;

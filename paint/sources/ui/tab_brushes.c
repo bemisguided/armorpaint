@@ -173,10 +173,9 @@ void tab_brushes_draw(i32 *htab) {
 
 				slot_brush_t *brush = g_project->_->brushes->buffer[i];
 				i32           w     = 50 * a;
-				asset_tray_frame_draw(ASSET_TRAY_BRUSHES, brush, -1, -1, w + 2, w + 2);
-
-				uix = g_ui->_x;
-				uiy = g_ui->_y;
+				uix           = g_ui->_x;
+				uiy           = g_ui->_y;
+				asset_tray_plate_draw(ASSET_TRAY_BRUSHES, brush, uix, uiy, -1, -1, w + 2, w + 2);
 				asset_selection_marquee_cell(brush, uix, uiy, imgw_val, imgw_val);
 				i32 tile = UI_SCALE() > 1 ? 100 : 50;
 
@@ -188,6 +187,7 @@ void tab_brushes_draw(i32 *htab) {
 				ui_state_t state         = g_project->_->brushes->buffer[i]->preview_ready
 				                               ? ui_image(img, 0xffffffff, imgw)
 				                               : ui_sub_image(resource_get("icons.k"), -1, imgw, tile * 5, tile, tile, tile);
+				asset_tray_ring_draw(ASSET_TRAY_BRUSHES, brush, uix, uiy, -1, -1, w + 2, w + 2);
 				g_ui->image_scroll_align = true;
 
 				if (state == UI_STATE_HOVERED && base_drag_brush != NULL) {

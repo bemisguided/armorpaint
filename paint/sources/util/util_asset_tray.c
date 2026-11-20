@@ -56,11 +56,16 @@ static u32 asset_tray_mix(u32 a, u32 b, f32 t) {
 }
 
 // Colours of the selection mark, all derived from the theme and opaque: ui_rect_round blends a translucent colour wrongly in its
-// corners. The ring is the highlight colour mixed towards the text colour until it reads on the window background (3:1 and more),
-// the active ring mixes further than the selected one. The plate is the window background tinted with the highlight colour.
+// corners. The ring is the highlight colour mixed towards the text colour until it reads on the window background (3:1 and more,
+// the light theme is the limit), the active ring mixes further than the selected one. The plate is the window background with a
+// few percent of the highlight colour, a bit more for the active item.
 static void asset_tray_frame_colors(u32 bg_col, u32 text_col, u32 highlight_col, bool active, u32 *plate, u32 *ring) {
-	*ring  = asset_tray_mix(highlight_col, text_col, active ? 0.65f : 0.35f);
-	*plate = asset_tray_mix(bg_col, highlight_col, active ? 0.5f : 0.38f);
+	*ring  = asset_tray_mix(highlight_col, text_col, active ? 0.5f : 0.34f);
+	*plate = asset_tray_mix(bg_col, highlight_col, active ? 0.15f : 0.08f);
+}
+
+static f32 asset_tray_ring_thickness(bool active, f32 scale) {
+	return (active ? 2.0f : 1.0f) * scale;
 }
 
 // Pixel box of the plate, inside the ring that ui_rect_round(x, y, w, h, color, thickness) draws (same rounding as there).
@@ -72,10 +77,13 @@ static void asset_tray_plate_rect(f32 ox, f32 oy, f32 x, f32 y, f32 w, f32 h, f3
 	*ph = (i32)(h * scale + thickness) - 2;
 }
 
-// Draws the selection mark of an item behind its thumbnail, nothing for an item that is not selected: a tinted plate with a thin
-// ring (selected), a stronger plate with a thicker, lighter ring (the active item). x, y, w, h: the box of the ring in ui units
-// relative to the item cell, the same arguments ui_rect_round takes.
-void asset_tray_frame_draw(asset_tray_t tray, void *item, f32 x, f32 y, f32 w, f32 h) {
+// The selection mark of an item is drawn in two steps around its preview: the plate BEFORE the preview (it is opaque, so it must
+// never be drawn after it: it would hide a square preview), the ring AFTER it (a preview that fills its cell would cover it).
+// Nothing is drawn for an item that is not selected. x, y, w, h: the box of the ring in ui units relative to the item cell, the
+// same arguments ui_rect_round takes. cell_x, cell_y: the ui position of the item cell (g_ui->_x, _y read before the preview).
+
+// Step 1, before the preview: a plate tinted with the highlight colour (stronger for the active item).
+void asset_tray_plate_draw(asset_tray_t tray, void *item, f32 cell_x, f32 cell_y, f32 x, f32 y, f32 w, f32 h) {
 	bool active = asset_selection_active(tray) == item;
 	if (!active && !asset_selection_contains(tray, item)) {
 		return;
@@ -83,13 +91,29 @@ void asset_tray_frame_draw(asset_tray_t tray, void *item, f32 x, f32 y, f32 w, f
 	u32 plate_col;
 	u32 ring_col;
 	asset_tray_frame_colors(g_theme->WINDOW_BG_COL, g_theme->TEXT_COL, g_theme->HIGHLIGHT_COL, active, &plate_col, &ring_col);
-	f32 thickness = (active ? 3.0f : 2.0f) * UI_SCALE();
 	i32 px, py, pw, ph;
-	asset_tray_plate_rect(g_ui->_x, g_ui->_y, x, y, w, h, UI_SCALE(), thickness, &px, &py, &pw, &ph);
+	asset_tray_plate_rect(cell_x, cell_y, x, y, w, h, UI_SCALE(), asset_tray_ring_thickness(active, UI_SCALE()), &px, &py, &pw, &ph);
 	draw_set_color(plate_col);
 	ui_draw_rect(true, false, px, py, pw, ph);
 	draw_set_color(0xffffffff);
-	ui_rect_round(x, y, w, h, ring_col, thickness);
+}
+
+// Step 2, after the preview: a thin ring (selected) or a thicker, lighter ring (the active item).
+void asset_tray_ring_draw(asset_tray_t tray, void *item, f32 cell_x, f32 cell_y, f32 x, f32 y, f32 w, f32 h) {
+	bool active = asset_selection_active(tray) == item;
+	if (!active && !asset_selection_contains(tray, item)) {
+		return;
+	}
+	u32 plate_col;
+	u32 ring_col;
+	asset_tray_frame_colors(g_theme->WINDOW_BG_COL, g_theme->TEXT_COL, g_theme->HIGHLIGHT_COL, active, &plate_col, &ring_col);
+	f32 _x   = g_ui->_x;
+	f32 _y   = g_ui->_y;
+	g_ui->_x = cell_x;
+	g_ui->_y = cell_y;
+	ui_rect_round(x, y, w, h, ring_col, asset_tray_ring_thickness(active, UI_SCALE()));
+	g_ui->_x = _x;
+	g_ui->_y = _y;
 }
 
 // Left press on an item, updates the selection. Returns the item the tray makes active (it can differ from the pressed one:

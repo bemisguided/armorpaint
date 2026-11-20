@@ -193,10 +193,9 @@ void tab_sounds_draw(i32 *htab) {
 
 				slot_sound_t *sound = g_project->_->sounds->buffer[i];
 				i32           w     = 50 * a;
-				asset_tray_frame_draw(ASSET_TRAY_SOUNDS, sound, -1, -1, w + 2, w + 2);
-
-				uix = g_ui->_x;
-				uiy = g_ui->_y;
+				uix                 = g_ui->_x;
+				uiy                 = g_ui->_y;
+				asset_tray_plate_draw(ASSET_TRAY_SOUNDS, sound, uix, uiy, -1, -1, w + 2, w + 2);
 				asset_selection_marquee_cell(sound, uix, uiy, imgw_val, imgw_val);
 				gpu_texture_t *tile_icons = resource_get("icons.k");
 				i32            tile       = UI_SCALE() > 1 ? 100 : 50;
@@ -217,6 +216,7 @@ void tab_sounds_draw(i32 *htab) {
 				g_ui->image_scroll_align = false;
 				state                    = ui_sub_image(tile_icons, -1, imgw, tile * 7, tile * 9, tile, tile);
 				g_ui->image_scroll_align = true;
+				asset_tray_ring_draw(ASSET_TRAY_SOUNDS, sound, uix, uiy, -1, -1, w + 2, w + 2);
 				// }
 
 				if (state == UI_STATE_HOVERED && base_drag_sound != NULL && string_equals(search, "")) {
