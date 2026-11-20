@@ -401,6 +401,32 @@ void script_show_node_editor(bool only, f32 zoom, f32 pan_x, f32 pan_y) {
 	}
 }
 
+// Node editor layout, in rows (UI_LINE_H) so that the zoom does not matter. kind: 0 input, 1 output, 2 button.
+// Whether a row is hidden by the rules of its node (a socket with a link is never hidden, see ui_node_item_hidden)
+i32 script_node_item_hidden(ui_node_t *node, i32 kind, i32 index) {
+	ui_node_canvas_t *canvas = script_material_canvas();
+	if (node == NULL || canvas == NULL) {
+		return 0;
+	}
+	return ui_node_item_hidden(canvas, node, (ui_node_item_t)kind, index) ? 1 : 0;
+}
+
+// Height of the node as the editor lays it out
+f32 script_node_rows(ui_node_t *node) {
+	ui_node_canvas_t *canvas = script_material_canvas();
+	return node == NULL || canvas == NULL ? 0.0 : UI_NODE_H(canvas, node) / UI_LINE_H();
+}
+
+// Distance of the link end of input (output when is_input is false) from the top of the node
+f32 script_node_socket_row(ui_node_t *node, i32 is_input, i32 index) {
+	ui_node_canvas_t *canvas = script_material_canvas();
+	if (node == NULL || canvas == NULL) {
+		return 0.0;
+	}
+	f32 y = is_input ? UI_INPUT_Y(canvas, node, index) + UI_OUTPUTS_H(canvas, node, -1) + UI_BUTTONS_H(node) : UI_OUTPUT_Y(canvas, node, index);
+	return y / UI_LINE_H();
+}
+
 // Test only: enable a plugin like the Preferences dialog does (name as in the plugins folder, e.g. bake_maps.c)
 void script_plugin_enable(char *name) {
 	if (name != NULL) {
