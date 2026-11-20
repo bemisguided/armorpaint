@@ -224,7 +224,9 @@ void nodes_material_color_ramp_button(i32 node_id) {
 
 	// Gradient preview
 	f32 bar_h    = UI_LINE_H() - 2 * UI_NODES_SCALE();
-	f32 marker_h = UI_LINE_H() * 0.7f;
+	f32 marker_h = UI_LINE_H() * 0.5f; // Drawn handle row
+	f32 hit_h    = UI_LINE_H() * 0.7f; // Click zone of the handles, larger than the drawn handle
+	f32 gap_h    = UI_LINE_H() * 0.3f; // Space between the handles and the controls below
 	i32 slices   = 64;
 	for (i32 s = 0; s < slices; s++) {
 		f32 t = (f32)s / (f32)slices;
@@ -245,12 +247,12 @@ void nodes_material_color_ramp_button(i32 node_id) {
 	                            .draw      = color_ramp_stops_draw,
 	                            .min_count = COLOR_RAMP_MIN_STOPS,
 	                            .max_count = COLOR_RAMP_MAX_STOPS};
-	i32                 hit  = ui_stops_update(&state->stops, &ops, &ramp, g_ui->_x, g_ui->_y, g_ui->_w, bar_h, marker_h);
+	i32                 hit  = ui_stops_update(&state->stops, &ops, &ramp, g_ui->_x, g_ui->_y, g_ui->_w, bar_h, marker_h, hit_h);
 	if (hit & UI_STOPS_CONSUMED) {
 		nodes->_input_started = false;
 		g_context->select_time = 0; // Two quick presses on handles are not a node double click (2D view)
 	}
-	g_ui->_y += UI_LINE_H() + marker_h;
+	g_ui->_y += UI_LINE_H() + marker_h + gap_h;
 
 	// Edit controls
 	f32_array_t *row = f32_array_create_from_raw_tmp(
@@ -376,7 +378,7 @@ void color_ramp_node_init() {
 	                                               .min           = 0.0,
 	                                               .max           = 1.0,
 	                                               .precision     = 100,
-	                                               .height        = 4.0}),
+	                                               .height        = 4.1}),
 	                               },
 	                               1),
 	                           .width = 0,

@@ -125,9 +125,10 @@ void ui_stops_draw_pin(float cx, float y, float w, float h, uint32_t fill, bool 
 }
 
 // One frame of the control. x, y, w: the bar in window coordinates, bar_h its height, the handles are drawn in the
-// marker_h tall row below it. A press on a handle selects it and starts a drag (a double click deletes it), a press
+// marker_h tall row below it; a press counts within the hit_h tall row (at least marker_h, a small drawn handle keeps
+// a comfortable click zone). A press on a handle selects it and starts a drag (a double click deletes it), a press
 // on the bar adds a stop there and drags it.
-int ui_stops_update(ui_stops_t *s, const ui_stops_ops_t *ops, void *data, float x, float y, float w, float bar_h, float marker_h) {
+int ui_stops_update(ui_stops_t *s, const ui_stops_ops_t *ops, void *data, float x, float y, float w, float bar_h, float marker_h, float hit_h) {
 	ui_t *ui    = ui_get_current();
 	int   flags = 0;
 	int   n     = ops->count(data);
@@ -141,16 +142,20 @@ int ui_stops_update(ui_stops_t *s, const ui_stops_ops_t *ops, void *data, float 
 	if (s->active < 0) {
 		s->active = 0;
 	}
+	if (hit_h < marker_h) {
+		hit_h = marker_h;
+	}
 	float pin_w = marker_h * 0.7f;
+	float hit_w = hit_h * 0.7f;
 	float mx    = ui->input_x - ui->_window_x;
 	float my    = ui->input_y - ui->_window_y;
 
 	bool can_start = ui->enabled && ui->input_enabled && ui->input_started && s->drag == 0 &&
 	                 (ui->current_window == NULL || ui_input_in_rect(ui->_window_x, ui->_window_y, ui->_window_w, ui->_window_h));
-	if (can_start && mx >= x - pin_w && mx <= x + w + pin_w && my >= y && my < y + bar_h + marker_h) {
+	if (can_start && mx >= x - hit_w && mx <= x + w + hit_w && my >= y && my < y + bar_h + hit_h) {
 		flags |= UI_STOPS_CONSUMED;
 		bool in_bar = my < y + bar_h;
-		int  hit    = in_bar ? -1 : ui_stops_hit(ops->get_pos, data, n, mx, x, w, pin_w * 0.5f + 1.0f, s->active);
+		int  hit    = in_bar ? -1 : ui_stops_hit(ops->get_pos, data, n, mx, x, w, hit_w * 0.5f + 1.0f, s->active);
 		if (hit >= 0) {
 			if (ui_stops_is_double_click(iron_time(), s->last_time, s->last_hit, hit) && ui_stops_can_remove(n, ops->min_count)) {
 				ops->remove(data, hit);
