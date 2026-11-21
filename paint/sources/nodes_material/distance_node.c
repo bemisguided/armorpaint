@@ -352,7 +352,6 @@ char *distance_node_vector(ui_node_t *node, ui_node_socket_t *socket) {
 }
 
 void distance_node_init() {
-	u32 value_color = 0xffa1a1a1;
 
 	ui_node_t *distance_node_def =
 	    ALLOC_INIT(ui_node_t,
@@ -365,14 +364,14 @@ void distance_node_init() {
 	                .inputs = any_array_create_from_raw(
 	                    (void *[]){
 	                        make_image_node_socket(_tr("Image"), "VALUE", NODES_MATERIAL_IMAGE_COLOR, f32_array_create_x(1.0), 0.0, 1.0, 100),
-	                        make_image_node_socket(_tr("Distance"), "VALUE", value_color, f32_array_create_x(0.05), 0.0, 0.5, 1000),
-	                        make_image_node_socket(_tr("Smoothing"), "VALUE", value_color, f32_array_create_x(0.5), 0.0, 1.0, 100),
-	                        make_image_node_socket(_tr("Threshold"), "VALUE", value_color, f32_array_create_x(0.5), 0.0, 1.0, 100),
+	                        make_image_node_socket(_tr("Distance"), "VALUE", NODES_MATERIAL_VALUE_COLOR, f32_array_create_x(0.05), 0.0, 0.5, 1000),
+	                        make_image_node_socket(_tr("Smoothing"), "VALUE", NODES_MATERIAL_VALUE_COLOR, f32_array_create_x(0.5), 0.0, 1.0, 100),
+	                        make_image_node_socket(_tr("Threshold"), "VALUE", NODES_MATERIAL_VALUE_COLOR, f32_array_create_x(0.5), 0.0, 1.0, 100),
 	                    },
 	                    4),
 	                .outputs = any_array_create_from_raw(
 	                    (void *[]){
-	                        make_image_node_socket(_tr("Distance"), "VALUE", value_color, f32_array_create_x(0.0), 0.0, 1.0, 100),
+	                        make_image_node_socket(_tr("Distance"), "VALUE", NODES_MATERIAL_IMAGE_COLOR, f32_array_create_x(0.0), 0.0, 1.0, 100),
 	                        make_image_node_socket(_tr("Bevel"), "VALUE", NODES_MATERIAL_IMAGE_COLOR, f32_array_create_x(0.0), 0.0, 1.0, 100),
 	                    },
 	                    2),
