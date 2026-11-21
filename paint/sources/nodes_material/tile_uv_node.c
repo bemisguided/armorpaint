@@ -57,7 +57,7 @@ static image_node_type_t tile_uv_node_image_type = {
     .params_size   = 0,
     .size          = tile_uv_node_size,
     .capture       = tile_uv_node_capture,
-    .capture_float = true,
+    .capture_format = IMAGE_CAPTURE_RGBA32F,
     .params        = tile_uv_node_params,
     .process       = tile_uv_node_process,
 };
