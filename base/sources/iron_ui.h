@@ -504,7 +504,13 @@ typedef enum ui_node_flag {
 	UI_NODE_FLAG_COLLAPSED = 1,
 	UI_NODE_FLAG_PREVIEW   = 2,
 	UI_NODE_FLAG_CODE_HIDE = 4,
+	UI_NODE_FLAG_DOT       = 8, // Compact node: a socket dot with a label, no header or body
 } ui_node_flag_t;
+
+typedef enum ui_dot_state {
+	UI_DOT_PARTNER = 1, // Related to a selected dot node, thin selection ring
+	UI_DOT_ERROR   = 2, // Drawn red
+} ui_dot_state_t;
 
 typedef struct ui_node {
 	int                     id;
@@ -597,6 +603,24 @@ extern void (*ui_nodes_on_link_drag)(int, bool);
 extern void (*ui_nodes_on_node_remove)(ui_node_t *);
 extern void (*ui_nodes_on_node_changed)(ui_node_t *);
 extern bool ui_nodes_grid_snap;
+extern char *(*ui_nodes_on_dot_label)(ui_node_t *);                       // Label of a dot node, NULL for the node name
+extern int (*ui_nodes_on_dot_state)(ui_node_t *);                         // ui_dot_state_t flags of a dot node
+extern void (*ui_nodes_on_dot_overlay)(ui_node_canvas_t *);              // Draw over the nodes, under the dot nodes
+extern void (*ui_nodes_on_dot_label_double_click)(ui_node_t *);
+extern void (*ui_nodes_on_dot_label_edited)(ui_node_t *, char *);        // Text accepted by ui_nodes_dot_edit_label
+extern void (*ui_nodes_on_paste)(ui_node_canvas_t *, ui_node_t **, int); // Nodes just pasted into the canvas
+
+void  ui_nodes_dot_edit_label(ui_node_t *node);
+float UI_DOT_SIZE();
+void  ui_node_dot_center(ui_node_t *node, float *x, float *y); // Window space
+void  ui_draw_link_dotted(float x1, float y1, float x2, float y2, uint32_t color);
+void  ui_popup(int x, int y, int w, int h, void (*commands)(ui_t *, void *, void *), void *data, void *data2);
+extern int  ui_popup_x;
+extern int  ui_popup_y;
+extern int  ui_popup_w;
+extern int  ui_popup_h;
+extern int  ui_popup_handle_node_id;
+extern void (*ui_popup_commands)(ui_t *, void *, void *);
 
 void     ui_node_canvas_encode(ui_node_canvas_t *canvas);
 uint32_t ui_node_canvas_encoded_size(ui_node_canvas_t *canvas);

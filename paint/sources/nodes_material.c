@@ -67,6 +67,8 @@ void nodes_material_init() {
 	mix_normal_map_node_init();
 	normal_node_init();
 	normal_map_node_init();
+	receiver_node_init();
+	sender_node_init();
 	separate_xyz_node_init();
 	vector_curves_node_init();
 	vector_math2_node_init();

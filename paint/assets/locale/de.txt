@@ -276,6 +276,7 @@ Füllmaske
 Füllmodus
 Filter
 Texturen filtern
+
 Flach
 Abflachen
 Float Kurve
@@ -472,6 +473,7 @@ Neues Theme
 Neue weiße Maske
 Weiter
 Nein
+
 Keine Antwort
 Node
 Node Vorschauen
@@ -583,6 +585,7 @@ Zufall
 Zufälligkeit
 Bereich
 Verhältnis
+
 Neuste
 Wiederherstellen {step}
 Spiegeln
@@ -650,6 +653,7 @@ Verborgene auswählen
 Material wählen
 Sichtbare auswählen
 Ausgewählt
+
 Sensibilität
 Farbe aufteilen
 Vektor aufteilen

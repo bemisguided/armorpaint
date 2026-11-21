@@ -276,6 +276,7 @@ Maska wypełnienia
 Tryb wypełniania
 Filtr
 Filtruj tekstury
+
 Płaski
 Spłaszcz
 Krzywa liczby
@@ -472,6 +473,7 @@ Nowy motyw
 Nowa biała maska
 Następny
 Nie
+
 Brak odpowiedzi
 Węzeł
 Podglądy węzłów
@@ -583,6 +585,7 @@ Losowy
 Losowość
 Zakres
 Współczynnik
+
 Ostatnie
 Powtórz {step}
 Odbij
@@ -650,6 +653,7 @@ Zaznacz ukryte
 Wybierz materiał
 Zaznacz widoczne
 Wybrane
+
 Czułość
 Oddziel kolor
 Oddziel wektor

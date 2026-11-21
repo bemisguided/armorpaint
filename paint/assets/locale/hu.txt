@@ -276,6 +276,7 @@ Kitöltő maszk
 Kitöltési mód
 Szűrő
 Textúrák szűrése
+
 Lapos
 Lapítás
 Float görbe
@@ -472,6 +473,7 @@ Neurális
 Új fehér maszk
 Következő
 Nem
+
 Nincs válasz
 Csomópont
 Csomópont előnézetek
@@ -583,6 +585,7 @@ Véletlenszerű
 Véletlenszerűség
 Tartomány
 Arány
+
 Legutóbbi
 Mégsem von vissza: {step}
 Visszatükröződés
@@ -650,6 +653,7 @@ Rejtettek kijelölése
 Anyag kiválasztása
 Láthatók kijelölése
 Kiválasztva
+
 Érzékenység
 Szín szétválasztása
 Vektor szétválasztása
