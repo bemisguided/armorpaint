@@ -129,18 +129,6 @@ static i32 util_node_layout_ordinal(char **names, i32 upto) {
 	return o;
 }
 
-static bool util_node_layout_names_equal(char **saved, i32 ns, char **def, i32 nd) {
-	if (ns != nd) {
-		return false;
-	}
-	for (i32 i = 0; i < ns; ++i) {
-		if (saved[i] == NULL || def[i] == NULL || !string_equals(saved[i], def[i])) {
-			return false;
-		}
-	}
-	return true;
-}
-
 // For every definition item j the index of the saved item that is the same item, or -1 (def_to_saved), and the reverse (saved_to_def).
 // An item with an empty name is only matched to the item at its own index when that is empty too.
 static void util_node_layout_match(char *type, char **saved, i32 ns, char **def, i32 nd, i32 *saved_to_def, i32 *def_to_saved) {
