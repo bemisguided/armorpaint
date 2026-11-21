@@ -230,7 +230,7 @@ static void shape_generator_node_sections(ui_node_t *def) {
 }
 
 void shape_generator_node_init() {
-	u32 value_color = 0xffa1a1a1;
+	u32 value_color = NODES_MATERIAL_VALUE_COLOR;
 
 	ui_node_t *shape_generator_node_def =
 	    ALLOC_INIT(ui_node_t,
@@ -239,7 +239,7 @@ void shape_generator_node_init() {
 	                .type   = "SHAPE_GENERATOR",
 	                .x      = 0,
 	                .y      = 0,
-	                .color  = 0xff62676d, // The grey header of Map Range and the Color nodes: a pass-through node, not an orange image node
+	                .color  = NODES_MATERIAL_PASS_THROUGH_COLOR, // A pass-through node, not an orange image node
 	                .inputs = any_array_create_from_raw(
 	                    (void *[]){
 	                        make_image_node_socket(_tr("Width"), "VALUE", value_color, f32_array_create_x(0.5), 0.0, 1.0, 100),
@@ -271,7 +271,7 @@ void shape_generator_node_init() {
 	any_map_set(parser_material_node_vectors, "SHAPE_GENERATOR", shape_generator_node_vector);
 	any_map_set(ui_nodes_hidden_rules, "SHAPE_GENERATOR", shape_generator_node_item_hidden);
 	shape_generator_node_sections(shape_generator_node_def);
-	// The baked build (type TEX_SHAPE_GENERATOR, Size and a state row first) is not defined any more: such a node loads as an unknown node with a black
-	// output; its state row button is the shared make_image_node_state_row, which draws nothing for a node without an image node state. Delete it and
-	// add a new Shape Generator.
+	// The baked build (type TEX_SHAPE_GENERATOR, Size and a state row first) is resolved to this node by the node layout type alias in util_node_layout.c
+	// (items matched by name: Width, Height, Position X/Y, Rotation, Corner Radius, Edge Softness, Shape, Invert, Wrap Edges keep their values and links,
+	// Size and the state row are dropped); without the alias such a node loads as an unknown node with a black output.
 }
