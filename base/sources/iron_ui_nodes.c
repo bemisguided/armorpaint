@@ -93,13 +93,25 @@ float UI_LINE_H() {
 	return current_nodes->ELEMENT_H * UI_NODES_SCALE();
 }
 
-// Height of the first length buttons (all for a negative length)
-static float ui_node_buttons_h(ui_node_t *node, int length) {
+static int                      ui_node_section_of(ui_node_t *node, ui_node_item_t kind, int index);
+static const ui_node_section_t *ui_node_section(ui_node_t *node, int n);
+
+// Whether a button sits in a section that is drawn below the inputs (ui_node_section_t.after_inputs)
+static bool ui_node_button_after_inputs(ui_node_t *node, int index) {
+	int n = ui_node_section_of(node, UI_NODE_ITEM_BUTTON, index);
+	return n >= 0 && ui_node_section(node, n)->after_inputs;
+}
+
+// Height of the first length buttons (all for a negative length) that are drawn above the inputs (after false) or below them (after true)
+static float ui_node_buttons_h(ui_node_t *node, int length, bool after) {
 	if (node->flags & UI_NODE_FLAG_COLLAPSED)
 		return 0.0;
 	float h = 0.0;
 	for (int i = 0; i < (length < 0 ? node->buttons->length : length); ++i) {
 		ui_node_button_t *but = node->buttons->buffer[i];
+		if (ui_node_button_after_inputs(node, i) != after) {
+			continue;
+		}
 		if (ui_node_section_header_at(NULL, node, UI_NODE_ITEM_BUTTON, i) >= 0) {
 			h += UI_LINE_H();
 		}
@@ -123,8 +135,9 @@ static float ui_node_buttons_h(ui_node_t *node, int length) {
 	return h;
 }
 
+// Height of the buttons above the inputs: the offset of the inputs from the outputs. The buttons of a section below the inputs are not in it.
 float UI_BUTTONS_H(ui_node_t *node) {
-	return ui_node_buttons_h(node, -1);
+	return ui_node_buttons_h(node, -1, false);
 }
 
 float UI_OUTPUTS_H(ui_node_canvas_t *canvas, ui_node_t *node, int length) {
@@ -261,7 +274,7 @@ float UI_INPUTS_H(ui_node_canvas_t *canvas, ui_node_t *node, int length) {
 float UI_NODE_H(ui_node_canvas_t *canvas, ui_node_t *node) {
 	if (node->flags & UI_NODE_FLAG_COLLAPSED)
 		return UI_LINE_H() * 1.2;
-	return UI_LINE_H() * 1.2 + UI_INPUTS_H(canvas, node, -1) + UI_OUTPUTS_H(canvas, node, -1) + UI_BUTTONS_H(node);
+	return UI_LINE_H() * 1.2 + UI_INPUTS_H(canvas, node, -1) + UI_OUTPUTS_H(canvas, node, -1) + UI_BUTTONS_H(node) + ui_node_buttons_h(node, -1, true);
 }
 
 float UI_NODE_W(ui_node_t *node) {
@@ -283,7 +296,7 @@ float UI_INPUT_Y(ui_node_canvas_t *canvas, ui_node_t *node, int pos) {
 	int closed = ui_node_input_in_closed_section(node, pos);
 	if (closed >= 0 && ui_node_section(node, closed)->kind == UI_NODE_ITEM_BUTTON) {
 		// Mixed section: its header sits among the buttons, the callers add the whole height of the buttons to the result
-		return UI_LINE_H() * 1.62 + ui_node_buttons_h(node, ui_node_section(node, closed)->first) - UI_BUTTONS_H(node);
+		return UI_LINE_H() * 1.62 + ui_node_buttons_h(node, ui_node_section(node, closed)->first, false) - UI_BUTTONS_H(node);
 	}
 	if (closed >= 0) {
 		return UI_LINE_H() * 1.62 + UI_INPUTS_H(canvas, node, ui_node_section(node, closed)->first);
@@ -626,47 +639,17 @@ static void ui_node_draw_section_header(ui_node_t *node, ui_node_canvas_t *canva
 	}
 }
 
-void ui_node_draw_body(ui_node_t *node, ui_node_canvas_t *canvas, float nx, float ny) {
+// Draws the buttons that sit above the inputs (after false) or the ones of a section below the inputs (after true), from row ny on; returns the new ny
+static float ui_node_draw_buttons(ui_node_t *node, ui_node_canvas_t *canvas, float nx, float ny, bool after) {
 	ui_t *current = ui_get_current();
-	float wx      = current->_window_x;
-	float wy      = current->_window_y;
 	float w       = UI_NODE_W(node);
-	// float h       = UI_NODE_H(canvas, node);
-	float lineh = UI_LINE_H();
-
-	// Outputs
-	for (int i = 0; i < node->outputs->length; ++i) {
-		ui_node_socket_t *out = node->outputs->buffer[i];
-		if (ui_node_item_hidden(canvas, node, UI_NODE_ITEM_OUTPUT, i)) {
-			continue;
-		}
-		ny += lineh;
-		draw_set_color(out->color);
-		draw_scaled_image(&ui_socket_image, nx + w - ui_p(6), ny - ui_p(3), ui_p(12), ui_p(12));
-	}
-	ny -= UI_OUTPUTS_H(canvas, node, -1);
-	draw_set_color(current->ops->theme->LABEL_COL);
-	for (int i = 0; i < node->outputs->length; ++i) {
-		ui_node_socket_t *out = node->outputs->buffer[i];
-		if (ui_node_item_hidden(canvas, node, UI_NODE_ITEM_OUTPUT, i)) {
-			continue;
-		}
-		ny += lineh;
-		float strw = draw_string_width(current->ops->font, current->font_size, ui_tr(out->name));
-		draw_string(ui_tr(out->name), nx + w - strw - ui_p(12), ny - ui_p(3));
-
-		if (ui_nodes_on_socket_released != NULL && current->input_enabled && (current->input_released || current->input_released_r)) {
-			if (current->input_x > wx + nx && current->input_x < wx + nx + w && current->input_y > wy + ny && current->input_y < wy + ny + lineh) {
-				ui_nodes_on_socket_released(out->id);
-				ui_nodes_socket_released = true;
-			}
-		}
-	}
-
-	// Buttons
+	float lineh   = UI_LINE_H();
 	ny -= lineh / 3.0; // Fix align
 	for (int buti = 0; buti < node->buttons->length; ++buti) {
 		ui_node_button_t *but = node->buttons->buffer[buti];
+		if (ui_node_button_after_inputs(node, buti) != after) {
+			continue;
+		}
 		float            *val = but->output == -1 ? but->default_value->buffer : node->outputs->buffer[but->output]->default_value->buffer;
 		int               section = ui_node_section_header_at(canvas, node, UI_NODE_ITEM_BUTTON, buti);
 		if (section >= 0) {
@@ -813,6 +796,48 @@ void ui_node_draw_body(ui_node_t *node, ui_node_canvas_t *canvas, float nx, floa
 		}
 	}
 	ny += lineh / 3.0; // Fix align
+	return ny;
+}
+
+void ui_node_draw_body(ui_node_t *node, ui_node_canvas_t *canvas, float nx, float ny) {
+	ui_t *current = ui_get_current();
+	float wx      = current->_window_x;
+	float wy      = current->_window_y;
+	float w       = UI_NODE_W(node);
+	// float h       = UI_NODE_H(canvas, node);
+	float lineh = UI_LINE_H();
+
+	// Outputs
+	for (int i = 0; i < node->outputs->length; ++i) {
+		ui_node_socket_t *out = node->outputs->buffer[i];
+		if (ui_node_item_hidden(canvas, node, UI_NODE_ITEM_OUTPUT, i)) {
+			continue;
+		}
+		ny += lineh;
+		draw_set_color(out->color);
+		draw_scaled_image(&ui_socket_image, nx + w - ui_p(6), ny - ui_p(3), ui_p(12), ui_p(12));
+	}
+	ny -= UI_OUTPUTS_H(canvas, node, -1);
+	draw_set_color(current->ops->theme->LABEL_COL);
+	for (int i = 0; i < node->outputs->length; ++i) {
+		ui_node_socket_t *out = node->outputs->buffer[i];
+		if (ui_node_item_hidden(canvas, node, UI_NODE_ITEM_OUTPUT, i)) {
+			continue;
+		}
+		ny += lineh;
+		float strw = draw_string_width(current->ops->font, current->font_size, ui_tr(out->name));
+		draw_string(ui_tr(out->name), nx + w - strw - ui_p(12), ny - ui_p(3));
+
+		if (ui_nodes_on_socket_released != NULL && current->input_enabled && (current->input_released || current->input_released_r)) {
+			if (current->input_x > wx + nx && current->input_x < wx + nx + w && current->input_y > wy + ny && current->input_y < wy + ny + lineh) {
+				ui_nodes_on_socket_released(out->id);
+				ui_nodes_socket_released = true;
+			}
+		}
+	}
+
+	// Buttons
+	ny = ui_node_draw_buttons(node, canvas, nx, ny, false);
 
 	// Inputs
 	for (int i = 0; i < node->inputs->length; ++i) {
@@ -915,6 +940,9 @@ void ui_node_draw_body(ui_node_t *node, ui_node_canvas_t *canvas, float nx, floa
 			}
 		}
 	}
+
+	// Buttons of the sections below the inputs
+	ny = ui_node_draw_buttons(node, canvas, nx, ny, true);
 }
 
 void ui_node_draw(ui_node_t *node, ui_node_canvas_t *canvas) {
