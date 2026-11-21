@@ -179,19 +179,20 @@ static uint32_t ui_stops_mix(uint32_t a, uint32_t b, float t) {
 
 // Marker colours from the theme, so they keep their contrast against the node background in every theme. bg_col is the
 // node background (WINDOW_BG_COL), text_col the text colour (TEXT_COL). The outline is black (Blender's too, on dark and
-// light themes), the frame and the roofs are text pulled towards the background: the frame about mid grey (128 on the
-// default and the light theme), the inactive roof darker than it and the active roof brighter, in a dark theme (a light
-// theme inverts the roofs with the text colour). The frame colour never changes with the selection.
+// light themes), the frame is the text colour pulled 55 % towards the background (about mid grey, 128 on the default and
+// the light theme) and never changes with the selection. The inactive roof is the same grey as the frame, so an idle
+// marker reads as one grey shape with the black outline; only the active roof differs, the bright select grey (a light
+// theme inverts it: the active roof is the darker one).
 void ui_stops_pin_colors(uint32_t bg_col, uint32_t text_col, ui_stops_colors_t *colors) {
 	colors->outline     = 0xff000000;
 	colors->frame       = ui_stops_mix(text_col, bg_col, 0.55f);
-	colors->roof        = ui_stops_mix(text_col, bg_col, 0.72f);
+	colors->roof        = colors->frame;
 	colors->roof_active = ui_stops_mix(text_col, bg_col, 0.10f);
 }
 // ui_stops logic end
 
-// The house, built like Blender's color ramp handle: a 45 degree roof in neutral grey (darker when inactive, brighter when
-// active, the select indicator) over a box. Both have a black outline. The box is the black outline, the neutral grey frame
+// The house, built like Blender's color ramp handle: a 45 degree roof in neutral grey (the frame grey when inactive, the
+// bright select grey when active) over a box. Both have a black outline. The box is the black outline, the neutral grey frame
 // on all four sides (its top band lies directly under the roof, the frame colour does not change with the selection) and
 // the stop colour fill innermost. The silhouette is w wide (the roof base and the outer edge of the box are the same width)
 // and roof + box_h tall. The roof outline runs along the two slopes and, like the box outline, ends on the roof base: the
