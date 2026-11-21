@@ -52,6 +52,7 @@ Aset
 Atribut
 Otomatis
 Rata-rata
+
 Sumbu
 B
 Belakang
@@ -69,6 +70,7 @@ Bevel
 Bias
 Bit
 Masker Hitam
+
 
 
 Eksekusi Blender
@@ -566,6 +568,8 @@ Orientasi 3D
 Origin ke Geometri
 Ortografis
 Keluar
+
+
 Hampar
 
 
@@ -737,6 +741,7 @@ Atur Sumber
 Atur sebagai Peta ID Warna
 Atur sebagai Peta Lingkungan
 Atur sebagai Masker
+
 Mengatur Sumber
 Pengaturan
 Shader
@@ -906,6 +911,7 @@ Profil Gelombang
 Tekstur Gelombang
 Jenis Gelombang
 Apa yang Baru
+
 Masker Putih
 Putih Total
 Lebar

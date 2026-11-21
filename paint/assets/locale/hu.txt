@@ -52,6 +52,7 @@ Asset
 Attribútum
 Auto
 Átlag
+
 Tengely
 B
 Hátul
@@ -69,6 +70,7 @@ Hajlított normál
 Eltérés (Bias)
 Bitek
 Fekete maszk
+
 
 
 Blender futtatható fájl
@@ -566,6 +568,8 @@ Rétegek sorrendje
 Origó a geometriához
 Ortografikus
 Kimenet
+
+
 Átfedés (Overlay)
 
 
@@ -737,6 +741,7 @@ Forrás beállítása
 Beállítás Szín ID térképként
 Beállítás környezeti térképként
 Beállítás maszkként
+
 Forrás beállítása...
 Beállítás
 Shader
@@ -906,6 +911,7 @@ Hullám profil
 Hullám textúra
 Hullám típusa
 Újdonságok
+
 Fehér maszk
 Kifehérítés
 Szélesség

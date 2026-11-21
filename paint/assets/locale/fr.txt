@@ -52,6 +52,7 @@ Asset
 Attributs
 Auto
 Moyenne
+
 Axe
 B
 Arrière
@@ -69,6 +70,7 @@ Biseau
 Biais
 Bits
 Masque noir
+
 
 
 Exécutable Blender
@@ -566,6 +568,8 @@ Orientation 3D
 Origine vers la géométrie
 Orthographique
 Sortie
+
+
 Superposer
 
 
@@ -737,6 +741,7 @@ Définir la source
 Définir comme carte d'ID couleur
 Définir comme carte d'environnement
 Définir comme masque
+
 Définition de la source
 Configuration
 Shader
@@ -906,6 +911,7 @@ Profil d'onde
 Texture d'onde
 Type d'onde
 Quoi de neuf ?
+
 Masque blanc
 Voile blanc
 Largeur

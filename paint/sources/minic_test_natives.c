@@ -290,6 +290,12 @@ i32 script_flood_fill_islands(ui_node_t *node) {
 	return node != NULL ? make_image_node_result_count(node) : -1;
 }
 
+// Float number index of the node's summary (the Levels histogram: 0..255 bins, 256 min, 257 max, 258 mean, 259 low, 260 high percentile), -1 when there is none
+f32 script_image_node_summary(ui_node_t *node, i32 index) {
+	f32 *summary = node != NULL ? make_image_node_summary(node) : NULL;
+	return summary != NULL && index >= 0 ? summary[index] : -1.0;
+}
+
 i32 script_flood_fill_width(ui_node_t *node) {
 	gpu_texture_t *image = script_flood_fill_result(node);
 	return image != NULL ? image->width : 0;
