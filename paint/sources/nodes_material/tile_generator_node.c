@@ -3,7 +3,7 @@
 // Tile Generator (Pattern menu): a grid of tiles, each one a copy of a pattern with random scale, rotation, offset and
 // brightness, composed into one image. An image node (render/make_image_node.c): every pattern input (Pattern 1, Pattern 2
 // to Pattern 4, as many as Patterns says) is one colour capture (32 bit float) of the node's image square, read through the
-// shared cpu sampler with the Filter setting (Linear, Cubic, Nearest) and the tiles are drawn on the cpu into two RGBA64
+// shared cpu sampler with the Filter setting (Linear, Nearest) and the tiles are drawn on the cpu into two RGBA64
 // textures per node (second_result), because a colour image leaves no channel for Position:
 // first texture:  R, G, B = Image (the composed pattern colour), A = ID (a random grey per tile, floored to 1/1024 so that
 //                 Mask = A > 0),
@@ -71,10 +71,11 @@ enum {
 	TILE_GENERATOR_BUTTON_BLEND        = 6, // Appended last: scripts and saves address the buttons by index
 };
 
-// Filter setting values (the order of the combo); the sampler takes IMAGE_FILTER_*, mapped in tile_generator_node_params
+// Filter setting values (the order of the combo); the sampler takes IMAGE_FILTER_*, mapped in tile_generator_node_params. Cubic was
+// removed (2026-11-21: indistinguishable from Linear at 3.2x the cost, it overshoots 0..1), so Nearest moved from 2 to 1; a node saved
+// with the old Nearest (2) is out of range and reads as Linear (the combo shows no text until it is set again)
 enum {
 	TILE_GENERATOR_FILTER_LINEAR,
-	TILE_GENERATOR_FILTER_CUBIC,
 	TILE_GENERATOR_FILTER_NEAREST,
 };
 
@@ -189,7 +190,7 @@ static void tile_generator_node_params(ui_node_t *node, void *params) {
 	p->mode                    = mode < 0 ? 0 : mode > TILE_GENERATOR_MODE_BY_MAP ? TILE_GENERATOR_MODE_BY_MAP : mode;
 	p->wrap                    = make_image_node_button(node, TILE_GENERATOR_BUTTON_WRAP_EDGES) != 0.0 ? 1 : 0;
 	i32 filter                 = (i32)make_image_node_button(node, TILE_GENERATOR_BUTTON_FILTER);
-	p->filter                  = filter == TILE_GENERATOR_FILTER_CUBIC ? IMAGE_FILTER_CUBIC : filter == TILE_GENERATOR_FILTER_NEAREST ? IMAGE_FILTER_NEAREST : IMAGE_FILTER_LINEAR;
+	p->filter                  = filter == TILE_GENERATOR_FILTER_NEAREST ? IMAGE_FILTER_NEAREST : IMAGE_FILTER_LINEAR;
 	i32 blend                  = (i32)make_image_node_button(node, TILE_GENERATOR_BUTTON_BLEND);
 	p->blend                   = blend == TILE_GENERATOR_BLEND_REPLACE ? TILE_GENERATOR_BLEND_REPLACE : TILE_GENERATOR_BLEND_MAX;
 	f32 tx                     = make_image_node_input_value(node, TILE_GENERATOR_INPUT_TILES_X);
@@ -430,7 +431,7 @@ void tile_generator_node_init() {
 	                        make_image_node_setting(_tr("Patterns"), "ENUM", 0, "1 Pattern\n2 Patterns\n3 Patterns\n4 Patterns"),
 	                        make_image_node_setting(_tr("Pattern Mode"), "ENUM", 0, "Random\nCycle\nBy Map"),
 	                        make_image_node_setting(_tr("Wrap Edges"), "BOOL", 1, NULL),
-	                        make_image_node_setting(_tr("Filter"), "ENUM", TILE_GENERATOR_FILTER_LINEAR, "Linear\nCubic\nNearest"),
+	                        make_image_node_setting(_tr("Filter"), "ENUM", TILE_GENERATOR_FILTER_LINEAR, "Linear\nNearest"),
 	                        make_image_node_setting(_tr("Blend"), "ENUM", TILE_GENERATOR_BLEND_MAX, "Max\nReplace"),
 	                    },
 	                    7),
