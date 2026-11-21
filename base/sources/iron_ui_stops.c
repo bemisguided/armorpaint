@@ -109,25 +109,132 @@ bool ui_stops_can_remove(int count, int min_count) {
 bool ui_stops_is_double_click(double now, double last_time, int last_hit, int hit) {
 	return hit >= 0 && hit == last_hit && now - last_time < 0.3;
 }
+// Marker geometry. Every size derives from marker_h (the drawn handle row, 0.5 line, it already includes UI scale and node
+// zoom) and snaps to whole pixels with a 1 px floor, so a small scale keeps crisp rings and layout, drawing and hit test
+// (ui_stops_pin_extent) cannot disagree.
+static int ui_stops_round(float v) {
+	return (int)floorf(v + 0.5f);
+}
+
+static int ui_stops_clamp_int(int v, int lo, int hi) {
+	return v < lo ? lo : (v > hi ? hi : v);
+}
+
+// Width of the marker box, odd so it is centred on one pixel column
+int ui_stops_pin_w(float marker_h) {
+	int w = ui_stops_round(0.8f * marker_h);
+	return w % 2 == 0 ? w + 1 : w;
+}
+
+// Dark hairline and grey ring around the colour box, in pixels
+void ui_stops_pin_rings(float marker_h, int *hairline, int *ring) {
+	*hairline = ui_stops_clamp_int(ui_stops_round(0.05f * marker_h), 1, 2);
+	*ring     = ui_stops_clamp_int(ui_stops_round(0.09f * marker_h), 1, 3);
+}
+
+// How far a marker reaches sideways past its position: the consumer insets bar and track by it on both sides, so the
+// markers at 0 and 1 stay inside the control. The same for active and inactive markers (the silhouette does not grow).
+int ui_stops_pin_extent(float marker_h) {
+	int hairline, ring;
+	ui_stops_pin_rings(marker_h, &hairline, &ring);
+	return (int)ceilf((float)ui_stops_pin_w(marker_h) * 0.5f + (float)(hairline + ring));
+}
+
+// Stop at the end of the bar (the lowest position for the left end, the highest for the right end, on a tie the higher
+// index, the one drawn on top), -1 without stops. A press on the margin next to an end marker selects it.
+int ui_stops_end(ui_stops_get_pos_t get_pos, void *data, int count, bool right) {
+	int   best     = -1;
+	float best_pos = 0.0f;
+	for (int i = 0; i < count; ++i) {
+		float p = ui_stops_clamp(get_pos(data, i));
+		if (best < 0 || (right ? p >= best_pos : p <= best_pos)) {
+			best     = i;
+			best_pos = p;
+		}
+	}
+	return best;
+}
+
+static uint32_t ui_stops_mix(uint32_t a, uint32_t b, float t) {
+	uint32_t out = 0xff000000;
+	for (int shift = 0; shift < 24; shift += 8) {
+		float ca = (float)((a >> shift) & 0xff);
+		float cb = (float)((b >> shift) & 0xff);
+		out |= (uint32_t)(ca + (cb - ca) * t + 0.5f) << shift;
+	}
+	return out;
+}
+
+// Marker colours from the theme, so they keep their contrast against the node background in every theme. bg_col is the
+// node background (WINDOW_BG_COL), text_col the text colour (TEXT_COL). The hairline is the background pulled towards
+// black, the ring and the roofs are text pulled towards the background: a mid tone in a dark and in a light theme.
+void ui_stops_pin_colors(uint32_t bg_col, uint32_t text_col, ui_stops_colors_t *colors) {
+	colors->hairline    = ui_stops_mix(bg_col, 0xff000000, 0.85f);
+	colors->ring        = ui_stops_mix(text_col, bg_col, 0.42f);
+	colors->roof        = ui_stops_mix(text_col, bg_col, 0.72f);
+	colors->roof_active = ui_stops_mix(text_col, bg_col, 0.10f);
+}
 // ui_stops logic end
 
+// The house: a box in the stop colour with a grey ring and a dark hairline, under a 45 degree roof in neutral grey (darker
+// when inactive, brighter when active). cx: pixel centre of the position, y: the bar bottom, w: ui_stops_pin_w(h).
 void ui_stops_draw_pin(float cx, float y, float w, float h, uint32_t fill, bool active) {
-	float o    = (active ? 2.0f : 1.0f) * UI_SCALE();
-	float half = w * 0.5f;
-	float neck = y + h * 0.35f;
-	draw_set_color(active ? 0xffffffff : 0xff000000);
-	draw_filled_triangle(cx, y - o * 1.5f, cx - half - o, neck, cx + half + o, neck);
-	draw_filled_rect(cx - half - o, neck, w + o * 2.0f, y + h - neck + o);
+	ui_theme_t       *theme = ui_get_current()->ops->theme;
+	ui_stops_colors_t colors;
+	ui_stops_pin_colors((uint32_t)theme->WINDOW_BG_COL, (uint32_t)theme->TEXT_COL, &colors);
+	int hairline, ring;
+	ui_stops_pin_rings(h, &hairline, &ring);
+	float half  = w * 0.5f;
+	float roof  = floorf(half + 0.5f); // Height of the 45 degree roof
+	float top   = y + roof;            // Top of the box
+	float box_h = floorf(roof * 1.4f + 0.5f);
+	float d     = (float)hairline;
+	float g     = (float)ring;
+	float sq2   = 1.4142f;
+
+	draw_set_color(colors.hairline);
+	draw_filled_rect(cx - half - g - d, top - d, w + (g + d) * 2.0f, box_h + g + d * 2.0f);
+	draw_set_color(colors.ring);
+	draw_filled_rect(cx - half - g, top, w + g * 2.0f, box_h + g);
 	draw_set_color(fill | 0xff000000);
-	draw_filled_triangle(cx, y, cx - half, neck, cx + half, neck);
-	draw_filled_rect(cx - half, neck, w, y + h - neck);
+	draw_filled_rect(cx - half, top, w, box_h);
+	draw_set_color(colors.hairline);
+	draw_filled_triangle(cx, y - sq2 * d, cx - half - sq2 * d, top, cx + half + sq2 * d, top);
+	draw_set_color(active ? colors.roof_active : colors.roof);
+	draw_filled_triangle(cx, y, cx - half, top, cx + half, top);
 	draw_set_color(0xffffffff);
 }
 
-// One frame of the control. x, y, w: the bar in window coordinates, bar_h its height, the handles are drawn in the
-// marker_h tall row below it; a press counts within the hit_h tall row (at least marker_h, a small drawn handle keeps
-// a comfortable click zone). A press on a handle selects it and starts a drag (a double click deletes it), a press
-// on the bar adds a stop there and drags it.
+// Position line across the bar at a stop: 1 px wide at ordinary sizes, dashes alternating light and dark (readable on any
+// bar colour), dimmer when inactive. These colours sit on the bar content, not on the node background: fixed, not themed.
+static void ui_stops_draw_line(float cx, float y, float bar_h, float marker_h, bool active) {
+	int      line_w = ui_stops_clamp_int(ui_stops_round(0.035f * marker_h), 1, 1 << 20);
+	int      dash   = ui_stops_clamp_int(ui_stops_round(0.14f * marker_h), 2, 4);
+	float    x0     = floorf(cx) - (float)((line_w - 1) / 2);
+	uint32_t light  = active ? 0xffffffff : 0xffb2b2b2;
+	uint32_t dark   = active ? 0xff000000 : 0xff666666;
+	int      n      = 0;
+	for (float off = 0.0f; off < bar_h; off += (float)dash, ++n) {
+		float len = bar_h - off < (float)dash ? bar_h - off : (float)dash;
+		draw_set_color(n % 2 == 0 ? light : dark);
+		draw_filled_rect(x0, y + off, (float)line_w, len);
+	}
+	draw_set_color(0xffffffff);
+}
+
+// Pixel column of a position, snapped to the pixel grid and kept inside the track
+static float ui_stops_snap_x(float x, float w, float pos) {
+	float col  = floorf(x + ui_stops_clamp(pos) * w);
+	float last = ceilf(x + w) - 1.0f;
+	return (col > last ? last : col) + 0.5f;
+}
+
+// One frame of the control. x, y, w: the track in window coordinates (the consumer insets its bar by
+// ui_stops_pin_extent(marker_h) on both sides, so the markers at 0 and 1 stay inside), bar_h the bar height, the markers
+// are drawn in the marker_h tall row below it; a press counts within the hit_h tall row (at least marker_h, a small drawn
+// handle keeps a comfortable click zone) and horizontally within the track plus the pin extent. A press on a handle
+// selects it and starts a drag (a double click deletes it), a press on the bar adds a stop there and drags it, a press on
+// the margin beside the track selects the end stop (it never adds one).
 int ui_stops_update(ui_stops_t *s, const ui_stops_ops_t *ops, void *data, float x, float y, float w, float bar_h, float marker_h, float hit_h) {
 	ui_t *ui    = ui_get_current();
 	int   flags = 0;
@@ -145,17 +252,22 @@ int ui_stops_update(ui_stops_t *s, const ui_stops_ops_t *ops, void *data, float 
 	if (hit_h < marker_h) {
 		hit_h = marker_h;
 	}
-	float pin_w = marker_h * 0.7f;
-	float hit_w = hit_h * 0.7f;
+	float pin_w  = (float)ui_stops_pin_w(marker_h);
+	float extent = (float)ui_stops_pin_extent(marker_h);
+	float hit_w  = hit_h * 0.7f;
 	float mx    = ui->input_x - ui->_window_x;
 	float my    = ui->input_y - ui->_window_y;
 
 	bool can_start = ui->enabled && ui->input_enabled && ui->input_started && s->drag == 0 &&
 	                 (ui->current_window == NULL || ui_input_in_rect(ui->_window_x, ui->_window_y, ui->_window_w, ui->_window_h));
-	if (can_start && mx >= x - hit_w && mx <= x + w + hit_w && my >= y && my < y + bar_h + hit_h) {
+	if (can_start && mx >= x - extent && mx <= x + w + extent && my >= y && my < y + bar_h + hit_h) {
 		flags |= UI_STOPS_CONSUMED;
 		bool in_bar = my < y + bar_h;
+		bool margin = mx < x || mx > x + w;
 		int  hit    = in_bar ? -1 : ui_stops_hit(ops->get_pos, data, n, mx, x, w, hit_w * 0.5f + 1.0f, s->active);
+		if (margin && hit < 0) {
+			hit = ui_stops_end(ops->get_pos, data, n, mx > x + w);
+		}
 		if (hit >= 0) {
 			if (ui_stops_is_double_click(iron_time(), s->last_time, s->last_hit, hit) && ui_stops_can_remove(n, ops->min_count)) {
 				ops->remove(data, hit);
@@ -176,7 +288,7 @@ int ui_stops_update(ui_stops_t *s, const ui_stops_ops_t *ops, void *data, float 
 				s->last_time = iron_time();
 			}
 		}
-		else if (in_bar && ui_stops_can_add(n, ops->max_count)) {
+		else if (in_bar && !margin && ui_stops_can_add(n, ops->max_count)) {
 			int added = ops->add(data, ui_stops_clamp((mx - x) / w));
 			if (added >= 0) {
 				s->active   = added;
@@ -209,13 +321,17 @@ int ui_stops_update(ui_stops_t *s, const ui_stops_ops_t *ops, void *data, float 
 	}
 
 	n = ops->count(data);
-	for (int i = 0; i < n; ++i) {
+	for (int i = 0; i < n; ++i) { // The active stop last, on top
 		if (i != s->active) {
-			ops->draw(data, i, x + ui_stops_clamp(ops->get_pos(data, i)) * w, y + bar_h, pin_w, marker_h, false);
+			float cx = ui_stops_snap_x(x, w, ops->get_pos(data, i));
+			ui_stops_draw_line(cx, y, bar_h, marker_h, false);
+			ops->draw(data, i, cx, y + bar_h, pin_w, marker_h, false);
 		}
 	}
 	if (n > 0) {
-		ops->draw(data, s->active, x + ui_stops_clamp(ops->get_pos(data, s->active)) * w, y + bar_h, pin_w, marker_h, true);
+		float cx = ui_stops_snap_x(x, w, ops->get_pos(data, s->active));
+		ui_stops_draw_line(cx, y, bar_h, marker_h, true);
+		ops->draw(data, s->active, cx, y + bar_h, pin_w, marker_h, true);
 	}
 	return flags;
 }
