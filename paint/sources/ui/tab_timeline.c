@@ -1254,6 +1254,9 @@ static gpu_texture_t *tab_timeline_tex_from_buffer(buffer_t *buf, bool is_bgra) 
 	i32                  h                 = config_get_texture_res_y();
 	i32                  bytes_per_channel = base_bits == TEXTURE_BITS_BITS8 ? 1 : base_bits == TEXTURE_BITS_BITS16 ? 2 : 4;
 	buffer_t            *pixels            = lz4_decode(buf, w * h * 4 * bytes_per_channel);
+	if (pixels == NULL) {
+		return NULL;
+	}
 	gpu_texture_t       *tmp               = gpu_create_texture_from_bytes_raw(pixels, w, h, fmt);
 	array_free(pixels);
 	free(pixels);
@@ -1271,6 +1274,9 @@ static gpu_texture_t *tab_timeline_sculpt_from_buffer(buffer_t *buf) {
 	i32            w      = config_get_texture_res_x();
 	i32            h      = config_get_texture_res_y();
 	buffer_t      *pixels = lz4_decode(buf, w * h * 4 * 4);
+	if (pixels == NULL) {
+		return NULL;
+	}
 	gpu_texture_t *tmp    = gpu_create_texture_from_bytes_raw(pixels, w, h, GPU_TEXTURE_FORMAT_RGBA128);
 	array_free(pixels);
 	free(pixels);
@@ -1298,7 +1304,7 @@ void tab_timeline_import(project_t *raw) {
 				kf->texpaint_nor    = d->texpaint_nor != NULL ? tab_timeline_tex_from_buffer(d->texpaint_nor, raw->is_bgra) : NULL;
 				kf->texpaint_pack   = d->texpaint_pack != NULL ? tab_timeline_tex_from_buffer(d->texpaint_pack, raw->is_bgra) : NULL;
 				kf->texpaint_sculpt = d->texpaint_sculpt != NULL ? tab_timeline_sculpt_from_buffer(d->texpaint_sculpt) : NULL;
-				if (kf->texpaint_nor == NULL || kf->texpaint_pack == NULL) {
+				if (kf->texpaint == NULL || kf->texpaint_nor == NULL || kf->texpaint_pack == NULL) {
 					tab_timeline_free_keyframe(kf);
 					continue;
 				}
