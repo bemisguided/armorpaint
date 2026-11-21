@@ -178,10 +178,17 @@ void ui_stops_pin_colors(uint32_t bg_col, uint32_t text_col, ui_stops_colors_t *
 
 // The house: a box in the stop colour with a grey ring and a dark hairline, under a 45 degree roof in neutral grey (darker
 // when inactive, brighter when active). cx: pixel centre of the position, y: the bar bottom, w: ui_stops_pin_w(h).
-void ui_stops_draw_pin(float cx, float y, float w, float h, uint32_t fill, bool active) {
+static void ui_stops_draw_house(float cx, float y, float w, float h, uint32_t fill, bool active, bool locked) {
 	ui_theme_t       *theme = ui_get_current()->ops->theme;
 	ui_stops_colors_t colors;
 	ui_stops_pin_colors((uint32_t)theme->WINDOW_BG_COL, (uint32_t)theme->TEXT_COL, &colors);
+	if (locked) { // Dimmed towards the background: no active highlight, the box colour kept faintly
+		uint32_t bg = (uint32_t)theme->WINDOW_BG_COL;
+		colors.ring = ui_stops_mix(colors.ring, bg, 0.6f);
+		colors.roof = ui_stops_mix(colors.roof, bg, 0.6f);
+		fill        = ui_stops_mix(fill | 0xff000000, bg, 0.65f);
+		active      = false;
+	}
 	int hairline, ring;
 	ui_stops_pin_rings(h, &hairline, &ring);
 	float half  = w * 0.5f;
@@ -203,6 +210,15 @@ void ui_stops_draw_pin(float cx, float y, float w, float h, uint32_t fill, bool 
 	draw_set_color(active ? colors.roof_active : colors.roof);
 	draw_filled_triangle(cx, y, cx - half, top, cx + half, top);
 	draw_set_color(0xffffffff);
+}
+
+void ui_stops_draw_pin(float cx, float y, float w, float h, uint32_t fill, bool active) {
+	ui_stops_draw_house(cx, y, w, h, fill, active, false);
+}
+
+// The house of a stop the consumer holds fixed (a linked value): dimmed, never active
+void ui_stops_draw_pin_locked(float cx, float y, float w, float h, uint32_t fill) {
+	ui_stops_draw_house(cx, y, w, h, fill, false, true);
 }
 
 // Position line across the bar at a stop: 1 px wide at ordinary sizes, dashes alternating light and dark (readable on any

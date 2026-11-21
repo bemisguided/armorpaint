@@ -406,7 +406,7 @@ static bool levels_strip_is_locked(void *data, i32 i) {
 static void levels_strip_draw(void *data, i32 i, f32 cx, f32 y, f32 w, f32 h, bool active) {
 	levels_strip_t *st = data;
 	if (levels_strip_is_locked(data, i)) {
-		ui_stops_draw_pin(cx, y, w, h, 0xff4a4a4a, false); // Linked: greyed, not draggable
+		ui_stops_draw_pin_locked(cx, y, w, h, st->range ? (i == 1 ? 0xff9a9a9a : 0xffd8d8d8) : (i == 0 ? 0xff202020 : i == 1 ? 0xff808080 : 0xffffffff)); // Linked: greyed, not draggable
 		return;
 	}
 	u32 fill = st->range ? (i == 1 ? 0xff9a9a9a : 0xffd8d8d8) : (i == 0 ? 0xff202020 : i == 1 ? 0xff808080 : 0xffffffff);
@@ -415,7 +415,7 @@ static void levels_strip_draw(void *data, i32 i, f32 cx, f32 y, f32 w, f32 h, bo
 
 #define LEVELS_STRIP_BAR_LINES    1.6f // The histogram and value gradient
 #define LEVELS_STRIP_MARKER_LINES 0.5f // The row of handles
-#define LEVELS_STRIP_GAP_LINES    0.2f
+#define LEVELS_STRIP_GAP_LINES    0.3f // Same rows as the Color Ramp handles
 #define LEVELS_STRIP_HEIGHT       (LEVELS_STRIP_BAR_LINES + LEVELS_STRIP_MARKER_LINES + LEVELS_STRIP_GAP_LINES) // Lines of the node button
 
 static void levels_node_strip_button(i32 node_id) {
@@ -434,8 +434,11 @@ static void levels_node_strip_button(i32 node_id) {
 	f32 marker_h = UI_LINE_H() * LEVELS_STRIP_MARKER_LINES;
 	f32 hit_h    = UI_LINE_H() * 0.7f;
 	f32 gap_h    = UI_LINE_H() * LEVELS_STRIP_GAP_LINES;
+	f32 extent   = (f32)ui_stops_pin_extent(marker_h); // Bar and track are inset so the handles at 0 and 1 stay in the node
+	f32 inset    = extent / UI_NODES_SCALE();
+	f32 bar_w    = sw - 2 * inset;
 
-	ui_fill(0, 0, sw, hist_h / UI_SCALE(), 0xff1c1c1c);
+	ui_fill(inset, 0, bar_w, hist_h / UI_SCALE(), 0xff1c1c1c);
 	levels_summary_t *summary = levels_node_summary_of(node);
 	if (summary != NULL) {
 		f32 largest = 0.0f;
@@ -445,8 +448,8 @@ static void levels_node_strip_button(i32 node_id) {
 		for (i32 b = 0; b < LEVELS_HISTOGRAM_BINS && largest > 0.0f; ++b) {
 			f32 h = sqrtf(summary->bins[b] / largest) * hist_h; // sqrt: a few dominant bins do not flatten the rest
 			if (h > 0.0f) {
-				f32 x0 = sw * (f32)b / LEVELS_HISTOGRAM_BINS;
-				f32 x1 = sw * (f32)(b + 1) / LEVELS_HISTOGRAM_BINS;
+				f32 x0 = inset + bar_w * (f32)b / LEVELS_HISTOGRAM_BINS;
+				f32 x1 = inset + bar_w * (f32)(b + 1) / LEVELS_HISTOGRAM_BINS;
 				ui_fill(x0, (hist_h - h) / UI_SCALE(), x1 - x0 + 1.0f / UI_NODES_SCALE(), h / UI_SCALE(), 0xff8c8c8c);
 			}
 		}
@@ -454,13 +457,13 @@ static void levels_node_strip_button(i32 node_id) {
 	if (strip.range) { // The window the mask selects
 		f32 lo = levels_strip_get_pos(&strip, 0);
 		f32 hi = levels_strip_get_pos(&strip, 2);
-		ui_fill(lo * sw, 0, (hi - lo) * sw, hist_h / UI_SCALE(), 0x40ffffff);
+		ui_fill(inset + lo * bar_w, 0, (hi - lo) * bar_w, hist_h / UI_SCALE(), 0x40ffffff);
 	}
 	i32 slices = 32;
 	for (i32 s = 0; s < slices; ++s) {
 		f32 t = (f32)s / (f32)slices;
 		u32 c = color_from_floats(t, t, t, 1.0);
-		ui_fill(t * sw, hist_h / UI_SCALE(), sw / (f32)slices + 1.0f / UI_NODES_SCALE(), grad_h / UI_SCALE(), c);
+		ui_fill(inset + t * bar_w, hist_h / UI_SCALE(), bar_w / (f32)slices + 1.0f / UI_NODES_SCALE(), grad_h / UI_SCALE(), c);
 	}
 
 	ui_stops_ops_t ops = {.count     = levels_strip_count,
@@ -472,7 +475,7 @@ static void levels_node_strip_button(i32 node_id) {
 	                      .is_locked = levels_strip_is_locked,
 	                      .min_count = 3,
 	                      .max_count = 3};
-	i32 hit = ui_stops_update(&state->stops, &ops, &strip, g_ui->_x, g_ui->_y, g_ui->_w, bar_h, marker_h, hit_h);
+	i32 hit = ui_stops_update(&state->stops, &ops, &strip, g_ui->_x + extent, g_ui->_y, g_ui->_w - 2 * extent, bar_h, marker_h, hit_h);
 	if (hit & UI_STOPS_CONSUMED) {
 		nodes->_input_started  = false;
 		g_context->select_time = 0; // Two quick presses on handles are not a node double click (2D view)
