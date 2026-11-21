@@ -407,6 +407,13 @@ void script_show_node_editor(bool only, f32 zoom, f32 pan_x, f32 pan_y) {
 	}
 }
 
+// Test only: the 3D viewport instead of the node editor (script_show_node_editor shows the editor and can hide the viewport)
+void script_show_viewport() {
+	ui_dock_show_view(TAB_NODES, false);
+	ui_dock_show_view(TAB_VIEW3D, true);
+	base_resize();
+}
+
 // Node editor layout, in rows (UI_LINE_H) so that the zoom does not matter. kind: 0 input, 1 output, 2 button.
 // Whether a row is hidden by the rules of its node (a socket with a link is never hidden, see ui_node_item_hidden)
 i32 script_node_item_hidden(ui_node_t *node, i32 kind, i32 index) {
