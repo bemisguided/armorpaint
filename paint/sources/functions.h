@@ -1010,6 +1010,9 @@ void                      make_image_node_sections(ui_node_t *def, ui_node_secti
 f32                       make_image_node_button(ui_node_t *node, i32 i);
 i32                       make_image_node_size(ui_node_t *node, i32 button);
 ui_node_socket_t         *make_image_node_socket(char *name, char *type, u32 color, f32_array_t *default_value, f32 min, f32 max, f32 precision);
+ui_node_socket_t         *make_image_node_vector_socket();
+char                     *make_image_node_coord(ui_node_t *node, i32 vector_input, bool wrap, char **unwrapped);
+char                     *make_image_node_eval_coord(ui_node_t *node, i32 vector_input, bool wrap, char *store, char *(*value_at)(ui_node_t *node, char *uv, char *uv_unwrapped, char *store));
 ui_node_button_t         *make_image_node_setting(char *name, char *type, f32 default_value, char *data);
 f32                       make_image_node_sample_bilinear(f32 *img, i32 size, f32 x, f32 y);
 void                      make_material_bake_node_previews_linked();
