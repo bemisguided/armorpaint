@@ -194,6 +194,90 @@ float perlin_image(float u, float v, float scale, float detail, float roughness,
 } \
 ";
 
+// Mode Voronoi: tileable cell pattern (Worley noise) on a jittered grid, the Substance style generator next to the Voronoi Texture node
+// (Blender style 3D shader node, sin hash, untouched). 2D: one feature point per grid cell, Scale cells across the image.
+//   - The feature point of cell (i, j) is (i + 0.5 + R (jx - 0.5), j + 0.5 + R (jy - 0.5)), R = Randomness 0..1, jx and jy two 10 bit
+//     fields of the integer hash of the cell (perlin_hash, shared with the Perlin mode): the point lies in its own cell for every R, R = 0
+//     is the regular grid of cell centres.
+//   - F1 and F2 are the distances (metric: Euclidean, Manhattan or Chebyshev) to the nearest and the second nearest feature point,
+//     searched in the 5 x 5 cells around the pixel: exact (a point 3 cells away is 2 or more away in one axis, F2 stays below 2 for R <= 1).
+//   - Feature: Distance = F1 (0 at the points), Edges = 1 - (F2 - F1) (1 at the cell borders where F1 = F2), Cells = a random grey per
+//     cell (hash of the winning cell, flat), Crystals = F2. Each is normalised to 0..1 and clamped (constants measured at R = 1 per metric).
+//   - Tileable: the cell index is reduced modulo the period (round(Scale), at least 1) before the hash, so uv + 1 is the same cell; the
+//     distances use the unreduced cell coordinates. Distortion warps the image point with the periodic Perlin noise of the base Scale
+//     (period = the same integer, so the warped point shifts by exactly one period: the image still repeats). The Seed fraction only
+//     moves the z slice of that warp noise. Detail, Roughness and Lacunarity are not used (hidden): no fractal Voronoi in this version.
+// It uses perlin_wrap, perlin_hash, perlin_base_scale and perlin_signed: the emit function adds the Perlin text first.
+char *str_noise_generator_voronoi = "\
+float voronoi_gen_dist(float dx, float dy, int metric) { \
+	if (metric == 1) { return abs(dx) + abs(dy); } \
+	if (metric == 2) { return max(abs(dx), abs(dy)); } \
+	return sqrt(dx * dx + dy * dy); \
+} \
+float voronoi_gen_norm_f1(int metric) { \
+	if (metric == 1) { return 0.8; } \
+	if (metric == 2) { return 1.1; } \
+	return 1.0; \
+} \
+float voronoi_gen_norm_f2(int metric) { \
+	if (metric == 1) { return 0.65; } \
+	if (metric == 2) { return 0.9; } \
+	return 0.85; \
+} \
+float voronoi_gen_norm_edge(int metric) { \
+	if (metric == 1) { return 0.8; } \
+	if (metric == 2) { return 1.1; } \
+	return 1.0; \
+} \
+float3 voronoi_gen_cells(float x, float y, float period, float randomness, int metric, int seed) { \
+	float ix = floor(x); \
+	float iy = floor(y); \
+	float f1 = 1000.0; \
+	float f2 = 1000.0; \
+	float wx = 0.0; \
+	float wy = 0.0; \
+	for (int jj = 0; jj < 5; jj += 1) { \
+		for (int ii = 0; ii < 5; ii += 1) { \
+			float cx = ix + float(ii) - 2.0; \
+			float cy = iy + float(jj) - 2.0; \
+			float rx = perlin_wrap(cx, period); \
+			float ry = perlin_wrap(cy, period); \
+			int h = perlin_hash(rx, ry, 0.0, seed); \
+			float px = cx + 0.5 + randomness * (float(h & 1023) / 1023.0 - 0.5); \
+			float py = cy + 0.5 + randomness * (float((h >> 10) & 1023) / 1023.0 - 0.5); \
+			float d = voronoi_gen_dist(px - x, py - y, metric); \
+			if (d < f1) { \
+				wx = rx; \
+				wy = ry; \
+			} \
+			f2 = min(f2, max(d, f1)); \
+			f1 = min(f1, d); \
+		} \
+	} \
+	float id = float(perlin_hash(wx, wy, 1.0, seed) & 65535) / 65535.0; \
+	return float3(f1, f2, id); \
+} \
+float voronoi_gen_factor(float3 p, float scale, float randomness, float distortion, float tileable, float seed, int feature, int metric) { \
+	int sd = int(floor(seed)); \
+	float se = perlin_base_scale(scale, tileable); \
+	float period = 0.0; \
+	if (tileable > 0.5) { period = se; } \
+	float3 q = p; \
+	if (distortion != 0.0) { \
+		q = p + distortion / se * float3(perlin_signed(p, se, tileable, sd + 101), perlin_signed(p, se, tileable, sd + 202), perlin_signed(p, se, tileable, sd + 303)); \
+	} \
+	float3 c = voronoi_gen_cells(q.x * se, q.y * se, period, clamp(randomness, 0.0, 1.0), metric, sd); \
+	if (feature == 2) { return c.z; } \
+	if (feature == 1) { return 1.0 - clamp((c.y - c.x) * voronoi_gen_norm_edge(metric), 0.0, 1.0); } \
+	if (feature == 3) { return clamp(c.y * voronoi_gen_norm_f2(metric), 0.0, 1.0); } \
+	return clamp(c.x * voronoi_gen_norm_f1(metric), 0.0, 1.0); \
+} \
+float voronoi_gen_image(float u, float v, float scale, float randomness, float distortion, float tileable, float seed, int feature, int metric) { \
+	float z = 0.3 + 0.4 * (seed - floor(seed)); \
+	return voronoi_gen_factor(float3(u, v, z), scale, randomness, distortion, tileable, seed, feature, metric); \
+} \
+";
+
 // Input socket indices (all in the Parameters section)
 enum {
 	NOISE_GENERATOR_INPUT_SCALE,
@@ -202,6 +286,7 @@ enum {
 	NOISE_GENERATOR_INPUT_LACUNARITY,
 	NOISE_GENERATOR_INPUT_DISTORTION,
 	NOISE_GENERATOR_INPUT_SEED,
+	NOISE_GENERATOR_INPUT_RANDOMNESS, // Voronoi
 };
 
 // Node button indices (settings): Size, the state row, then the General section
@@ -209,12 +294,23 @@ enum {
 	NOISE_GENERATOR_BUTTON_SIZE = 0, // The state row is button 1
 	NOISE_GENERATOR_BUTTON_MODE = 2,
 	NOISE_GENERATOR_BUTTON_TILEABLE = 3,
+	NOISE_GENERATOR_BUTTON_FEATURE = 4, // Voronoi
+	NOISE_GENERATOR_BUTTON_METRIC = 5,  // Voronoi
 };
 
 // One value per mode, in the order of the Mode list. The count is the last entry: a new mode goes before it.
 enum {
 	NOISE_GENERATOR_MODE_PERLIN,
+	NOISE_GENERATOR_MODE_VORONOI,
 	NOISE_GENERATOR_MODE_COUNT,
+};
+
+// The Feature list of the Voronoi mode and the values of voronoi_gen_factor (the order is the saved index: append)
+enum {
+	NOISE_GENERATOR_FEATURE_DISTANCE,
+	NOISE_GENERATOR_FEATURE_EDGES,
+	NOISE_GENERATOR_FEATURE_CELLS,
+	NOISE_GENERATOR_FEATURE_CRYSTALS,
 };
 
 // A mode: its name in the Mode list, the rows it hides (bit n of a mask = input or setting n of the node) and the function
@@ -248,7 +344,7 @@ static char *noise_generator_node_input(ui_node_t *node, i32 input) {
 	return parser_material_parse_value_input(node->inputs->buffer[input], false);
 }
 
-// Perlin shows every row of the node.
+// Perlin hides the rows of the Voronoi mode (Randomness, Feature, Metric).
 static char *noise_generator_perlin_emit(ui_node_t *node) {
 	node_shader_add_function(parser_material_kong, str_noise_generator_perlin);
 	char *scale      = noise_generator_node_input(node, NOISE_GENERATOR_INPUT_SCALE);
@@ -261,8 +357,26 @@ static char *noise_generator_perlin_emit(ui_node_t *node) {
 	return string_tmp("perlin_image(tex_coord.x, tex_coord.y, %s, %s, %s, %s, %s, %s, %s)", scale, detail, roughness, lacunarity, distortion, tileable, seed);
 }
 
+// Voronoi shows Scale, Randomness, Distortion, Seed, Tileable, Feature and Metric; Detail, Roughness and Lacunarity are not used.
+static char *noise_generator_voronoi_emit(ui_node_t *node) {
+	node_shader_add_function(parser_material_kong, str_noise_generator_perlin); // The hash, the wrap and the distortion noise
+	node_shader_add_function(parser_material_kong, str_noise_generator_voronoi);
+	char *scale      = noise_generator_node_input(node, NOISE_GENERATOR_INPUT_SCALE);
+	char *randomness = noise_generator_node_input(node, NOISE_GENERATOR_INPUT_RANDOMNESS);
+	char *distortion = noise_generator_node_input(node, NOISE_GENERATOR_INPUT_DISTORTION);
+	char *seed       = noise_generator_node_input(node, NOISE_GENERATOR_INPUT_SEED);
+	char *tileable   = make_image_node_button(node, NOISE_GENERATOR_BUTTON_TILEABLE) > 0.5 ? "1.0" : "0.0";
+	i32   feature    = (i32)make_image_node_button(node, NOISE_GENERATOR_BUTTON_FEATURE);
+	i32   metric     = (i32)make_image_node_button(node, NOISE_GENERATOR_BUTTON_METRIC);
+	return string_tmp("voronoi_gen_image(tex_coord.x, tex_coord.y, %s, %s, %s, %s, %s, %d, %d)", scale, randomness, distortion, tileable, seed, feature, metric);
+}
+
 static void noise_generator_modes_init() {
-	noise_generator_mode_set(NOISE_GENERATOR_MODE_PERLIN, _tr("Perlin"), 0, 0, noise_generator_perlin_emit);
+	i32 perlin_hides_inputs   = 1 << NOISE_GENERATOR_INPUT_RANDOMNESS;
+	i32 perlin_hides_buttons  = (1 << NOISE_GENERATOR_BUTTON_FEATURE) | (1 << NOISE_GENERATOR_BUTTON_METRIC);
+	i32 voronoi_hides_inputs  = (1 << NOISE_GENERATOR_INPUT_DETAIL) | (1 << NOISE_GENERATOR_INPUT_ROUGHNESS) | (1 << NOISE_GENERATOR_INPUT_LACUNARITY);
+	noise_generator_mode_set(NOISE_GENERATOR_MODE_PERLIN, _tr("Perlin"), perlin_hides_inputs, perlin_hides_buttons, noise_generator_perlin_emit);
+	noise_generator_mode_set(NOISE_GENERATOR_MODE_VORONOI, _tr("Voronoi"), voronoi_hides_inputs, 0, noise_generator_voronoi_emit);
 }
 
 static bool noise_generator_node_item_hidden_for_mode(i32 mode, ui_node_item_t kind, i32 index) {
@@ -330,7 +444,9 @@ void noise_generator_node_init() {
 	for (i32 i = 0; i < NOISE_GENERATOR_MODE_COUNT; ++i) {
 		mode_items = i == 0 ? string_tmp("%s", noise_generator_modes[i].name) : string_tmp("%s\n%s", mode_items, noise_generator_modes[i].name);
 	}
-	u32 value_color = 0xffa1a1a1;
+	char *feature_items = string_tmp("%s\n%s\n%s\n%s", _tr("Distance"), _tr("Edges"), _tr("Cells"), _tr("Crystals"));
+	char *metric_items  = string_tmp("%s\n%s\n%s", _tr("Euclidean"), _tr("Manhattan"), _tr("Chebyshev"));
+	u32   value_color   = 0xffa1a1a1;
 
 	ui_node_t *noise_generator_node_def =
 	    ALLOC_INIT(ui_node_t,
@@ -348,8 +464,9 @@ void noise_generator_node_init() {
 	                        make_image_node_socket(_tr("Lacunarity"), "VALUE", value_color, f32_array_create_x(2.0), 0.0, 10.0, 100),
 	                        make_image_node_socket(_tr("Distortion"), "VALUE", value_color, f32_array_create_x(0.0), -10.0, 10.0, 100),
 	                        make_image_node_socket(_tr("Seed"), "VALUE", value_color, f32_array_create_x(0.0), 0.0, 1000.0, 100),
+	                        make_image_node_socket(_tr("Randomness"), "VALUE", value_color, f32_array_create_x(1.0), 0.0, 1.0, 100),
 	                    },
-	                    6),
+	                    7),
 	                .outputs = any_array_create_from_raw(
 	                    (void *[]){
 	                        make_image_node_socket(_tr("Image"), "VALUE", NODES_MATERIAL_IMAGE_COLOR, f32_array_create_x(0.0), 0.0, 1.0, 100),
@@ -361,8 +478,10 @@ void noise_generator_node_init() {
 	                        make_image_node_state_button(),
 	                        make_image_node_setting(_tr("Mode"), "ENUM", 0, mode_items),
 	                        make_image_node_setting(_tr("Tileable"), "BOOL", 1, NULL),
+	                        make_image_node_setting(_tr("Feature"), "ENUM", 0, feature_items),
+	                        make_image_node_setting(_tr("Metric"), "ENUM", 0, metric_items),
 	                    },
-	                    4),
+	                    6),
 	                .width = 0,
 	                .flags = 0});
 

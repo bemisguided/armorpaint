@@ -104,8 +104,10 @@ Przechwyć zrzut ekranu
 Przechwyć wideo
 Zaokrąglij w górę
 Rozmiar komórki w pikselach
+
 Środek
 Kanały
+
 Sprawdź dostępność aktualizacji...
 Tekstura szachownicy
 Ogranicz
@@ -156,6 +158,7 @@ Zagięcie
 Utwórz warstwę koloru
 Utwórz materiał
 Iloczyn wektorowy
+
 Ukrywanie backface'ów
 Kursor
 Krzywizna
@@ -221,6 +224,7 @@ Duplikuj pędzel
 Duplikuj warstwę
 Duplikuj materiał
 Duplikuj próbkę koloru
+
 Edytuj
 Edytuj obraz
 Edytuj węzły
@@ -247,6 +251,7 @@ Błąd: Nie można zlokalizować tekstury
 Błąd: Nie udało się odczytać danych czcionki
 Błąd: Nie udało się odczytać danych modelu
 Błąd: Nieznany format zasobu
+
 Wykluczenie
 Wyjście
 Funkcje eksperymentalne
@@ -270,6 +275,7 @@ Współczynnik
 Nie udało się zaimportować materiału
 Nie udało się odczytać dźwięku:
 Szybki
+
 Wyjście cechy
 Plik
 Wypełnienie
@@ -414,6 +420,7 @@ Pozycja
 Logarytm
 Tekstura magiczna
 Uczyń unikalnym
+
 Instrukcja
 Mapa zakresu
 Mapowanie
@@ -440,6 +447,7 @@ Wyjście modelu
 Model...
 Modele
 Metaliczność
+
 Min
 Min Maks
 Minimum
@@ -834,6 +842,7 @@ Maska rzutni
 Tryb rzutni
 Winieta
 Widoczny
+
 Tekstura Voronoi
 Zniekształć
 Profil fali

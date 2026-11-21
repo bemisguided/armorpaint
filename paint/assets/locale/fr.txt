@@ -104,8 +104,10 @@ Capturer capture d'écran
 Capturer une vidéo
 Plafond
 Taille de cellule en pixels
+
 Centre
 Canaux
+
 Vérifier les mises à jour...
 Texture d'échiquier
 Resserrement
@@ -156,6 +158,7 @@ Pli
 Créer un calque de couleur
 Créer un matériau
 Produit vectoriel
+
 Éliminer les faces arrière
 Curseur
 Courbure
@@ -221,6 +224,7 @@ Dupliquer la brosse
 Dupliquer le calque
 Dupliquer matériau
 Dupliquer l'échantillon
+
 Modifier
 Éditer image
 Modifier nœuds
@@ -247,6 +251,7 @@ Erreur : Impossible de localiser la texture
 Erreur : Échec lecture données police
 Erreur : Échec lecture données maillage
 Erreur : Format de ressource inconnu
+
 Exclusion
 Quitter
 Fonctionnalités expérimentales
@@ -270,6 +275,7 @@ Facteur
 Échec de l'importation du matériau
 Échec de la lecture du son :
 Rapide
+
 Sortie de caractéristique
 Fichier
 Remplissage
@@ -414,6 +420,7 @@ Position
 Logarithme
 Texture magique
 Rendre unique
+
 Manuel
 Plage de carte
 Mappage
@@ -440,6 +447,7 @@ Sortie du maillage
 Maillage...
 Maillages
 Métallique
+
 Min
 Min Max
 Minimum
@@ -834,6 +842,7 @@ Masque de la vue 3D
 Mode vue 3D
 Vignette
 Visible
+
 Texture Voronoï
 Déformer
 Profil d'onde

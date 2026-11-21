@@ -104,8 +104,10 @@ Bildschirmfoto aufnehmen
 Video aufnehmen
 Aufrunden
 Zellengröße in Pixeln
+
 Mitte
 Kanäle
+
 Auf Updates prüfen...
 Schach Textur
 Begrenzen
@@ -156,6 +158,7 @@ Falte
 Farbebene erzeugen
 Material erzeugen
 Kreuzprodukt
+
 Rückseiten ausblenden
 Cursor
 Krümmung
@@ -221,6 +224,7 @@ Pinsel duplizieren
 Ebene duplizieren
 Material duplizieren
 Farbfeld duplizieren
+
 Bearbeiten
 Bild bearbeiten
 Nodes bearbeiten
@@ -247,6 +251,7 @@ Fehler: Textur konnte nicht gefunden werden
 Fehler: Fontdaten konnten nicht gelesen werden
 Fehler: Meshdaten konnten nicht gelesen werden
 Fehler: Unbekanntes Asset Format
+
 Ausschluss
 Beenden
 Experimentelle Funktionen
@@ -270,6 +275,7 @@ Faktor
 Material konnte nicht importiert werden
 Sound konnte nicht gelesen werden:
 Schnell
+
 Feature Ausgabe
 Datei
 Füllen
@@ -414,6 +420,7 @@ Position
 Logarithmus
 Magie Textur
 Einzigartig machen
+
 Handbuch
 Bereich abbilden
 Mapping
@@ -440,6 +447,7 @@ Mesh-Ausgabe
 Mesh...
 Meshes
 Metallic
+
 Min
 Min Max
 Minumum
@@ -834,6 +842,7 @@ Ansichtsfenster Maske
 Ansichtsfenster Modus
 Vignette
 Sichtbar
+
 Voronoi Textur
 Warp
 Wellenprofil

@@ -104,8 +104,10 @@ Capture Screenshot
 Capture Video
 Ceil
 Cell size in pixels
+Cells
 Center
 Channels
+Chebyshev
 Check for Updates...
 Checker Texture
 Clamp
@@ -156,6 +158,7 @@ Crease
 Create Color Layer
 Create Material
 Cross Product
+Crystals
 Cull Backfaces
 Cursor
 Curvature
@@ -221,6 +224,7 @@ Duplicate Brush
 Duplicate Layer
 Duplicate Material
 Duplicate Swatch
+Edges
 Edit
 Edit Image
 Edit Nodes
@@ -247,6 +251,7 @@ Error: Could not locate texture
 Error: Failed to read font data
 Error: Failed to read mesh data
 Error: Unknown asset format
+Euclidean
 Exclusion
 Exit
 Experimental Features
@@ -270,6 +275,7 @@ Factor
 Failed to import material
 Failed to read sound:
 Fast
+Feature
 Feature Output
 File
 Fill
@@ -414,6 +420,7 @@ Location
 Logarithm
 Magic Texture
 Make Unique
+Manhattan
 Manual
 Map Range
 Mapping
@@ -440,6 +447,7 @@ Mesh Output
 Mesh...
 Meshes
 Metallic
+Metric
 Min
 Min Max
 Minimum
@@ -834,6 +842,7 @@ Viewport Mask
 Viewport Mode
 Vignette
 Visible
+Voronoi
 Voronoi Texture
 Warp
 Wave Profile
