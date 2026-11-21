@@ -74,6 +74,7 @@ typedef struct make_image_node_state {
 	u32                captured_asset_version;
 	bool               cycle_seen;    // The running capture sampled a node that depends on this node, see make_image_node_edge_cyclic
 	bool               cycle_told;    // The Console told about the loop this node is in
+	void              *summary;       // What the type's summarize made of the last bake (type->summary_size bytes), NULL for a type without
 #ifdef ARMORPAINT_TEST_NATIVES
 	i32                result_count;  // What the type's process returned for the last bake (Flood Fill: islands), for the test natives
 #endif
@@ -188,6 +189,7 @@ static void make_image_node_clear_pending(make_image_node_state_t *s) {
 
 static void make_image_node_free_state(make_image_node_state_t *s) {
 	make_image_node_clear_pending(s);
+	free(s->summary);
 	if (s->upstream != NULL) {
 		make_image_node_clear_upstream(s);
 		array_free(s->upstream);
@@ -875,6 +877,14 @@ static void make_image_node_bake(make_image_node_state_t *s, char *id) {
 	f32               *result       = make_image_node_plane_alloc(result_bytes);
 	i32                status       = -1;
 	if (result != NULL) {
+		if (t->summarize != NULL && t->summary_size > 0) {
+			if (s->summary == NULL) {
+				s->summary = calloc(1, (size_t)t->summary_size);
+			}
+			if (s->summary != NULL) {
+				t->summarize(s->pending_pixels, size, s->pending_params, s->summary);
+			}
+		}
 		status = t->process(s->pending_pixels, size, s->pending_params, result);
 #ifdef ARMORPAINT_TEST_NATIVES
 		s->result_count = status;
@@ -1273,6 +1283,13 @@ static make_image_node_state_t *make_image_node_state_of(ui_node_t *node, char *
 // Captures made since the start (a capture is a render, a readback and a hash of the node's inputs)
 i32 make_image_node_capture_count() {
 	return make_image_node_captures;
+}
+
+// What the node type's summarize made of the last bake (the Levels histogram), NULL while the node is not baked or has none
+void *make_image_node_summary(ui_node_t *node) {
+	char                    *id;
+	make_image_node_state_t *s = make_image_node_state_of(node, &id);
+	return s != NULL && s->has_baked ? s->summary : NULL;
 }
 
 #ifdef ARMORPAINT_TEST_NATIVES

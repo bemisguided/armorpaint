@@ -1152,6 +1152,7 @@ char                     *make_image_node_sample_second(ui_node_t *node);
 char                     *make_image_node_sample_at(ui_node_t *node, char *uv, i32 filter);
 void                      make_image_node_regenerate();
 i32                       make_image_node_capture_count();
+void                     *make_image_node_summary(ui_node_t *node);
 #ifdef ARMORPAINT_TEST_NATIVES
 bool                      make_image_node_is_pending(ui_node_t *node);
 gpu_texture_t            *make_image_node_result(ui_node_t *node);
