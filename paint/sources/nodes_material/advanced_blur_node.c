@@ -1,8 +1,8 @@
 #include "../global.h"
 
 // Advanced Blur (Filter menu): blurs the Image input. An image node (render/make_image_node.c): Image and Mask are
-// evaluated in image space and captured in 32 bit float (R and B = Image, G = Mask, so a red/blue swap on readback
-// does not matter), the blur is computed on the cpu into one RGBA128 texture per node, R = the blurred image.
+// evaluated in image space and captured as R32F planes (one float per pixel: Image, then Mask; an unlinked Mask is no
+// capture, its value holds everywhere), the blur is computed on the cpu into one RGBA128 texture per node, R = the blurred image.
 // The texture is sampled like an Image Texture at tex_coord, repeating (Tile UV places it on the uv). With Wrap Edges on
 // (the default) the image repeats, so the blur wraps around the edges; off, samples outside the image clamp to the nearest edge pixel.
 //
@@ -53,6 +53,8 @@ typedef struct advanced_blur_params {
 	f32 angle;  // Radians
 	f32 aspect;
 	i32 wrap; // Wrap Edges: samples outside the image wrap around (1) or clamp to the edge (0); part of the node signature
+	i32 mask_linked; // The Mask is captured (1, a second plane after the Image) or the constant mask_value (0)
+	f32 mask_value;  // The Mask of an unlinked socket
 } advanced_blur_params_t;
 
 // Gaussian and Box use Angle and Aspect (anisotropic blur); Directional is one pass along Angle by Radius and has no Aspect.
@@ -70,14 +72,20 @@ static i32 advanced_blur_node_size(ui_node_t *node) {
 	return make_image_node_size(node, ADVANCED_BLUR_BUTTON_SIZE);
 }
 
-// Captured per pixel: Image in R and B, Mask in G
+// A linked Mask is a plane of its own; an unlinked one is a constant and is not captured
+static i32 advanced_blur_node_mask_linked(ui_node_t *node) {
+	return node->inputs->length > ADVANCED_BLUR_INPUT_MASK && parser_material_get_input_link(node->inputs->buffer[ADVANCED_BLUR_INPUT_MASK]) != NULL;
+}
+
+// Captures of one float per pixel: the Image, then a linked Mask
+static i32 advanced_blur_node_capture_count(ui_node_t *node) {
+	return advanced_blur_node_mask_linked(node) ? 2 : 1;
+}
+
+// Captured per pixel: the Image (capture 0) or the Mask (capture 1)
 static char *advanced_blur_node_capture(ui_node_t *node) {
-	char *image = parser_material_parse_value_input(node->inputs->buffer[ADVANCED_BLUR_INPUT_IMAGE], false);
-	char *mask  = parser_material_parse_value_input(node->inputs->buffer[ADVANCED_BLUR_INPUT_MASK], false);
-	char *name  = parser_material_store_var_name(node);
-	parser_material_write(parser_material_kong, string_tmp("float %s_image = %s;", name, image));
-	parser_material_write(parser_material_kong, string_tmp("float %s_mask = %s;", name, mask));
-	return string_tmp("float4(%s_image, %s_mask, %s_image, 1.0)", name, name, name);
+	char *v = parser_material_parse_value_input(node->inputs->buffer[make_image_node_capture_index() == 0 ? ADVANCED_BLUR_INPUT_IMAGE : ADVANCED_BLUR_INPUT_MASK], false);
+	return string_tmp("float4(%s, %s, %s, 1.0)", v, v, v);
 }
 
 static void advanced_blur_node_params(ui_node_t *node, void *params) {
@@ -87,6 +95,8 @@ static void advanced_blur_node_params(ui_node_t *node, void *params) {
 	p->angle                  = make_image_node_input_value(node, ADVANCED_BLUR_INPUT_ANGLE) * (f32)(3.14159265358979 / 180.0);
 	p->aspect                 = make_image_node_input_value(node, ADVANCED_BLUR_INPUT_ASPECT);
 	p->wrap                   = make_image_node_button(node, ADVANCED_BLUR_BUTTON_WRAP) != 0.0f ? 1 : 0;
+	p->mask_linked            = advanced_blur_node_mask_linked(node);
+	p->mask_value             = p->mask_linked ? 1.0f : make_image_node_input_value(node, ADVANCED_BLUR_INPUT_MASK);
 }
 
 typedef f32 (*advanced_blur_sample_t)(f32 *img, i32 size, f32 x, f32 y);
@@ -206,7 +216,8 @@ static f32 advanced_blur_node_gauss(f32 *src, i32 size, i32 x, i32 y, f32 dx, f3
 typedef struct advanced_blur_stage_ctx {
 	f32 *src;
 	f32 *dst;
-	f32 *px;
+	f32 *mask;
+	i32  mask_stride; // Floats between two pixels of mask: 1, or 0 for a one pixel mask
 	i32  size;
 	f32  dx;
 	f32  dy;
@@ -223,7 +234,7 @@ static void advanced_blur_node_stage_rows(void *param, i32 begin, i32 end) {
 	for (i32 y = begin; y < end; ++y) {
 		for (i32 x = 0; x < c->size; ++x) {
 			size_t i = (size_t)y * c->size + x;
-			f32    m = c->px[i * 4 + 1];
+			f32    m = c->mask[i * c->mask_stride];
 			f32    r = c->radius * (m < 0.0f ? 0.0f : m);
 			f32    rmax = ADVANCED_BLUR_MAX_RADIUS_SIZES * (f32)c->size;
 			r    = r > rmax ? rmax : r;
@@ -233,12 +244,12 @@ static void advanced_blur_node_stage_rows(void *param, i32 begin, i32 end) {
 	}
 }
 
-// One blur along (dx, dy) of radius pixels * the mask of each pixel (G of px), gaussian or box (box width 2 * radius), from
+// One blur along (dx, dy) of radius pixels * the mask of each pixel (the Mask capture), gaussian or box (box width 2 * radius), from
 // *cur into *cur again (the buffers are swapped between the stages); every stage runs its rows on all hardware threads
-static void advanced_blur_node_run(f32 **cur, f32 **nxt, f32 *px, i32 size, f32 dx, f32 dy, f32 radius, bool gaussian, bool wrap) {
+static void advanced_blur_node_run(f32 **cur, f32 **nxt, f32 *mask, i32 mask_stride, i32 size, f32 dx, f32 dy, f32 radius, bool gaussian, bool wrap) {
 	i32 stages = gaussian ? 7 : 2;
 	for (i32 st = 0; st < stages; ++st) {
-		advanced_blur_stage_ctx_t c = {.src = *cur, .dst = *nxt, .px = px, .size = size, .dx = dx, .dy = dy, .radius = radius, .gaussian = gaussian, .stage = st, .wrap = wrap};
+		advanced_blur_stage_ctx_t c = {.src = *cur, .dst = *nxt, .mask = mask, .mask_stride = mask_stride, .size = size, .dx = dx, .dy = dy, .radius = radius, .gaussian = gaussian, .stage = st, .wrap = wrap};
 		make_image_node_parallel(size, advanced_blur_node_stage_rows, &c);
 		f32 *src = *cur;
 		*cur     = *nxt;
@@ -250,7 +261,10 @@ static void advanced_blur_node_run(f32 **cur, f32 **nxt, f32 *px, i32 size, f32 
 static i32 advanced_blur_node_process(u8 *pixels, i32 size, void *params, f32 *result) {
 	advanced_blur_node_init_weights();
 	advanced_blur_params_t p  = *(advanced_blur_params_t *)params;
-	f32                   *px = (f32 *)pixels;
+	f32                   *px = (f32 *)pixels; // R32F captures: the Image, then the Mask
+	f32                    mask_value  = p.mask_value;
+	f32                   *mask        = p.mask_linked ? (f32 *)(pixels + make_image_node_capture_next(0, size, IMAGE_CAPTURE_R32F)) : &mask_value;
+	i32                    mask_stride = p.mask_linked ? 1 : 0; // An unlinked Mask is one value for every pixel
 	size_t                 n  = (size_t)size * size;
 	size_t                 plane_bytes = n * sizeof(f32);
 	f32                   *a           = make_image_node_plane_alloc(plane_bytes);
@@ -261,7 +275,7 @@ static i32 advanced_blur_node_process(u8 *pixels, i32 size, void *params, f32 *r
 		return -1;
 	}
 	for (size_t i = 0; i < n; ++i) {
-		a[i] = px[i * 4];
+		a[i] = px[i];
 	}
 	f32  radius   = (p.radius < 0.0f ? 0.0f : p.radius > ADVANCED_BLUR_MAX_RADIUS ? ADVANCED_BLUR_MAX_RADIUS : p.radius) * (f32)size;
 	f32  aspect   = p.aspect < 1.0f ? 1.0f : p.aspect > ADVANCED_BLUR_MAX_ASPECT ? ADVANCED_BLUR_MAX_ASPECT : p.aspect;
@@ -271,11 +285,11 @@ static i32 advanced_blur_node_process(u8 *pixels, i32 size, void *params, f32 *r
 	f32 *cur      = a;
 	f32 *nxt      = b;
 	if (p.mode == ADVANCED_BLUR_MODE_DIRECTIONAL) {
-		advanced_blur_node_run(&cur, &nxt, px, size, ux, uy, radius, false, p.wrap != 0);
+		advanced_blur_node_run(&cur, &nxt, mask, mask_stride, size, ux, uy, radius, false, p.wrap != 0);
 	}
 	else {
-		advanced_blur_node_run(&cur, &nxt, px, size, ux, uy, radius * aspect, gaussian, p.wrap != 0);
-		advanced_blur_node_run(&cur, &nxt, px, size, -uy, ux, radius, gaussian, p.wrap != 0);
+		advanced_blur_node_run(&cur, &nxt, mask, mask_stride, size, ux, uy, radius * aspect, gaussian, p.wrap != 0);
+		advanced_blur_node_run(&cur, &nxt, mask, mask_stride, size, -uy, ux, radius, gaussian, p.wrap != 0);
 	}
 	for (size_t i = 0; i < n; ++i) {
 		f32 v             = cur[i] < 0.0f ? 0.0f : cur[i] > 1.0f ? 1.0f : cur[i];
@@ -295,7 +309,8 @@ static image_node_type_t advanced_blur_node_image_type = {
     .params_size   = sizeof(advanced_blur_params_t),
     .size          = advanced_blur_node_size,
     .capture       = advanced_blur_node_capture,
-    .capture_float = true,
+    .capture_count = advanced_blur_node_capture_count,
+    .capture_format = IMAGE_CAPTURE_R32F,
     .smooth_sample = true,
     .params        = advanced_blur_node_params,
     .process       = advanced_blur_node_process,
