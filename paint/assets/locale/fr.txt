@@ -306,6 +306,7 @@ Masque de remplissage
 Mode de remplissage
 Filtrer
 Filtrer les textures
+
 Plat
 Aplatir
 
@@ -519,6 +520,7 @@ Nouveau thème
 Nouveau masque blanc
 Suivant
 Non
+
 Aucune réponse
 Nœud
 Aperçus de nœuds
@@ -658,6 +660,7 @@ Aléatoire
 Caractère aléatoire
 Plage
 Ratio
+
 Récent
 Refaire {step}
 Refléter
@@ -733,6 +736,7 @@ Sélectionner les masqués
 Sélectionner matériau
 Sélectionner les visibles
 Sélectionnés
+
 Sensibilité
 Décomposer couleur
 Décomposer vecteur

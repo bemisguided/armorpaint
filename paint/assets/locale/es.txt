@@ -306,6 +306,7 @@ Máscara de relleno
 Modo de relleno
 Filtrar
 Filtrar texturas
+
 Plano
 Aplanar
 
@@ -519,6 +520,7 @@ Nuevo Tema
 Nueva máscara blanca
 Siguiente
 No
+
 Sin respuesta
 Nodo
 Vistas previas de nodos
@@ -658,6 +660,7 @@ Aleatorio
 Aleatoriedad
 Rango
 Proporción
+
 Reciente
 Rehacer {step}
 Reflejar
@@ -733,6 +736,7 @@ Seleccionar ocultos
 Seleccionar material
 Seleccionar visibles
 Seleccionado
+
 Sensibilidad
 Separar color
 Vector separado

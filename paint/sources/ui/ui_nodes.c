@@ -1386,6 +1386,8 @@ void ui_viewnodes_init() {
 
 	ui_nodes_on_sections = ui_viewnodes_on_sections;
 
+	sender_receiver_init();
+
 	ui_nodes_on_socket_released = ui_viewnodes_on_socket_released;
 
 	ui_nodes_on_canvas_released = ui_viewnodes_on_canvas_released;

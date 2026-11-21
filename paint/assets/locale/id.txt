@@ -306,6 +306,7 @@ Masker Isi
 Mode Isi
 Filter
 Filter Tekstur
+
 Rata
 Ratakan
 
@@ -519,6 +520,7 @@ Tema Baru
 Masker Putih Baru
 Berikutnya
 Tidak
+
 Tidak ada respons
 Node
 Pratinjau Node
@@ -658,6 +660,7 @@ Acak
 Keacakan
 Rentang
 Rasio
+
 Terbaru
 Ulangi {step}
 Refleksikan
@@ -733,6 +736,7 @@ Pilih yang Tersembunyi
 Pilih Material
 Pilih yang Terlihat
 Dipilih
+
 Sensitivitas
 Pisah Warna
 Pisah Vektor

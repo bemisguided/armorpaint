@@ -306,6 +306,7 @@ Máscara de Preenchimento
 Modo de Preenchimento
 Filtro
 Filtrar Texturas
+
 Plano
 Achatar
 
@@ -519,6 +520,7 @@ Novo Tema
 Nova Máscara Branca
 Próximo
 Não
+
 Sem resposta
 Nó
 Pré-visualizações de Nós
@@ -658,6 +660,7 @@ Aleatório
 Aleatoriedade
 Intervalo
 Proporção
+
 Recente
 Refazer {step}
 Refletir
@@ -733,6 +736,7 @@ Selecionar Ocultos
 Selecionar Material
 Selecionar Visíveis
 Selecionado
+
 Sensibilidade
 Separar Cor
 Separar Vetor

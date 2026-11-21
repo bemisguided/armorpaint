@@ -2,8 +2,21 @@
 #include "../global.h"
 
 void ui_nodes_get_linked_nodes(ui_node_t_array_t *linked_nodes, ui_node_t *n, ui_node_canvas_t *c) {
+	static i32 depth = 0; // A Sender and its Receivers can make a loop
+	if (depth > c->nodes->length) {
+		return;
+	}
 	if (array_index_of(linked_nodes, n) == -1 && (n->flags & UI_NODE_FLAG_PREVIEW)) {
 		any_array_push(linked_nodes, n);
+	}
+	depth++;
+	if (sender_receiver_is_sender(n)) {
+		for (i32 i = 0; i < c->nodes->length; ++i) {
+			ui_node_t *r = c->nodes->buffer[i];
+			if (sender_receiver_is_receiver(r) && string_equals(sender_receiver_name(r), sender_receiver_name(n))) {
+				ui_nodes_get_linked_nodes(linked_nodes, r, c);
+			}
+		}
 	}
 	for (i32 i = 0; i < c->links->length; ++i) {
 		ui_node_link_t *l = c->links->buffer[i];
@@ -14,6 +27,7 @@ void ui_nodes_get_linked_nodes(ui_node_t_array_t *linked_nodes, ui_node_t *n, ui
 			}
 		}
 	}
+	depth--;
 }
 
 node_group_t_array_t *ui_nodes_groups() {
@@ -417,7 +431,7 @@ void ui_nodes_make_node_preview(ui_node_t *node) {
 	g_context->node_preview_name = string_copy(node->name);
 
 	if (string_equals(node->type, "LAYER") || string_equals(node->type, "LAYER_MASK") || string_equals(node->type, "MATERIAL") ||
-	    string_equals(node->type, "OUTPUT_MATERIAL_PBR")) {
+	    string_equals(node->type, "OUTPUT_MATERIAL_PBR") || node->outputs->length == 0) {
 		return;
 	}
 
@@ -476,7 +490,7 @@ ui_node_t *ui_nodes_make_node(ui_node_t *n, ui_nodes_t *nodes, ui_node_canvas_t 
 	node->outputs   = any_array_create_from_raw((void *[]){}, 0);
 	node->buttons   = any_array_create_from_raw((void *[]){}, 0);
 	node->width     = n->width;
-	node->flags     = g_config->node_previews ? UI_NODE_FLAG_PREVIEW : UI_NODE_FLAG_NONE;
+	node->flags     = (n->flags & UI_NODE_FLAG_DOT) ? UI_NODE_FLAG_DOT : g_config->node_previews ? UI_NODE_FLAG_PREVIEW : UI_NODE_FLAG_NONE;
 	i32 count       = 0;
 	for (i32 i = 0; i < n->inputs->length; ++i) {
 		ui_node_socket_t *soc = ALLOC_INIT(ui_node_socket_t, {0});
@@ -523,6 +537,7 @@ ui_node_t *ui_nodes_make_node(ui_node_t *n, ui_nodes_t *nodes, ui_node_canvas_t 
 		but->height    = n->buttons->buffer[i]->height;
 		any_array_push(node->buttons, but);
 	}
+	sender_receiver_on_create(canvas->nodes, node);
 	ui_nodes_node_changed = node;
 	return node;
 }

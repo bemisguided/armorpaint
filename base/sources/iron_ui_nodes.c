@@ -43,6 +43,20 @@ const ui_node_section_t *(*ui_nodes_on_sections)(ui_node_t *) = NULL; // The sec
 bool ui_nodes_grid_snap                                  = true;
 int  ui_nodes_grid_snap_w                                = 40;
 int  ui_nodes_value_decimals                             = 3; // Decimals of the values in nodes
+char *(*ui_nodes_on_dot_label)(ui_node_t *)                       = NULL; // Label of a dot node, NULL for the node name
+int (*ui_nodes_on_dot_state)(ui_node_t *)                         = NULL; // ui_dot_state_t flags of a dot node
+void (*ui_nodes_on_dot_overlay)(ui_node_canvas_t *)              = NULL; // Draw over the nodes, under the dot nodes
+void (*ui_nodes_on_dot_label_double_click)(ui_node_t *)           = NULL;
+void (*ui_nodes_on_dot_label_edited)(ui_node_t *, char *)         = NULL; // Text accepted by ui_nodes_dot_edit_label
+void (*ui_nodes_on_paste)(ui_node_canvas_t *, ui_node_t **, int) = NULL; // Nodes just pasted into the canvas
+
+static int    ui_dot_click_id      = -1; // Last dot label press, for the double click
+static double ui_dot_click_time    = 0.0;
+static bool   ui_dot_label_pressed = false;
+static int    ui_dot_edit_id       = -1; // Dot node whose label is edited
+static bool   ui_dot_edit_pending  = false;
+static char  *ui_dot_edit_text     = NULL;
+static char  *ui_dot_edit_original = NULL;
 
 int ui_popup_x                                    = 0;
 int ui_popup_y                                    = 0;
@@ -93,6 +107,10 @@ float UI_LINE_H() {
 	return current_nodes->ELEMENT_H * UI_NODES_SCALE();
 }
 
+float UI_DOT_SIZE() {
+	return UI_LINE_H() * 0.7;
+}
+
 static int                      ui_node_section_of(ui_node_t *node, ui_node_item_t kind, int index);
 static const ui_node_section_t *ui_node_section(ui_node_t *node, int n);
 
@@ -104,7 +122,7 @@ static bool ui_node_button_after_inputs(ui_node_t *node, int index) {
 
 // Height of the first length buttons (all for a negative length) that are drawn above the inputs (after false) or below them (after true)
 static float ui_node_buttons_h(ui_node_t *node, int length, bool after) {
-	if (node->flags & UI_NODE_FLAG_COLLAPSED)
+	if (node->flags & (UI_NODE_FLAG_COLLAPSED | UI_NODE_FLAG_DOT))
 		return 0.0;
 	float h = 0.0;
 	for (int i = 0; i < (length < 0 ? node->buttons->length : length); ++i) {
@@ -141,7 +159,7 @@ float UI_BUTTONS_H(ui_node_t *node) {
 }
 
 float UI_OUTPUTS_H(ui_node_canvas_t *canvas, ui_node_t *node, int length) {
-	if (node->flags & UI_NODE_FLAG_COLLAPSED)
+	if (node->flags & (UI_NODE_FLAG_COLLAPSED | UI_NODE_FLAG_DOT))
 		return 0.0;
 	float h = 0.0;
 	for (int i = 0; i < (length < 0 ? node->outputs->length : length); ++i) {
@@ -272,12 +290,16 @@ float UI_INPUTS_H(ui_node_canvas_t *canvas, ui_node_t *node, int length) {
 }
 
 float UI_NODE_H(ui_node_canvas_t *canvas, ui_node_t *node) {
+	if (node->flags & UI_NODE_FLAG_DOT)
+		return UI_DOT_SIZE();
 	if (node->flags & UI_NODE_FLAG_COLLAPSED)
 		return UI_LINE_H() * 1.2;
 	return UI_LINE_H() * 1.2 + UI_INPUTS_H(canvas, node, -1) + UI_OUTPUTS_H(canvas, node, -1) + UI_BUTTONS_H(node) + ui_node_buttons_h(node, -1, true);
 }
 
 float UI_NODE_W(ui_node_t *node) {
+	if (node->flags & UI_NODE_FLAG_DOT)
+		return UI_DOT_SIZE();
 	return (node->width != 0 ? node->width : 140.0) * UI_NODES_SCALE();
 }
 
@@ -290,6 +312,8 @@ float UI_NODE_Y(ui_node_t *node) {
 }
 
 float UI_INPUT_Y(ui_node_canvas_t *canvas, ui_node_t *node, int pos) {
+	if (node->flags & UI_NODE_FLAG_DOT)
+		return UI_DOT_SIZE() / 2.0;
 	if (node->flags & UI_NODE_FLAG_COLLAPSED)
 		return UI_LINE_H() * 0.5;
 	// The row of the header in front of the section for a first member, for a member of a closed section the header itself
@@ -305,6 +329,8 @@ float UI_INPUT_Y(ui_node_canvas_t *canvas, ui_node_t *node, int pos) {
 }
 
 float UI_OUTPUT_Y(ui_node_canvas_t *canvas, ui_node_t *node, int pos) {
+	if (node->flags & UI_NODE_FLAG_DOT)
+		return UI_DOT_SIZE() / 2.0;
 	if (node->flags & UI_NODE_FLAG_COLLAPSED)
 		return UI_LINE_H() * 0.5;
 	return UI_LINE_H() * 1.62 + UI_OUTPUTS_H(canvas, node, pos);
@@ -448,6 +474,56 @@ void ui_draw_link(float x1, float y1, float x2, float y2, bool highlight) {
 		xa.buffer       = x;
 		ya.buffer       = y;
 		draw_cubic_bezier(&xa, &ya, 30, highlight ? 2.0 : 1.0);
+	}
+}
+
+// Dashed link in a single color, same path as ui_draw_link (theme LINK_STYLE)
+void ui_draw_link_dotted(float x1, float y1, float x2, float y2, uint32_t color) {
+	ui_t *current = ui_get_current();
+	float px[49];
+	float py[49];
+	int   n = 1;
+	px[0]   = x1;
+	py[0]   = y1;
+	if (current->ops->theme->LINK_STYLE == UI_LINK_STYLE_CUBIC_BEZIER) {
+		float bx[] = {x1, x1 + fabs(x1 - x2) / 2.0, x2 - fabs(x1 - x2) / 2.0, x2};
+		float by[] = {y1, y1, y2, y2};
+		n = 49;
+		for (int i = 1; i < n; ++i) {
+			float t = i / (float)(n - 1);
+			float u = 1.0 - t;
+			px[i]   = u * u * u * bx[0] + 3 * u * u * t * bx[1] + 3 * u * t * t * bx[2] + t * t * t * bx[3];
+			py[i]   = u * u * u * by[0] + 3 * u * u * t * by[1] + 3 * u * t * t * by[2] + t * t * t * by[3];
+		}
+	}
+	else {
+		px[1] = x2;
+		py[1] = y2;
+		n     = 2;
+	}
+	draw_set_color(color);
+	float dash = ui_p(6);
+	float gap  = ui_p(5);
+	float pos  = 0.0; // Position in the current dash or gap
+	bool  on   = true;
+	for (int i = 0; i < n - 1; ++i) {
+		float dx  = px[i + 1] - px[i];
+		float dy  = py[i + 1] - py[i];
+		float len = sqrtf(dx * dx + dy * dy);
+		float at  = 0.0;
+		while (at < len) {
+			float part = (on ? dash : gap) - pos;
+			float end  = at + part < len ? at + part : len;
+			if (on) {
+				draw_line_aa(px[i] + dx * at / len, py[i] + dy * at / len, px[i] + dx * end / len, py[i] + dy * end / len, ui_p(1.5));
+			}
+			pos += end - at;
+			at = end;
+			if (pos >= (on ? dash : gap) - 0.001) {
+				pos = 0.0;
+				on  = !on;
+			}
+		}
 	}
 }
 
@@ -1076,6 +1152,158 @@ void ui_node_draw(ui_node_t *node, ui_node_canvas_t *canvas) {
 	current->input_started = current_nodes->_input_started;
 }
 
+// Dot nodes: a socket dot (one input) or a cup (one output) with a label, no header and no body
+
+static char *ui_dot_label(ui_node_t *node) {
+	char *text = ui_nodes_on_dot_label != NULL ? ui_nodes_on_dot_label(node) : NULL;
+	return text != NULL ? text : node->name;
+}
+
+// Selection ring radius, also the hit zone
+static float ui_dot_ring_radius() {
+	return UI_DOT_SIZE() / 2.0 + ui_p(6);
+}
+
+void ui_node_dot_center(ui_node_t *node, float *x, float *y) {
+	*x = UI_NODE_X(node) + UI_NODE_W(node) / 2.0;
+	*y = UI_NODE_Y(node) + UI_NODE_H(NULL, node) / 2.0;
+}
+
+static bool ui_dot_hit(ui_node_t *node) {
+	ui_t *current = ui_get_current();
+	float cx;
+	float cy;
+	ui_node_dot_center(node, &cx, &cy);
+	float dx = current->input_x - current->_window_x - cx;
+	float dy = current->input_y - current->_window_y - cy;
+	float r  = ui_dot_ring_radius();
+	return dx * dx + dy * dy <= r * r;
+}
+
+// Label rect in window space: right of a dot with an input, left of a cup with an output
+static void ui_dot_label_rect(ui_node_t *node, char *text, float *x, float *y, float *w, float *h) {
+	ui_t *current = ui_get_current();
+	float cx;
+	float cy;
+	ui_node_dot_center(node, &cx, &cy);
+	*w = draw_string_width(current->ops->font, current->font_size, text);
+	*h = draw_font_height(current->ops->font, current->font_size);
+	*y = cy - *h / 2.0;
+	*x = node->outputs->length > 0 ? cx - ui_dot_ring_radius() - ui_p(1) - *w : cx + ui_dot_ring_radius() + ui_p(1);
+}
+
+void ui_nodes_dot_edit_label(ui_node_t *node) {
+	ui_dot_edit_id       = node->id;
+	ui_dot_edit_pending  = true;
+	ui_dot_edit_original = string_copy(ui_dot_label(node));
+	ui_dot_edit_text     = string_copy(ui_dot_edit_original);
+}
+
+static void ui_node_draw_dot(ui_node_t *node) {
+	ui_t *current = ui_get_current();
+	float wx      = current->_window_x;
+	float wy      = current->_window_y;
+	float cx;
+	float cy;
+	ui_node_dot_center(node, &cx, &cy);
+	float r        = UI_NODE_W(node) / 2.0;
+	bool  receiver = node->outputs->length > 0;
+	bool  editing  = ui_dot_edit_id == node->id;
+	bool  selected = ui_is_selected(node);
+
+	ui_node_socket_t *soc   = receiver ? node->outputs->buffer[0] : node->inputs->length > 0 ? node->inputs->buffer[0] : NULL;
+	int               state = ui_nodes_on_dot_state != NULL ? ui_nodes_on_dot_state(node) : 0;
+	uint32_t          color = (state & UI_DOT_ERROR) ? 0xffd23c3c : soc != NULL ? soc->color : current->ops->theme->LABEL_COL;
+
+	// Label
+	char *text = ui_dot_label(node);
+	float lx;
+	float ly;
+	float lw;
+	float lh;
+	ui_dot_label_rect(node, text, &lx, &ly, &lw, &lh);
+	if (!editing) {
+		if (selected || (state & UI_DOT_PARTNER)) {
+			// Knockout, hides the selection lines under the name
+			draw_set_color(current->ops->theme->WINDOW_BG_COL);
+			draw_filled_rect(lx - ui_p(2), ly - ui_p(1), lw + ui_p(4), lh + ui_p(2));
+		}
+		draw_set_color((state & UI_DOT_ERROR) ? color : current->ops->theme->LABEL_COL);
+		draw_string(text, lx, ly);
+		if (current->input_enabled && current->input_started && ui_input_in_rect(wx + lx, wy + ly, lw, lh)) {
+			ui_dot_label_pressed = true;
+			double now           = iron_time();
+			if (ui_dot_click_id == node->id && now - ui_dot_click_time < 0.4) {
+				ui_dot_click_id = -1;
+				if (ui_nodes_on_dot_label_double_click != NULL) {
+					ui_nodes_on_dot_label_double_click(node);
+				}
+			}
+			else {
+				ui_dot_click_id   = node->id;
+				ui_dot_click_time = now;
+			}
+		}
+	}
+
+	// Icon
+	if (receiver) {
+		// Cup, open to the side of the Senders, flat ends
+		float ro = r;
+		float ri = r - ui_p(3.2);
+		int   n  = 16;
+		draw_set_color(color);
+		for (int i = 0; i < n; ++i) {
+			float a0 = -3.14159265f / 2.0f + 3.14159265f * i / n;
+			float a1 = -3.14159265f / 2.0f + 3.14159265f * (i + 1) / n;
+			draw_filled_triangle(cx + cosf(a0) * ro, cy + sinf(a0) * ro, cx + cosf(a1) * ro, cy + sinf(a1) * ro, cx + cosf(a0) * ri, cy + sinf(a0) * ri);
+			draw_filled_triangle(cx + cosf(a0) * ri, cy + sinf(a0) * ri, cx + cosf(a1) * ro, cy + sinf(a1) * ro, cx + cosf(a1) * ri, cy + sinf(a1) * ri);
+		}
+	}
+	else {
+		draw_set_color(color);
+		draw_filled_circle(cx, cy, r, 0);
+		draw_set_color(0xff141414);
+		draw_circle(cx, cy, r - ui_p(1.5), 0, ui_p(1.5));
+	}
+	if (selected || (state & UI_DOT_PARTNER)) {
+		draw_set_color(current->ops->theme->HIGHLIGHT_COL);
+		draw_circle(cx, cy, ui_dot_ring_radius() - ui_p(1), 0, selected ? ui_p(2) : ui_p(1.2));
+	}
+
+	// Inline label edit
+	if (editing) {
+		float _x = current->_x;
+		float _y = current->_y;
+		float _w = current->_w;
+		float fw = lw + ui_p(30) > ui_p(110) ? lw + ui_p(30) : ui_p(110);
+		current->_x = receiver ? lx + lw - fw : lx;
+		current->_y = cy - UI_ELEMENT_H() / 2.0;
+		current->_w = fw;
+		if (ui_dot_edit_pending) {
+			ui_dot_edit_pending = false;
+			ui_start_text_edit(&ui_dot_edit_text, UI_ALIGN_LEFT);
+		}
+		ui_text_input(&ui_dot_edit_text, "", UI_ALIGN_LEFT, true, false);
+		current->_x = _x;
+		current->_y = _y;
+		current->_w = _w;
+		if (current->text_selected_id != ui_widget_id(&ui_dot_edit_text, UI_ID_TEXT)) {
+			// Enter or a click elsewhere accepts, Esc keeps the original
+			ui_dot_edit_id = -1;
+			if (strcmp(ui_dot_edit_text, ui_dot_edit_original) != 0 && ui_nodes_on_dot_label_edited != NULL) {
+				ui_nodes_on_dot_label_edited(node, ui_dot_edit_text);
+			}
+		}
+	}
+}
+
+static bool ui_node_culled(ui_node_canvas_t *canvas, ui_node_t *node) {
+	ui_t *current = ui_get_current();
+	return UI_NODE_X(node) > current->_window_w || UI_NODE_X(node) + UI_NODE_W(node) < 0 || UI_NODE_Y(node) > current->_window_h ||
+	       UI_NODE_Y(node) + UI_NODE_H(canvas, node) < 0;
+}
+
 bool ui_is_node_type_excluded(char *type) {
 	for (int i = 0; i < ui_nodes_exclude_remove->length; ++i) {
 		if (strcmp(ui_nodes_exclude_remove->buffer[i], type) == 0) {
@@ -1104,6 +1332,11 @@ void ui_node_canvas(ui_nodes_t *nodes, ui_node_canvas_t *canvas) {
 	current->input_enabled        = _input_enabled && ui_popup_commands == NULL;
 	ui_canvas_control_t *controls = ui_nodes_on_canvas_control != NULL ? ui_nodes_on_canvas_control() : ui_on_default_canvas_control();
 	ui_nodes_socket_released      = false;
+	ui_dot_label_pressed          = false;
+	if (ui_dot_edit_id != -1 && ui_get_node(canvas->nodes, ui_dot_edit_id) == NULL) {
+		ui_dot_edit_id = -1; // Edited node is gone
+		ui_deselect_text(current);
+	}
 
 	// Pan canvas
 	if (current->input_enabled && (controls->pan_x != 0.0 || controls->pan_y != 0.0)) {
@@ -1240,7 +1473,8 @@ void ui_node_canvas(ui_nodes_t *nodes, ui_node_canvas_t *canvas) {
 		// Resize node
 		float node_h = UI_NODE_H(canvas, node);
 		float top_h  = UI_LINE_H() + UI_OUTPUTS_H(canvas, node, -1) + ui_p(5);
-		if (current->input_enabled && (ui_input_in_rect(wx + UI_NODE_X(node) + UI_NODE_W(node), wy + UI_NODE_Y(node), 5, UI_LINE_H()) ||
+		bool is_dot  = (node->flags & UI_NODE_FLAG_DOT) != 0;
+		if (!is_dot && current->input_enabled && (ui_input_in_rect(wx + UI_NODE_X(node) + UI_NODE_W(node), wy + UI_NODE_Y(node), 5, UI_LINE_H()) ||
 		                               ui_input_in_rect(wx + UI_NODE_X(node) + UI_NODE_W(node), wy + UI_NODE_Y(node) + top_h, 5, node_h - top_h))) {
 
 			iron_mouse_set_cursor(IRON_CURSOR_SIZEWE);
@@ -1250,8 +1484,8 @@ void ui_node_canvas(ui_nodes_t *nodes, ui_node_canvas_t *canvas) {
 		}
 
 		// Drag node
-		if (current->input_enabled && node_resize == NULL &&
-		    ui_input_in_rect(wx + UI_NODE_X(node) - UI_LINE_H() / 2.0, wy + UI_NODE_Y(node), UI_NODE_W(node) + UI_LINE_H(), UI_LINE_H())) {
+		bool grab = is_dot ? ui_dot_hit(node) : ui_input_in_rect(wx + UI_NODE_X(node) - UI_LINE_H() / 2.0, wy + UI_NODE_Y(node), UI_NODE_W(node) + UI_LINE_H(), UI_LINE_H());
+		if (current->input_enabled && node_resize == NULL && grab) {
 			if (current->input_started) {
 				if (current->is_shift_down || current->is_ctrl_down) {
 					// Add to selection or deselect
@@ -1278,7 +1512,7 @@ void ui_node_canvas(ui_nodes_t *nodes, ui_node_canvas_t *canvas) {
 			}
 		}
 
-		if (current->input_started && !(node->flags & UI_NODE_FLAG_COLLAPSED) &&
+		if (current->input_started && !(node->flags & UI_NODE_FLAG_COLLAPSED) && !(is_dot && grab) &&
 		    ui_input_in_rect(wx + UI_NODE_X(node) - UI_LINE_H() / 2, wy + UI_NODE_Y(node) - UI_LINE_H() / 2, UI_NODE_W(node) + UI_LINE_H(),
 		                     node_h + UI_LINE_H())) {
 			// Check sockets
@@ -1397,7 +1631,20 @@ void ui_node_canvas(ui_nodes_t *nodes, ui_node_canvas_t *canvas) {
 			node->y = ui_nodes_snap(node->y) / UI_NODES_SCALE();
 		}
 
-		ui_node_draw(node, canvas);
+		if (!is_dot) {
+			ui_node_draw(node, canvas);
+		}
+	}
+
+	// Dot nodes are drawn last, over the overlay (selection lines)
+	if (ui_nodes_on_dot_overlay != NULL) {
+		ui_nodes_on_dot_overlay(canvas);
+	}
+	for (int i = 0; i < canvas->nodes->length; ++i) {
+		ui_node_t *node = canvas->nodes->buffer[i];
+		if ((node->flags & UI_NODE_FLAG_DOT) && (!ui_node_culled(canvas, node) || ui_is_selected(node))) {
+			ui_node_draw_dot(node);
+		}
 	}
 
 	if (ui_nodes_on_canvas_released != NULL && current->input_enabled && (current->input_released || current->input_released_r) && !ui_nodes_socket_released) {
@@ -1425,7 +1672,7 @@ void ui_node_canvas(ui_nodes_t *nodes, ui_node_canvas_t *canvas) {
 			draw_set_color(0xffffffff);
 		}
 		if (current->input_enabled && current->input_started && !current->is_alt_down && current_nodes->link_drag_id == -1 && !current_nodes->nodes_drag &&
-		    !current->changed && ui_input_in_rect(current->_window_x, current->_window_y, current->_window_w, current->_window_h)) {
+		    !current->changed && !ui_dot_label_pressed && ui_input_in_rect(current->_window_x, current->_window_y, current->_window_w, current->_window_h)) {
 
 			if (ui_touch_control) {
 				ui_touch_drag = true;
@@ -1601,6 +1848,9 @@ void ui_node_canvas(ui_nodes_t *nodes, ui_node_canvas_t *canvas) {
 				n->x += offset_x;
 				n->y += offset_y;
 				any_array_push(canvas->nodes, n);
+			}
+			if (ui_nodes_on_paste != NULL) {
+				ui_nodes_on_paste(canvas, paste_canvas->nodes->buffer, paste_canvas->nodes->length);
 			}
 			current_nodes->nodes_drag                = true;
 			current_nodes->nodes_selected_id->length = 0;

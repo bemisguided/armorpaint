@@ -306,6 +306,7 @@ Vyplňovací maska
 Režim vyplnění
 Filtr
 Filtrovat textury
+
 Plochý
 Zploštit
 
@@ -519,6 +520,7 @@ Nové téma
 Nová bílá maska
 Další
 Ne
+
 Žádná odpověď
 Uzel
 Náhledy uzlů
@@ -658,6 +660,7 @@ Náhodný
 Náhodnost
 Rozsah
 Poměr
+
 Nedávné
 Znovu {step}
 Odrážet
@@ -733,6 +736,7 @@ Vybrat skryté
 Vybrat materiál
 Vybrat viditelné
 Vybrané
+
 Citlivost
 Oddělit barvu
 Oddělit vektor

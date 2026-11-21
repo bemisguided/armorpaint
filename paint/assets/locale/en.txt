@@ -306,6 +306,7 @@ Fill Mask
 Fill Mode
 Filter
 Filter Textures
+Filter...
 Flat
 Flatten
 Flip X
@@ -519,6 +520,7 @@ New Theme
 New White Mask
 Next
 No
+No matches
 No response
 Node
 Node Previews
@@ -658,6 +660,7 @@ Random
 Randomness
 Range
 Ratio
+Receiver Node
 Recent
 Redo {step}
 Reflect
@@ -733,6 +736,7 @@ Select Hidden
 Select Material
 Select Visible
 Selected
+Sender Node
 Sensitivity
 Separate Color
 Separate Vector

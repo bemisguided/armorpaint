@@ -11,7 +11,7 @@ ui_node_t *parser_material_get_node(i32 id) {
 	return NULL;
 }
 
-ui_node_link_t *parser_material_get_input_link(ui_node_socket_t *inp) {
+static ui_node_link_t *parser_material_find_input_link(ui_node_socket_t *inp) {
 	for (i32 i = 0; i < parser_material_links->length; ++i) {
 		ui_node_link_t *l = parser_material_links->buffer[i];
 		if (l->to_id == inp->node_id) {
@@ -25,6 +25,11 @@ ui_node_link_t *parser_material_get_input_link(ui_node_socket_t *inp) {
 		}
 	}
 	return NULL;
+}
+
+// A link out of a Receiver node stands for the input link of its Sender node, the shader only sees real links
+ui_node_link_t *parser_material_get_input_link(ui_node_socket_t *inp) {
+	return sender_receiver_resolve_link(parser_material_nodes, parser_material_links, parser_material_find_input_link(inp));
 }
 
 static bool parser_material_owns_parents = false;
