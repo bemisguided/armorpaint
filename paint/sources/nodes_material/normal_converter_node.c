@@ -503,8 +503,6 @@ char *normal_converter_node_value(ui_node_t *node, ui_node_socket_t *socket) { /
 }
 
 void normal_converter_node_init() {
-	u32 value_color  = 0xffa1a1a1;
-	u32 vector_color = 0xff6363c7;
 
 	ui_node_t *normal_converter_node_def =
 	    ALLOC_INIT(ui_node_t,
@@ -516,14 +514,14 @@ void normal_converter_node_init() {
 	                .color  = NODES_MATERIAL_IMAGE_COLOR,
 	                .inputs = any_array_create_from_raw(
 	                    (void *[]){
-	                        make_image_node_socket(_tr("Strength"), "VALUE", value_color, f32_array_create_x(4.0), 0.0, 100.0, 100),
+	                        make_image_node_socket(_tr("Strength"), "VALUE", NODES_MATERIAL_VALUE_COLOR, f32_array_create_x(4.0), 0.0, 100.0, 100),
 	                        make_image_node_socket(_tr("Height"), "VALUE", NODES_MATERIAL_IMAGE_COLOR, f32_array_create_x(1.0), 0.0, 1.0, 100),
-	                        make_image_node_socket(_tr("Normal"), "VECTOR", vector_color, f32_array_create_xyz(0.5, 0.5, 1.0), 0.0, 1.0, 100),
+	                        make_image_node_socket(_tr("Normal"), "VECTOR", NODES_MATERIAL_VECTOR_COLOR, f32_array_create_xyz(0.5, 0.5, 1.0), 0.0, 1.0, 100),
 	                    },
 	                    3),
 	                .outputs = any_array_create_from_raw(
 	                    (void *[]){
-	                        make_image_node_socket(_tr("Normal"), "VECTOR", vector_color, f32_array_create_xyz(0.5, 0.5, 1.0), 0.0, 1.0, 100), // A direction: purple like the Normal input
+	                        make_image_node_socket(_tr("Normal"), "VECTOR", NODES_MATERIAL_VECTOR_COLOR, f32_array_create_xyz(0.5, 0.5, 1.0), 0.0, 1.0, 100), // A direction: purple like the Normal input
 	                        make_image_node_socket(_tr("Height"), "VALUE", NODES_MATERIAL_IMAGE_COLOR, f32_array_create_x(0.5), 0.0, 1.0, 100),
 	                    },
 	                    2),
