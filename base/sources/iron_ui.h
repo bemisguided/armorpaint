@@ -711,3 +711,4 @@ int   ui_stops_pin_extent(float marker_h);
 int   ui_stops_end(ui_stops_get_pos_t get_pos, void *data, int count, bool right);
 void  ui_stops_pin_colors(uint32_t bg_col, uint32_t text_col, ui_stops_colors_t *colors);
 void  ui_stops_draw_pin(float cx, float y, float w, float h, uint32_t fill, bool active);
+void  ui_stops_draw_pin_locked(float cx, float y, float w, float h, uint32_t fill);
