@@ -1,11 +1,14 @@
 #include "../global.h"
 
-// Gradient Generator (Pattern menu): a grey gradient image, linear or radial. An image node (render/make_image_node.c) that
-// generates its image itself, like the Noise Generator: the capture shader writes the gradient per pixel in image space
-// (uv across the image, y down, float, grey), the result is the baked texture at the Size setting (RGBA128, no banding),
-// sampled by Tile UV like every other pattern node. No Image and no Vector input. The inputs are sockets (linkable, a linked
-// image is a per pixel field); the Mode setting decides the formula and which rows are shown (gradient_generator_node_item_hidden,
-// a linked socket is always shown). Spec: armorpaint-admin specs/image-nodes/IMAGE_NODES.md (Gradient Generator).
+// Gradient Generator (Pattern menu): a grey gradient, linear or radial. A pass-through shader node like Map Range and Levels: the gradient is
+// computed per pixel in the material shader (str_gradient_generator below) on the texture coordinate, no baked result, no Size, no state row,
+// no Texture section. Every input (Rotation, Tiling, Offset, Center X, Center Y, Radius, Softness) can be linked and is evaluated per pixel
+// (Tiling is rounded to a whole number per pixel); Mode, Shape, Mirror and Invert are settings. The Mode setting decides the formula and which
+// rows are shown (gradient_generator_node_item_hidden, a linked socket is always shown). The output is the usual colour output: the grey value
+// in R, G and B (the alpha of a colour is not carried by shader colour sockets).
+// The coordinate is the uv the material sees (tex_coord) wrapped into 0..1 (gradient_fract), so the picture repeats across a tiled or scaled
+// uv exactly as the baked texture of the first build did; captured by an image node (Edge Detect, Transform...) tex_coord is the image uv and the
+// gradient fills the image. Spec: armorpaint-admin specs/image-nodes/IMAGE_NODES.md (Gradient Generator).
 //
 // Linear: d = (cos a, sin a) (a = Rotation in degrees, clockwise on screen, ROTATION_CONVENTION.md: 0 runs from black on the
 //   left to white on the right, 90 from top to bottom). The position along the ramp, normalised so that one ramp covers the
@@ -25,6 +28,9 @@
 // are integers: rotation 0, 90, 180, 270 for any Tiling, 45 for an even Tiling. There is no Tileable setting.
 
 char *str_gradient_generator = "\
+float gradient_fract(float x) { \
+	return x - floor(x); \
+} \
 float gradient_ease(float v, float soft) { \
 	float s = clamp(soft, 0.0, 1.0); \
 	return lerp(v, v * v * (3.0 - 2.0 * v), s); \
@@ -52,6 +58,11 @@ float gradient_radial(float u, float v, float cx, float cy, float radius, float 
 	} \
 	return gradient_ease(1.0 - clamp(r, 0.0, 1.0), soft); \
 } \
+float3 gradient_out3(float v, float invert) { \
+	float g = v; \
+	if (invert > 0.5) { g = 1.0 - v; } \
+	return float3(g, g, g); \
+} \
 ";
 
 // Input socket indices (all in the Parameters section). Softness is shared: Linear and the Cone use it.
@@ -65,10 +76,9 @@ enum {
 	GRADIENT_GENERATOR_INPUT_SOFTNESS,
 };
 
-// Node button indices (settings): Size, the state row, then the General section
+// Node button indices (settings), all in the General section
 enum {
-	GRADIENT_GENERATOR_BUTTON_SIZE = 0, // The state row is button 1
-	GRADIENT_GENERATOR_BUTTON_MODE = 2,
+	GRADIENT_GENERATOR_BUTTON_MODE,
 	GRADIENT_GENERATOR_BUTTON_SHAPE,
 	GRADIENT_GENERATOR_BUTTON_MIRROR,
 	GRADIENT_GENERATOR_BUTTON_INVERT,
@@ -105,91 +115,64 @@ static bool gradient_generator_node_item_hidden_for(i32 mode, i32 shape, ui_node
 	return false;
 }
 
+static f32 gradient_generator_node_button(ui_node_t *node, i32 index) {
+	return node->buttons->buffer[index]->default_value->buffer[0];
+}
+
 static bool gradient_generator_node_item_hidden(ui_node_t *node, ui_node_item_t kind, i32 index) {
-	i32 mode  = (i32)make_image_node_button(node, GRADIENT_GENERATOR_BUTTON_MODE);
-	i32 shape = (i32)make_image_node_button(node, GRADIENT_GENERATOR_BUTTON_SHAPE);
+	i32 mode  = (i32)gradient_generator_node_button(node, GRADIENT_GENERATOR_BUTTON_MODE);
+	i32 shape = (i32)gradient_generator_node_button(node, GRADIENT_GENERATOR_BUTTON_SHAPE);
 	return gradient_generator_node_item_hidden_for(mode, shape, kind, index);
 }
 
 // The input as a shader value: a literal, or per pixel when linked
 static char *gradient_generator_node_input(ui_node_t *node, i32 input) {
 	if (input >= node->inputs->length) {
-		return "0.0"; // A node saved with fewer inputs (make_image_node_reconcile completes it, this is the safety net)
+		return "0.0"; // A node saved with fewer inputs (the safety net)
 	}
 	return parser_material_parse_value_input(node->inputs->buffer[input], false);
 }
 
-// Width and height of the image: Size 512, 1024, 2048 or 4096
-static i32 gradient_generator_node_size(ui_node_t *node) {
-	return make_image_node_size(node, GRADIENT_GENERATOR_BUTTON_SIZE);
-}
-
-// The capture is the generator: the gradient per pixel, float, the same value in R, G and B
-static char *gradient_generator_node_capture(ui_node_t *node) {
+// The gradient per pixel on the wrapped texture coordinate, the same value in R, G and B
+char *gradient_generator_node_vector(ui_node_t *node, ui_node_socket_t *socket) {
 	node_shader_add_function(parser_material_kong, str_gradient_generator);
+	char *uv = "gradient_fract(tex_coord.x), gradient_fract(tex_coord.y)";
 	char *value;
-	if ((i32)make_image_node_button(node, GRADIENT_GENERATOR_BUTTON_MODE) == GRADIENT_GENERATOR_MODE_RADIAL) {
-		value = string_tmp("gradient_radial(tex_coord.x, tex_coord.y, %s, %s, %s, %s, %s)", gradient_generator_node_input(node, GRADIENT_GENERATOR_INPUT_CENTER_X),
+	if ((i32)gradient_generator_node_button(node, GRADIENT_GENERATOR_BUTTON_MODE) == GRADIENT_GENERATOR_MODE_RADIAL) {
+		value = string_tmp("gradient_radial(%s, %s, %s, %s, %s, %s)", uv, gradient_generator_node_input(node, GRADIENT_GENERATOR_INPUT_CENTER_X),
 		                   gradient_generator_node_input(node, GRADIENT_GENERATOR_INPUT_CENTER_Y), gradient_generator_node_input(node, GRADIENT_GENERATOR_INPUT_RADIUS),
 		                   gradient_generator_node_input(node, GRADIENT_GENERATOR_INPUT_SOFTNESS),
-		                   make_image_node_button(node, GRADIENT_GENERATOR_BUTTON_SHAPE) > 0.5 ? "1.0" : "0.0");
+		                   gradient_generator_node_button(node, GRADIENT_GENERATOR_BUTTON_SHAPE) > 0.5 ? "1.0" : "0.0");
 	}
 	else {
-		value = string_tmp("gradient_linear(tex_coord.x, tex_coord.y, %s, %s, %s, %s, %s)", gradient_generator_node_input(node, GRADIENT_GENERATOR_INPUT_ROTATION),
+		value = string_tmp("gradient_linear(%s, %s, %s, %s, %s, %s)", uv, gradient_generator_node_input(node, GRADIENT_GENERATOR_INPUT_ROTATION),
 		                   gradient_generator_node_input(node, GRADIENT_GENERATOR_INPUT_TILING), gradient_generator_node_input(node, GRADIENT_GENERATOR_INPUT_OFFSET),
 		                   gradient_generator_node_input(node, GRADIENT_GENERATOR_INPUT_SOFTNESS),
-		                   make_image_node_button(node, GRADIENT_GENERATOR_BUTTON_MIRROR) > 0.5 ? "1.0" : "0.0");
+		                   gradient_generator_node_button(node, GRADIENT_GENERATOR_BUTTON_MIRROR) > 0.5 ? "1.0" : "0.0");
 	}
-	if (make_image_node_button(node, GRADIENT_GENERATOR_BUTTON_INVERT) > 0.5) {
-		value = string_tmp("(1.0 - %s)", value);
-	}
-	char *var = string_tmp("%s_gradient", parser_material_store_var_name(node));
-	parser_material_write(parser_material_kong, string_tmp("float %s = %s;", var, value));
-	return string_tmp("float4(%s, %s, %s, 1.0)", var, var, var);
+	return string_tmp("gradient_out3(%s, %s)", value, gradient_generator_node_button(node, GRADIENT_GENERATOR_BUTTON_INVERT) > 0.5 ? "1.0" : "0.0");
 }
 
-// Everything is in the shader (and so in the signature of the captured pixels): no processing parameters
-static void gradient_generator_node_params(ui_node_t *node, void *params) {
-}
-
-// The result is the capture: copied into the RGBA result
-static i32 gradient_generator_node_process(u8 *bytes, i32 size, void *params, f32 *result) {
-	memcpy(result, bytes, (size_t)size * size * 4 * sizeof(f32));
-	return 0;
-}
-
-static image_node_type_t gradient_generator_node_image_type = {
-    .type          = "TEX_GRADIENT_GENERATOR",
-    .result_format = GPU_TEXTURE_FORMAT_RGBA128, // Float: a ramp as wide as the image bands in half floats
-    .params_size   = 0,
-    .size          = gradient_generator_node_size,
-    .capture       = gradient_generator_node_capture,
-    .capture_float = true,
-    .smooth_sample = true,
-    .params        = gradient_generator_node_params,
-    .process       = gradient_generator_node_process,
-};
-
-char *gradient_generator_node_vector(ui_node_t *node, ui_node_socket_t *socket) {
-	char *v = string_tmp("%s.r", make_image_node_sample(node));
-	return string_tmp("float3(%s, %s, %s)", v, v, v);
-}
-
-char *gradient_generator_node_value(ui_node_t *node, ui_node_socket_t *socket) {
-	return string_tmp("%s.r", make_image_node_sample(node));
+// The sections of the node: General (the settings) and Parameters (the inputs). No Texture section: the node has no baked texture.
+static void gradient_generator_node_sections(ui_node_t *def) {
+	ui_node_section_t *list = calloc(3, sizeof(ui_node_section_t)); // The list ends with the zeroed entry
+	list[0]                 = (ui_node_section_t){.title = _tr("General"), .kind = UI_NODE_ITEM_BUTTON, .first = 0, .count = def->buttons->length, .closed_by_default = false};
+	list[1]                 = (ui_node_section_t){.title = _tr("Parameters"), .kind = UI_NODE_ITEM_INPUT, .first = 0, .count = def->inputs->length, .closed_by_default = false};
+	any_map_set(ui_nodes_sections, def->type, list);
 }
 
 void gradient_generator_node_init() {
-	u32 value_color = 0xffa1a1a1;
+	u32 color_socket = NODES_MATERIAL_RGBA_COLOR;
+	u32 value_color  = NODES_MATERIAL_VALUE_COLOR;
 
 	ui_node_t *gradient_generator_node_def =
 	    ALLOC_INIT(ui_node_t,
 	               {.id     = 0,
 	                .name   = _tr("Gradient Generator"),
-	                .type   = "TEX_GRADIENT_GENERATOR",
+	                .type   = "GRADIENT_GENERATOR",
 	                .x      = 0,
 	                .y      = 0,
-	                .color  = NODES_MATERIAL_IMAGE_COLOR,
+	                .color  = NODES_MATERIAL_PASS_THROUGH_COLOR, // A pass-through node, not an orange image node
 	                .inputs = any_array_create_from_raw(
 	                    (void *[]){
 	                        make_image_node_socket(_tr("Rotation"), "VALUE", value_color, f32_array_create_x(0.0), 0.0, 360.0, 10),
@@ -203,26 +186,22 @@ void gradient_generator_node_init() {
 	                    7),
 	                .outputs = any_array_create_from_raw(
 	                    (void *[]){
-	                        make_image_node_socket(_tr("Image"), "VALUE", NODES_MATERIAL_IMAGE_COLOR, f32_array_create_x(0.0), 0.0, 1.0, 100),
+	                        make_image_node_socket(_tr("Image"), "RGBA", color_socket, f32_array_create_xyzw(0.0, 0.0, 0.0, 1.0), 0.0, 1.0, 100),
 	                    },
 	                    1),
 	                .buttons = any_array_create_from_raw(
 	                    (void *[]){
-	                        make_image_node_setting(_tr("Size"), "ENUM", 1, MAKE_IMAGE_NODE_SIZE_ITEMS),
-	                        make_image_node_state_button(),
 	                        make_image_node_setting(_tr("Mode"), "ENUM", 0, "Linear\nRadial"),
 	                        make_image_node_setting(_tr("Shape"), "ENUM", 0, "Cone\nHemisphere"),
 	                        make_image_node_setting(_tr("Mirror"), "BOOL", 0, NULL),
 	                        make_image_node_setting(_tr("Invert"), "BOOL", 0, NULL),
 	                    },
-	                    6),
+	                    4),
 	                .width = 0,
 	                .flags = 0});
 
 	any_array_push(nodes_material_pattern, gradient_generator_node_def);
-	any_map_set(parser_material_node_vectors, "TEX_GRADIENT_GENERATOR", gradient_generator_node_vector);
-	any_map_set(parser_material_node_values, "TEX_GRADIENT_GENERATOR", gradient_generator_node_value);
-	any_map_set(ui_nodes_hidden_rules, "TEX_GRADIENT_GENERATOR", gradient_generator_node_item_hidden);
-	make_image_node_sections(gradient_generator_node_def, NULL, 0, 0); // General: Mode, Shape, Mirror, Invert; Parameters: all inputs
-	make_image_node_register(&gradient_generator_node_image_type);
+	any_map_set(parser_material_node_vectors, "GRADIENT_GENERATOR", gradient_generator_node_vector);
+	any_map_set(ui_nodes_hidden_rules, "GRADIENT_GENERATOR", gradient_generator_node_item_hidden);
+	gradient_generator_node_sections(gradient_generator_node_def);
 }
