@@ -747,7 +747,9 @@ static bool make_image_node_capture(make_image_node_state_t *s, char *id, ui_nod
 			pixels = NULL;
 		}
 		else {
-			t->params(node, params); // May capture a linked scalar input
+			if (t->params != NULL) {
+				t->params(node, params); // May capture a linked scalar input
+			}
 		}
 	}
 	make_image_node_capturing       = NULL;
@@ -765,7 +767,7 @@ static bool make_image_node_capture(make_image_node_state_t *s, char *id, ui_nod
 	s->captured_asset_version = util_version_assets();
 	u64 sig = make_image_node_signature(pixels, total, size, params, t->params_size);
 
-	bool has_result = g_context->node_previews != NULL && any_map_get(g_context->node_previews, id) != NULL;
+	bool has_result = t->summary_only || (g_context->node_previews != NULL && any_map_get(g_context->node_previews, id) != NULL);
 	if (!force && has_result && s->has_baked && sig == s->baked_signature) {
 		make_image_node_clear_pending(s); // Back to what is baked, e.g. a change undone within the debounce
 		make_image_node_plane_free(pixels, total);
@@ -872,6 +874,19 @@ static void make_image_node_bake(make_image_node_state_t *s, char *id) {
 	}
 	image_node_type_t *t      = s->type;
 	i32                size   = s->pending_size;
+	if (t->summary_only) { // No result texture: only the summary of the capture is kept
+		if (s->summary == NULL) {
+			s->summary = calloc(1, (size_t)t->summary_size);
+		}
+		if (s->summary != NULL) {
+			t->summarize(s->pending_pixels, size, s->pending_params, s->summary);
+		}
+		s->has_baked       = true;
+		s->baked_signature = s->pending_signature;
+		s->failed          = false;
+		make_image_node_clear_pending(s);
+		return;
+	}
 	size_t             plane        = (size_t)size * size * 4;
 	size_t             result_bytes = plane * (t->second_result ? 2 : 1) * sizeof(f32);
 	f32               *result       = make_image_node_plane_alloc(result_bytes);
@@ -1089,7 +1104,7 @@ static ui_node_t *make_image_node_run_material(slot_material_t *m, bool force_al
 			if (s->pending) {
 				make_image_node_bake(s, e->id);
 				any_array_push(baked, e->id);
-				if (changed == NULL) {
+				if (changed == NULL && !s->type->summary_only) { // A summary only node changes no shader: no re-parse
 					changed = e->node;
 				}
 			}
