@@ -162,9 +162,8 @@ static void gradient_generator_node_sections(ui_node_t *def) {
 }
 
 void gradient_generator_node_init() {
-	// TODO: the named colour constants of the colour rule (NODES_MATERIAL_RGBA_COLOR, NODES_MATERIAL_VALUE_COLOR, NODES_MATERIAL_PASS_THROUGH_COLOR) replace these literals once they are in enums.h
-	u32 color_socket = 0xffc7c729; // The usual yellow of an RGBA socket
-	u32 value_color  = 0xffa1a1a1;
+	u32 color_socket = NODES_MATERIAL_RGBA_COLOR;
+	u32 value_color  = NODES_MATERIAL_VALUE_COLOR;
 
 	ui_node_t *gradient_generator_node_def =
 	    ALLOC_INIT(ui_node_t,
@@ -173,7 +172,7 @@ void gradient_generator_node_init() {
 	                .type   = "GRADIENT_GENERATOR",
 	                .x      = 0,
 	                .y      = 0,
-	                .color  = 0xff62676d, // The grey header of Map Range and the Color nodes: a pass-through node, not an orange image node
+	                .color  = NODES_MATERIAL_PASS_THROUGH_COLOR, // A pass-through node, not an orange image node
 	                .inputs = any_array_create_from_raw(
 	                    (void *[]){
 	                        make_image_node_socket(_tr("Rotation"), "VALUE", value_color, f32_array_create_x(0.0), 0.0, 360.0, 10),
