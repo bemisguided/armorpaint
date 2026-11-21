@@ -126,19 +126,22 @@ int ui_stops_pin_w(float marker_h) {
 	return w % 2 == 0 ? w + 1 : w;
 }
 
-// Dark hairline (outermost) and grey ring (inside it) around the colour box, in pixels. Both lie INSIDE the silhouette,
-// which is ui_stops_pin_w wide: the colour fill gets pin_w - 2 * (hairline + ring). Where that would leave less than 3 px
-// (the width is odd) the ring shrinks first, down to 0, the hairline stays; at pin_w 3 the fill is 1 px wide, at pin_w 1 (marker_h below 2.5) there is no outline.
-void ui_stops_pin_rings(float marker_h, int *hairline, int *ring) {
-	*hairline = ui_stops_clamp_int(ui_stops_round(0.05f * marker_h), 1, 2);
-	*ring     = ui_stops_clamp_int(ui_stops_round(0.09f * marker_h), 1, 3);
-	int w     = ui_stops_pin_w(marker_h);
-	if (*hairline > (w - 1) / 2) { // Only at pin_w 1 (marker_h below 2.5): no room for any outline
-		*hairline = (w - 1) / 2;
+// Black outline (outermost) and neutral grey frame (inside it) of the marker box, in pixels, both lie INSIDE the silhouette,
+// which is ui_stops_pin_w wide. Like Blender's handle they are equally thick (1 logical px on its 18 px bar: 0.075 of
+// marker_h here, so 2 px at UI scale 2 and 1 px at UI scale 1). The box is outline, then the frame on all four sides (the
+// top too), then the stop colour fill: the fill gets pin_w - 2 * (outline + frame) across. Where that would leave less than
+// 3 px (the width is odd) the frame shrinks first, down to 0, the outline stays; at pin_w 3 the fill is 1 px wide, at pin_w 1
+// (marker_h below 2.5) there is no outline.
+void ui_stops_pin_rings(float marker_h, int *outline, int *frame) {
+	*outline = ui_stops_clamp_int(ui_stops_round(0.075f * marker_h), 1, 8);
+	*frame   = *outline;
+	int w    = ui_stops_pin_w(marker_h);
+	if (*outline > (w - 1) / 2) { // Only at pin_w 1 (marker_h below 2.5): no room for any outline
+		*outline = (w - 1) / 2;
 	}
-	int room = (w - 2 * *hairline - 3) / 2; // Ring that still leaves a 3 px fill
-	if (*ring > room) {
-		*ring = room < 0 ? 0 : room;
+	int room = (w - 2 * *outline - 3) / 2; // Frame that still leaves a 3 px fill
+	if (*frame > room) {
+		*frame = room < 0 ? 0 : room;
 	}
 }
 
@@ -175,49 +178,53 @@ static uint32_t ui_stops_mix(uint32_t a, uint32_t b, float t) {
 }
 
 // Marker colours from the theme, so they keep their contrast against the node background in every theme. bg_col is the
-// node background (WINDOW_BG_COL), text_col the text colour (TEXT_COL). The hairline is the background pulled towards
-// black, the ring and the roofs are text pulled towards the background: a mid tone in a dark and in a light theme.
+// node background (WINDOW_BG_COL), text_col the text colour (TEXT_COL). The outline is black (Blender's too, on dark and
+// light themes), the frame and the roofs are text pulled towards the background: the frame about mid grey (128 on the
+// default and the light theme), the inactive roof darker than it and the active roof brighter, in a dark theme (a light
+// theme inverts the roofs with the text colour). The frame colour never changes with the selection.
 void ui_stops_pin_colors(uint32_t bg_col, uint32_t text_col, ui_stops_colors_t *colors) {
-	colors->hairline    = ui_stops_mix(bg_col, 0xff000000, 0.85f);
-	colors->ring        = ui_stops_mix(text_col, bg_col, 0.42f);
+	colors->outline     = 0xff000000;
+	colors->frame       = ui_stops_mix(text_col, bg_col, 0.55f);
 	colors->roof        = ui_stops_mix(text_col, bg_col, 0.72f);
 	colors->roof_active = ui_stops_mix(text_col, bg_col, 0.10f);
 }
 // ui_stops logic end
 
-// The house: a box in the stop colour under a 45 degree roof in neutral grey (darker when inactive, brighter when active).
-// The whole silhouette is w wide (the roof base and the outer edge of the box are the same width) and roof + box_h tall:
-// the box has the dark hairline outermost, the grey ring inside it and the stop colour fill innermost (left, right and
-// bottom; its top touches the roof), the roof has its hairline on the two slopes inside the footprint.
+// The house, built like Blender's color ramp handle: a 45 degree roof in neutral grey (darker when inactive, brighter when
+// active, the select indicator) over a box. Both have a black outline. The box is the black outline, the neutral grey frame
+// on all four sides (its top band lies directly under the roof, the frame colour does not change with the selection) and
+// the stop colour fill innermost. The silhouette is w wide (the roof base and the outer edge of the box are the same width)
+// and roof + box_h tall. The roof outline runs along the two slopes and, like the box outline, ends on the roof base: the
+// grey roof sits directly on the frame.
 // cx: pixel centre of the position, y: the bar bottom, w: ui_stops_pin_w(h).
 void ui_stops_draw_pin(float cx, float y, float w, float h, uint32_t fill, bool active) {
 	ui_theme_t       *theme = ui_get_current()->ops->theme;
 	ui_stops_colors_t colors;
 	ui_stops_pin_colors((uint32_t)theme->WINDOW_BG_COL, (uint32_t)theme->TEXT_COL, &colors);
-	int hairline, ring;
-	ui_stops_pin_rings(h, &hairline, &ring);
+	int outline, frame;
+	ui_stops_pin_rings(h, &outline, &frame);
 	float half  = w * 0.5f;
 	float roof  = floorf(half + 0.5f); // Height of the 45 degree roof
 	float top   = y + roof;            // Top of the box
 	float box_h = floorf(roof * 1.4f + 0.5f);
-	float d     = (float)hairline;
-	float g     = (float)ring;
+	float d     = (float)outline;
+	float g     = (float)frame;
 	float left  = cx - half;
-	float inset = 1.4142f * d; // Horizontal width of the roof hairline
-	if (inset > half - 1.0f) { // Keep a roof of at least 1 px at the smallest sizes
-		inset = half > 1.0f ? half - 1.0f : 0.0f;
+	float inset = 1.4142f * d; // Vertical room of the roof outline at the apex (it is d wide at the base)
+	if (inset > roof - 1.0f) { // Keep a roof of at least 1 px at the smallest sizes
+		inset = roof > 1.0f ? roof - 1.0f : 0.0f;
 	}
 
-	draw_set_color(colors.hairline);
+	draw_set_color(colors.outline);
 	draw_filled_rect(left, top, w, box_h);
-	draw_set_color(colors.ring);
+	draw_set_color(colors.frame);
 	draw_filled_rect(left + d, top, w - d * 2.0f, box_h - d);
 	draw_set_color(fill | 0xff000000);
-	draw_filled_rect(left + d + g, top, w - (d + g) * 2.0f, box_h - d - g);
-	draw_set_color(colors.hairline);
+	draw_filled_rect(left + d + g, top + g, w - (d + g) * 2.0f, box_h - d - g * 2.0f);
+	draw_set_color(colors.outline);
 	draw_filled_triangle(cx, y, left, top, cx + half, top);
 	draw_set_color(active ? colors.roof_active : colors.roof);
-	draw_filled_triangle(cx, y + inset, left + inset, top, cx + half - inset, top);
+	draw_filled_triangle(cx, y + inset, left + d, top, cx + half - d, top);
 	draw_set_color(0xffffffff);
 }
 
