@@ -688,6 +688,13 @@ typedef struct ui_stops_ops {
 	int min_count;
 	int max_count;
 } ui_stops_ops_t;
+
+typedef struct ui_stops_colors { // Marker colours, derived from the theme
+	uint32_t hairline;
+	uint32_t ring;
+	uint32_t roof;
+	uint32_t roof_active;
+} ui_stops_colors_t;
 // ui_stops end
 
 float ui_stops_clamp(float pos);
@@ -698,4 +705,10 @@ bool  ui_stops_can_add(int count, int max_count);
 bool  ui_stops_can_remove(int count, int min_count);
 bool  ui_stops_is_double_click(double now, double last_time, int last_hit, int hit);
 int   ui_stops_update(ui_stops_t *s, const ui_stops_ops_t *ops, void *data, float x, float y, float w, float bar_h, float marker_h, float hit_h);
+int   ui_stops_pin_w(float marker_h);
+void  ui_stops_pin_rings(float marker_h, int *hairline, int *ring);
+int   ui_stops_pin_extent(float marker_h);
+int   ui_stops_end(ui_stops_get_pos_t get_pos, void *data, int count, bool right);
+void  ui_stops_pin_colors(uint32_t bg_col, uint32_t text_col, ui_stops_colors_t *colors);
 void  ui_stops_draw_pin(float cx, float y, float w, float h, uint32_t fill, bool active);
+void  ui_stops_draw_pin_locked(float cx, float y, float w, float h, uint32_t fill);
