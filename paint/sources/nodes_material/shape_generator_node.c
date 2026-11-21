@@ -3,8 +3,10 @@
 // Shape Generator (Pattern menu): one shape (circle, square, rectangle) as a grey mask, 1 inside and 0 outside. A pass-through shader
 // node like Gradient Texture and Map Range: the mask is computed per pixel in the material shader (str_shape_generator below), no baked
 // result, no Size, no state row. Every number input (Width, Height, Position X/Y, Rotation, Corner Radius, Edge Softness) can be linked and
-// is evaluated per pixel; Shape, Invert and Wrap Edges are settings. The node has no Image input and no Vector input: it draws over the
-// tex_coord of whatever evaluates it (the uv of the mesh in a material, the image uv of a capture when an image node reads it).
+// is evaluated per pixel; Shape, Invert and Wrap Edges are settings. The node has no Image input. Its coordinate comes from the Vector input
+// (make_image_node_coord, the rule of all coordinate generators): unlinked the tex_coord of whatever evaluates it (the uv of the mesh in a material, the
+// image uv of a capture when an image node reads it), linked the xy of the linked expression (Mapping, Texture Coordinate...). Wrap Edges is the shape's
+// own wrap below and also reduces the coordinate into 0..1 (x - floor(x)), so a Mapping scale of 3 gives 3 copies; the pixel is taken of the unwrapped one.
 // Width and Height are the full extent of the shape as a fraction of the image (Circle: the two diameters of an ellipse,
 // Square: Width only). Per pixel the signed distance to the shape in pixels gives the value 1 - smoothstep(-w, w, d),
 // w = Edge Softness in pixels, at least 1 so the edge is antialiased. Wrap Edges adds up the coverage of the nine image
@@ -33,7 +35,8 @@ enum {
 	SHAPE_GENERATOR_INPUT_ROTATION      = 4,
 	SHAPE_GENERATOR_INPUT_CORNER_RADIUS = 5,
 	SHAPE_GENERATOR_INPUT_EDGE_SOFTNESS = 6,
-	SHAPE_GENERATOR_INPUT_COUNT         = 7,
+	SHAPE_GENERATOR_INPUT_VECTOR        = 7, // Last, like Tile UV: the older saves keep their indices; not a number input
+	SHAPE_GENERATOR_INPUT_COUNT         = 8,
 };
 
 // Node button indices (settings)
@@ -175,41 +178,27 @@ static char *shape_generator_node_pixel(char *store, char *uv) {
 	return string_tmp("%s_px", store);
 }
 
-// The mask of the node as a float expression (a stored variable, written once per node)
-static char *shape_generator_node_mask(ui_node_t *node) {
-	char *store = string_tmp("%s_shape", parser_material_store_var_name(node));
-	if (string_array_index_of(parser_material_parsed, store) >= 0) {
-		return store;
-	}
-	any_array_push(parser_material_parsed, store);
-	node_shader_add_function(parser_material_kong, str_shape_generator);
-	char *in[SHAPE_GENERATOR_INPUT_COUNT];
-	for (i32 i = 0; i < SHAPE_GENERATOR_INPUT_COUNT; ++i) {
+// The mask for the coordinate uv (wrapped when Wrap Edges is on) of one projection: the node's inputs and settings as arguments of shape_coverage, the pixel
+// from the UNWRAPPED coordinate (the wrap jumps at the seam), written under `store`
+static char *shape_generator_node_value_at(ui_node_t *node, char *uv, char *uv_unwrapped, char *store) {
+	char *in[SHAPE_GENERATOR_INPUT_VECTOR];
+	for (i32 i = 0; i < SHAPE_GENERATOR_INPUT_VECTOR; ++i) {
 		in[i] = parser_material_parse_value_input(node->inputs->buffer[i], false);
 	}
 	i32   shape  = (i32)make_image_node_button(node, SHAPE_GENERATOR_BUTTON_SHAPE);
 	char *invert = make_image_node_button(node, SHAPE_GENERATOR_BUTTON_INVERT) != 0.0 ? "1.0" : "0.0";
 	char *wrap   = make_image_node_button(node, SHAPE_GENERATOR_BUTTON_WRAP) != 0.0 ? "1.0" : "0.0";
-	if (parser_material_triplanar && !parser_material_image_space) { // Like Image Texture: one evaluation per projection, blended
-		node_shader_context_add_elem(parser_material_kong->context, "tex", "short2norm");
-		char *uvs[3] = {"tex_coord", "tex_coord1", "tex_coord2"};
-		for (i32 k = 0; k < 3; ++k) {
-			char *px = shape_generator_node_pixel(string_tmp("%s%d", store, k), uvs[k]);
-			parser_material_write(parser_material_kong,
-			                      string_tmp("float %s%d = shape_coverage(%d.0, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s.x, %s.y, %s);", store, k, shape, invert, wrap, in[0], in[1],
-			                                 in[2], in[3], in[4], in[5], in[6], uvs[k], uvs[k], px));
-		}
-		parser_material_write(parser_material_kong, string_tmp("float %s = %s0 * tex_coord_blend.x + %s1 * tex_coord_blend.y + %s2 * tex_coord_blend.z;", store, store, store, store));
-		return store;
-	}
-	if (!parser_material_image_space) {
-		node_shader_context_add_elem(parser_material_kong->context, "tex", "short2norm");
-	}
-	char *px = shape_generator_node_pixel(store, "tex_coord");
-	parser_material_write(parser_material_kong,
-	                      string_tmp("float %s = shape_coverage(%d.0, %s, %s, %s, %s, %s, %s, %s, %s, %s, tex_coord.x, tex_coord.y, %s);", store, shape, invert, wrap, in[0], in[1],
-	                                 in[2], in[3], in[4], in[5], in[6], px));
-	return store;
+	char *px     = shape_generator_node_pixel(store, uv_unwrapped);
+	return string_tmp("shape_coverage(%d.0, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s.x, %s.y, %s)", shape, invert, wrap, in[0], in[1], in[2], in[3], in[4], in[5], in[6], uv, uv,
+	                  px);
+}
+
+// The mask of the node as a float expression (a stored variable, written once per node): the shape on the coordinate of the Vector input, one evaluation
+// per projection under triplanar when the Vector is unlinked (make_image_node_eval_coord)
+static char *shape_generator_node_mask(ui_node_t *node) {
+	node_shader_add_function(parser_material_kong, str_shape_generator);
+	bool wrap = make_image_node_button(node, SHAPE_GENERATOR_BUTTON_WRAP) != 0.0;
+	return make_image_node_eval_coord(node, SHAPE_GENERATOR_INPUT_VECTOR, wrap, string_tmp("%s_shape", parser_material_store_var_name(node)), shape_generator_node_value_at);
 }
 
 char *shape_generator_node_vector(ui_node_t *node, ui_node_socket_t *socket) {
@@ -249,6 +238,7 @@ void shape_generator_node_init() {
 	                        make_image_node_socket(_tr("Rotation"), "VALUE", value_color, f32_array_create_x(0.0), 0.0, 360.0, 10),
 	                        make_image_node_socket(_tr("Corner Radius"), "VALUE", value_color, f32_array_create_x(0.0), 0.0, 0.5, 100),
 	                        make_image_node_socket(_tr("Edge Softness"), "VALUE", value_color, f32_array_create_x(0.0), 0.0, 1.0, 100),
+	                        make_image_node_vector_socket(),
 	                    },
 	                    SHAPE_GENERATOR_INPUT_COUNT),
 	                .outputs = any_array_create_from_raw(
