@@ -205,6 +205,8 @@ float perlin_image(float u, float v, float scale, float detail, float roughness,
 //     cell (hash of the winning cell, flat), Crystals = F2. Each is normalised to 0..1 and clamped (constants measured at R = 1 per metric).
 //   - Tileable: the cell index is reduced modulo the period (round(Scale), at least 1) before the hash, so uv + 1 is the same cell; the
 //     distances use the unreduced cell coordinates. Distortion warps the image point with the periodic Perlin noise of the base Scale
+//     scaled by 0.25 (voronoi_gen_warp: the slider range 0..10 is shared with Perlin, whose Distortion 1 is a gentle warp of the noise, but
+//     for cells the full amplitude moves the points a whole cell; Voronoi Distortion 1 = about 0.25 cell, 10 = about 2.5 cells)
 //     (period = the same integer, so the warped point shifts by exactly one period: the image still repeats). The Seed fraction only
 //     moves the z slice of that warp noise. Detail, Roughness and Lacunarity are not used (hidden): no fractal Voronoi in this version.
 // It uses perlin_wrap, perlin_hash, perlin_base_scale and perlin_signed: the emit function adds the Perlin text first.
@@ -257,6 +259,7 @@ float3 voronoi_gen_cells(float x, float y, float period, float randomness, int m
 	float id = float(perlin_hash(wx, wy, 1.0, seed) & 65535) / 65535.0; \
 	return float3(f1, f2, id); \
 } \
+float voronoi_gen_warp() { return 0.25; } \
 float voronoi_gen_factor(float3 p, float scale, float randomness, float distortion, float tileable, float seed, int feature, int metric) { \
 	int sd = int(floor(seed)); \
 	float se = perlin_base_scale(scale, tileable); \
@@ -264,7 +267,7 @@ float voronoi_gen_factor(float3 p, float scale, float randomness, float distorti
 	if (tileable > 0.5) { period = se; } \
 	float3 q = p; \
 	if (distortion != 0.0) { \
-		q = p + distortion / se * float3(perlin_signed(p, se, tileable, sd + 101), perlin_signed(p, se, tileable, sd + 202), perlin_signed(p, se, tileable, sd + 303)); \
+		q = p + distortion * voronoi_gen_warp() / se * float3(perlin_signed(p, se, tileable, sd + 101), perlin_signed(p, se, tileable, sd + 202), perlin_signed(p, se, tileable, sd + 303)); \
 	} \
 	float3 c = voronoi_gen_cells(q.x * se, q.y * se, period, clamp(randomness, 0.0, 1.0), metric, sd); \
 	if (feature == 2) { return c.z; } \
@@ -446,7 +449,6 @@ void noise_generator_node_init() {
 	}
 	char *feature_items = string_tmp("%s\n%s\n%s\n%s", _tr("Distance"), _tr("Edges"), _tr("Cells"), _tr("Crystals"));
 	char *metric_items  = string_tmp("%s\n%s\n%s", _tr("Euclidean"), _tr("Manhattan"), _tr("Chebyshev"));
-	u32   value_color   = 0xffa1a1a1;
 
 	ui_node_t *noise_generator_node_def =
 	    ALLOC_INIT(ui_node_t,
@@ -458,13 +460,13 @@ void noise_generator_node_init() {
 	                .color  = NODES_MATERIAL_IMAGE_COLOR,
 	                .inputs = any_array_create_from_raw(
 	                    (void *[]){
-	                        make_image_node_socket(_tr("Scale"), "VALUE", value_color, f32_array_create_x(5.0), 0.0, 256.0, 100),
-	                        make_image_node_socket(_tr("Detail"), "VALUE", value_color, f32_array_create_x(0.0), 0.0, 8.0, 100),
-	                        make_image_node_socket(_tr("Roughness"), "VALUE", value_color, f32_array_create_x(0.5), 0.0, 1.0, 100),
-	                        make_image_node_socket(_tr("Lacunarity"), "VALUE", value_color, f32_array_create_x(2.0), 0.0, 10.0, 100),
-	                        make_image_node_socket(_tr("Distortion"), "VALUE", value_color, f32_array_create_x(0.0), -10.0, 10.0, 100),
-	                        make_image_node_socket(_tr("Seed"), "VALUE", value_color, f32_array_create_x(0.0), 0.0, 1000.0, 100),
-	                        make_image_node_socket(_tr("Randomness"), "VALUE", value_color, f32_array_create_x(1.0), 0.0, 1.0, 100),
+	                        make_image_node_socket(_tr("Scale"), "VALUE", NODES_MATERIAL_VALUE_COLOR, f32_array_create_x(5.0), 0.0, 256.0, 100),
+	                        make_image_node_socket(_tr("Detail"), "VALUE", NODES_MATERIAL_VALUE_COLOR, f32_array_create_x(0.0), 0.0, 8.0, 100),
+	                        make_image_node_socket(_tr("Roughness"), "VALUE", NODES_MATERIAL_VALUE_COLOR, f32_array_create_x(0.5), 0.0, 1.0, 100),
+	                        make_image_node_socket(_tr("Lacunarity"), "VALUE", NODES_MATERIAL_VALUE_COLOR, f32_array_create_x(2.0), 0.0, 10.0, 100),
+	                        make_image_node_socket(_tr("Distortion"), "VALUE", NODES_MATERIAL_VALUE_COLOR, f32_array_create_x(0.0), -10.0, 10.0, 100),
+	                        make_image_node_socket(_tr("Seed"), "VALUE", NODES_MATERIAL_VALUE_COLOR, f32_array_create_x(0.0), 0.0, 1000.0, 100),
+	                        make_image_node_socket(_tr("Randomness"), "VALUE", NODES_MATERIAL_VALUE_COLOR, f32_array_create_x(1.0), 0.0, 1.0, 100),
 	                    },
 	                    7),
 	                .outputs = any_array_create_from_raw(
