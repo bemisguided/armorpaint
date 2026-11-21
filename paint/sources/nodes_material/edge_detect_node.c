@@ -199,7 +199,7 @@ static void edge_detect_node_sobel_rows(void *param, i32 begin, i32 end) {
 // scaled by 4 / 3, so a step of 1 still gives 1 but its slope spreads over two pixels: a diagonal border does not
 // show the texel staircase of the capture (which has no coverage information) in the surface slope Bump reads.
 static i32 edge_detect_node_process(u8 *bytes, i32 size, void *params, f32 *result) {
-	f32 *pixels = (f32 *)bytes; // Float capture
+	f32 *pixels = (f32 *)bytes; // R32F capture: one float per pixel
 	edge_detect_params_t p = *(edge_detect_params_t *)params;
 	f32 width_px           = p.edge_width * (f32)size;
 	width_px               = width_px > (f32)size ? (f32)size : width_px; // The box width is capped to the size below anyway, keeps huge linked values out of the int cast
@@ -221,10 +221,10 @@ static i32 edge_detect_node_process(u8 *bytes, i32 size, void *params, f32 *resu
 	}
 	f32 sigma = 0.85f * width_px;
 	bool smooth = sigma < 0.6f; // No widening follows: antialias the input instead
-	edge_detect_sobel_ctx_t sc = {.pixels = pixels, .stride = 4, .e = e, .max_rows = max_rows, .scale = 0.25f, .size = size, .wrap = p.wrap};
+	edge_detect_sobel_ctx_t sc = {.pixels = pixels, .stride = 1, .e = e, .max_rows = max_rows, .scale = 0.25f, .size = size, .wrap = p.wrap};
 	if (smooth) {
 		// pixels -> t (x) -> e (y), the Sobel reads e and writes t, which then becomes the edge plane
-		edge_detect_node_binomial_pass(pixels, 4, t, size, p.wrap, true);
+		edge_detect_node_binomial_pass(pixels, 1, t, size, p.wrap, true);
 		edge_detect_node_binomial_pass(t, 1, e, size, p.wrap, false);
 		sc.pixels = e;
 		sc.stride = 1;
@@ -291,7 +291,7 @@ static image_node_type_t edge_detect_node_image_type = {
     .params_size   = sizeof(edge_detect_params_t),
     .size          = edge_detect_node_size,
     .capture       = edge_detect_node_capture,
-    .capture_float = true,
+    .capture_format = IMAGE_CAPTURE_R32F, // The grey in one float per pixel
     .smooth_sample = true,
     .params        = edge_detect_node_params,
     .process       = edge_detect_node_process,
