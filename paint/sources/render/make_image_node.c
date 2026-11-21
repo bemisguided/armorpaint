@@ -793,7 +793,6 @@ static bool make_image_node_capture(make_image_node_state_t *s, char *id, ui_nod
 	make_image_node_capture_group   = group;
 	make_image_node_capture_parents = parents;
 	i32   size                      = t->size(node);
-	i32   count                     = t->capture_count != NULL ? t->capture_count(node) : 1;
 	// The parameters first: the capture callbacks may read them (make_image_node_capture_params), and a linked scalar input is
 	// captured here, not inside the shader of another capture
 	void *params = calloc(1, t->params_size > 0 ? t->params_size : 1);
@@ -805,6 +804,10 @@ static bool make_image_node_capture(make_image_node_state_t *s, char *id, ui_nod
 		t->params(node, params);
 	}
 	make_image_node_capture_params_ptr = params;
+	// The count after the scope: a capture_count that reads the links of the node (Advanced Blur: a Mask plane only when linked)
+	// would read the links of whatever the parser was pointed at last, and process (which reads the same links through params)
+	// would find a different number of planes than the capture made
+	i32 count = t->capture_count != NULL ? t->capture_count(node) : 1;
 	u8    *pixels                      = NULL;
 	size_t total                       = 0; // Bytes of all captures, each of its own size and format, starting at multiples of 16
 	size_t offset                      = 0;
