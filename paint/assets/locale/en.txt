@@ -52,6 +52,7 @@ Aspect
 Asset
 Attribute
 Auto
+Auto Levels
 Average
 Axis
 B
@@ -69,6 +70,7 @@ Bent Normal
 Bevel
 Bias
 Bits
+Black
 Black Mask
 Blend
 Blend Width
@@ -553,6 +555,8 @@ Orientation 3D
 Origin to Geometry
 Orthographic
 Out
+Out Black
+Out White
 Overlay
 Pattern Mode
 By Map
@@ -724,6 +728,7 @@ Set Source
 Set as Color ID Map
 Set as Envmap
 Set as Mask
+Set the points from the input image
 Setting Source
 Setup
 Shader
@@ -891,6 +896,7 @@ Wave Profile
 Wave Texture
 Wave Type
 What's New
+White
 White Mask
 Whiteout
 Width

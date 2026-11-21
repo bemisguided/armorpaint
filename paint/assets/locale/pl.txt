@@ -52,6 +52,7 @@ Zasób
 Atrybut
 Automatyczny
 Średnia
+
 Oś
 B
 Tył
@@ -69,6 +70,7 @@ Wygięta normalna
 Odchylenie
 Bity
 Czarna maska
+
 
 
 Plik wykonywalny Blendera
@@ -553,6 +555,8 @@ Orientacja 3D
 Środek do geometrii
 Ortograficzny
 Wyjście
+
+
 Nakładka
 
 
@@ -724,6 +728,7 @@ Ustaw źródło
 Ustaw jako mapę ID koloru
 Ustaw jako Envmapę
 Ustaw jako maskę
+
 Ustawianie źródła
 Ustawienia
 Shader
@@ -891,6 +896,7 @@ Profil fali
 Tekstura fali
 Typ fali
 Co nowego
+
 Biała maska
 Bielenie
 Szerokość

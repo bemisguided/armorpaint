@@ -52,6 +52,7 @@ Asset
 Atribut
 Automaticky
 Průměr
+
 Osa
 B
 Zadní
@@ -69,6 +70,7 @@ Zkosení
 Odchylka
 Bity
 Černá maska
+
 
 
 Spustitelný soubor Blenderu
@@ -553,6 +555,8 @@ Orientace 3D
 Počátek na geometrii
 Ortografie
 Výstup
+
+
 Překrytí
 
 
@@ -724,6 +728,7 @@ Nastavit zdroj
 Nastavit jako mapu ID barev
 Nastavit jako mapu okolí
 Nastavit jako masku
+
 Nastavování zdroje
 Nastavení
 Shader
@@ -891,6 +896,7 @@ Profil vlny
 Vlnová textura
 Typ vlny
 Co je nového
+
 Bílá maska
 Vy bílení
 Šířka

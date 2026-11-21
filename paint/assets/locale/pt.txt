@@ -52,6 +52,7 @@ Ativo
 Atributo
 Automático
 Média
+
 Eixo
 B
 Costas
@@ -69,6 +70,7 @@ Chanfro
 Viés
 Bits
 Máscara Preta
+
 
 
 Executável do Blender
@@ -553,6 +555,8 @@ Orientação 3D
 Origem para Geometria
 Ortográfica
 Saída
+
+
 Sobrepor
 
 
@@ -724,6 +728,7 @@ Definir Origem
 Definir como Mapa de ID de Cor
 Definir como Mapa de Ambiente
 Definir como Máscara
+
 Definindo Origem
 Configuração
 Shader
@@ -891,6 +896,7 @@ Perfil da Onda
 Textura de Ondas
 Tipo de Onda
 O que há de Novo
+
 Máscara Branca
 Branqueamento
 Largura

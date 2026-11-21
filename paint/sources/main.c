@@ -72,6 +72,7 @@
 #include "nodes_material/invert_color_node.c"
 #include "nodes_material/layer_mask_node.c"
 #include "nodes_material/layer_node.c"
+#include "nodes_material/levels_node.c"
 #include "nodes_material/magic_texture_node.c"
 #include "nodes_material/map_range_node.c"
 #include "nodes_material/mapping_node.c"

@@ -52,6 +52,7 @@ Asset
 Attribut
 Automatisch
 Mittelwert
+
 Achse
 B
 Hinten
@@ -69,6 +70,7 @@ Abschrägung
 Bias
 Bits
 Schwarze Maske
+
 
 
 Blender Programm
@@ -553,6 +555,8 @@ Orientierung 3D
 Ursprung zur Geometrie
 Orthografisch
 Ausgang
+
+
 Überlagern
 
 
@@ -724,6 +728,7 @@ Quelle setzen
 Farbe als ID Map setzen
 Als Hintergrundbild setzen
 Als Maske setzen
+
 Quelle wird gesetzt
 Einrichtung
 Shader
@@ -891,6 +896,7 @@ Wellenprofil
 Wellen Textur
 Wellentyp
 Neuigkeiten
+
 Weiße Maske
 Whiteout
 Breite

@@ -52,6 +52,7 @@ Recurso
 Atributo
 Automático
 Promedio
+
 Ejes
 A
 Trasera
@@ -69,6 +70,7 @@ Bisel
 Sesgo
 Bits
 Mascara negra
+
 
 
 Ejecutable de Blender
@@ -553,6 +555,8 @@ Orientación 3D
 Origen a la geometría
 Ortográfica
 Salida
+
+
 Superponer
 
 
@@ -724,6 +728,7 @@ Establecer origen
 Establecer como mapa de ID de color
 Establecer como mapa de entorno
 Establecer como máscara
+
 Estableciendo origen
 Configuración
 Sombreador
@@ -891,6 +896,7 @@ Perfil de onda
 Onda
 Tipo de onda
 Que hay de nuevo
+
 Mascara blanca
 Blanqueado
 Anchura
