@@ -6,7 +6,8 @@
 // processed on the cpu by the node's type (image_node_type_t, make_image_node_register). The result is uploaded into
 // g_context->node_previews under the node's preview id and sampled by the node like an Image Texture at the
 // current texture coordinate, repeating (make_image_node_sample; Tile UV places an image on the uv with
-// make_image_node_sample_at; bound as _teximage_<preview id>). Image nodes have no Vector input.
+// make_image_node_sample_at; bound as _teximage_<preview id>). Baked image nodes have no Vector input (Tile UV places on it, and the
+// pass-through generators have one: make_image_node_coord).
 // Nothing is saved with the project.
 // Every node preview traversal captures the node; a changed capture or parameter set makes it pending, and 0.5 s
 // after the last change, with no mouse button held and no Bake Texture running, the pending nodes are baked:
@@ -1745,6 +1746,95 @@ ui_node_socket_t *make_image_node_socket(char *name, char *type, u32 color, f32_
 	                                     .precision     = precision,
 	                                     .display       = 0});
 }
+
+// The Vector input of a pass-through generator (Gradient Generator, Shape Generator) and of Tile UV: a VECTOR socket named Vector, purple, default 0, 0, 0.
+// Appended LAST in the input list of the definition (Tile UV precedent), so the indices of the other inputs of an older save stay valid.
+// Baked image nodes (they work in image space on an Image input) have none. Unlinked it is the image uv, see make_image_node_coord.
+ui_node_socket_t *make_image_node_vector_socket() {
+	return make_image_node_socket(_tr("Vector"), "VECTOR", NODES_MATERIAL_VECTOR_COLOR, f32_array_create_xyz(0.0, 0.0, 0.0), 0.0, 1.0, 100);
+}
+
+// ---- Coordinate of a pass-through generator (block extracted by the host test automation/host/image_node_coord) ----
+// One rule for the coordinate generators: the pattern is a function of a float2 coordinate that comes from the Vector input.
+//   unlinked Vector: the image uv, tex_coord (the uv of the mesh in a material, the image uv of a capture): NOT upstream's bposition, so the picture
+//                    of a node without a link is the one it always drew;
+//   linked Vector:   the xy of that expression (Mapping, Texture Coordinate UV / Generated / Object: a 3D vector uses xy).
+//   Wrap Edges on:   the result repeats across the border: the coordinate is reduced with x - floor(x) (a Mapping scale of 3 gives 3 copies);
+//   Wrap Edges off:  the raw coordinate (Blender style, nothing repeats).
+// Both are returned: a derivative (the pixel size of the Shape Generator) must be taken of the UNWRAPPED coordinate, the wrapped one jumps at the seam.
+// A linked Vector is parsed once and copied to a variable (the linked graph is not repeated in the text).
+
+// The coordinate of one projection from `source` (a float2/float3 expression with .x and .y); name is the prefix of the variables written
+static char *make_image_node_coord_of(char *name, char *source, bool linked, bool wrap, char **unwrapped) {
+	char *raw = source;
+	if (linked) {
+		raw = string_tmp("%s_uv", name);
+		if (string_array_index_of(parser_material_parsed, raw) == -1) {
+			any_array_push(parser_material_parsed, raw);
+			parser_material_write(parser_material_kong, string_tmp("float2 %s = %s.xy;", raw, source));
+		}
+	}
+	if (unwrapped != NULL) {
+		*unwrapped = raw;
+	}
+	if (!wrap) {
+		return raw;
+	}
+	char *w = string_tmp("%s_uvw", name);
+	if (string_array_index_of(parser_material_parsed, w) == -1) {
+		any_array_push(parser_material_parsed, w);
+		parser_material_write(parser_material_kong, string_tmp("float2 %s = float2(%s.x - floor(%s.x), %s.y - floor(%s.y));", w, raw, raw, raw, raw));
+	}
+	return w;
+}
+
+static ui_node_socket_t *make_image_node_vector_input(ui_node_t *node, i32 vector_input) {
+	// A node saved with fewer inputs than its definition (an older save, see make_image_node_reconcile): the Vector is unlinked
+	return vector_input >= 0 && vector_input < node->inputs->length ? node->inputs->buffer[vector_input] : NULL;
+}
+
+// The float2 coordinate expression of the node as a shader text, see above. Out: the unwrapped coordinate (may be NULL).
+char *make_image_node_coord(ui_node_t *node, i32 vector_input, bool wrap, char **unwrapped) {
+	ui_node_socket_t *vector = make_image_node_vector_input(node, vector_input);
+	char             *name   = parser_material_store_var_name(node);
+	if (vector != NULL && parser_material_get_input_link(vector) != NULL) {
+		return make_image_node_coord_of(name, parser_material_parse_vector_input(vector), true, wrap, unwrapped);
+	}
+	if (!parser_material_image_space) {
+		node_shader_context_add_elem(parser_material_kong->context, "tex", "short2norm");
+	}
+	return make_image_node_coord_of(name, "tex_coord", false, wrap, unwrapped);
+}
+
+// Evaluates the pattern of the node (value_at: a float expression for a given coordinate) and returns the name of the float variable that holds it,
+// written once under `store`. value_at(node, uv, uv_unwrapped, store) gets the coordinate and its unwrapped form (for derivatives) and the name to
+// prefix its own variables with. Unlinked Vector under triplanar projection (a mesh, not a capture): one evaluation per projection (tex_coord,
+// tex_coord1, tex_coord2) blended with tex_coord_blend, like Image Texture. A linked Vector is one expression and is evaluated once, as upstream does.
+char *make_image_node_eval_coord(ui_node_t *node, i32 vector_input, bool wrap, char *store, char *(*value_at)(ui_node_t *node, char *uv, char *uv_unwrapped, char *store)) {
+	if (string_array_index_of(parser_material_parsed, store) >= 0) {
+		return store;
+	}
+	any_array_push(parser_material_parsed, store);
+	ui_node_socket_t *vector = make_image_node_vector_input(node, vector_input);
+	bool              linked = vector != NULL && parser_material_get_input_link(vector) != NULL;
+	if (!linked && parser_material_triplanar && !parser_material_image_space) {
+		node_shader_context_add_elem(parser_material_kong->context, "tex", "short2norm");
+		char *sources[3] = {"tex_coord", "tex_coord1", "tex_coord2"};
+		for (i32 k = 0; k < 3; ++k) {
+			char *part      = string_tmp("%s%d", store, k);
+			char *unwrapped = NULL;
+			char *uv        = make_image_node_coord_of(part, sources[k], false, wrap, &unwrapped);
+			parser_material_write(parser_material_kong, string_tmp("float %s = %s;", part, value_at(node, uv, unwrapped, part)));
+		}
+		parser_material_write(parser_material_kong, string_tmp("float %s = %s0 * tex_coord_blend.x + %s1 * tex_coord_blend.y + %s2 * tex_coord_blend.z;", store, store, store, store));
+		return store;
+	}
+	char *unwrapped = NULL;
+	char *uv        = make_image_node_coord(node, vector_input, wrap, &unwrapped);
+	parser_material_write(parser_material_kong, string_tmp("float %s = %s;", store, value_at(node, uv, unwrapped, store)));
+	return store;
+}
+// ---- end of the coordinate block ----
 
 // Setting (button) of an image node definition, data holds the items of an ENUM
 ui_node_button_t *make_image_node_setting(char *name, char *type, f32 default_value, char *data) {
