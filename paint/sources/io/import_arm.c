@@ -755,6 +755,27 @@ static void import_arm_sculpt_init(void *_) {
 	sys_remove_update(import_arm_sculpt_init);
 }
 
+// The first layer is a paint layer (it becomes the current layer), parents must point into the layers and a mask needs one (a layer without a normal
+// blob reads as a mask), checked before anything is replaced
+static bool import_arm_layers_valid(project_t *project) {
+	if (project->layer_datas == NULL || project->layer_datas->length == 0) {
+		return false;
+	}
+	i32 count = project->layer_datas->length;
+	layer_data_t *first = project->layer_datas->buffer[0];
+	if (first->texpaint == NULL || first->texpaint_nor == NULL) {
+		return false;
+	}
+	for (i32 i = 0; i < count; ++i) {
+		layer_data_t *ld      = project->layer_datas->buffer[i];
+		bool          is_mask = ld->texpaint != NULL && ld->texpaint_nor == NULL;
+		if (ld->parent >= count || ld->parent == i || ld->parent < -1 || (is_mask && ld->parent < 0)) {
+			return false;
+		}
+	}
+	return true;
+}
+
 void import_arm_run_project(char *path) {
 	bool keep_script_trust       = import_arm_keep_script_trust;
 	bool was_trusted             = project_scripts_trusted;
@@ -792,6 +813,12 @@ void import_arm_run_project(char *path) {
 		else if (project->swatches != NULL) {
 			import_arm_run_swatches_from_project(project, path, false);
 		}
+		return;
+	}
+	if (!import_as_mesh && !import_arm_layers_valid(project)) {
+		console_error(string("Invalid layers in %s.", path));
+		data_delete_blob(path);
+		ui_header_draw_progress(1.0);
 		return;
 	}
 
