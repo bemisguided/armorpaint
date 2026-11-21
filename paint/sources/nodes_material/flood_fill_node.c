@@ -121,8 +121,6 @@ char *flood_fill_node_vector(ui_node_t *node, ui_node_socket_t *socket) {
 }
 
 void flood_fill_node_init() {
-	u32 value_color  = 0xffa1a1a1;
-	u32 vector_color = 0xff6363c7;
 
 	ui_node_t *flood_fill_node_def =
 	    ALLOC_INIT(ui_node_t,
@@ -135,17 +133,17 @@ void flood_fill_node_init() {
 	                .inputs = any_array_create_from_raw(
 	                    (void *[]){
 	                        make_image_node_socket(_tr("Image"), "VALUE", NODES_MATERIAL_IMAGE_COLOR, f32_array_create_x(1.0), 0.0, 1.0, 100), // The mask
-	                        make_image_node_socket(_tr("Threshold"), "VALUE", value_color, f32_array_create_x(0.5), 0.0, 1.0, 100),
-	                        make_image_node_socket(_tr("Min Size"), "VALUE", value_color, f32_array_create_x(0.0), 0.0, 4096.0, 1),
-	                        make_image_node_socket(_tr("Seed"), "VALUE", value_color, f32_array_create_x(0.0), 0.0, 1000.0, 1),
+	                        make_image_node_socket(_tr("Threshold"), "VALUE", NODES_MATERIAL_VALUE_COLOR, f32_array_create_x(0.5), 0.0, 1.0, 100),
+	                        make_image_node_socket(_tr("Min Size"), "VALUE", NODES_MATERIAL_VALUE_COLOR, f32_array_create_x(0.0), 0.0, 4096.0, 1),
+	                        make_image_node_socket(_tr("Seed"), "VALUE", NODES_MATERIAL_VALUE_COLOR, f32_array_create_x(0.0), 0.0, 1000.0, 1),
 	                    },
 	                    4),
 	                .outputs = any_array_create_from_raw(
 	                    (void *[]){
 	                        make_image_node_socket(_tr("Image"), "VALUE", NODES_MATERIAL_IMAGE_COLOR, f32_array_create_x(0.0), 0.0, 1.0, 100), // Island grey
-	                        make_image_node_socket(_tr("Position"), "VECTOR", vector_color, f32_array_create_xyz(0.0, 0.0, 0.0), 0.0, 1.0, 100),
-	                        make_image_node_socket(_tr("Area"), "VALUE", value_color, f32_array_create_x(0.0), 0.0, 1.0, 100),
-	                        make_image_node_socket(_tr("Mask"), "VALUE", value_color, f32_array_create_x(0.0), 0.0, 1.0, 100),
+	                        make_image_node_socket(_tr("Position"), "VECTOR", NODES_MATERIAL_VECTOR_COLOR, f32_array_create_xyz(0.0, 0.0, 0.0), 0.0, 1.0, 100),
+	                        make_image_node_socket(_tr("Area"), "VALUE", NODES_MATERIAL_IMAGE_COLOR, f32_array_create_x(0.0), 0.0, 1.0, 100),
+	                        make_image_node_socket(_tr("Mask"), "VALUE", NODES_MATERIAL_IMAGE_COLOR, f32_array_create_x(0.0), 0.0, 1.0, 100),
 	                    },
 	                    4),
 	                .buttons = any_array_create_from_raw(
