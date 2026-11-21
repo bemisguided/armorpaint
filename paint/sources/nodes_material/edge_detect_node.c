@@ -306,7 +306,6 @@ char *edge_detect_node_vector(ui_node_t *node, ui_node_socket_t *socket) {
 }
 
 void edge_detect_node_init() {
-	u32 value_color  = 0xffa1a1a1;
 
 	ui_node_t *edge_detect_node_def =
 	    ALLOC_INIT(ui_node_t,
@@ -319,8 +318,8 @@ void edge_detect_node_init() {
 	                .inputs = any_array_create_from_raw(
 	                    (void *[]){
 	                        make_image_node_socket(_tr("Image"), "VALUE", NODES_MATERIAL_IMAGE_COLOR, f32_array_create_x(1.0), 0.0, 1.0, 100),
-	                        make_image_node_socket(_tr("Edge Width"), "VALUE", value_color, f32_array_create_x(EDGE_DETECT_DEFAULT_WIDTH), 0.0, EDGE_DETECT_WIDTH_MAX, 1000),
-	                        make_image_node_socket(_tr("Tolerance"), "VALUE", value_color, f32_array_create_x(EDGE_DETECT_DEFAULT_TOLERANCE), 0.0, 1.0, 100),
+	                        make_image_node_socket(_tr("Edge Width"), "VALUE", NODES_MATERIAL_VALUE_COLOR, f32_array_create_x(EDGE_DETECT_DEFAULT_WIDTH), 0.0, EDGE_DETECT_WIDTH_MAX, 1000),
+	                        make_image_node_socket(_tr("Tolerance"), "VALUE", NODES_MATERIAL_VALUE_COLOR, f32_array_create_x(EDGE_DETECT_DEFAULT_TOLERANCE), 0.0, 1.0, 100),
 	                    },
 	                    3),
 	                .outputs = any_array_create_from_raw(
