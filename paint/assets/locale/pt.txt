@@ -863,6 +863,7 @@ fBM
 Arquivo
 Memória GPU
 Tipo de Gradiente
+
 nós
 Operação
 empacotado

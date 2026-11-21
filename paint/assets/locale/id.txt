@@ -863,6 +863,7 @@ fBM
 berkas
 memori gpu
 jenis_gradasi
+
 node
 operasi
 terkemas

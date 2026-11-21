@@ -1018,7 +1018,7 @@ void nodes_mesh_export_end() {
 
 static ui_node_canvas_t *nodes_mesh_import_canvas(ui_node_canvas_t *c) {
 	c = util_clone_canvas(c); // Project data is temporary
-	import_arm_init_nodes(c->nodes);
+	import_arm_init_nodes(c, false);
 	for (i32 j = 0; j < c->nodes->length; ++j) {
 		ui_node_t *n = c->nodes->buffer[j];
 		if (string_equals(n->type, "MESH_OBJECT") && n->buttons->buffer[0]->default_value->length > 2) {
