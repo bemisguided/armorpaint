@@ -73,7 +73,7 @@ static i32 flood_fill_node_process(u8 *pixels, i32 size, void *params, f32 *resu
 		return -1;
 	}
 	for (size_t i = 0; i < n; ++i) {
-		inside[i] = pixels[i * 4] > 127; // The mask is in R, G and B
+		inside[i] = pixels[i] > 127; // R8 capture: the mask, one byte per pixel
 	}
 	i32 islands = flood_fill_label(inside, &p, result);
 	free(inside);
@@ -92,6 +92,7 @@ static image_node_type_t flood_fill_node_image_type = {
     .params_size   = sizeof(flood_fill_params_t),
     .size          = flood_fill_node_size,
     .capture       = flood_fill_node_capture,
+    .capture_format = IMAGE_CAPTURE_R8, // A 0 or 1 mask
     .params        = flood_fill_node_params,
     .process       = flood_fill_node_process,
 };
