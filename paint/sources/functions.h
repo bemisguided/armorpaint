@@ -992,7 +992,11 @@ bool                      make_image_node_reconcile(ui_node_t *node, ui_node_t_a
 void                      make_image_node_on_traverse(ui_node_t *node, ui_node_canvas_t *group, ui_node_t_array_t *parents, bool linked);
 void                      make_image_node_delete_states(slot_material_t *m, string_array_t *keep);
 f32                       make_image_node_input_value(ui_node_t *node, i32 input);
+void                     *make_image_node_capture_params();
 i32                       make_image_node_capture_index();
+i32                       make_image_node_capture_channels(i32 format);
+size_t                    make_image_node_capture_bytes(i32 size, i32 format);
+size_t                    make_image_node_capture_next(size_t offset, i32 size, i32 format);
 void                     *make_image_node_plane_alloc(size_t bytes);
 void                      make_image_node_plane_free(void *p, size_t bytes);
 void                      make_image_node_parallel(i32 count, void (*fn)(void *ctx, i32 begin, i32 end), void *ctx);
