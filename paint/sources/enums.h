@@ -599,5 +599,12 @@ typedef enum {
 	HISTORY_ACTION_OBJECT_TRANSFORM,
 } history_action_t;
 
-// Header color of every baked image node (a node with a resolution whose result is baked after a debounce, Pattern and Filter menus) and color of every Image socket
+// Image node colors (rule in specs/image-nodes/IMAGE_NODES.md, section Colour).
+// Header of a node that bakes a texture for its output (own Size and Baked state row), and socket of a tileable image: the result of a bake, a channel of a bake (Mask, Area, ID, Distance, Height) or an image space input of a baked node
 #define NODES_MATERIAL_IMAGE_COLOR 0xffc78a29
+// Header of every other image node (a shader value computed on the mesh from its inputs, whatever it captures to do so)
+#define NODES_MATERIAL_PASS_THROUGH_COLOR 0xff62676d
+// Standard sockets by data type: colors/RGBA, values, vectors and directions (Position, Normal stay vector colored even when baked)
+#define NODES_MATERIAL_RGBA_COLOR 0xffc7c729
+#define NODES_MATERIAL_VALUE_COLOR 0xffa1a1a1
+#define NODES_MATERIAL_VECTOR_COLOR 0xff6363c7
