@@ -646,13 +646,8 @@ static void levels_node_strip_button(i32 node_id) {
 	g_ui->_y += L * LEVELS_STRIP_HEIGHT;
 }
 
-// A node of the first (baked) Levels build, type TEX_LEVELS with Size and a state row: it has a layout this code cannot read and the type is
-// not defined any more, so it loads as an unknown node with a black output and these two buttons draw nothing. Delete it and add a new Levels node.
-static void levels_node_legacy_button(i32 node_id) {
-}
-
-// The sections of the node: General (Mode, Invert, Auto Levels, the strip and Image) and Parameters (the other inputs and, below the sliders,
-// Intermediary Clamp as a trailing member). No Texture section: the node has no baked texture.
+// The sections of the node: General (Mode, Invert, Auto Levels, the strip and Image) and Parameters (the other inputs). No Texture section:
+// the node has no baked texture.
 static void levels_node_sections(ui_node_t *def) {
 	ui_node_section_t *list = calloc(3, sizeof(ui_node_section_t)); // The list ends with the zeroed entry
 	list[0]                 = (ui_node_section_t){.title             = _tr("General"),
@@ -662,6 +657,7 @@ static void levels_node_sections(ui_node_t *def) {
 	                                              .closed_by_default = false,
 	                                              .inputs_first      = 0,
 	                                              .inputs_count      = 1};
+	// Parameters also holds Intermediary Clamp as a trailing member: drawn below the sliders (hidden with them while the section is closed)
 	list[1]                 = (ui_node_section_t){.title = _tr("Parameters"), .kind = UI_NODE_ITEM_INPUT, .first = 1, .count = def->inputs->length - 1, .closed_by_default = false, .trailing_first = LEVELS_BUTTON_CLAMP, .trailing_count = 1};
 	any_map_set(ui_nodes_sections, def->type, list);
 }
@@ -729,8 +725,6 @@ void levels_node_init() {
 	any_map_set(ui_nodes_hidden_rules, "LEVELS", levels_node_item_hidden);
 	any_map_set(ui_nodes_custom_buttons, "levels_auto_button", levels_node_auto_button);
 	any_map_set(ui_nodes_custom_buttons, "levels_strip_button", levels_node_strip_button);
-	any_map_set(ui_nodes_custom_buttons, "levels_node_auto_button", levels_node_legacy_button); // The first build (see levels_node_legacy_button)
-	any_map_set(ui_nodes_custom_buttons, "levels_node_strip_button", levels_node_legacy_button);
 	levels_node_sections(levels_node_def);
 	make_image_node_register(&levels_node_image_type);
 }
