@@ -115,6 +115,8 @@ Tamaño de celda en píxeles
 Centro
 
 Canales
+
+
 Comprobar actualizaciones...
 
 Verificador
@@ -150,6 +152,7 @@ Combinar color
 Combinar XYZ
 Gizmo orientación
 Confirmar
+
 
 Consola
 Modelo de consola
@@ -339,6 +342,7 @@ Geometría
 Geometria al origen
 Comenzar
 Agarrar
+
 Gradiente
 Gravedad X
 Gravedad Y
@@ -354,6 +358,7 @@ Altura
 Mezcla de altura
 
 Ayuda
+
 Ocultar vista 3D
 High Poly
 Historial
@@ -760,6 +765,7 @@ Adherir
 Fragmentos
 Módulo
 Luz suave
+
 Ordenar
 Sonido
 Sonido importado:

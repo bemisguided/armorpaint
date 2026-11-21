@@ -115,6 +115,8 @@ Zellengröße in Pixeln
 Mitte
 
 Kanäle
+
+
 Auf Updates prüfen...
 
 Schach Textur
@@ -150,6 +152,7 @@ Farbe zusammenführen
 XYZ zusammenführen
 Kompass
 Bestätigen
+
 
 Konsole
 Konsolen Modell
@@ -339,6 +342,7 @@ Geometrie
 Geometrie in den Ursprung
 Loslegen
 Greifen
+
 Farbverlauf Textur
 Gravitation X
 Gravitation Y
@@ -354,6 +358,7 @@ Height
 Höhenmischung
 
 Hilfe
+
 3D Ansicht ausblenden
 High Poly
 Verlauf
@@ -760,6 +765,7 @@ Snap
 Snippets
 Buchse
 Weiches Licht
+
 Sortieren
 Sound
 Sound importiert:

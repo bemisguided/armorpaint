@@ -115,6 +115,8 @@ Taille de cellule en pixels
 Centre
 
 Canaux
+
+
 Vérifier les mises à jour...
 
 Texture d'échiquier
@@ -150,6 +152,7 @@ Recomposer couleur
 Recomposer XYZ
 Gizmos XYZ
 Confirmer
+
 
 Console
 Modèle de console
@@ -339,6 +342,7 @@ Géométrie
 Géométrie vers origine
 Commencer
 Saisir
+
 Texture de dégradé
 Gravité X
 Gravité Y
@@ -354,6 +358,7 @@ Hauteur
 Mélange hauteur
 
 Aide
+
 Masquer la vue 3D
 High Poly
 Historique
@@ -760,6 +765,7 @@ Accrocher
 Extraits
 Connecteur
 Lumière douce
+
 Trier
 Son
 Son importé :

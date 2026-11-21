@@ -115,6 +115,8 @@ Rozmiar komórki w pikselach
 Środek
 
 Kanały
+
+
 Sprawdź dostępność aktualizacji...
 
 Tekstura szachownicy
@@ -150,6 +152,7 @@ Połącz kolor
 Połącz XYZ
 Kompas
 Potwierdź
+
 
 Konsola
 Model konsoli
@@ -339,6 +342,7 @@ Geometria
 Geometria do początku układu
 Rozpocznij
 Chwytaj
+
 Tekstura gradientowa
 Grawitacja X
 Grawitacja Y
@@ -354,6 +358,7 @@ Wysokość
 Mieszanie wysokości
 
 Pomoc
+
 Ukryj widok 3D
 Wysoki poly
 Historia
@@ -760,6 +765,7 @@ Przyciągaj
 Fragmenty
 Gniazdo
 Miękkie światło
+
 Sortuj
 Dźwięk
 Dźwięk zaimportowany:

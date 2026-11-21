@@ -115,6 +115,8 @@ Velikost buňky v pixelech
 Střed
 
 Kanály
+
+
 Zkontrolovat aktualizace...
 
 Šachovnicová textura
@@ -150,6 +152,7 @@ Kombinovat barvu
 Kombinovat XYZ
 Kompas
 Potvrdit
+
 
 Konzole
 Model konzole
@@ -339,6 +342,7 @@ Geometrie
 Geometrie do počátku
 Začít
 Uchopit
+
 Přechodová textura
 Gravitace X
 Gravitace Y
@@ -354,6 +358,7 @@ Výška
 Míchání výšky
 
 Nápověda
+
 Skrýt 3D pohled
 Vysoký počet polygonů
 Historie
@@ -760,6 +765,7 @@ Přichytit
 Úryvky
 Zásuvka
 Měkké světlo
+
 Seřadit
 Zvuk
 Zvuk importován:
