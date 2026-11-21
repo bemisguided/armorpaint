@@ -113,8 +113,10 @@ Capturar Vídeo
 Teto
 Tamanho da célula em pixels
 Centro
+
 Canais
 Checar Atualizações...
+
 Textura Quadriculada
 
 Limitar
@@ -168,6 +170,7 @@ Criar Camada de Cor
 Criar Material
 Produto Vetorial
 Descartar Faces de Trás
+
 Cursor
 Curvatura
 Textura de Curvatura
@@ -238,6 +241,7 @@ Duplicar Amostra
 
 
 
+
 Editar
 Editar Imagem
 Editar Nós
@@ -264,6 +268,7 @@ Erro: Não foi possível localizar a textura
 Erro: Falha ao ler dados da fonte
 Erro: Falha ao ler dados da malha
 Erro: Formato de ativo desconhecido
+
 Exclusão
 Sair
 Recursos Experimentais
@@ -287,6 +292,7 @@ Fator
 Falha ao importar material
 Falha ao ler o som:
 Rápido
+
 Saída da Característica
 Arquivo
 Preencher
@@ -436,6 +442,7 @@ Localização
 Logaritmo
 Textura Mágica
 Tornar Único
+
 Manual
 
 Mapear Intervalo
@@ -463,6 +470,7 @@ Saída de Malha
 Malha...
 Malhas
 Metálico
+
 Mínimo
 Mínimo Máximo
 
@@ -885,6 +893,7 @@ Máscara do Viewport
 Modo da Viewport
 Vinheta
 Visível
+
 Textura Voronoi
 Distorcer
 Perfil da Onda

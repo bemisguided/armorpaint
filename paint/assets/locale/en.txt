@@ -113,8 +113,10 @@ Capture Screenshot
 Capture Video
 Ceil
 Cell size in pixels
+Cells
 Center
 Channels
+Chebyshev
 Check for Updates...
 Checker Texture
 Circle
@@ -168,6 +170,7 @@ Crease
 Create Color Layer
 Create Material
 Cross Product
+Crystals
 Cull Backfaces
 Cursor
 Curvature
@@ -238,6 +241,7 @@ Duplicate Swatch
 Edge Detect
 Edge Softness
 Edge Width
+Edges
 Edit
 Edit Image
 Edit Nodes
@@ -264,6 +268,7 @@ Error: Could not locate texture
 Error: Failed to read font data
 Error: Failed to read mesh data
 Error: Unknown asset format
+Euclidean
 Exclusion
 Exit
 Experimental Features
@@ -287,6 +292,7 @@ Factor
 Failed to import material
 Failed to read sound:
 Fast
+Feature
 Feature Output
 File
 Fill
@@ -436,6 +442,7 @@ Location
 Logarithm
 Magic Texture
 Make Unique
+Manhattan
 Manual
 Map
 Map Range
@@ -463,6 +470,7 @@ Mesh Output
 Mesh...
 Meshes
 Metallic
+Metric
 Min
 Min Max
 Min Size
@@ -885,6 +893,7 @@ Viewport Mask
 Viewport Mode
 Vignette
 Visible
+Voronoi
 Voronoi Texture
 Warp
 Wave Profile

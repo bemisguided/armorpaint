@@ -113,8 +113,10 @@ Capturar vídeo
 Techo
 Tamaño de celda en píxeles
 Centro
+
 Canales
 Comprobar actualizaciones...
+
 Verificador
 
 Limitar
@@ -168,6 +170,7 @@ Crear capa de color
 Crear material
 Producto vectorial
 Eliminar caras opuestas
+
 Cursor
 Curvatura
 Textura de curvatura
@@ -238,6 +241,7 @@ Duplicar muestra
 
 
 
+
 Editar
 Editar imagen
 Editar nodos
@@ -264,6 +268,7 @@ Error: No se pudo localizar la textura
 Error: Fallo al leer datos de fuente
 Error: No se pudieron leer los datos de la malla
 Error: formato de recurso desconocido
+
 Exclusión
 Salir
 Funciones experimentales
@@ -287,6 +292,7 @@ Factor
 Error al importar el material
 Error al leer el sonido:
 Rápido
+
 Salida de característica
 Archivo
 Rellenar
@@ -436,6 +442,7 @@ Posición
 Logaritmo
 Mágica
 Hacer único
+
 Manual
 
 Mapear Rango
@@ -463,6 +470,7 @@ Salida de malla
 Malla...
 Mallas
 Metálico
+
 Mín
 Mín Máx
 
@@ -885,6 +893,7 @@ Máscara de vista 3D
 Modo de ventana gráfica
 Viñeta
 Visible
+
 Voronoi
 Deformación
 Perfil de onda

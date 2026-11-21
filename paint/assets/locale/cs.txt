@@ -113,8 +113,10 @@ Zachytit video
 Zaokrouhlit nahoru
 Velikost buňky v pixelech
 Střed
+
 Kanály
 Zkontrolovat aktualizace...
+
 Šachovnicová textura
 
 Omezit
@@ -168,6 +170,7 @@ Vytvořit barevnou vrstvu
 Vytvořit materiál
 Vektorový součin
 Vyřadit zadní plochy
+
 Kurzor
 Zakřivení
 Textura zakřivení
@@ -238,6 +241,7 @@ Duplikovat vzorek
 
 
 
+
 Upravit
 Upravit obrázek
 Upravit uzly
@@ -264,6 +268,7 @@ Chyba: Nelze najít texturu
 Chyba: Selhání čtení dat písma
 Chyba: Selhání čtení dat sítě
 Chyba: Neznámý formát assetu
+
 Vyloučení
 Ukončit
 Experimentální funkce
@@ -287,6 +292,7 @@ Faktor
 Selhal import materiálu
 Nepodařilo se načíst zvuk:
 Rychlý
+
 Výstup funkce
 Soubor
 Vyplnit
@@ -436,6 +442,7 @@ Umístění
 Logaritmus
 Magická textura
 Učinit jedinečným
+
 Manuál
 
 Mapovat rozsah
@@ -463,6 +470,7 @@ Výstup sítě
 Síť...
 Sítě
 Kovovost
+
 Min
 Min Max
 
@@ -885,6 +893,7 @@ Maska viewportu
 Režim viewportu
 Vinětace
 Viditelný
+
 Voronoi textura
 Deformovat
 Profil vlny

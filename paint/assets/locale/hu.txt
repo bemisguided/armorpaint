@@ -113,8 +113,10 @@ Videó rögzítése
 Plafon (Ceil)
 Cella mérete pixelben
 Középpont
+
 Csatornák
 Frissítések keresése...
+
 Sakktábla textúra
 
 Szorítás (Clamp)
@@ -168,6 +170,7 @@ Színréteg létrehozása
 Anyag létrehozása
 Vektoriális szorzat
 Hátoldalak elrejtése
+
 Kurzor
 Görbület
 Görbület textúra
@@ -238,6 +241,7 @@ Színminta duplikálása
 
 
 
+
 Szerkesztés
 Kép szerkesztése
 Csomópontok szerkesztése
@@ -264,6 +268,7 @@ Hiba: A textúra nem található
 Hiba: Nem sikerült beolvasni a betűtípus adatokat
 Hiba: Nem sikerült beolvasni a háló adatokat
 Hiba: Ismeretlen asset formátum
+
 Kizárás
 Kilépés
 Kísérleti funkciók
@@ -287,6 +292,7 @@ Faktor
 Az anyag importálása nem sikerült
 Nem sikerült beolvasni a hangot:
 Gyors
+
 Jellemző kimenet
 Fájl
 Kitöltés
@@ -436,6 +442,7 @@ Helyzet
 Logaritmus
 Mágikus textúra
 Egyedivé tétel
+
 Kézikönyv
 
 Tartomány leképzése
@@ -463,6 +470,7 @@ Háló kimenet
 Háló...
 Hálók
 Fémes (Metallic)
+
 Min
 Min Max
 
@@ -885,6 +893,7 @@ Nézetablak maszk
 Nézetablak mód
 Vignetta
 Látható
+
 Voronoi textúra
 Görbítés (Warp)
 Hullám profil

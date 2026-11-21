@@ -113,8 +113,10 @@ Tangkap Video
 Langit-langit
 Ukuran sel dalam piksel
 Tengah
+
 Kanal
 Periksa Pembaruan...
+
 Tekstur Kotak-kotak
 
 Batasi
@@ -168,6 +170,7 @@ Buat Lapisan Warna
 Buat Material
 Hasil Kali Silang
 Buang Muka Belakang
+
 Kursor
 Kelengkungan
 Tekstur Kelengkungan
@@ -238,6 +241,7 @@ Duplikat Contoh Warna
 
 
 
+
 Sunting
 Sunting Gambar
 Sunting Node
@@ -264,6 +268,7 @@ Kesalahan: Tidak dapat menemukan tekstur
 Kesalahan: Gagal membaca data font
 Kesalahan: Gagal membaca data mesh
 Kesalahan: Format aset tidak dikenal
+
 Eksklusi
 Keluar
 Fitur Eksperimental
@@ -287,6 +292,7 @@ Faktor
 Gagal mengimpor material
 Gagal membaca suara:
 Cepat
+
 Keluaran Fitur
 Berkas
 Isi
@@ -436,6 +442,7 @@ Lokasi
 Logaritma
 Tekstur Ajaib
 Jadikan Unik
+
 Manual
 
 Petakan Rentang
@@ -463,6 +470,7 @@ Keluaran Mesh
 Mesh...
 Mesh
 Logam
+
 Min
 Min Maks
 
@@ -885,6 +893,7 @@ Masker Viewport
 Mode Viewport
 Vignet
 Terlihat
+
 Tekstur Voronoi
 Warp
 Profil Gelombang
