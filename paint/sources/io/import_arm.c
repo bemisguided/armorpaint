@@ -345,8 +345,21 @@ static bool import_arm_has_alpha(buffer_t *pixels, i32 format) {
 	return false;
 }
 
-static gpu_texture_t *import_arm_texture_from_lz4(buffer_t *b, i32 res, u32 size, i32 format, bool *has_alpha) {
-	buffer_t *pixels = lz4_decode(b, size);
+#define ARM_MAX_LAYER_RES 16384
+
+// Returns NULL when the blob is missing or does not decode, or the layer size is not valid
+static gpu_texture_t *import_arm_texture_from_lz4(buffer_t *b, i32 res, u32 bytes_per_pixel, i32 format, bool *has_alpha) {
+	if (b == NULL || res <= 0 || res > ARM_MAX_LAYER_RES || bytes_per_pixel == 0) {
+		return NULL;
+	}
+	u64 size = (u64)res * res * 4 * bytes_per_pixel;
+	if (size > 0xffffffffu) {
+		return NULL;
+	}
+	buffer_t *pixels = lz4_decode(b, (u32)size);
+	if (pixels == NULL) {
+		return NULL;
+	}
 	if (has_alpha != NULL) {
 		*has_alpha = import_arm_has_alpha(pixels, format);
 	}
@@ -354,6 +367,19 @@ static gpu_texture_t *import_arm_texture_from_lz4(buffer_t *b, i32 res, u32 size
 	array_free(pixels);
 	free(pixels);
 	return texture;
+}
+
+// Copies a decoded layer texture into its target, a missing one leaves the target empty
+static void import_arm_copy_layer_texture(gpu_texture_t *src, gpu_texture_t *dst, char *layer_name, char *what) {
+	if (src == NULL) {
+		console_error(string("Could not read the %s texture of layer %s.", what, layer_name));
+		return;
+	}
+	draw_begin(dst, false, 0);
+	draw_set_pipeline(g_project->is_bgra ? pipes_copy_bgra : pipes_copy);
+	draw_image(src, 0, 0);
+	draw_set_pipeline(NULL);
+	draw_end();
 }
 
 // Image nodes are saved by asset name, the saved index only picks between assets sharing a name
@@ -1016,38 +1042,20 @@ void import_arm_run_project(char *path) {
 			gpu_texture_t *_texpaint_pack = NULL;
 
 			if (is_mask) {
-				_texpaint = import_arm_texture_from_lz4(ld->texpaint, ld->res, ld->res * ld->res * 4, GPU_TEXTURE_FORMAT_RGBA32, NULL);
-				draw_begin(l->texpaint, false, 0);
-				// draw_set_pipeline(pipes_copy8);
-				draw_set_pipeline(g_project->is_bgra ? pipes_copy_bgra : pipes_copy); // Full bits for undo support, R8 is used
-				draw_image(_texpaint, 0, 0);
-				draw_set_pipeline(NULL);
-				draw_end();
+				_texpaint = import_arm_texture_from_lz4(ld->texpaint, ld->res, 1, GPU_TEXTURE_FORMAT_RGBA32, NULL);
+				import_arm_copy_layer_texture(_texpaint, l->texpaint, l->name, "mask"); // Full bits for undo support, R8 is used
 			}
 			else { // Layer
 				// TODO: create render target from bytes
 				// See-through meshes when the bottom layer is not fully opaque
-				_texpaint = import_arm_texture_from_lz4(ld->texpaint, ld->res, ld->res * ld->res * 4 * bytes_per_pixel, format,
-				                                        i == 0 ? &g_project->_->translucency : NULL);
-				draw_begin(l->texpaint, false, 0);
-				draw_set_pipeline(g_project->is_bgra ? pipes_copy_bgra : pipes_copy);
-				draw_image(_texpaint, 0, 0);
-				draw_set_pipeline(NULL);
-				draw_end();
+				_texpaint = import_arm_texture_from_lz4(ld->texpaint, ld->res, bytes_per_pixel, format, i == 0 ? &g_project->_->translucency : NULL);
+				import_arm_copy_layer_texture(_texpaint, l->texpaint, l->name, "base color");
 
-				_texpaint_nor = import_arm_texture_from_lz4(ld->texpaint_nor, ld->res, ld->res * ld->res * 4 * bytes_per_pixel, format, NULL);
-				draw_begin(l->texpaint_nor, false, 0);
-				draw_set_pipeline(g_project->is_bgra ? pipes_copy_bgra : pipes_copy);
-				draw_image(_texpaint_nor, 0, 0);
-				draw_set_pipeline(NULL);
-				draw_end();
+				_texpaint_nor = import_arm_texture_from_lz4(ld->texpaint_nor, ld->res, bytes_per_pixel, format, NULL);
+				import_arm_copy_layer_texture(_texpaint_nor, l->texpaint_nor, l->name, "normal");
 
-				_texpaint_pack = import_arm_texture_from_lz4(ld->texpaint_pack, ld->res, ld->res * ld->res * 4 * bytes_per_pixel, format, NULL);
-				draw_begin(l->texpaint_pack, false, 0);
-				draw_set_pipeline(g_project->is_bgra ? pipes_copy_bgra : pipes_copy);
-				draw_image(_texpaint_pack, 0, 0);
-				draw_set_pipeline(NULL);
-				draw_end();
+				_texpaint_pack = import_arm_texture_from_lz4(ld->texpaint_pack, ld->res, bytes_per_pixel, format, NULL);
+				import_arm_copy_layer_texture(_texpaint_pack, l->texpaint_pack, l->name, "packed");
 
 				if (ld->texpaint_sculpt != NULL) {
 					render_target_t *t = render_target_create();
@@ -1057,14 +1065,18 @@ void import_arm_run_project(char *path) {
 					t->format          = "RGBA128";
 					l->texpaint_sculpt = render_path_create_render_target(t)->_image;
 
-					gpu_texture_t *_texpaint_sculpt =
-					    import_arm_texture_from_lz4(ld->texpaint_sculpt, ld->res, ld->res * ld->res * 4 * 4, GPU_TEXTURE_FORMAT_RGBA128, NULL);
-					draw_begin(l->texpaint_sculpt, false, 0);
-					draw_set_pipeline(pipes_copy128);
-					draw_image(_texpaint_sculpt, 0, 0);
-					draw_set_pipeline(NULL);
-					draw_end();
-					gpu_delete_texture(_texpaint_sculpt);
+					gpu_texture_t *_texpaint_sculpt = import_arm_texture_from_lz4(ld->texpaint_sculpt, ld->res, 4 * 4, GPU_TEXTURE_FORMAT_RGBA128, NULL);
+					if (_texpaint_sculpt != NULL) {
+						draw_begin(l->texpaint_sculpt, false, 0);
+						draw_set_pipeline(pipes_copy128);
+						draw_image(_texpaint_sculpt, 0, 0);
+						draw_set_pipeline(NULL);
+						draw_end();
+						gpu_delete_texture(_texpaint_sculpt);
+					}
+					else {
+						console_error(string("Could not read the sculpt texture of layer %s.", l->name));
+					}
 				}
 			}
 
@@ -1101,7 +1113,9 @@ void import_arm_run_project(char *path) {
 			l->path_curved        = ld->path_curved;
 			l->path_text          = ld->path_text;
 
-			gpu_delete_texture(_texpaint);
+			if (_texpaint != NULL) {
+				gpu_delete_texture(_texpaint);
+			}
 			if (_texpaint_nor != NULL) {
 				gpu_delete_texture(_texpaint_nor);
 			}
