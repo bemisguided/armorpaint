@@ -420,7 +420,14 @@ static i32 import_arm_image_asset_index(ui_node_button_t *but) {
 	return 9999; // Texture deleted, use pink now
 }
 
-void import_arm_init_nodes(ui_node_t_array_t *nodes) {
+// Called for every canvas that is loaded. A material canvas first has its nodes matched to the current node definitions by name
+// (util_node_layout_resolve), the dropped links are reported by util_node_layout_flush at the end of the open. Brush and mesh canvases keep their layout.
+void import_arm_init_nodes(ui_node_canvas_t *canvas, bool material) {
+	if (material) {
+		nodes_material_init();
+		util_node_layout_resolve(canvas, nodes_material_get_node_t);
+	}
+	ui_node_t_array_t *nodes = canvas->nodes;
 	for (i32 i = 0; i < nodes->length; ++i) {
 		ui_node_t *node = nodes->buffer[i];
 		if (string_equals(node->type, "TEX_IMAGE")) {
@@ -682,7 +689,7 @@ static void import_arm_import_materials(project_t *project, char *path, i32_arra
 			continue;
 		}
 		ui_node_canvas_t *c = util_clone_canvas(project->material_nodes->buffer[i]); // Project data is temporary
-		import_arm_init_nodes(c->nodes);
+		import_arm_init_nodes(c, true);
 		g_context->material       = slot_material_create(m0, c);
 		g_context->material->meta = project_format_load_meta(project, MC_MATERIAL, i);
 		any_array_push(g_project->_->materials, g_context->material);
@@ -701,7 +708,7 @@ static void import_arm_import_materials(project_t *project, char *path, i32_arra
 				c->name        = string_copy(import_arm_unique_group_name(old_name, project->material_groups));
 				import_arm_rename_group(old_name, c->name, imported, project->material_groups);
 			}
-			import_arm_init_nodes(c->nodes);
+			import_arm_init_nodes(c, true);
 			node_group_t *ng = ALLOC_INIT(node_group_t, {.canvas = c, .nodes = ui_nodes_create()});
 			any_array_push(g_project->_->material_groups, ng);
 		}
@@ -712,7 +719,7 @@ static void import_arm_import_materials(project_t *project, char *path, i32_arra
 	ui_dock_redraw(TAB_AREA_SIDEBAR1);
 	if (delete_blob) {
 		data_delete_blob(path);
-	}
+	}	util_node_layout_flush();
 }
 
 void import_arm_run_material_from_project(project_t *project, char *path) {
@@ -1217,7 +1224,7 @@ void import_arm_run_project(char *path) {
 	g_project->_->materials = any_array_create_from_raw((void *[]){}, 0);
 	for (i32 i = 0; i < g_project->material_nodes->length; ++i) {
 		ui_node_canvas_t *n = g_project->material_nodes->buffer[i];
-		import_arm_init_nodes(n->nodes);
+		import_arm_init_nodes(n, true);
 		g_context->material = slot_material_create(m0, n);
 
 		material_data2_t *md              = g_project->material_datas->buffer[i];
@@ -1242,7 +1249,7 @@ void import_arm_run_project(char *path) {
 	if (g_project->material_groups != NULL) {
 		for (i32 i = 0; i < g_project->material_groups->length; ++i) {
 			ui_node_canvas_t *g = g_project->material_groups->buffer[i];
-			import_arm_init_nodes(g->nodes);
+			import_arm_init_nodes(g, true);
 			node_group_t *ng = ALLOC_INIT(node_group_t, {.canvas = g, .nodes = ui_nodes_create()});
 			any_array_push(g_project->_->material_groups, ng);
 		}
@@ -1262,7 +1269,7 @@ void import_arm_run_project(char *path) {
 	g_project->_->brushes = any_array_create_from_raw((void *[]){}, 0);
 	for (i32 i = 0; i < g_project->brush_nodes->length; ++i) {
 		ui_node_canvas_t *n = g_project->brush_nodes->buffer[i];
-		import_arm_init_nodes(n->nodes);
+		import_arm_init_nodes(n, false);
 		g_context->brush       = slot_brush_create(n);
 		g_context->brush->meta = project_format_load_meta(g_project, MC_BRUSH, i);
 		any_array_push(g_project->_->brushes, g_context->brush);
@@ -1272,6 +1279,8 @@ void import_arm_run_project(char *path) {
 			util_render_make_brush_preview();
 		}
 	}
+
+	util_node_layout_flush(); // The links of nodes of older layouts that were dropped while the canvases above were loaded
 
 	// Fill layers and path layers materials
 	for (i32 i = 0; i < g_project->layer_datas->length; ++i) {
@@ -1443,7 +1452,7 @@ void import_arm_run_brush_from_project(project_t *project, char *path) {
 
 	for (i32 i = 0; i < project->brush_nodes->length; ++i) {
 		ui_node_canvas_t *c = util_clone_canvas(project->brush_nodes->buffer[i]);
-		import_arm_init_nodes(c->nodes);
+		import_arm_init_nodes(c, false);
 		g_context->brush       = slot_brush_create(c);
 		g_context->brush->meta = project_format_load_meta(project, MC_BRUSH, i);
 		any_array_push(g_project->_->brushes, g_context->brush);

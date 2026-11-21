@@ -940,6 +940,7 @@ fBM
 plik
 pamięć GPU
 Typ gradientu
+
 węzły
 Operacja
 spakowane

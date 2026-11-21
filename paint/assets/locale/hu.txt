@@ -940,6 +940,7 @@ fBM
 Fájl
 GPU memória
 Színátmenet típusa
+
 Csomópontok
 Művelet
 csomagolt

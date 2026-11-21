@@ -243,6 +243,7 @@
 #include "util/util_layer_coverage.c"
 #include "util/util_mesh.c"
 #include "util/util_meta.c"
+#include "util/util_node_layout.c"
 #include "util/util_nodes.c"
 #include "util/util_particle.c"
 #include "util/util_path.c"

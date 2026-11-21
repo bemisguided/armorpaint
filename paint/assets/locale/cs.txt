@@ -940,6 +940,7 @@ fBM
 soubor
 paměť gpu
 typ_přechodu
+
 uzly
 operace
 zabalené
