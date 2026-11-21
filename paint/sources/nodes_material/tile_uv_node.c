@@ -113,8 +113,7 @@ char *tile_uv_node_value(ui_node_t *node, ui_node_socket_t *socket) {
 }
 
 void tile_uv_node_init() {
-	u32 value_color  = 0xffa1a1a1;
-	u32 vector_color = 0xff6363c7;
+	u32 value_color = 0xffa1a1a1;
 
 	ui_node_t *tile_uv_node_def =
 	    ALLOC_INIT(ui_node_t,
@@ -132,7 +131,7 @@ void tile_uv_node_init() {
 	                        make_image_node_socket(_tr("Rotation"), "VALUE", value_color, f32_array_create_x(0.0), 0.0, 360.0, 10),
 	                        make_image_node_socket(_tr("Offset X"), "VALUE", value_color, f32_array_create_x(0.0), -1.0, 1.0, 100),
 	                        make_image_node_socket(_tr("Offset Y"), "VALUE", value_color, f32_array_create_x(0.0), -1.0, 1.0, 100),
-	                        make_image_node_socket(_tr("Vector"), "VECTOR", vector_color, f32_array_create_xyz(0.0, 0.0, 0.0), 0.0, 1.0, 100),
+	                        make_image_node_vector_socket(),
 	                    },
 	                    7),
 	                .outputs = any_array_create_from_raw(
