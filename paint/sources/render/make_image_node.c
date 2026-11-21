@@ -15,6 +15,10 @@
 #define MAKE_IMAGE_NODE_DEBOUNCE 0.5
 static bool make_image_node_trace = false; // ARMORPAINT_IMAGE_NODE_TRACE in the environment: every capture is logged with its time
 static i32 make_image_node_captures = 0; // Captures made since the start, see make_image_node_capture_count
+#ifdef ARMORPAINT_TEST_NATIVES
+static i32 make_image_node_renders         = 0; // Renders of capture shaders since the start
+static f64 make_image_node_readback_bytes  = 0; // Bytes read back since the start
+#endif
 static i32 make_image_node_capture_dst = 0; // Width of the target of the running capture, see make_image_node_box_taps
 #define MAKE_IMAGE_NODE_BIG_PLANE ((size_t)64 << 20) // A 4096 x 4096 float plane is exactly this
 
@@ -77,6 +81,11 @@ typedef struct make_image_node_state {
 	void              *summary;       // What the type's summarize made of the last bake (type->summary_size bytes), NULL for a type without
 #ifdef ARMORPAINT_TEST_NATIVES
 	i32                result_count;  // What the type's process returned for the last bake (Flood Fill: islands), for the test natives
+	f64                stat_capture_ms;      // Time of the last capture (renders, readbacks, params, hash), see make_image_node_stat
+	f64                stat_capture_bytes;   // Bytes of its captures (what process gets)
+	f64                stat_readback_bytes;  // Bytes read back by all its renders, a linked scalar input included
+	i32                stat_renders;         // Renders of the last capture, a linked scalar input included (each compiles a shader)
+	f64                stat_bake_ms;         // Time of the last bake (process and upload)
 #endif
 } make_image_node_state_t;
 
@@ -100,6 +109,7 @@ static ui_node_canvas_t        *make_image_node_capture_group   = NULL;
 static ui_node_t_array_t       *make_image_node_capture_parents = NULL;
 static i32                      make_image_node_capture_input   = 0; // Input of make_image_node_input_value
 static i32                      make_image_node_capture_k       = 0; // Capture of a type with several, see make_image_node_capture_index
+static void                    *make_image_node_capture_params_ptr = NULL; // See make_image_node_capture_params
 
 static void make_image_node_update(void *_);
 static void make_image_node_state_row(i32 node_id);
@@ -296,6 +306,20 @@ static u64 make_image_node_signature(u8 *pixels, size_t bytes, i32 size, void *p
 	return make_image_node_hash(h, params, params_size);
 }
 
+// Points the material parser at the canvas (and group chain) of the node being captured, so that the links of its inputs can be read
+static void make_image_node_parser_scope() {
+	parser_material_canvases = any_array_create_from_raw(
+	    (void *[]){
+	        g_context->material->canvas,
+	    },
+	    1);
+	parser_material_nodes = g_context->material->canvas->nodes;
+	parser_material_links = g_context->material->canvas->links;
+	if (make_image_node_capture_group != NULL) {
+		parser_material_push_group_chain(make_image_node_capture_group, make_image_node_capture_parents);
+	}
+}
+
 // Shader evaluating expr(node) over the image square: a full screen triangle with tex_coord = the image uv,
 // [0, 1] across the target, no mesh (parser_material_image_space gives mesh based inputs a neutral value).
 // The node writes the expression while make_image_node_capturing is set.
@@ -327,16 +351,7 @@ static shader_context_t *make_image_node_capture_shader(ui_node_t *node, char *(
 	node_shader_write_attrib_frag(kong, "float2 tex_coord = input.tex_coord;");
 
 	parser_material_init();
-	parser_material_canvases = any_array_create_from_raw(
-	    (void *[]){
-	        g_context->material->canvas,
-	    },
-	    1);
-	parser_material_nodes = g_context->material->canvas->nodes;
-	parser_material_links = g_context->material->canvas->links;
-	if (make_image_node_capture_group != NULL) {
-		parser_material_push_group_chain(make_image_node_capture_group, make_image_node_capture_parents);
-	}
+	make_image_node_parser_scope();
 	parser_material_con                   = con;
 	parser_material_kong                  = kong;
 	parser_material_image_space           = true;
@@ -358,11 +373,64 @@ static shader_context_t *make_image_node_capture_shader(ui_node_t *node, char *(
 	return scon;
 }
 
-// Renders expr(node) over the image square into a size x size target of format and reads it back.
+#define MAKE_IMAGE_NODE_CAPTURE_ALIGN 16 // Every capture of a type with several starts at a multiple of this (any format can follow any other)
+
+// The render target format of a capture format (IMAGE_CAPTURE_*)
+static gpu_texture_format_t make_image_node_capture_gpu_format(i32 format) {
+	switch (format) {
+	case IMAGE_CAPTURE_RGBA32F:
+		return GPU_TEXTURE_FORMAT_RGBA128;
+	case IMAGE_CAPTURE_R32F:
+		return GPU_TEXTURE_FORMAT_R32;
+	case IMAGE_CAPTURE_R16F:
+		return GPU_TEXTURE_FORMAT_R16;
+	case IMAGE_CAPTURE_R8:
+		return GPU_TEXTURE_FORMAT_R8;
+	}
+	return GPU_TEXTURE_FORMAT_RGBA32;
+}
+
+// The format name of the shader context (render_path_get_tex_format)
+static char *make_image_node_capture_format_name(i32 format) {
+	switch (format) {
+	case IMAGE_CAPTURE_RGBA32F:
+		return "RGBA128";
+	case IMAGE_CAPTURE_R32F:
+		return "R32";
+	case IMAGE_CAPTURE_R16F:
+		return "R16";
+	case IMAGE_CAPTURE_R8:
+		return "R8";
+	}
+	return "RGBA32";
+}
+
+// Channels of a capture format: 4 for the RGBA formats, 1 for the single channel formats (the value is in the first)
+i32 make_image_node_capture_channels(i32 format) {
+	return format == IMAGE_CAPTURE_R32F || format == IMAGE_CAPTURE_R16F || format == IMAGE_CAPTURE_R8 ? 1 : 4;
+}
+
+// Bytes of a capture of size x size pixels in a format
+size_t make_image_node_capture_bytes(i32 size, i32 format) {
+	return (size_t)size * size * gpu_texture_format_size(make_image_node_capture_gpu_format(format));
+}
+
+// Start of the capture that follows a capture of size and format that starts at offset (for process of a type with several captures)
+size_t make_image_node_capture_next(size_t offset, i32 size, i32 format) {
+	size_t end = offset + make_image_node_capture_bytes(size, format);
+	return (end + MAKE_IMAGE_NODE_CAPTURE_ALIGN - 1) / MAKE_IMAGE_NODE_CAPTURE_ALIGN * MAKE_IMAGE_NODE_CAPTURE_ALIGN;
+}
+
+// Renders expr(node) over the image square into a size x size target of a capture format (IMAGE_CAPTURE_*) and reads it back.
 // Returns the pixels (the caller frees them), or NULL when the readback fails.
-static u8 *make_image_node_capture_pixels(ui_node_t *node, char *(*expr)(ui_node_t *), i32 size, gpu_texture_format_t format) {
+static u8 *make_image_node_capture_pixels(ui_node_t *node, char *(*expr)(ui_node_t *), i32 size, i32 capture_format) {
+	gpu_texture_format_t format = make_image_node_capture_gpu_format(capture_format);
+#ifdef ARMORPAINT_TEST_NATIVES
+	make_image_node_renders++;
+	make_image_node_readback_bytes += (f64)make_image_node_capture_bytes(size, capture_format);
+#endif
 	make_image_node_capture_dst = size;
-	shader_context_t *scon      = make_image_node_capture_shader(node, expr, format == GPU_TEXTURE_FORMAT_RGBA128 ? "RGBA128" : "RGBA32");
+	shader_context_t *scon      = make_image_node_capture_shader(node, expr, make_image_node_capture_format_name(capture_format));
 	make_image_node_capture_dst = 0;
 	if (util_render_screen_aligned_full_vb == NULL) {
 		util_render_create_screen_aligned_full_data();
@@ -516,6 +584,22 @@ i32 make_image_node_capture_index() {
 	return make_image_node_capture_k;
 }
 
+// The parameters of the node being captured (what the type's params callback filled in), for the capture callback
+void *make_image_node_capture_params() {
+	return make_image_node_capture_params_ptr;
+}
+
+// Width and height of capture k: the type's capture_size (0 or no callback: the size of the node)
+static i32 make_image_node_capture_size_of(image_node_type_t *t, ui_node_t *node, i32 size, i32 k) {
+	i32 ks = t->capture_size != NULL ? t->capture_size(node, k) : 0;
+	return ks > 0 ? ks : size;
+}
+
+// Format of capture k (IMAGE_CAPTURE_*)
+static i32 make_image_node_capture_format_of(image_node_type_t *t, ui_node_t *node, i32 k) {
+	return t->capture_format_at != NULL ? t->capture_format_at(node, k) : t->capture_format;
+}
+
 #define MAKE_IMAGE_NODE_MAX_THREADS 32
 
 typedef struct make_image_node_rows_job {
@@ -664,12 +748,12 @@ f32 make_image_node_input_value(ui_node_t *node, i32 input) {
 		return socket->default_value->buffer[0];
 	}
 	make_image_node_capture_input = input;
-	f32 *pixels                   = (f32 *)make_image_node_capture_pixels(node, make_image_node_input_expr, 1, GPU_TEXTURE_FORMAT_RGBA128);
+	f32 *pixels                   = (f32 *)make_image_node_capture_pixels(node, make_image_node_input_expr, 1, IMAGE_CAPTURE_R32F);
 	if (pixels == NULL) {
 		return socket->default_value->buffer[0];
 	}
 	f32 v = pixels[0]; // A 1 x 1 target: its pixel centre is the image centre
-	make_image_node_plane_free(pixels, 16);
+	make_image_node_plane_free(pixels, 4);
 	if (!isfinite(v)) {
 		return socket->default_value->buffer[0]; // A NaN (Square Root of a negative value) or infinity would turn the whole result into one
 	}
@@ -695,6 +779,11 @@ static bool make_image_node_capture(make_image_node_state_t *s, char *id, ui_nod
 	}
 	make_image_node_clear_upstream(s);
 	make_image_node_captures++;
+#ifdef ARMORPAINT_TEST_NATIVES
+	f64 stat_t0       = sys_time();
+	i32 stat_renders0 = make_image_node_renders;
+	f64 stat_bytes0   = make_image_node_readback_bytes;
+#endif
 	if (make_image_node_trace) {
 		iron_log("[image node] capture %d %s time %.3f", make_image_node_captures, id, sys_time());
 	}
@@ -704,20 +793,33 @@ static bool make_image_node_capture(make_image_node_state_t *s, char *id, ui_nod
 	make_image_node_capture_parents = parents;
 	i32   size                      = t->size(node);
 	i32   count                     = t->capture_count != NULL ? t->capture_count(node) : 1;
-	i32   pixel_bytes               = t->capture_float ? 16 : 4;
-	gpu_texture_format_t format     = t->capture_float ? GPU_TEXTURE_FORMAT_RGBA128 : GPU_TEXTURE_FORMAT_RGBA32;
-	u8   *pixels                    = NULL;
-	size_t total                    = 0; // Bytes of all captures, each of its own size
-	size_t offset                   = 0;
-	for (i32 k = 0; k < count; ++k) {
-		i32 ks = t->capture_size != NULL ? t->capture_size(node, k) : size;
-		total += (size_t)ks * ks * pixel_bytes;
+	// The parameters first: the capture callbacks may read them (make_image_node_capture_params), and a linked scalar input is
+	// captured here, not inside the shader of another capture
+	void *params = calloc(1, t->params_size > 0 ? t->params_size : 1);
+	if (params != NULL) {
+		parser_material_init();
+		make_image_node_parser_scope();
 	}
-	for (i32 k = 0; k < count; ++k) {
+	if (params != NULL && t->params != NULL) {
+		t->params(node, params);
+	}
+	make_image_node_capture_params_ptr = params;
+	u8    *pixels                      = NULL;
+	size_t total                       = 0; // Bytes of all captures, each of its own size and format, starting at multiples of 16
+	size_t offset                      = 0;
+	size_t start = 0;
+	for (i32 k = 0; k < count && params != NULL; ++k) {
+		i32 ks = make_image_node_capture_size_of(t, node, size, k);
+		i32 kf = make_image_node_capture_format_of(t, node, k);
+		total  = start + make_image_node_capture_bytes(ks, kf);
+		start  = make_image_node_capture_next(start, ks, kf);
+	}
+	for (i32 k = 0; k < count && params != NULL; ++k) {
 		make_image_node_capture_k = k;
-		i32    ks                 = t->capture_size != NULL ? t->capture_size(node, k) : size;
-		size_t one                = (size_t)ks * ks * pixel_bytes;
-		u8    *p                  = make_image_node_capture_pixels(node, t->capture, ks, format);
+		i32    ks                 = make_image_node_capture_size_of(t, node, size, k);
+		i32    kf                 = make_image_node_capture_format_of(t, node, k);
+		size_t one                = make_image_node_capture_bytes(ks, kf);
+		u8    *p                  = make_image_node_capture_pixels(node, t->capture, ks, kf);
 		if (p == NULL) {
 			make_image_node_plane_free(pixels, total);
 			pixels = NULL;
@@ -735,22 +837,14 @@ static bool make_image_node_capture(make_image_node_state_t *s, char *id, ui_nod
 			}
 		}
 		memcpy(pixels + offset, p, one);
-		offset += one;
+		offset = make_image_node_capture_next(offset, ks, kf);
 		make_image_node_plane_free(p, one);
 	}
 	make_image_node_capture_k = 0;
-	void *params              = NULL;
-	if (pixels != NULL) {
-		params = calloc(1, t->params_size > 0 ? t->params_size : 1);
-		if (params == NULL) {
-			make_image_node_plane_free(pixels, total);
-			pixels = NULL;
-		}
-		else {
-			if (t->params != NULL) {
-				t->params(node, params); // May capture a linked scalar input
-			}
-		}
+	make_image_node_capture_params_ptr = NULL;
+	if (pixels == NULL) {
+		free(params);
+		params = NULL;
 	}
 	make_image_node_capturing       = NULL;
 	make_image_node_capture_group   = NULL;
@@ -761,11 +855,19 @@ static bool make_image_node_capture(make_image_node_state_t *s, char *id, ui_nod
 	if (pixels == NULL) {
 		return false; // Capture failed, keep what is baked
 	}
+#ifdef ARMORPAINT_TEST_NATIVES
+	s->stat_capture_bytes  = (f64)total;
+	s->stat_renders        = make_image_node_renders - stat_renders0;
+	s->stat_readback_bytes = make_image_node_readback_bytes - stat_bytes0;
+#endif
 	s->captured               = true;
 	s->captured_canvas        = g_context->material->canvas;
 	s->captured_graph_version = util_version_graph(g_context->material);
 	s->captured_asset_version = util_version_assets();
 	u64 sig = make_image_node_signature(pixels, total, size, params, t->params_size);
+#ifdef ARMORPAINT_TEST_NATIVES
+	s->stat_capture_ms = (sys_time() - stat_t0) * 1000.0;
+#endif
 
 	bool has_result = t->summary_only || (g_context->node_previews != NULL && any_map_get(g_context->node_previews, id) != NULL);
 	if (!force && has_result && s->has_baked && sig == s->baked_signature) {
@@ -900,9 +1002,13 @@ static void make_image_node_bake(make_image_node_state_t *s, char *id) {
 				t->summarize(s->pending_pixels, size, s->pending_params, s->summary);
 			}
 		}
+#ifdef ARMORPAINT_TEST_NATIVES
+		f64 stat_t0 = sys_time();
+#endif
 		status = t->process(s->pending_pixels, size, s->pending_params, result);
 #ifdef ARMORPAINT_TEST_NATIVES
 		s->result_count = status;
+		s->stat_bake_ms = (sys_time() - stat_t0) * 1000.0;
 #endif
 		make_image_node_plane_free(s->pending_pixels, s->pending_bytes); // The capture is not needed during the upload
 		free(s->pending_params);
@@ -1322,6 +1428,83 @@ gpu_texture_t *make_image_node_result(ui_node_t *node) {
 		return NULL;
 	}
 	return any_map_get(g_context->node_previews, id);
+}
+
+// Numbers of the node's last capture and bake: 0 capture bytes (what process gets), 1 readback bytes of all its renders, 2 renders,
+// 3 capture ms, 4 process ms; -1 for an unknown node or number
+f64 make_image_node_stat(ui_node_t *node, i32 which) {
+	char                    *id;
+	make_image_node_state_t *s = make_image_node_state_of(node, &id);
+	if (s == NULL) {
+		return -1.0;
+	}
+	switch (which) {
+	case 0:
+		return s->stat_capture_bytes;
+	case 1:
+		return s->stat_readback_bytes;
+	case 2:
+		return (f64)s->stat_renders;
+	case 3:
+		return s->stat_capture_ms;
+	case 4:
+		return s->stat_bake_ms;
+	}
+	return -1.0;
+}
+
+static char *make_image_node_test_expr(ui_node_t *node) {
+	return "float4(tex_coord.x, tex_coord.y, 0.25, 1.0)";
+}
+
+// Round trip of a capture format for the test natives: renders float4(u, v, 0.25, 1) over a size x size square in the capture format,
+// reads it back and returns the value at pixel (x, y) in channel (0 to 3). channel -1 returns the channels of the format,
+// -2 the bytes of the capture, -3 the bytes of the next capture after one of this size and format (the 16 byte alignment).
+// A channel the format does not have returns -1.
+f64 make_image_node_test_capture(i32 format, i32 size, i32 x, i32 y, i32 channel) {
+	i32 channels = make_image_node_capture_channels(format);
+	if (channel == -1) {
+		return (f64)channels;
+	}
+	if (channel == -2) {
+		return (f64)make_image_node_capture_bytes(size, format);
+	}
+	if (channel == -3) {
+		return (f64)make_image_node_capture_next(0, size, format);
+	}
+	if (channel < 0 || channel >= channels || x < 0 || y < 0 || x >= size || y >= size) {
+		return -1.0;
+	}
+	u8 *p = make_image_node_capture_pixels(NULL, make_image_node_test_expr, size, format);
+	if (p == NULL) {
+		return -2.0;
+	}
+	size_t i = (size_t)y * size + x;
+	f64    v = 0.0;
+	switch (format) {
+	case IMAGE_CAPTURE_RGBA8:
+		v = p[i * 4 + channel] / 255.0;
+		break;
+	case IMAGE_CAPTURE_RGBA32F:
+		v = ((f32 *)p)[i * 4 + channel];
+		break;
+	case IMAGE_CAPTURE_R32F:
+		v = ((f32 *)p)[i];
+		break;
+	case IMAGE_CAPTURE_R16F:
+		v = render_path_raytrace_half_to_float(((u16 *)p)[i]);
+		break;
+	case IMAGE_CAPTURE_R8:
+		v = p[i] / 255.0;
+		break;
+	}
+	make_image_node_plane_free(p, make_image_node_capture_bytes(size, format));
+	return v;
+}
+
+// xxHash64 of a result texture readback, for the test natives (script_image_node_result_hash)
+u64 make_image_node_result_hash(void *bytes, size_t n) {
+	return make_image_node_hash(0, bytes, n);
 }
 
 i32 make_image_node_result_count(ui_node_t *node) {

@@ -66,12 +66,32 @@ static i32 distance_node_size(ui_node_t *node) {
 	return make_image_node_size(node, DISTANCE_BUTTON_SIZE);
 }
 
-// Captured per pixel: the Image input (the mask) as grey
+// Threshold of the node being captured (params ran first), clamped to 0..1 like the Image
+static f32 distance_node_threshold(f32 threshold) {
+	return threshold < 0.0f ? 0.0f : threshold > 1.0f ? 1.0f : threshold;
+}
+
+// A float as a shader literal that reads back as the same float (parser_material_vec1 keeps six decimals only)
+static char *distance_node_literal(f32 v) {
+	char buf[40];
+	snprintf(buf, sizeof(buf), "%.9g", (double)v);
+	for (char *c = buf; *c != '\0'; ++c) {
+		if (*c == '.' || *c == 'e') {
+			return string_tmp("%s", buf);
+		}
+	}
+	return string_tmp("%s.0", buf);
+}
+
+// Captured per pixel: 1 where the Image input (the mask) is at or above the Threshold, else 0 (an R8 capture: the node only
+// needs inside or outside, the Threshold is evaluated once for the whole image like the other numbers)
 static char *distance_node_capture(ui_node_t *node) {
-	char *image = parser_material_parse_value_input(node->inputs->buffer[DISTANCE_INPUT_IMAGE], false);
-	char *grey  = string_tmp("%s_grey", parser_material_store_var_name(node));
-	parser_material_write(parser_material_kong, string_tmp("float %s = clamp(%s, 0.0, 1.0);", grey, image));
-	return string_tmp("float4(%s, %s, %s, 1.0)", grey, grey, grey);
+	distance_params_t *p      = make_image_node_capture_params();
+	char              *image  = parser_material_parse_value_input(node->inputs->buffer[DISTANCE_INPUT_IMAGE], false);
+	char              *inside = string_tmp("%s_inside", parser_material_store_var_name(node));
+	parser_material_write(parser_material_kong, string_tmp("float %s = 0.0;", inside));
+	parser_material_write(parser_material_kong, string_tmp("if (clamp(%s, 0.0, 1.0) >= %s) { %s = 1.0; }", image, distance_node_literal(distance_node_threshold(p->threshold)), inside));
+	return string_tmp("float4(%s, %s, %s, 1.0)", inside, inside, inside);
 }
 
 static void distance_node_params(ui_node_t *node, void *params) {
@@ -275,7 +295,7 @@ static void distance_node_shape_rows(void *param, i32 begin, i32 end) {
 }
 
 static i32 distance_node_process(u8 *bytes, i32 size, void *params, f32 *result) {
-	f32           *pixels = (f32 *)bytes; // Float capture
+	u8            *pixels = bytes; // R8 capture: 255 inside (Image at or above the Threshold), 0 outside
 	distance_params_t p      = *(distance_params_t *)params;
 	size_t         n      = (size_t)size * size;
 	u8            *inside = malloc(n);
@@ -293,9 +313,8 @@ static i32 distance_node_process(u8 *bytes, i32 size, void *params, f32 *result)
 		return -1;
 	}
 	bool ok        = true;
-	f32  threshold = p.threshold < 0.0f ? 0.0f : p.threshold > 1.0f ? 1.0f : p.threshold;
 	for (size_t i = 0; i < n; ++i) {
-		inside[i] = pixels[i * 4] >= threshold ? 1 : 0;
+		inside[i] = pixels[i] > 127 ? 1 : 0;
 	}
 	if (inner != NULL) { // Inside pixels: the nearest outside pixel is the feature
 		for (size_t i = 0; i < n; ++i) {
@@ -333,7 +352,7 @@ static image_node_type_t distance_node_image_type = {
     .params_size   = sizeof(distance_params_t),
     .size          = distance_node_size,
     .capture       = distance_node_capture,
-    .capture_float = true,
+    .capture_format = IMAGE_CAPTURE_R8,
     .smooth_sample = true,
     .params        = distance_node_params,
     .process       = distance_node_process,

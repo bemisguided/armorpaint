@@ -255,7 +255,7 @@ static image_node_type_t levels_node_image_type = {
     .summary_only  = true, // No result texture: the shader below is the output
     .size          = levels_node_capture_size,
     .capture       = levels_node_capture,
-    .capture_float = true,
+    .capture_format = IMAGE_CAPTURE_RGBA32F,
     .summary_size  = sizeof(levels_summary_t),
     .summarize     = levels_node_summarize,
 };
