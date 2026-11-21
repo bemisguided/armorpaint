@@ -26,7 +26,7 @@ static buffer_t *make(const uint8_t *data, uint32_t len) {
 static void decode_corrupt(const char *name, const uint8_t *data, uint32_t len, uint32_t olen) {
 	buffer_t *in  = make(data, len);
 	buffer_t *out = lz4_decode(in, olen);
-	check(out != NULL && out->length == olen, name);
+	check(out == NULL, name);
 }
 
 int main(void) {
@@ -41,7 +41,7 @@ int main(void) {
 	check(dec != NULL && memcmp(dec->buffer, in->buffer, n) == 0, "round trip");
 
 	// The tests below feed streams that would write or read out of bounds.
-	// Decoding must stay inside the buffers and return olen zero padded bytes.
+	// Decoding must stay inside the buffers and return NULL.
 
 	// 15 literals announced, output has room for 4
 	uint8_t literals_over_output[] = {0xf0, 0x00, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15};
@@ -70,6 +70,13 @@ int main(void) {
 	// offset points before the start of the output
 	uint8_t bad_offset[] = {0x10, 'a', 0x09, 0x00};
 	decode_corrupt("match offset before start", bad_offset, sizeof(bad_offset), 64);
+
+	// missing input buffer
+	check(lz4_decode(NULL, 64) == NULL, "null input buffer");
+
+	// valid stream, output size 0: the first literal does not fit
+	uint8_t one_literal[] = {0x10, 'a'};
+	decode_corrupt("output size zero", one_literal, sizeof(one_literal), 0);
 
 	printf("%d failure(s)\n", failures);
 	return failures != 0;
