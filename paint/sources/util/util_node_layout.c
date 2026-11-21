@@ -34,6 +34,8 @@ typedef struct util_node_layout_item_alias {
 // To add when the pass-through versions of the generators land: TEX_GRADIENT_GENERATOR and TEX_SHAPE_GENERATOR -> their new type strings.
 static util_node_layout_type_alias_t util_node_layout_type_aliases[] = {
     {"TEX_LEVELS", "LEVELS"}, // The first (baked) Levels build: same Image, Black, White, Gamma, Out Black, Out White, Position, Width, Contrast; Size and the state row are dropped
+    {"TEX_GRADIENT_GENERATOR", "GRADIENT_GENERATOR"}, // The first (baked) Gradient Generator build
+    {"TEX_SHAPE_GENERATOR", "SHAPE_GENERATOR"}, // The first (baked) Shape Generator build
     {NULL, NULL},
 };
 
