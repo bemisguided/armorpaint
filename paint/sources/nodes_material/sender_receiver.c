@@ -199,6 +199,8 @@ bool sender_receiver_pick(ui_node_t_array_t *nodes, ui_node_link_t_array_t *link
 static i32  sender_receiver_signature = 0;
 static i32 *sender_receiver_errors    = NULL; // Ids of the Receivers that are red
 static i32  sender_receiver_errors_count = 0;
+static i32 *sender_receiver_logged    = NULL; // Ids of the Receivers whose problem was reported on the Console
+static i32  sender_receiver_logged_count = 0;
 static char **sender_receiver_selected_names = NULL; // Names of the selected Senders
 static i32    sender_receiver_selected_count = 0;
 
@@ -278,8 +280,11 @@ void sender_receiver_update(ui_node_t_array_t *nodes, ui_node_link_t_array_t *li
 	}
 	sender_receiver_signature = signature;
 
-	i32  old_count  = sender_receiver_errors_count;
-	i32 *old_errors = sender_receiver_errors;
+	i32  old_count  = sender_receiver_logged_count;
+	i32 *old_logged = sender_receiver_logged;
+	sender_receiver_logged       = calloc(nodes->length + 1, sizeof(i32));
+	sender_receiver_logged_count = 0;
+	free(sender_receiver_errors);
 	sender_receiver_errors       = calloc(nodes->length + 1, sizeof(i32));
 	sender_receiver_errors_count = 0;
 
@@ -299,9 +304,10 @@ void sender_receiver_update(ui_node_t_array_t *nodes, ui_node_link_t_array_t *li
 			sender_receiver_follow(n->outputs->buffer[0], nodes, l);
 			if (name[0] != '\0' && (sender == NULL || sender_receiver_would_loop(nodes, links, n, sender))) {
 				sender_receiver_errors[sender_receiver_errors_count++] = n->id;
+				sender_receiver_logged[sender_receiver_logged_count++] = n->id;
 				bool known                                             = false;
 				for (i32 j = 0; j < old_count; ++j) {
-					known = known || old_errors[j] == n->id;
+					known = known || old_logged[j] == n->id;
 				}
 				if (!known) { // Once per Receiver
 					if (sender == NULL) {
@@ -318,7 +324,7 @@ void sender_receiver_update(ui_node_t_array_t *nodes, ui_node_link_t_array_t *li
 			}
 		}
 	}
-	free(old_errors);
+	free(old_logged);
 }
 
 char *sender_receiver_dot_label(ui_node_t *node) {
@@ -418,7 +424,8 @@ static void sender_receiver_list_commands(ui_t *ui, void *data, void *data2) {
 	}
 
 	// Filter field
-	if (sender_receiver_list_first) {
+	if (sender_receiver_list_first && !ui->input_down && !ui->input_released) {
+		// Focus once the button that opened the list is up: a mouse release deselects the text
 		sender_receiver_list_first = false;
 		ui_start_text_edit(&sender_receiver_list_filter, UI_ALIGN_LEFT);
 	}
