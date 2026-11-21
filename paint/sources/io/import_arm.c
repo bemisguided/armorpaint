@@ -665,7 +665,8 @@ static void import_arm_import_materials(project_t *project, char *path, i32_arra
 	ui_dock_redraw(TAB_AREA_SIDEBAR1);
 	if (delete_blob) {
 		data_delete_blob(path);
-	}	util_node_layout_flush();
+	}
+	util_node_layout_flush();
 }
 
 void import_arm_run_material_from_project(project_t *project, char *path) {
