@@ -308,7 +308,15 @@ int ui_stops_update(ui_stops_t *s, const ui_stops_ops_t *ops, void *data, float 
 		if (margin && hit < 0) {
 			hit = ui_stops_end(ops->get_pos, data, n, mx > x + w);
 		}
-		if (hit >= 0) {
+		bool locked = hit >= 0 && ops->is_locked != NULL && ops->is_locked(data, hit);
+		if (locked) {
+			if (s->active != hit) {
+				flags |= UI_STOPS_SELECTED;
+			}
+			s->active   = hit;
+			s->last_hit = -1;
+		}
+		else if (hit >= 0) {
 			if (ui_stops_is_double_click(iron_time(), s->last_time, s->last_hit, hit) && ui_stops_can_remove(n, ops->min_count)) {
 				ops->remove(data, hit);
 				s->active    = ui_stops_after_remove(s->active, hit, ops->count(data));
