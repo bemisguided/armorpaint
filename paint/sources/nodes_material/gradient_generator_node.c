@@ -162,6 +162,7 @@ static void gradient_generator_node_sections(ui_node_t *def) {
 }
 
 void gradient_generator_node_init() {
+	// TODO: the named colour constants of the colour rule (NODES_MATERIAL_RGBA_COLOR, NODES_MATERIAL_VALUE_COLOR, NODES_MATERIAL_PASS_THROUGH_COLOR) replace these literals once they are in enums.h
 	u32 color_socket = 0xffc7c729; // The usual yellow of an RGBA socket
 	u32 value_color  = 0xffa1a1a1;
 
