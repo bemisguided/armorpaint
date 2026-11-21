@@ -1445,7 +1445,7 @@ static char *make_image_node_coord_of(char *name, char *source, bool linked, boo
 		raw = string_tmp("%s_uv", name);
 		if (string_array_index_of(parser_material_parsed, raw) == -1) {
 			any_array_push(parser_material_parsed, raw);
-			parser_material_write(parser_material_kong, string_tmp("float2 %s = float2(%s.x, %s.y);", raw, source, source));
+			parser_material_write(parser_material_kong, string_tmp("float2 %s = %s.xy;", raw, source));
 		}
 	}
 	if (unwrapped != NULL) {
