@@ -683,6 +683,7 @@ typedef struct ui_stops_ops {
 	int (*add)(void *data, float pos); // Inserts a stop and returns its index, or -1
 	void (*remove)(void *data, int i);
 	void (*draw)(void *data, int i, float cx, float y, float w, float h, bool active);
+	bool (*is_locked)(void *data, int i); // Optional (NULL: no stop is locked): a locked stop can be selected but not dragged or deleted
 	int min_count;
 	int max_count;
 } ui_stops_ops_t;
