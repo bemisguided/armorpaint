@@ -506,4 +506,28 @@ void script_plugin_enable(char *name) {
 	}
 }
 
+// Links of the current material canvas: the count, and field 0 from node id, 1 from socket, 2 to node id, 3 to socket of link index (-1 when out of range)
+i32 script_material_link_count() {
+	ui_node_canvas_t *canvas = script_material_canvas();
+	return canvas == NULL ? 0 : canvas->links->length;
+}
+
+i32 script_material_link_get(i32 index, i32 field) {
+	ui_node_canvas_t *canvas = script_material_canvas();
+	if (canvas == NULL || index < 0 || index >= canvas->links->length || field < 0 || field > 3) {
+		return -1;
+	}
+	ui_node_link_t *l = canvas->links->buffer[index];
+	return field == 0 ? l->from_id : field == 1 ? l->from_socket : field == 2 ? l->to_id : l->to_socket;
+}
+
+// The last lines of the Console (console_last_traces keeps 100), oldest first
+i32 script_console_trace_count() {
+	return console_last_traces == NULL ? 0 : console_last_traces->length;
+}
+
+char *script_console_trace(i32 index) {
+	return console_last_traces == NULL || index < 0 || index >= console_last_traces->length ? "" : console_last_traces->buffer[index];
+}
+
 #endif
