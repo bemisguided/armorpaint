@@ -498,7 +498,7 @@ static void levels_node_strip_button(i32 node_id) {
 			if (h > 0.0f) {
 				f32 x0 = sw * (f32)b / LEVELS_HISTOGRAM_BINS;
 				f32 x1 = sw * (f32)(b + 1) / LEVELS_HISTOGRAM_BINS;
-				ui_fill(x0, (hist_h - h) / UI_SCALE(), x1 - x0 + 0.5f / UI_NODES_SCALE(), h / UI_SCALE(), 0xff8c8c8c);
+				ui_fill(x0, (hist_h - h) / UI_SCALE(), x1 - x0 + 1.0f / UI_NODES_SCALE(), h / UI_SCALE(), 0xff8c8c8c);
 			}
 		}
 	}
