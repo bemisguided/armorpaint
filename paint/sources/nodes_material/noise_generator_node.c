@@ -446,7 +446,6 @@ void noise_generator_node_init() {
 	}
 	char *feature_items = string_tmp("%s\n%s\n%s\n%s", _tr("Distance"), _tr("Edges"), _tr("Cells"), _tr("Crystals"));
 	char *metric_items  = string_tmp("%s\n%s\n%s", _tr("Euclidean"), _tr("Manhattan"), _tr("Chebyshev"));
-	u32   value_color   = 0xffa1a1a1;
 
 	ui_node_t *noise_generator_node_def =
 	    ALLOC_INIT(ui_node_t,
@@ -458,13 +457,13 @@ void noise_generator_node_init() {
 	                .color  = NODES_MATERIAL_IMAGE_COLOR,
 	                .inputs = any_array_create_from_raw(
 	                    (void *[]){
-	                        make_image_node_socket(_tr("Scale"), "VALUE", value_color, f32_array_create_x(5.0), 0.0, 256.0, 100),
-	                        make_image_node_socket(_tr("Detail"), "VALUE", value_color, f32_array_create_x(0.0), 0.0, 8.0, 100),
-	                        make_image_node_socket(_tr("Roughness"), "VALUE", value_color, f32_array_create_x(0.5), 0.0, 1.0, 100),
-	                        make_image_node_socket(_tr("Lacunarity"), "VALUE", value_color, f32_array_create_x(2.0), 0.0, 10.0, 100),
-	                        make_image_node_socket(_tr("Distortion"), "VALUE", value_color, f32_array_create_x(0.0), -10.0, 10.0, 100),
-	                        make_image_node_socket(_tr("Seed"), "VALUE", value_color, f32_array_create_x(0.0), 0.0, 1000.0, 100),
-	                        make_image_node_socket(_tr("Randomness"), "VALUE", value_color, f32_array_create_x(1.0), 0.0, 1.0, 100),
+	                        make_image_node_socket(_tr("Scale"), "VALUE", NODES_MATERIAL_VALUE_COLOR, f32_array_create_x(5.0), 0.0, 256.0, 100),
+	                        make_image_node_socket(_tr("Detail"), "VALUE", NODES_MATERIAL_VALUE_COLOR, f32_array_create_x(0.0), 0.0, 8.0, 100),
+	                        make_image_node_socket(_tr("Roughness"), "VALUE", NODES_MATERIAL_VALUE_COLOR, f32_array_create_x(0.5), 0.0, 1.0, 100),
+	                        make_image_node_socket(_tr("Lacunarity"), "VALUE", NODES_MATERIAL_VALUE_COLOR, f32_array_create_x(2.0), 0.0, 10.0, 100),
+	                        make_image_node_socket(_tr("Distortion"), "VALUE", NODES_MATERIAL_VALUE_COLOR, f32_array_create_x(0.0), -10.0, 10.0, 100),
+	                        make_image_node_socket(_tr("Seed"), "VALUE", NODES_MATERIAL_VALUE_COLOR, f32_array_create_x(0.0), 0.0, 1000.0, 100),
+	                        make_image_node_socket(_tr("Randomness"), "VALUE", NODES_MATERIAL_VALUE_COLOR, f32_array_create_x(1.0), 0.0, 1.0, 100),
 	                    },
 	                    7),
 	                .outputs = any_array_create_from_raw(
