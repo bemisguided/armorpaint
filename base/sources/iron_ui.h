@@ -534,6 +534,7 @@ typedef struct ui_node_section {
 	bool            closed_by_default; // State while the flag bit is clear
 	int             inputs_first;      // Mixed section (kind BUTTON only): index of its first input
 	int             inputs_count;      // Mixed section: number of inputs, 0 for a section of one kind
+	bool            after_inputs;      // BUTTON section only: drawn below all the inputs of the node instead of among the buttons above them (a visual order, the index and the flag bit of the section stay)
 } ui_node_section_t;
 
 typedef struct ui_node {

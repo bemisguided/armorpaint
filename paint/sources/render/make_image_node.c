@@ -1573,7 +1573,8 @@ ui_node_button_t *make_image_node_state_button() {
 }
 
 // Registers the sections of an image node type. Every row of the node is in a section, in this order of the list (= flag bits 8, 9, ...):
-// 0 Texture: the Size setting and the state row, the first two buttons of every image node, closed by default.
+// 0 Texture: the Size setting and the state row, the first two buttons of every image node, closed by default. It is drawn LAST, below the
+//   inputs and the other sections (after_inputs): the list index and the flag bit stay 0, only the place on the node differs (decided 2026-11-20).
 // 1 General: a mixed section (one header) with all the other buttons and the first n_general_inputs inputs, open by default.
 // then the own sections (own, may be NULL) of the node: ranges of the other inputs; without own sections the remaining inputs
 // (from n_general_inputs on) form one open section Parameters.
@@ -1586,7 +1587,7 @@ void make_image_node_sections(ui_node_t *def, ui_node_section_t *own, i32 own_co
 	bool               params    = general && own_count == 0 && n_inputs > n_general_inputs;
 	ui_node_section_t *list      = calloc(own_count + 4, sizeof(ui_node_section_t));
 	i32                n         = 0;
-	list[n++]                    = (ui_node_section_t){.title = _tr("Texture"), .kind = UI_NODE_ITEM_BUTTON, .first = 0, .count = 2, .closed_by_default = true};
+	list[n++]                    = (ui_node_section_t){.title = _tr("Texture"), .kind = UI_NODE_ITEM_BUTTON, .first = 0, .count = 2, .closed_by_default = true, .after_inputs = true};
 	if (general) {
 		list[n++] = (ui_node_section_t){.title             = _tr("General"),
 		                                .kind              = UI_NODE_ITEM_BUTTON,
