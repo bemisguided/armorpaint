@@ -114,6 +114,8 @@ Teto
 Tamanho da célula em pixels
 Centro
 Canais
+
+
 Checar Atualizações...
 Textura Quadriculada
 
@@ -148,6 +150,7 @@ Combinar Cor
 Combinar XYZ
 Bússola
 Confirmar
+
 
 Console
 Modelo do Console
@@ -333,6 +336,7 @@ Geometria
 Geometria para Origem
 Começar
 Agarrar
+
 Textura de Gradiente
 Gravidade X
 Gravidade Y
@@ -348,6 +352,7 @@ Altura
 Mistura de Altura
 
 Ajuda
+
 Ocultar Visualização 3D
 Alto Polígonos
 Histórico
@@ -752,6 +757,7 @@ Ajustar
 Trechos
 Soquete
 Luz Suave
+
 Ordenar
 Som
 Som importado:

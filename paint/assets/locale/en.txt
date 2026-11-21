@@ -114,6 +114,8 @@ Capture Video
 Ceil
 Cell size in pixels
 Center
+Center X
+Center Y
 Channels
 Check for Updates...
 Checker Texture
@@ -148,6 +150,7 @@ Combine
 Combine Color
 Combine XYZ
 Compass
+Cone
 Confirm
 Connectivity
 Console
@@ -333,6 +336,7 @@ Geometry
 Geometry to Origin
 Get Started
 Grab
+Gradient Generator
 Gradient Texture
 Gravity X
 Gravity Y
@@ -348,6 +352,7 @@ Height
 Height Blend
 Height to Normal
 Help
+Hemisphere
 Hide 3D View
 High Poly
 History
@@ -752,6 +757,7 @@ Snap
 Snippets
 Socket
 Soft Light
+Softness
 Sort
 Sound
 Sound imported:

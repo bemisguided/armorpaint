@@ -114,6 +114,8 @@ Langit-langit
 Ukuran sel dalam piksel
 Tengah
 Kanal
+
+
 Periksa Pembaruan...
 Tekstur Kotak-kotak
 
@@ -148,6 +150,7 @@ Gabung Warna
 Gabung XYZ
 Kompas
 Konfirmasi
+
 
 Konsol
 Model Konsol
@@ -333,6 +336,7 @@ Geometri
 Geometri ke Asal
 Mulai
 Tarik
+
 Tekstur Gradasi
 Gravitasi X
 Gravitasi Y
@@ -348,6 +352,7 @@ Tinggi
 Campur Tinggi
 
 Bantuan
+
 Sembunyikan Tampilan 3D
 Poly Tinggi
 Riwayat
@@ -752,6 +757,7 @@ Snap
 Snippet
 Soket
 Cahaya Lembut
+
 Urutkan
 Suara
 Suara diimpor:

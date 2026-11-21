@@ -114,6 +114,8 @@ Plafon (Ceil)
 Cella mérete pixelben
 Középpont
 Csatornák
+
+
 Frissítések keresése...
 Sakktábla textúra
 
@@ -148,6 +150,7 @@ Szín egyesítése
 XYZ egyesítése
 Iránytű
 Megerősítés
+
 
 Konzol
 Konzol modell
@@ -333,6 +336,7 @@ Geometria
 Geometria az origóba
 Kezdés
 Megfogás
+
 Színátmenet textúra
 Gravitáció X
 Gravitáció Y
@@ -348,6 +352,7 @@ Magasság
 Magasság keverése
 
 Súgó
+
 3D Nézet elrejtése
 High Poly
 Előzmények
@@ -752,6 +757,7 @@ Illesztés
 Kódrészletek
 Aljzat
 Lágy fény
+
 Rendezés
 Hang
 Hang importálva:
