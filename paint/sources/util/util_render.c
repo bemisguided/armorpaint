@@ -478,7 +478,7 @@ void util_render_make_brush_preview() {
 	g_context->tool   = TOOL_TYPE_BRUSH;
 
 	slot_layer_t *_layer = g_context->layer;
-	if (slot_layer_is_mask(g_context->layer)) {
+	if (slot_layer_is_mask(g_context->layer) && g_context->layer->parent != NULL) {
 		g_context->layer = g_context->layer->parent;
 	}
 

@@ -142,12 +142,16 @@ buffer_t *lz4_encode(buffer_t *b) {
 }
 
 buffer_t *lz4_decode(buffer_t *b, uint32_t olen) {
+	if (b == NULL) {
+		return NULL;
+	}
 	u8_array_t *ibuf = (u8_array_t *)b;
 	uint32_t    ilen = ibuf->length;
 	u8_array_t *obuf = u8_array_create(olen);
 	uint32_t    ipos = 0;
 	uint32_t    opos = 0;
 
+	// Corrupt input returns NULL
 	while (ipos < ilen) {
 		uint32_t token = ibuf->buffer[ipos++];
 
@@ -159,6 +163,9 @@ buffer_t *lz4_decode(buffer_t *b, uint32_t olen) {
 			if (clen == 15) {
 				uint32_t l = 0;
 				while (1) {
+					if (ipos >= ilen) {
+						goto corrupt;
+					}
 					l = ibuf->buffer[ipos++];
 					if (l != 255) {
 						break;
@@ -169,6 +176,9 @@ buffer_t *lz4_decode(buffer_t *b, uint32_t olen) {
 			}
 
 			// Copy literals
+			if (clen > ilen - ipos || clen > olen - opos) {
+				goto corrupt;
+			}
 			uint32_t end = ipos + clen;
 			while (ipos < end) {
 				obuf->buffer[opos++] = ibuf->buffer[ipos++];
@@ -179,9 +189,12 @@ buffer_t *lz4_decode(buffer_t *b, uint32_t olen) {
 		}
 
 		// Match
+		if (ilen - ipos < 2) {
+			goto corrupt;
+		}
 		uint32_t moffset = ibuf->buffer[ipos + 0] | (ibuf->buffer[ipos + 1] << 8);
 		if (moffset == 0 || moffset > opos) {
-			return NULL;
+			goto corrupt;
 		}
 		ipos += 2;
 
@@ -190,6 +203,9 @@ buffer_t *lz4_decode(buffer_t *b, uint32_t olen) {
 		if (clen == 19) {
 			uint32_t l = 0;
 			while (1) {
+				if (ipos >= ilen) {
+					goto corrupt;
+				}
 				l = ibuf->buffer[ipos++];
 				if (l != 255) {
 					break;
@@ -200,6 +216,9 @@ buffer_t *lz4_decode(buffer_t *b, uint32_t olen) {
 		}
 
 		// Copy match
+		if (clen > olen - opos) {
+			goto corrupt;
+		}
 		uint32_t mpos = opos - moffset;
 		uint32_t end  = opos + clen;
 		while (opos < end) {
@@ -208,4 +227,9 @@ buffer_t *lz4_decode(buffer_t *b, uint32_t olen) {
 	}
 
 	return obuf;
+
+corrupt:
+	array_free(obuf);
+	free(obuf);
+	return NULL;
 }
