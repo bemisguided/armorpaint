@@ -483,11 +483,6 @@ static void levels_node_strip_button(i32 node_id) {
 	g_ui->_y += UI_LINE_H() * LEVELS_STRIP_BAR_LINES + marker_h + gap_h;
 }
 
-// A node of the first (baked) Levels build, type TEX_LEVELS with Size and a state row: it has a layout this code cannot read and the type is
-// not defined any more, so it loads as an unknown node with a black output and these two buttons draw nothing. Delete it and add a new Levels node.
-static void levels_node_legacy_button(i32 node_id) {
-}
-
 // The sections of the node: General (Mode, Invert, Auto Levels, the strip and Image) and Parameters (the other inputs). No Texture section:
 // the node has no baked texture.
 static void levels_node_sections(ui_node_t *def) {
@@ -565,8 +560,6 @@ void levels_node_init() {
 	any_map_set(ui_nodes_hidden_rules, "LEVELS", levels_node_item_hidden);
 	any_map_set(ui_nodes_custom_buttons, "levels_auto_button", levels_node_auto_button);
 	any_map_set(ui_nodes_custom_buttons, "levels_strip_button", levels_node_strip_button);
-	any_map_set(ui_nodes_custom_buttons, "levels_node_auto_button", levels_node_legacy_button); // The first build (see levels_node_legacy_button)
-	any_map_set(ui_nodes_custom_buttons, "levels_node_strip_button", levels_node_legacy_button);
 	levels_node_sections(levels_node_def);
 	make_image_node_register(&levels_node_image_type);
 }
