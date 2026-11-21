@@ -1164,7 +1164,7 @@ typedef struct image_node_type {
 	// float4 expression of what is captured per pixel, written while the capture shader is parsed in image space.
 	// Readback may swap R and B on some backends: a single value goes into R, G and B.
 	char *(*capture)(ui_node_t *node);
-	// Copies the settings and scalar inputs the processing needs into params (zeroed, params_size bytes).
+	// Copies the settings and scalar inputs the processing needs into params (zeroed, params_size bytes), NULL for none.
 	// They are part of the signature; the node itself is not kept for the bake.
 	void (*params)(ui_node_t *node, void *params);
 	// Number of captures of the node, NULL for one. Capture k (make_image_node_capture_index) calls capture again;
@@ -1189,6 +1189,9 @@ typedef struct image_node_type {
 	// summary_size bytes (zeroed on the first bake); make_image_node_summary returns it while the node is baked.
 	i32 summary_size;
 	void (*summarize)(u8 *pixels, i32 size, void *params, void *summary);
+	// true: the node has no result texture, its shader output comes from its own node function (a pass-through node such as Levels).
+	// The shared pass only captures the input (size, capture) and keeps the summary: process and result_format are not used, params may be NULL.
+	bool summary_only;
 	// Turns the captured pixels (size * size RGBA8, or size * size * 4 floats with capture_float, per capture) into size * size * 4 floats (RGBA).
 	// Returns -1 when memory runs out, else 0 or a count of the type's own (Flood Fill: islands).
 	i32 (*process)(u8 *pixels, i32 size, void *params, f32 *result);

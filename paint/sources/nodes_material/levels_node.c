@@ -1,9 +1,10 @@
 #include "../global.h"
 
-// Levels (Filter menu): one remap of the values of the Image input, the same function on R, G and B (alpha is 1). An image node
-// (render/make_image_node.c): the Image input is evaluated in image space (32 bit float), the remapped image is computed on the cpu
-// into one RGBA128 texture per node and sampled like an Image Texture at tex_coord, repeating (Tile UV places it on the uv).
-// Two modes of the same core (levels_node_remap), spec specs/image-nodes/IMAGE_NODES.md (Levels):
+// Levels (Filter menu): one remap of the values of the Image input, the same function on R, G and B. A pass-through shader node like Map Range
+// and Gamma: the remap is computed per pixel in the material shader (str_levels below), no baked result, no Size. The Image input and every
+// value input (Black, White, Gamma, Out Black, Out White, Position, Width, Contrast) can be linked and are evaluated per pixel. The alpha of a
+// colour is not carried by shader colour sockets (as for every colour node), so it passes through as it is.
+// Two modes of the same core (levels_core), spec specs/image-nodes/IMAGE_NODES.md (Levels):
 //   Levels: out = out_low + (out_high - out_low) * pow(clamp((x - black) / (white - black), 0, 1), 1 / gamma)
 //           Black and White are the input points, Gamma the midtone (gamma 2 brightens: the input at black + (white - black) * 0.5^gamma gives 0.5),
 //           Out Black and Out White the output range (out black above out white reverses the image).
@@ -11,17 +12,18 @@
 //           ramp = (1 - Contrast) * half, out = 1 - clamp((d - (half - ramp)) / ramp, 0, 1): 1 inside the window, falling linearly to 0 over the
 //           ramp that ends at the window edge (position +- half). Contrast 1 gives a hard edge, 0 a triangle. Invert gives 1 - out.
 //           It is the Levels core with black = half - ramp, white = half, gamma 1, out low 1, out high 0 (swapped by Invert), applied to d.
-// A range of zero width (white - black below LEVELS_MIN_RANGE: White not above Black, Width 0, Contrast 1) is a hard step at black (x above black
-// gives 1). Inputs are scalar for the whole image (evaluated at the image centre when linked), like Edge Width of Edge Detect: the maths are a
-// per pixel remap of the baked Image, a per pixel link would need the remap itself in the shader. All values are clamped to their slider range
-// (Black, White, Position, Out Black, Out White, Contrast 0..1, Width 0..1, Gamma 0.01..10); the result lies in 0..1 (the image is clamped to 0..1 first).
+// A range of zero width (white - black below 1e-6: White not above Black, Width 0, Contrast 1) is a hard step at black (x above black
+// gives 1). All values are clamped to their slider range in the shader (Black, White, Position, Out Black, Out White, Contrast 0..1, Width 0..1,
+// Gamma 0.01..10, a NaN takes the default); the image itself is not clamped before the remap, the result lies in 0..1.
 //
-// The node shows a strip (button levels_node_strip_button) with the histogram of the baked Image input behind it and handles on the
+// The node shows a strip (button levels_node_strip_button) with the histogram of the Image input behind it and handles on the
 // value axis: Levels black, midtone and white, Range window low edge, position and high edge. The handles edit the sockets
-// (a linked socket's handle is greyed and not draggable). The histogram is a summary the shared pass keeps per node (image_node_type_t.summarize):
-// 256 bins over all three channels of the captured Image (every pixel counts three samples, so a colour image shows the overall level
-// distribution and a grey image its grey histogram), drawn as sqrt(bin / largest bin) so a few dominant bins do not flatten the rest.
-// Auto Levels (button) sets Black and White to the 0.1 % and 99.9 % percentiles of those samples (Range: Position to their mean).
+// (a linked socket's handle is greyed and not draggable). The histogram is a summary of a small side capture of the Image input only
+// (the shared pass, image_node_type_t.summary_only: 256 x 256 float over the unit uv square in image space, refreshed when the graph changes,
+// debounced, only for this strip and Auto Levels, never part of the output): 256 bins over all three channels (every pixel counts three
+// samples, so a colour image shows the overall level distribution and a grey image its grey histogram), drawn as sqrt(bin / largest bin) so
+// a few dominant bins do not flatten the rest. Auto Levels (button) sets Black and White to the 0.1 % and 99.9 % percentiles of those
+// samples (Range: Position to their mean); Gamma and the Out values stay as they are, a flat image is left alone, a linked socket is never set.
 
 // Input socket indices
 enum {
@@ -38,11 +40,10 @@ enum {
 
 // Node button indices (settings)
 enum {
-	LEVELS_BUTTON_SIZE   = 0, // Button 1 is the state row
-	LEVELS_BUTTON_MODE   = 2,
-	LEVELS_BUTTON_INVERT = 3,
-	LEVELS_BUTTON_AUTO   = 4,
-	LEVELS_BUTTON_STRIP  = 5,
+	LEVELS_BUTTON_MODE   = 0,
+	LEVELS_BUTTON_INVERT = 1,
+	LEVELS_BUTTON_AUTO   = 2,
+	LEVELS_BUTTON_STRIP  = 3,
 };
 
 // Mode setting
@@ -57,24 +58,13 @@ enum {
 #define LEVELS_DEFAULT_CONTRAST 0.5
 #define LEVELS_GAMMA_MIN        0.01
 #define LEVELS_GAMMA_MAX        10.0
-#define LEVELS_MIN_RANGE        1e-6 // A range narrower than this is a hard step
 #define LEVELS_HANDLE_GAP       0.001 // Closest black and white handle
 #define LEVELS_HISTOGRAM_BINS   256
 #define LEVELS_FINE_BINS        1024 // Resolution of the percentiles
 #define LEVELS_AUTO_CLIP        0.001 // Auto Levels clips this fraction of the samples on each side
+#define LEVELS_CAPTURE_SIZE     256   // Width and height of the side capture of the Image input (65536 pixels)
 
-// Resolved remap of one bake, the same for both modes (see levels_node_resolve)
-typedef struct levels_params {
-	i32 fold;      // 1: the value is d = |x - center| (Range), 0: the value itself
-	f32 center;
-	f32 black;
-	f32 white;
-	f32 inv_gamma; // 1 / gamma
-	f32 out_low;
-	f32 out_high;
-} levels_params_t;
-
-// Histogram of the captured Image kept with the baked result. Indices of the floats (test natives read them): bins 0..255, min 256, max 257, mean 258, low 259, high 260
+// Histogram of the captured Image kept by the shared pass. Indices of the floats (test natives read them): bins 0..255, min 256, max 257, mean 258, low 259, high 260
 typedef struct levels_summary {
 	f32 bins[LEVELS_HISTOGRAM_BINS]; // Fraction of the samples per bin of the value 0..1, sums to 1
 	f32 min;
@@ -97,56 +87,6 @@ static f32 levels_node_clamp_range(f32 x, f32 lo, f32 hi, f32 fallback) {
 		return fallback;
 	}
 	return x < lo ? lo : x > hi ? hi : x;
-}
-
-// The core: x to out_low + (out_high - out_low) * pow(clamp((x - black) / (white - black), 0, 1), inv_gamma)
-static f32 levels_node_remap(f32 x, f32 black, f32 white, f32 inv_gamma, f32 out_low, f32 out_high) {
-	f32 range = white - black;
-	f32 t;
-	if (range < (f32)LEVELS_MIN_RANGE) {
-		t = x > black ? 1.0f : 0.0f; // Hard step
-	}
-	else {
-		t = levels_node_clamp01((x - black) / range);
-	}
-	if (inv_gamma != 1.0f && t > 0.0f && t < 1.0f) {
-		t = powf(t, inv_gamma);
-	}
-	return out_low + (out_high - out_low) * t;
-}
-
-// The remap of a pixel value (NaN counts as 0)
-static f32 levels_node_apply(const levels_params_t *p, f32 x) {
-	if (!(x == x)) {
-		x = 0.0f;
-	}
-	if (p->fold) {
-		x = fabsf(x - p->center);
-	}
-	return levels_node_remap(x, p->black, p->white, p->inv_gamma, p->out_low, p->out_high);
-}
-
-// Resolved remap from the node's values (every value clamped to its slider range)
-static void levels_node_resolve(levels_params_t *p, i32 mode, bool invert, f32 black, f32 white, f32 gamma, f32 out_black, f32 out_white, f32 position, f32 width, f32 contrast) {
-	if (mode == LEVELS_MODE_RANGE) {
-		f32 half  = 0.5f * levels_node_clamp_range(width, 0.0f, 1.0f, 0.0f);
-		f32 ramp  = (1.0f - levels_node_clamp_range(contrast, 0.0f, 1.0f, 1.0f)) * half;
-		p->fold      = 1;
-		p->center    = levels_node_clamp_range(position, 0.0f, 1.0f, 0.5f);
-		p->black     = half - ramp;
-		p->white     = half;
-		p->inv_gamma = 1.0f;
-		p->out_low   = invert ? 0.0f : 1.0f;
-		p->out_high  = invert ? 1.0f : 0.0f;
-		return;
-	}
-	p->fold      = 0;
-	p->center    = 0.0f;
-	p->black     = levels_node_clamp_range(black, 0.0f, 1.0f, 0.0f);
-	p->white     = levels_node_clamp_range(white, 0.0f, 1.0f, 1.0f);
-	p->inv_gamma = 1.0f / levels_node_clamp_range(gamma, (f32)LEVELS_GAMMA_MIN, (f32)LEVELS_GAMMA_MAX, 1.0f);
-	p->out_low   = levels_node_clamp_range(out_black, 0.0f, 1.0f, 0.0f);
-	p->out_high  = levels_node_clamp_range(out_white, 0.0f, 1.0f, 1.0f);
 }
 
 // Position of the midtone handle on the value axis: the input that gives 0.5, black + (white - black) * 0.5^gamma
@@ -217,6 +157,49 @@ static void levels_node_histogram(const f32 *samples, size_t n, levels_summary_t
 }
 // levels logic end
 
+// The remap in the material shader (kong). Written in the common subset of kong and C so that the host test compiles this very text:
+// plain float functions, no vectors except the three channel wrapper at the end. levels_core is the old CPU remap function.
+char *str_levels = "\
+float levels_fin(float v, float lo, float hi, float fb) { \
+	if (v != v) { return fb; } \
+	return clamp(v, lo, hi); \
+} \
+float levels_core(float x, float black, float white, float inv_gamma, float out_low, float out_high) { \
+	float v = x; \
+	if (v != v) { v = 0.0; } \
+	float span = white - black; \
+	float t = 0.0; \
+	if (span < 0.000001) { \
+		if (v > black) { t = 1.0; } \
+	} \
+	else { \
+		t = clamp((v - black) / span, 0.0, 1.0); \
+	} \
+	if (inv_gamma != 1.0 && t > 0.0 && t < 1.0) { t = pow(t, inv_gamma); } \
+	return out_low + (out_high - out_low) * t; \
+} \
+float levels_levels(float x, float black, float white, float gamma, float out_black, float out_white) { \
+	return levels_core(x, levels_fin(black, 0.0, 1.0, 0.0), levels_fin(white, 0.0, 1.0, 1.0), 1.0 / levels_fin(gamma, 0.01, 10.0, 1.0), levels_fin(out_black, 0.0, 1.0, 0.0), levels_fin(out_white, 0.0, 1.0, 1.0)); \
+} \
+float levels_range(float x, float position, float width, float contrast, float invert) { \
+	float v = x; \
+	if (v != v) { v = 0.0; } \
+	float center = levels_fin(position, 0.0, 1.0, 0.5); \
+	float half_w = 0.5 * levels_fin(width, 0.0, 1.0, 0.0); \
+	float ramp = (1.0 - levels_fin(contrast, 0.0, 1.0, 1.0)) * half_w; \
+	float out_low = 1.0; \
+	float out_high = 0.0; \
+	if (invert > 0.5) { out_low = 0.0; out_high = 1.0; } \
+	return levels_core(abs(v - center), half_w - ramp, half_w, 1.0, out_low, out_high); \
+} \
+float3 levels_levels3(float3 c, float black, float white, float gamma, float out_black, float out_white) { \
+	return float3(levels_levels(c.x, black, white, gamma, out_black, out_white), levels_levels(c.y, black, white, gamma, out_black, out_white), levels_levels(c.z, black, white, gamma, out_black, out_white)); \
+} \
+float3 levels_range3(float3 c, float position, float width, float contrast, float invert) { \
+	return float3(levels_range(c.x, position, width, contrast, invert), levels_range(c.y, position, width, contrast, invert), levels_range(c.z, position, width, contrast, invert)); \
+} \
+";
+
 static i32 levels_node_mode(ui_node_t *node) {
 	return (i32)make_image_node_button(node, LEVELS_BUTTON_MODE);
 }
@@ -240,54 +223,14 @@ static bool levels_node_item_hidden(ui_node_t *node, ui_node_item_t kind, i32 in
 	return levels_node_hidden(levels_node_mode(node), kind, index);
 }
 
-// Width and height of the image: Size 512, 1024, 2048 or 4096
-static i32 levels_node_size(ui_node_t *node) {
-	return make_image_node_size(node, LEVELS_BUTTON_SIZE);
+// Side capture of the Image input only, for the histogram (the remap itself is the shader)
+static i32 levels_node_capture_size(ui_node_t *node) {
+	return LEVELS_CAPTURE_SIZE;
 }
 
-// Captured per pixel: the Image input
 static char *levels_node_capture(ui_node_t *node) {
 	char *image = parser_material_parse_vector_input(node->inputs->buffer[LEVELS_INPUT_IMAGE]);
 	return string_tmp("float4(%s, 1.0)", image);
-}
-
-static void levels_node_params(ui_node_t *node, void *params) {
-	i32 mode = levels_node_mode(node);
-	bool range = mode == LEVELS_MODE_RANGE; // The inputs of the other mode are not evaluated (a linked graph there costs a capture)
-	levels_node_resolve(params, mode, make_image_node_button(node, LEVELS_BUTTON_INVERT) != 0.0,
-	                    range ? 0.0f : make_image_node_input_value(node, LEVELS_INPUT_BLACK), range ? 1.0f : make_image_node_input_value(node, LEVELS_INPUT_WHITE),
-	                    range ? 1.0f : make_image_node_input_value(node, LEVELS_INPUT_GAMMA), range ? 0.0f : make_image_node_input_value(node, LEVELS_INPUT_OUT_BLACK),
-	                    range ? 1.0f : make_image_node_input_value(node, LEVELS_INPUT_OUT_WHITE), !range ? 0.5f : make_image_node_input_value(node, LEVELS_INPUT_POSITION),
-	                    !range ? 0.2f : make_image_node_input_value(node, LEVELS_INPUT_WIDTH), !range ? 0.5f : make_image_node_input_value(node, LEVELS_INPUT_CONTRAST));
-}
-
-typedef struct levels_ctx {
-	f32                   *pixels;
-	f32                   *result;
-	i32                    size;
-	const levels_params_t *p;
-} levels_ctx_t;
-
-// Rows [begin, end) of the result
-static void levels_node_rows(void *param, i32 begin, i32 end) {
-	levels_ctx_t *c = param;
-	for (i32 y = begin; y < end; ++y) {
-		f32 *in  = c->pixels + (size_t)y * c->size * 4;
-		f32 *out = c->result + (size_t)y * c->size * 4;
-		for (i32 x = 0; x < c->size; ++x) {
-			out[x * 4]     = levels_node_apply(c->p, in[x * 4]);
-			out[x * 4 + 1] = levels_node_apply(c->p, in[x * 4 + 1]);
-			out[x * 4 + 2] = levels_node_apply(c->p, in[x * 4 + 2]);
-			out[x * 4 + 3] = 1.0f;
-		}
-	}
-}
-
-static i32 levels_node_process(u8 *bytes, i32 size, void *params, f32 *result) {
-	levels_params_t p = *(levels_params_t *)params;
-	levels_ctx_t    c = {.pixels = (f32 *)bytes, .result = result, .size = size, .p = &p}; // Float capture
-	make_image_node_parallel(size, levels_node_rows, &c);
-	return 0;
 }
 
 // The three colour channels of every captured pixel are the samples of the histogram
@@ -308,25 +251,31 @@ static void levels_node_summarize(u8 *bytes, i32 size, void *params, void *summa
 }
 
 static image_node_type_t levels_node_image_type = {
-    .type          = "TEX_LEVELS",
-    .result_format = GPU_TEXTURE_FORMAT_RGBA128, // Heights and gradients stay smooth for a node or a bump that reads them
-    .params_size   = sizeof(levels_params_t),
-    .size          = levels_node_size,
+    .type          = "LEVELS",
+    .summary_only  = true, // No result texture: the shader below is the output
+    .size          = levels_node_capture_size,
     .capture       = levels_node_capture,
     .capture_float = true,
-    .smooth_sample = true,
     .summary_size  = sizeof(levels_summary_t),
     .summarize     = levels_node_summarize,
-    .params        = levels_node_params,
-    .process       = levels_node_process,
 };
 
-char *levels_node_value(ui_node_t *node, ui_node_socket_t *socket) {
-	return string_tmp("%s.r", make_image_node_sample(node));
-}
-
 char *levels_node_vector(ui_node_t *node, ui_node_socket_t *socket) {
-	return string_tmp("%s.rgb", make_image_node_sample(node));
+	node_shader_add_function(parser_material_kong, str_levels);
+	char *image = parser_material_parse_vector_input(node->inputs->buffer[LEVELS_INPUT_IMAGE]);
+	if (levels_node_mode(node) == LEVELS_MODE_RANGE) {
+		char *position = parser_material_parse_value_input(node->inputs->buffer[LEVELS_INPUT_POSITION], false);
+		char *width    = parser_material_parse_value_input(node->inputs->buffer[LEVELS_INPUT_WIDTH], false);
+		char *contrast = parser_material_parse_value_input(node->inputs->buffer[LEVELS_INPUT_CONTRAST], false);
+		bool  invert   = make_image_node_button(node, LEVELS_BUTTON_INVERT) != 0.0;
+		return string_tmp("levels_range3(%s, %s, %s, %s, %s)", image, position, width, contrast, invert ? "1.0" : "0.0");
+	}
+	char *black     = parser_material_parse_value_input(node->inputs->buffer[LEVELS_INPUT_BLACK], false);
+	char *white     = parser_material_parse_value_input(node->inputs->buffer[LEVELS_INPUT_WHITE], false);
+	char *gamma     = parser_material_parse_value_input(node->inputs->buffer[LEVELS_INPUT_GAMMA], false);
+	char *out_black = parser_material_parse_value_input(node->inputs->buffer[LEVELS_INPUT_OUT_BLACK], false);
+	char *out_white = parser_material_parse_value_input(node->inputs->buffer[LEVELS_INPUT_OUT_WHITE], false);
+	return string_tmp("levels_levels3(%s, %s, %s, %s, %s, %s)", image, black, white, gamma, out_black, out_white);
 }
 
 // True when input i of the node has a link (that socket is driven by the graph, its value is not edited here)
@@ -531,20 +480,41 @@ static void levels_node_strip_button(i32 node_id) {
 	g_ui->_y += UI_LINE_H() * LEVELS_STRIP_BAR_LINES + marker_h + gap_h;
 }
 
+// A node of the first (baked) Levels build, type TEX_LEVELS with Size and a state row: it has a layout this code cannot read and the type is
+// not defined any more, so it loads as an unknown node with a black output and these two buttons draw nothing. Delete it and add a new Levels node.
+static void levels_node_legacy_button(i32 node_id) {
+}
+
+// The sections of the node: General (Mode, Invert, Auto Levels, the strip and Image) and Parameters (the other inputs). No Texture section:
+// the node has no baked texture.
+static void levels_node_sections(ui_node_t *def) {
+	ui_node_section_t *list = calloc(3, sizeof(ui_node_section_t)); // The list ends with the zeroed entry
+	list[0]                 = (ui_node_section_t){.title             = _tr("General"),
+	                                              .kind              = UI_NODE_ITEM_BUTTON,
+	                                              .first             = 0,
+	                                              .count             = def->buttons->length,
+	                                              .closed_by_default = false,
+	                                              .inputs_first      = 0,
+	                                              .inputs_count      = 1};
+	list[1]                 = (ui_node_section_t){.title = _tr("Parameters"), .kind = UI_NODE_ITEM_INPUT, .first = 1, .count = def->inputs->length - 1, .closed_by_default = false};
+	any_map_set(ui_nodes_sections, def->type, list);
+}
+
 void levels_node_init() {
-	u32 value_color = 0xffa1a1a1;
+	u32 color_socket = 0xffc7c729; // The usual yellow of an RGBA socket
+	u32 value_color  = 0xffa1a1a1;
 
 	ui_node_t *levels_node_def =
 	    ALLOC_INIT(ui_node_t,
 	               {.id     = 0,
 	                .name   = _tr("Levels"),
-	                .type   = "TEX_LEVELS",
+	                .type   = "LEVELS",
 	                .x      = 0,
 	                .y      = 0,
-	                .color  = NODES_MATERIAL_IMAGE_COLOR,
+	                .color  = 0xff62676d, // The grey header of Map Range and the Color nodes: a pass-through node, not an orange image node
 	                .inputs = any_array_create_from_raw(
 	                    (void *[]){
-	                        make_image_node_socket(_tr("Image"), "RGBA", NODES_MATERIAL_IMAGE_COLOR, f32_array_create_xyzw(1.0, 1.0, 1.0, 1.0), 0.0, 1.0, 100),
+	                        make_image_node_socket(_tr("Image"), "RGBA", color_socket, f32_array_create_xyzw(1.0, 1.0, 1.0, 1.0), 0.0, 1.0, 100),
 	                        make_image_node_socket(_tr("Black"), "VALUE", value_color, f32_array_create_x(0.0), 0.0, 1.0, 100),
 	                        make_image_node_socket(_tr("White"), "VALUE", value_color, f32_array_create_x(1.0), 0.0, 1.0, 100),
 	                        make_image_node_socket(_tr("Gamma"), "VALUE", value_color, f32_array_create_x(LEVELS_DEFAULT_GAMMA), LEVELS_GAMMA_MIN, LEVELS_GAMMA_MAX, 100),
@@ -557,16 +527,14 @@ void levels_node_init() {
 	                    9),
 	                .outputs = any_array_create_from_raw(
 	                    (void *[]){
-	                        make_image_node_socket(_tr("Image"), "RGBA", NODES_MATERIAL_IMAGE_COLOR, f32_array_create_xyzw(0.0, 0.0, 0.0, 1.0), 0.0, 1.0, 100),
+	                        make_image_node_socket(_tr("Image"), "RGBA", color_socket, f32_array_create_xyzw(0.0, 0.0, 0.0, 1.0), 0.0, 1.0, 100),
 	                    },
 	                    1),
 	                .buttons = any_array_create_from_raw(
 	                    (void *[]){
-	                        make_image_node_setting(_tr("Size"), "ENUM", 1, MAKE_IMAGE_NODE_SIZE_ITEMS),
-	                        make_image_node_state_button(),
 	                        make_image_node_setting(_tr("Mode"), "ENUM", LEVELS_MODE_LEVELS, "Levels\nRange"),
 	                        make_image_node_setting(_tr("Invert"), "BOOL", 0, NULL),
-	                        ALLOC_INIT(ui_node_button_t, {.name          = "levels_node_auto_button",
+	                        ALLOC_INIT(ui_node_button_t, {.name          = "levels_auto_button",
 	                                                      .type          = "CUSTOM",
 	                                                      .output        = -1,
 	                                                      .default_value = f32_array_create_x(0),
@@ -575,7 +543,7 @@ void levels_node_init() {
 	                                                      .max           = 1.0,
 	                                                      .precision     = 100,
 	                                                      .height        = 1}),
-	                        ALLOC_INIT(ui_node_button_t, {.name          = "levels_node_strip_button",
+	                        ALLOC_INIT(ui_node_button_t, {.name          = "levels_strip_button",
 	                                                      .type          = "CUSTOM",
 	                                                      .output        = -1,
 	                                                      .default_value = f32_array_create_x(0),
@@ -585,16 +553,17 @@ void levels_node_init() {
 	                                                      .precision     = 100,
 	                                                      .height        = LEVELS_STRIP_HEIGHT}),
 	                    },
-	                    6),
+	                    4),
 	                .width = 0,
 	                .flags = 0});
 
 	any_array_push(nodes_material_filter, levels_node_def);
-	any_map_set(parser_material_node_values, "TEX_LEVELS", levels_node_value);
-	any_map_set(parser_material_node_vectors, "TEX_LEVELS", levels_node_vector);
-	any_map_set(ui_nodes_hidden_rules, "TEX_LEVELS", levels_node_item_hidden);
-	any_map_set(ui_nodes_custom_buttons, "levels_node_auto_button", levels_node_auto_button);
-	any_map_set(ui_nodes_custom_buttons, "levels_node_strip_button", levels_node_strip_button);
-	make_image_node_sections(levels_node_def, NULL, 0, 1); // General: Mode, Invert, Auto Levels, the strip and Image; Parameters: the other inputs
+	any_map_set(parser_material_node_vectors, "LEVELS", levels_node_vector);
+	any_map_set(ui_nodes_hidden_rules, "LEVELS", levels_node_item_hidden);
+	any_map_set(ui_nodes_custom_buttons, "levels_auto_button", levels_node_auto_button);
+	any_map_set(ui_nodes_custom_buttons, "levels_strip_button", levels_node_strip_button);
+	any_map_set(ui_nodes_custom_buttons, "levels_node_auto_button", levels_node_legacy_button); // The first build (see levels_node_legacy_button)
+	any_map_set(ui_nodes_custom_buttons, "levels_node_strip_button", levels_node_legacy_button);
+	levels_node_sections(levels_node_def);
 	make_image_node_register(&levels_node_image_type);
 }
