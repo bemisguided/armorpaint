@@ -591,7 +591,12 @@ static char           temp_label[64];
 static char           temp_texts_data[256][64];
 static char          *temp_texts[256];
 
-// Header row of a section: triangle (open or closed) and title; a click toggles the bit of the section in node->flags.
+// A click on a section header changes the height of the node, which ui_node_draw measured before it drew the body. The toggle is
+// therefore kept here and applied when the node is drawn (ui_node_draw): the frame of the click is drawn completely with the old state
+// (a toggle in the middle of the body drew the new rows below the node body of the old height), the next frame completely with the new one.
+static int ui_node_section_toggle = -1;
+
+// Header row of a section: triangle (open or closed) and title; a click toggles the bit of the section in node->flags (see above).
 // ny is the y of a row as the inputs use it (a button row starts lineh / 3 above it). A closed section with a linked input
 // shows the socket dot of the first linked one: the links of its members end here.
 static void ui_node_draw_section_header(ui_node_t *node, ui_node_canvas_t *canvas, int n, float nx, float ny) {
@@ -603,8 +608,7 @@ static void ui_node_draw_section_header(ui_node_t *node, ui_node_canvas_t *canva
 	float                    top     = ny - lineh / 3.0;
 	if (current->input_enabled && current->input_started && current->input_x > current->_window_x + nx && current->input_x < current->_window_x + nx + w &&
 	    current->input_y > current->_window_y + top && current->input_y < current->_window_y + top + lineh) {
-		node->flags ^= UI_NODE_FLAG_SECTION_0 << n;
-		closed = !closed;
+		ui_node_section_toggle        = n;
 		current_nodes->_input_started = current->input_started = false;
 	}
 	draw_set_color(current->ops->theme->LABEL_COL);
@@ -1026,6 +1030,13 @@ void ui_node_draw(ui_node_t *node, ui_node_canvas_t *canvas) {
 			ui_nodes_on_node_changed(node);
 		}
 		current->changed = _changed || current->changed;
+		if (ui_node_section_toggle >= 0) {
+			node->flags ^= UI_NODE_FLAG_SECTION_0 << ui_node_section_toggle;
+			ui_node_section_toggle = -1;
+			if (current->current_window != NULL) {
+				current->current_window->redraws = 2; // The next frame draws the node with its new height
+			}
+		}
 	}
 
 	current->_x            = ui_x;
