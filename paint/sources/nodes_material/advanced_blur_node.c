@@ -310,7 +310,6 @@ char *advanced_blur_node_vector(ui_node_t *node, ui_node_socket_t *socket) {
 }
 
 void advanced_blur_node_init() {
-	u32 value_color  = 0xffa1a1a1;
 
 	ui_node_t *advanced_blur_node_def =
 	    ALLOC_INIT(ui_node_t, {.id     = 0,
@@ -322,10 +321,10 @@ void advanced_blur_node_init() {
 	                           .inputs = any_array_create_from_raw(
 	                               (void *[]){
 	                                   make_image_node_socket(_tr("Image"), "VALUE", NODES_MATERIAL_IMAGE_COLOR, f32_array_create_x(1.0), 0.0, 1.0, 100),
-	                                   make_image_node_socket(_tr("Radius"), "VALUE", value_color, f32_array_create_x(0.01), 0.0, 0.25, 1000),
-	                                   make_image_node_socket(_tr("Angle"), "VALUE", value_color, f32_array_create_x(0.0), 0.0, 360.0, 10),
-	                                   make_image_node_socket(_tr("Aspect"), "VALUE", value_color, f32_array_create_x(1.0), 0.0, 10.0, 100),
-	                                   make_image_node_socket(_tr("Mask"), "VALUE", value_color, f32_array_create_x(1.0), 0.0, 1.0, 100),
+	                                   make_image_node_socket(_tr("Radius"), "VALUE", NODES_MATERIAL_VALUE_COLOR, f32_array_create_x(0.01), 0.0, 0.25, 1000),
+	                                   make_image_node_socket(_tr("Angle"), "VALUE", NODES_MATERIAL_VALUE_COLOR, f32_array_create_x(0.0), 0.0, 360.0, 10),
+	                                   make_image_node_socket(_tr("Aspect"), "VALUE", NODES_MATERIAL_VALUE_COLOR, f32_array_create_x(1.0), 0.0, 10.0, 100),
+	                                   make_image_node_socket(_tr("Mask"), "VALUE", NODES_MATERIAL_IMAGE_COLOR, f32_array_create_x(1.0), 0.0, 1.0, 100),
 	                               },
 	                               5),
 	                           .outputs = any_array_create_from_raw(
