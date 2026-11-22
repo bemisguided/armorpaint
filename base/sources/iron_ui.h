@@ -615,6 +615,7 @@ void  ui_nodes_dot_edit_label(ui_node_t *node);
 float UI_DOT_SIZE();
 void  ui_node_dot_center(ui_node_t *node, float *x, float *y); // Window space
 void  ui_node_draw_order(ui_node_t **nodes, int length, int *order); // Dot nodes first, then the regular nodes
+ui_node_t *ui_node_at_input(ui_node_canvas_t *canvas); // Node under the mouse, regular nodes before dot nodes
 void  ui_draw_link_dotted(float x1, float y1, float x2, float y2, uint32_t color);
 void  ui_popup(int x, int y, int w, int h, void (*commands)(ui_t *, void *, void *), void *data, void *data2);
 extern int  ui_popup_x;

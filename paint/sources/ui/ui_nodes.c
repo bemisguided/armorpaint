@@ -446,14 +446,7 @@ void ui_viewnodes_on_canvas_released() {
 		// Node selection
 		ui_nodes_t       *nodes    = ui_nodes_get_nodes();
 		ui_node_canvas_t *canvas   = ui_nodes_get_canvas(true);
-		ui_node_t        *selected = NULL;
-		for (i32 i = 0; i < canvas->nodes->length; ++i) {
-			ui_node_t *node = canvas->nodes->buffer[i];
-			if (ui_input_in_rect(g_ui->_window_x + UI_NODE_X(node), g_ui->_window_y + UI_NODE_Y(node), UI_NODE_W(node), UI_NODE_H(canvas, node))) {
-				selected = node;
-				break;
-			}
-		}
+		ui_node_t        *selected = ui_node_at_input(canvas);
 		if (selected == NULL) {
 			nodes->nodes_selected_id = i32_array_create_from_raw((i32[]){}, 0);
 		}
@@ -475,17 +468,12 @@ void ui_viewnodes_on_canvas_released() {
 	if (g_ui->input_released) {
 		ui_nodes_t       *nodes  = ui_nodes_get_nodes();
 		ui_node_canvas_t *canvas = ui_nodes_get_canvas(true);
-		for (i32 i = 0; i < canvas->nodes->length; ++i) {
-			ui_node_t *node = canvas->nodes->buffer[i];
-			if (ui_input_in_rect(g_ui->_window_x + UI_NODE_X(node), g_ui->_window_y + UI_NODE_Y(node), UI_NODE_W(node), UI_NODE_H(canvas, node))) {
-				if (nodes->nodes_selected_id->length > 0 && node->id == nodes->nodes_selected_id->buffer[0]) {
-					ui_view2d_hwnd->redraws = 2;
-					if (sys_time() - g_context->select_time < 0.2 && ui_nodes_canvas_type != CANVAS_TYPE_MESH)
-						ui_base_show_2d_view(VIEW_2D_TYPE_NODE);
-					g_context->select_time = sys_time();
-				}
-				break;
-			}
+		ui_node_t *node = ui_node_at_input(canvas);
+		if (node != NULL && nodes->nodes_selected_id->length > 0 && node->id == nodes->nodes_selected_id->buffer[0]) {
+			ui_view2d_hwnd->redraws = 2;
+			if (sys_time() - g_context->select_time < 0.2 && ui_nodes_canvas_type != CANVAS_TYPE_MESH)
+				ui_base_show_2d_view(VIEW_2D_TYPE_NODE);
+			g_context->select_time = sys_time();
 		}
 	}
 }

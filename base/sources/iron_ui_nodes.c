@@ -942,6 +942,26 @@ static bool ui_dot_hit(ui_node_t *node) {
 	return dx * dx + dy * dy <= r * r;
 }
 
+// The node under the mouse for a click handler outside the editor pass: regular nodes first (canvas order, the node rect), then the dot nodes by
+// their ring. A dot node a regular node covers is never returned.
+ui_node_t *ui_node_at_input(ui_node_canvas_t *canvas) {
+	ui_t *current = ui_get_current();
+	for (int i = 0; i < canvas->nodes->length; ++i) {
+		ui_node_t *node = canvas->nodes->buffer[i];
+		if (!(node->flags & UI_NODE_FLAG_DOT) &&
+		    ui_input_in_rect(current->_window_x + UI_NODE_X(node), current->_window_y + UI_NODE_Y(node), UI_NODE_W(node), UI_NODE_H(canvas, node))) {
+			return node;
+		}
+	}
+	for (int i = 0; i < canvas->nodes->length; ++i) {
+		ui_node_t *node = canvas->nodes->buffer[i];
+		if ((node->flags & UI_NODE_FLAG_DOT) && ui_dot_hit(node)) {
+			return node;
+		}
+	}
+	return NULL;
+}
+
 // Label rect in window space: right of a dot with an input, left of a cup with an output
 static void ui_dot_label_rect(ui_node_t *node, char *text, float *x, float *y, float *w, float *h) {
 	ui_t *current = ui_get_current();
