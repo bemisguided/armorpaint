@@ -85,7 +85,7 @@ static void edge_detect_node_params(ui_node_t *node, void *params) {
 	"float " var "_cx = clamp(" var "_x, 0.0, s - 1.0); float " var "_cy = clamp(" var "_y, 0.0, s - 1.0); "                                               \
 	var "_x = " var "_cx + (" var "_x - s * floor(" var "_x / s) - " var "_cx) * wrapf; "                                                                  \
 	var "_y = " var "_cy + (" var "_y - s * floor(" var "_y / s) - " var "_cy) * wrapf; "                                                                  \
-	"float " var " = sample_lod(in0, sampler_linear, float2((" var "_x + 0.5) * inv, (" var "_y + 0.5) * inv), 0.0).r; "
+	"float " var " = sample_lod(in0, sampler_point, float2((" var "_x + 0.5) * inv, (" var "_y + 0.5) * inv), 0.0).r; "
 
 #define EDGE_DETECT_PRE                                                                                                                                    \
 	"float s = constants.k.x; float wrapf = constants.k.y; float inv = 1.0 / s; float px = floor(tex_coord.x * s); float py = floor(tex_coord.y * s); "
@@ -106,15 +106,15 @@ static char *edge_detect_node_binomial_body =
 // Largest of 2 x 2 texels of the source: constants.s is the size of a source texel in uv, the taps sit at the centres of the four texels
 static char *edge_detect_node_reduce_body =
     "float t = constants.s * 0.5; "
-    "float a = sample_lod(in0, sampler_linear, tex_coord + float2(0.0 - t, 0.0 - t), 0.0).r; float b = sample_lod(in0, sampler_linear, tex_coord + float2(t, 0.0 - t), 0.0).r; "
-    "float c = sample_lod(in0, sampler_linear, tex_coord + float2(0.0 - t, t), 0.0).r; float d = sample_lod(in0, sampler_linear, tex_coord + float2(t, t), 0.0).r; "
+    "float a = sample_lod(in0, sampler_point, tex_coord + float2(0.0 - t, 0.0 - t), 0.0).r; float b = sample_lod(in0, sampler_point, tex_coord + float2(t, 0.0 - t), 0.0).r; "
+    "float c = sample_lod(in0, sampler_point, tex_coord + float2(0.0 - t, t), 0.0).r; float d = sample_lod(in0, sampler_point, tex_coord + float2(t, t), 0.0).r; "
     "output = float4(max(max(a, b), max(c, d)), 0.0, 0.0, 1.0);";
 
 // k = (size, wrap, Tolerance, Boundary). in0 the magnitude, in1 the 1 x 1 maximum. A flat image (maximum 0) gives 0 in Gradient mode, never a division by 0.
 // Writes R32 (Width above 0, blurred next) or RGBA64 (the result): the grey in R, G and B.
 static char *edge_detect_node_normalise_body =
     EDGE_DETECT_PRE EDGE_DETECT_TAP("v", "px", "py")
-        "float m = sample_lod(in1, sampler_linear, float2(0.5, 0.5), 0.0).r; float tol = constants.k.z; float r = 0.0; "
+        "float m = sample_lod(in1, sampler_point, float2(0.5, 0.5), 0.0).r; float tol = constants.k.z; float r = 0.0; "
         "if (constants.k.w > 0.5) { if (v > tol) { r = 1.0; } } "
         "else { float ramp = m - tol; if (v > tol && ramp > 0.0001) { r = min((v - tol) / ramp, 1.0); } } "
         "output = float4(r, r, r, 1.0);";
@@ -148,7 +148,7 @@ static char *edge_detect_node_box_last_body =
 #define EDGE_DETECT_WIDE_S_TAP(texture, index)                                                                                                             \
 	"{ float i = " index "; float ic = clamp(i, 0.0, n - 1.0); i = ic + (i - n * floor(i / n) - ic) * wrapf; "                                             \
 	"float tx = i + vert * (pq - i); float ty = pq + vert * (i - pq); "                                                                                    \
-	"sum += sample_lod(" texture ", sampler_linear, float2((tx + 0.5) * inv, (ty + 0.5) * inv), 0.0).r; } "
+	"sum += sample_lod(" texture ", sampler_point, float2((tx + 0.5) * inv, (ty + 0.5) * inv), 0.0).r; } "
 
 static char *edge_detect_node_wide_a_body =
     EDGE_DETECT_WIDE_PRE "int na = int(constants.ud.w); "
@@ -159,7 +159,7 @@ static char *edge_detect_node_wide_a_body =
 	EDGE_DETECT_WIDE_PRE "float ae = constants.ud.y; float aw = ae + vert * (n - ae); float ah = n + vert * (ae - n); "                                    \
 	"int nb = int(constants.ur.x); int nc = int(constants.ur.y); float blk = constants.ud.w; "                                                             \
 	"for (int m = 0; m < nb; m += 1) { float i = pa + float(m) * blk; float tx = i + vert * (pq - i); float ty = pq + vert * (i - pq); "                  \
-	"sum += sample_lod(in0, sampler_linear, float2((tx + 0.5) / aw, (ty + 0.5) / ah), 0.0).r; } "                                                          \
+	"sum += sample_lod(in0, sampler_point, float2((tx + 0.5) / aw, (ty + 0.5) / ah), 0.0).r; } "                                                          \
 	"for (int j = 0; j < nc; j += 1) " EDGE_DETECT_WIDE_S_TAP("in1", "pa + blk * float(nb) + constants.ud.z + float(j)") "float v = sum * constants.ur.z; "
 
 static char *edge_detect_node_wide_box_body = EDGE_DETECT_WIDE_BOX "output = float4(v, 0.0, 0.0, 1.0);";
