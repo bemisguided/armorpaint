@@ -258,8 +258,8 @@ static void color_ramp_node_clear_double_click_over_element(ui_nodes_t *nodes) {
 	if (!(g_ui->input_started || g_ui->input_released) || !g_ui->input_enabled) {
 		return;
 	}
-	if (g_ui->input_x >= g_ui->_window_x + g_ui->_x && g_ui->input_x < g_ui->_window_x + g_ui->_x + g_ui->_w &&
-	    g_ui->input_y >= g_ui->_window_y + g_ui->_y && g_ui->input_y < g_ui->_window_y + g_ui->_y + UI_ELEMENT_H()) {
+	if (g_ui->input_x >= g_ui->_window_x + g_ui->_x && g_ui->input_x < g_ui->_window_x + g_ui->_x + g_ui->_w && g_ui->input_y >= g_ui->_window_y + g_ui->_y &&
+	    g_ui->input_y < g_ui->_window_y + g_ui->_y + UI_ELEMENT_H()) {
 		color_ramp_node_clear_double_click(nodes);
 	}
 }
@@ -284,9 +284,9 @@ void nodes_material_color_ramp_button(i32 node_id) {
 
 	// Gradient preview
 	f32 bar_h    = UI_LINE_H() - 2 * UI_NODES_SCALE();
-	f32 marker_h = UI_LINE_H() * 0.5f; // Drawn handle row
-	f32 hit_h    = UI_LINE_H() * 0.7f; // Click zone of the handles, larger than the drawn handle
-	f32 gap_h    = UI_LINE_H() * 0.3f; // Space between the handles and the controls below
+	f32 marker_h = UI_LINE_H() * 0.5f;                 // Drawn handle row
+	f32 hit_h    = UI_LINE_H() * 0.7f;                 // Click zone of the handles, larger than the drawn handle
+	f32 gap_h    = UI_LINE_H() * 0.3f;                 // Space between the handles and the controls below
 	f32 extent   = (f32)ui_stops_pin_extent(marker_h); // Bar and track are inset so the handles at 0 and 1 stay in the node
 	f32 inset    = extent / UI_NODES_SCALE();
 	f32 bar_w    = sw - 2 * inset;
@@ -303,13 +303,8 @@ void nodes_material_color_ramp_button(i32 node_id) {
 	}
 
 	// Handles below the bar: select, drag, add on the bar, double click deletes
-	color_ramp_stops_t ramp = {.vals = vals, .interp = interp};
-	ui_stops_layout_t  layout = {.x        = g_ui->_x + extent,
-	                             .y        = g_ui->_y,
-	                             .w        = g_ui->_w - 2 * extent,
-	                             .bar_h    = bar_h,
-	                             .marker_h = marker_h,
-	                             .hit_h    = hit_h};
+	color_ramp_stops_t ramp   = {.vals = vals, .interp = interp};
+	ui_stops_layout_t  layout = {.x = g_ui->_x + extent, .y = g_ui->_y, .w = g_ui->_w - 2 * extent, .bar_h = bar_h, .marker_h = marker_h, .hit_h = hit_h};
 	i32                hit    = ui_stops_update(&state->stops, &color_ramp_stops_ops, &ramp, &layout);
 	if (hit & UI_STOPS_CONSUMED) {
 		color_ramp_node_clear_double_click(nodes);
@@ -325,7 +320,7 @@ void nodes_material_color_ramp_button(i32 node_id) {
 	    },
 	    3);
 	ui_row(row);
-	bool enabled = g_ui->enabled;
+	bool enabled  = g_ui->enabled;
 	g_ui->enabled = enabled && ui_stops_can_add(color_ramp_stops_count(&ramp), COLOR_RAMP_MAX_STOPS);
 	color_ramp_node_clear_double_click_over_element(nodes);
 	bool add_stop = ui_button("+", UI_ALIGN_CENTER, "");
@@ -402,15 +397,15 @@ void nodes_material_color_ramp_button(i32 node_id) {
 	    },
 	    3);
 	ui_row(row3);
-	bool changed = g_ui->changed;
-	i32  rank    = color_ramp_stops_rank(&ramp, i);
+	bool changed  = g_ui->changed;
+	i32  rank     = color_ramp_stops_rank(&ramp, i);
 	g_ui->enabled = enabled && rank > 0;
 	color_ramp_node_clear_double_click_over_element(nodes);
 	bool previous = ui_button("<", UI_ALIGN_CENTER, "");
 	if (g_ui->is_hovered) {
 		ui_tooltip(tr("Previous stop"));
 	}
-	g_ui->enabled = enabled && count > 1;
+	g_ui->enabled   = enabled && count > 1;
 	state->index[0] = (f32)(rank + 1);
 	color_ramp_node_clear_double_click_over_element(nodes);
 	f32 number = ui_slider(&state->index[0], tr("Stop"), 1, count > 1 ? (f32)count : 2.0f, false, 1, true, UI_ALIGN_LEFT, true);

@@ -623,15 +623,15 @@ int             ui_next_node_id(ui_node_array_t *nodes);
 
 // Stops control: handles on a 0..1 bar that are selected, dragged, added and deleted (iron_ui_stops.c).
 // The consumer owns the data (through ui_stops_ops_t) and draws the bar, the control draws the handles.
-#define UI_STOPS_CHANGED 1 // Data changed (ui->changed is set as well)
+#define UI_STOPS_CHANGED  1 // Data changed (ui->changed is set as well)
 #define UI_STOPS_SELECTED 2 // Active stop changed
 #define UI_STOPS_CONSUMED 4 // The press was used, the caller should not pass it on
 
 typedef struct ui_stops {
-	int    active; // Index of the active stop
-	bool   drag;   // The active stop is held
-	bool   moved;  // The drag moved the stop
-	float  grab;   // Stop position minus mouse position at the press
+	int    active;   // Index of the active stop
+	bool   drag;     // The active stop is held
+	bool   moved;    // The drag moved the stop
+	float  grab;     // Stop position minus mouse position at the press
 	int    last_hit; // Stop of the last press, for double click
 	double last_time;
 } ui_stops_t;
@@ -651,12 +651,12 @@ typedef struct ui_stops_ops {
 
 // The track and its rows in window coordinates
 typedef struct ui_stops_layout {
-	float x;        // Track, the consumer insets it by ui_stops_pin_extent(marker_h) on both sides
-	float y;        // Top of the bar
+	float x; // Track, the consumer insets it by ui_stops_pin_extent(marker_h) on both sides
+	float y; // Top of the bar
 	float w;
-	float bar_h;    // Height of the bar, the handles are drawn in the marker_h tall row below it
+	float bar_h; // Height of the bar, the handles are drawn in the marker_h tall row below it
 	float marker_h;
-	float hit_h;    // Click zone of the handles, at least marker_h
+	float hit_h; // Click zone of the handles, at least marker_h
 } ui_stops_layout_t;
 
 int  ui_stops_update(ui_stops_t *s, const ui_stops_ops_t *ops, void *data, const ui_stops_layout_t *layout);
