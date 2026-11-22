@@ -1548,10 +1548,16 @@ char *make_image_node_sample_at(ui_node_t *node, char *uv, i32 filter) {
 // IMAGE_FILTER_NEAREST, _LINEAR or _CUBIC. Call it from the node functions with the placement as uv; everything else the node
 // computes is written next to it in the material shader, as literals or uniforms, never inside the capture.
 char *make_image_node_sample_input_at(ui_node_t *node, char *uv, i32 filter) {
+	return make_image_node_sample_input_tap(node, "input", uv, filter);
+}
+
+// Like make_image_node_sample_input_at for a node that reads its input at several places (Seamless: four taps): one fetch per tap name
+// (the variable is <node>_<tap>), each written once per material; every tap binds the same capture or direct source.
+char *make_image_node_sample_input_tap(ui_node_t *node, char *tap, char *uv, i32 filter) {
 	image_node_type_t *type   = make_image_node_type_of(node->type);
 	ui_node_t         *source = type != NULL && type->pass_through_capture ? make_image_node_direct_source(node, type->image_input) : NULL;
 	char              *id     = make_material_node_preview_id(source != NULL ? source : node, NULL);
-	char              *var    = string_tmp("%s_input", parser_material_store_var_name(node));
+	char              *var    = string_tmp("%s_%s", parser_material_store_var_name(node), tap);
 	char              *tex_name = make_image_node_bind(source != NULL ? source : node, id);
 	if (string_array_index_of(parser_material_parsed, var) >= 0) {
 		return var;
@@ -1775,21 +1781,24 @@ ui_node_button_t *make_image_node_state_button() {
 // Registers the sections of a pass-through node (pass_through_capture): the button order of its definition is Capture Size
 // (make_image_node_capture_size_setting), then the other settings. Like make_image_node_sections the list is in DISPLAY order and its index
 // is the flag bit (8 + index): 0 General: the other settings and the first n_general_inputs inputs, open; then the own sections (own, may be
-// NULL); without own sections the remaining inputs form one open section Parameters; last Texture: Capture Size alone, closed by default,
+// NULL); without own sections the remaining inputs form one open section Parameters (n_general_inputs < 0: neither General nor Parameters, the inputs stay plain rows, Seamless); last Texture: Capture Size alone, closed by default,
 // drawn below the inputs (after_inputs). No state row, no Size.
 void make_image_node_sections_capture(ui_node_t *def, ui_node_section_t *own, i32 own_count, i32 n_general_inputs) {
 	i32                n_buttons = def->buttons->length;
 	i32                n_inputs  = def->inputs->length;
-	bool               params    = own_count == 0 && n_inputs > n_general_inputs;
+	bool               general   = n_general_inputs >= 0;
+	bool               params    = general && own_count == 0 && n_inputs > n_general_inputs;
 	ui_node_section_t *list      = calloc(own_count + 4, sizeof(ui_node_section_t));
 	i32                n         = 0;
-	list[n++]                    = (ui_node_section_t){.title             = _tr("General"),
-	                                                   .kind              = UI_NODE_ITEM_BUTTON,
-	                                                   .first             = 1,
-	                                                   .count             = n_buttons - 1,
-	                                                   .closed_by_default = false,
-	                                                   .inputs_first      = 0,
-	                                                   .inputs_count      = n_general_inputs};
+	if (general) {
+		list[n++] = (ui_node_section_t){.title             = _tr("General"),
+		                                .kind              = UI_NODE_ITEM_BUTTON,
+		                                .first             = 1,
+		                                .count             = n_buttons - 1,
+		                                .closed_by_default = false,
+		                                .inputs_first      = 0,
+		                                .inputs_count      = n_general_inputs};
+	}
 	for (i32 i = 0; i < own_count; ++i) {
 		list[n++] = own[i];
 	}
