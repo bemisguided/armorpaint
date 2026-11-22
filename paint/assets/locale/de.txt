@@ -101,6 +101,7 @@ Abbrechen
 Hintergrund aufnehmen
 Ausgabe aufnehmen
 Bildschirmfoto aufnehmen
+
 Video aufnehmen
 Aufrunden
 Zellengröße in Pixeln

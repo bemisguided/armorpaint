@@ -101,6 +101,7 @@ Cancel
 Capture Background
 Capture Output
 Capture Screenshot
+Capture Size
 Capture Video
 Ceil
 Cell size in pixels
