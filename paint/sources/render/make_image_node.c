@@ -1877,7 +1877,7 @@ char *make_image_node_sample_input_at(ui_node_t *node, char *uv, i32 filter) {
 	ui_node_t         *source = type != NULL && type->pass_through_capture ? make_image_node_direct_source(node, type->image_input) : NULL;
 	char              *id     = make_material_node_preview_id(source != NULL ? source : node, NULL);
 	char              *var    = string_tmp("%s_input", parser_material_store_var_name(node));
-	char              *tex_name = make_image_node_bind(source != NULL ? source : node, id);
+	char              *tex_name = make_image_node_bind(source != NULL ? source : node, id, id);
 	if (string_array_index_of(parser_material_parsed, var) >= 0) {
 		return var;
 	}
