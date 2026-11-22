@@ -962,13 +962,15 @@ char                     *asset_selection_unique_path(char *dir, char *name, cha
 i32_array_t              *asset_tray_filter(asset_tray_t tray, char *search, bool tags);
 void                      ui_asset_details_show(i32 category, i32 index);
 bool                      ui_asset_tags_any(i32 category);
+f32_array_t              *ui_asset_tray_row(i32 category, i32 buttons, f32 button_w, f32 search_w, bool clear_search);
 bool                      ui_asset_tags_filter(i32 category);
 bool                      ui_asset_tags_active(i32 category);
 bool                      ui_asset_tags_visible(i32 category, i32 index);
 u64                       ui_asset_tags_hash(meta_t *m, u64 h);
 void                      asset_tray_begin(asset_tray_t tray, char *search, i32_array_t *visible);
 void                      asset_tray_end(asset_tray_t tray);
-u32                       asset_tray_frame_color(asset_tray_t tray, void *item);
+void                      asset_tray_plate_draw(asset_tray_t tray, void *item, f32 cell_x, f32 cell_y, f32 x, f32 y, f32 w, f32 h);
+void                      asset_tray_ring_draw(asset_tray_t tray, void *item, f32 cell_x, f32 cell_y, f32 x, f32 y, f32 w, f32 h);
 void                     *asset_tray_press(asset_tray_t tray, void *item, i32_array_t *visible, bool *can_drag);
 bool                      asset_tray_drag_begin(f32 uix, f32 uiy);
 void                      asset_tray_delete_selected(asset_tray_t tray, void (*delete_item)(void *), bool (*can_delete)(void *), i32 keep, bool grouped);

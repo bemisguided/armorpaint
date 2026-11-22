@@ -376,18 +376,7 @@ void tab_textures_draw(i32 *htab) {
 
 		ui_begin_sticky();
 
-		f32_array_t *row = f32_array_create(0);
-		f32_array_push(row, -100);
-		f32_array_push(row, -100);
-		f32_array_push(row, -100);
-		f32_array_push(row, -200); // Search
-		if (ui_asset_tags_any(MC_TEXTURE)) {
-			f32_array_push(row, -150); // Tags filter
-		}
-		if (!string_equals(tab_textures_search, "")) {
-			f32_array_push(row, -40); // Clear search
-		}
-		ui_row(row);
+		ui_row(ui_asset_tray_row(MC_TEXTURE, 3, -100, -200, !string_equals(tab_textures_search, "")));
 
 		if (ui_icon_button(tr("Import"), ICON_IMPORT, UI_ALIGN_CENTER)) {
 			ui_files_show(string_array_join(path_texture_formats(), ","), false, true, &tab_textures_draw_import);
@@ -477,7 +466,10 @@ void tab_textures_draw(i32 *htab) {
 						ui_fill(-1, -2, 2, imgw_val + 4, g_theme->HIGHLIGHT_COL);
 					}
 
+					i32 w = 50 * a;
+					asset_tray_plate_draw(ASSET_TRAY_TEXTURES, asset, uix, uiy, 1, 1, w + 2, w + 2);
 					ui_state_t _state = ui_sub_image(img, 0xffffffff, slotw, 0, 0, sw, sw);
+					asset_tray_ring_draw(ASSET_TRAY_TEXTURES, asset, uix, uiy, 1, 1, w + 2, w + 2);
 
 					// Reordering
 					if (_state == UI_STATE_HOVERED && base_drag_asset != NULL && string_equals(search, "") && !ui_asset_tags_active(MC_TEXTURE)) {
@@ -496,18 +488,6 @@ void tab_textures_draw(i32 *htab) {
 							}
 						}
 						ui_view2d_hwnd->redraws = 2;
-					}
-
-					u32 color = asset_tray_frame_color(ASSET_TRAY_TEXTURES, asset);
-					if (color != 0) {
-						f32 _uix = g_ui->_x;
-						f32 _uiy = g_ui->_y;
-						g_ui->_x = uix;
-						g_ui->_y = uiy;
-						i32 w    = 50 * a;
-						ui_rect_round(1, 1, w + 2, w + 2, color, 2 * UI_SCALE());
-						g_ui->_x = _uix;
-						g_ui->_y = _uiy;
 					}
 
 					bool is_packed = g_project->packed_assets != NULL && project_packed_asset_exists(g_project->packed_assets, asset->file);

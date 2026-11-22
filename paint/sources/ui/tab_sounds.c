@@ -115,17 +115,7 @@ void tab_sounds_draw(i32 *htab) {
 
 		ui_begin_sticky();
 
-		f32_array_t *row = f32_array_create(0);
-		f32_array_push(row, -100);
-		f32_array_push(row, -100);
-		f32_array_push(row, -200); // Search
-		if (ui_asset_tags_any(MC_SOUND)) {
-			f32_array_push(row, -150); // Tags filter
-		}
-		if (!string_equals(tab_sounds_search, "")) {
-			f32_array_push(row, -40); // Clear search
-		}
-		ui_row(row);
+		ui_row(ui_asset_tray_row(MC_SOUND, 2, -100, -200, !string_equals(tab_sounds_search, "")));
 
 		if (ui_icon_button(tr("Import"), ICON_IMPORT, UI_ALIGN_CENTER)) {
 			project_import_asset("wav,ogg", true);
@@ -193,15 +183,10 @@ void tab_sounds_draw(i32 *htab) {
 				gpu_texture_t *img = g_project->_->sounds->buffer[i]->image;
 
 				slot_sound_t *sound = g_project->_->sounds->buffer[i];
-				u32           color = asset_tray_frame_color(ASSET_TRAY_SOUNDS, sound);
-				if (color != 0) {
-					// ui_fill(1, -2, img.width + 3, img.height + 3, ui.ops.theme.HIGHLIGHT_COL); // TODO
-					i32 w = 50 * a;
-					ui_rect_round(-1, -1, w + 2, w + 2, color, 2 * UI_SCALE());
-				}
-
-				uix = g_ui->_x;
-				uiy = g_ui->_y;
+				i32           w     = 50 * a;
+				uix                 = g_ui->_x;
+				uiy                 = g_ui->_y;
+				asset_tray_plate_draw(ASSET_TRAY_SOUNDS, sound, uix, uiy, -1, -1, w + 2, w + 2);
 				asset_selection_marquee_cell(sound, uix, uiy, imgw_val, imgw_val);
 				gpu_texture_t *tile_icons = resource_get("icons.k");
 				i32            tile       = UI_SCALE() > 1 ? 100 : 50;
@@ -222,6 +207,7 @@ void tab_sounds_draw(i32 *htab) {
 				g_ui->image_scroll_align = false;
 				state                    = ui_sub_image(tile_icons, -1, imgw, tile * 7, tile * 9, tile, tile);
 				g_ui->image_scroll_align = true;
+				asset_tray_ring_draw(ASSET_TRAY_SOUNDS, sound, uix, uiy, -1, -1, w + 2, w + 2);
 				// }
 
 				if (state == UI_STATE_HOVERED && base_drag_sound != NULL && string_equals(search, "") && !ui_asset_tags_active(MC_SOUND)) {

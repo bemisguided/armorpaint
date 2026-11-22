@@ -112,14 +112,7 @@ void tab_brushes_draw(i32 *htab) {
 		}
 
 		ui_begin_sticky();
-		f32_array_t *row = f32_array_create(0);
-		for (i32 i = 0; i < 3; ++i) {
-			f32_array_push(row, -64);
-		}
-		if (ui_asset_tags_any(MC_BRUSH)) {
-			f32_array_push(row, -150); // Tags filter
-		}
-		ui_row(row);
+		ui_row(ui_asset_tray_row(MC_BRUSH, 3, -64, 0, false));
 		if (ui_icon_button(tr("New"), ICON_PLUS, UI_ALIGN_CENTER)) {
 			g_context->brush = slot_brush_create(NULL);
 			any_array_push(g_project->_->brushes, g_context->brush);
@@ -182,15 +175,10 @@ void tab_brushes_draw(i32 *htab) {
 				gpu_texture_t *img_full = g_project->_->brushes->buffer[i]->image;
 
 				slot_brush_t *brush = g_project->_->brushes->buffer[i];
-				u32           color = asset_tray_frame_color(ASSET_TRAY_BRUSHES, brush);
-				if (color != 0) {
-					// ui_fill(1, -2, img.width + 3, img.height + 3, ui.ops.theme.HIGHLIGHT_COL); // TODO
-					i32 w = 50 * a;
-					ui_rect_round(-1, -1, w + 2, w + 2, color, 2 * UI_SCALE());
-				}
-
-				uix = g_ui->_x;
-				uiy = g_ui->_y;
+				i32           w     = 50 * a;
+				uix           = g_ui->_x;
+				uiy           = g_ui->_y;
+				asset_tray_plate_draw(ASSET_TRAY_BRUSHES, brush, uix, uiy, -1, -1, w + 2, w + 2);
 				asset_selection_marquee_cell(brush, uix, uiy, imgw_val, imgw_val);
 				i32 tile = UI_SCALE() > 1 ? 100 : 50;
 
@@ -202,6 +190,7 @@ void tab_brushes_draw(i32 *htab) {
 				ui_state_t state         = g_project->_->brushes->buffer[i]->preview_ready
 				                               ? ui_image(img, 0xffffffff, imgw)
 				                               : ui_sub_image(resource_get("icons.k"), -1, imgw, tile * 5, tile, tile, tile);
+				asset_tray_ring_draw(ASSET_TRAY_BRUSHES, brush, uix, uiy, -1, -1, w + 2, w + 2);
 				g_ui->image_scroll_align = true;
 
 				if (state == UI_STATE_HOVERED && base_drag_brush != NULL && !ui_asset_tags_active(MC_BRUSH)) {
