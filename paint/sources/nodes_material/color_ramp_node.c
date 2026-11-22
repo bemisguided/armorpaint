@@ -467,7 +467,7 @@ void color_ramp_node_init() {
 	                                               .min           = 0.0,
 	                                               .max           = 1.0,
 	                                               .precision     = 100,
-	                                               .height        = 4.1}),
+	                                               .height        = 5.0}),
 	                               },
 	                               1),
 	                           .width = 0,
