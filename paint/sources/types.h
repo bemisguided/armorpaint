@@ -561,6 +561,11 @@ typedef struct node_shader {
 	buffer_t frag_attribs;
 	i32      frag_write_normal;
 
+	// Samplers of an image node pass (the sampler_point and sampler_linear names, see node_shader_get): a pass that may use the point
+	// sampler sets allow_point_sampler before node_shader_get, which sets point_sampler when the shader only reads with sampler_point
+	bool allow_point_sampler;
+	bool point_sampler;
+
 	// References
 	bool vert_n;
 	bool frag_bposition;

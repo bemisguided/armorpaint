@@ -365,6 +365,19 @@ typedef struct make_image_node_pass {
 	material_t            *data;
 } make_image_node_pass_t;
 
+// The pass shaders that read with the point sampler only (sampler_point, see node_shader_get): make_image_node_gpu_pass draws them with point
+// sampling. A pass shader reads texels at their centres with sampler_point, so that the result never depends on the filtering of a float
+// texture (a backend may not filter 32 bit floats); only a read that is meant to be hardware bilinear uses sampler_linear, and a shader that has
+// one is drawn with the linear sampler (the engine binds one sampler to a draw).
+static any_array_t *make_image_node_point_shaders = NULL;
+
+static i32 make_image_node_point_passes  = 0; // Passes drawn since the start with the point sampler and with the linear sampler (test hook)
+static i32 make_image_node_linear_passes = 0;
+
+static bool make_image_node_point_shader(shader_context_t *shader) {
+	return make_image_node_point_shaders != NULL && array_index_of(make_image_node_point_shaders, shader) > -1;
+}
+
 // Starts a full screen pass shader writing count targets of the named formats (render_path_get_tex_format names: RGBA128, RGBA64,
 // R32, R16, R8, RGBA32). The vertex stage and tex_coord are written, the caller writes the fragment stage (node_shader_write_frag, frag_out)
 static make_image_node_pass_t make_image_node_pass_begin(char **formats, i32 count) {
@@ -389,6 +402,7 @@ static make_image_node_pass_t make_image_node_pass_begin(char **formats, i32 cou
 	p.data                       = ALLOC_INIT(material_t, {.name = "Material", .canvas = g_context->material->canvas});
 	p.con                        = node_shader_context_create(p.data, props);
 	p.kong                       = node_shader_context_make_kong(p.con);
+	p.kong->allow_point_sampler  = true;
 	// util_render_screen_aligned_full_vb: one triangle covering the target
 	node_shader_write_attrib_vert(p.kong, "output.pos = float4(input.pos.xy * 3.0, 0.0, 1.0);");
 	node_shader_add_out(p.kong, "float2 tex_coord");
@@ -409,10 +423,17 @@ static shader_context_t *make_image_node_pass_end(make_image_node_pass_t *p) {
 		free(p->data);
 		return NULL;
 	}
+	bool point = p->kong->point_sampler;
 	gpu_create_shaders_from_kong(source, &p->con->data->vertex_shader, &p->con->data->fragment_shader, &p->con->data->_->vertex_shader_size,
 	                             &p->con->data->_->fragment_shader_size);
 	shader_context_load(p->con->data);
 	shader_context_t *scon = p->con->data;
+	if (point) {
+		if (make_image_node_point_shaders == NULL) {
+			make_image_node_point_shaders = any_array_create_from_raw((void *[]){}, 0);
+		}
+		any_array_push(make_image_node_point_shaders, scon);
+	}
 	node_shader_context_free(p->con);
 	free(p->data);
 	return scon;
@@ -441,7 +462,7 @@ static shader_context_t *make_image_node_capture_shader(ui_node_t *node, char *(
 
 // A hand written fragment pass of a GPU baked node (an Advanced Blur stage, the Edge Detect Sobel, a reduction step). body is kong fragment
 // code: it reads tex_coord (the image uv of the target pixel) and writes output (one target) or output[0], output[1], ... (target_count > 1);
-// all float4, a single channel target keeps R. inputs names the textures it reads (sample_lod(name, sampler_linear, uv, 0.0)), uniforms the
+// all float4, a single channel target keeps R. inputs names the textures it reads (sample_lod(name, sampler_point, uv, 0.0) for an exact texel load, sampler_linear for a hardware bilinear read), uniforms the
 // constants it reads, each "float4 name" (types float, float2, float3, float4; in the code constants.name). formats are the target formats
 // (render_path_get_tex_format names), one per target. make_image_node_gpu_pass binds the inputs and the floats of the uniforms in the order
 // of these lists. Free with make_image_node_gpu_shader_free.
@@ -469,6 +490,9 @@ shader_context_t *make_image_node_gpu_shader_with_functions(char *functions, cha
 }
 
 void make_image_node_gpu_shader_free(shader_context_t *shader) {
+	if (make_image_node_point_shaders != NULL) {
+		array_remove(make_image_node_point_shaders, shader);
+	}
 	make_material_delete_context(shader); // The pipeline may still be in use by this frame: deleted on the next one
 }
 
@@ -552,7 +576,22 @@ void make_image_node_gpu_pass(shader_context_t *shader, gpu_texture_t **targets,
 	}
 	gpu_set_vertex_buffer(util_render_screen_aligned_full_vb);
 	gpu_set_index_buffer(util_render_screen_aligned_full_ib);
+	bool point = make_image_node_point_shader(shader);
+	if (shader->texture_units != NULL && shader->texture_units->length > 0) {
+		if (point) {
+			make_image_node_point_passes++;
+		}
+		else {
+			make_image_node_linear_passes++;
+		}
+	}
+	if (point) {
+		gpu_use_linear_sampling(false); // The point sampler for the draw of a shader that reads with sampler_point only
+	}
 	gpu_draw();
+	if (point) {
+		gpu_use_linear_sampling(g_config->texture_filter);
+	}
 	gpu_end();
 	_mesh_object_last_pipeline = NULL; // Mesh draws set their pipeline again
 	if (additional != NULL) {
@@ -2126,7 +2165,8 @@ static i32 make_image_node_box_taps(ui_node_t *node, i32 filter) {
 }
 
 // Writes the fetch of the node's baked result at the float2 expression uv, once per variable. Repeating: the uv is wrapped
-// and snapped to the texel centre, so the one linear sampler never blends two texels. Black until the first bake.
+// and snapped to the texel centre and read with sampler_point (an exact texel load: nearest, bilinear and cubic are weighted by hand, so no
+// filtering of a float texture is needed). Black until the first bake.
 static void make_image_node_write_fetch(char *var, char *tex_name, char *uv, i32 filter) {
 	parser_material_write(parser_material_kong, string_tmp("float2 %s_uv = %s;", var, uv));
 	if (filter == IMAGE_FILTER_CUBIC) {
@@ -2149,8 +2189,8 @@ static void make_image_node_write_fetch(char *var, char *tex_name, char *uv, i32
 				                                 i, var, j, i, tex_name, tex_name));
 			}
 			parser_material_write(parser_material_kong,
-			                      string_tmp("float4 %s_r%d = sample_lod(%s, sampler_linear, %s_q%d0, 0.0) * %s_w0.x + sample_lod(%s, sampler_linear, %s_q%d1, 0.0) * %s_w1.x + "
-			                                 "sample_lod(%s, sampler_linear, %s_q%d2, 0.0) * %s_w2.x + sample_lod(%s, sampler_linear, %s_q%d3, 0.0) * %s_w3.x;",
+			                      string_tmp("float4 %s_r%d = sample_lod(%s, sampler_point, %s_q%d0, 0.0) * %s_w0.x + sample_lod(%s, sampler_point, %s_q%d1, 0.0) * %s_w1.x + "
+			                                 "sample_lod(%s, sampler_point, %s_q%d2, 0.0) * %s_w2.x + sample_lod(%s, sampler_point, %s_q%d3, 0.0) * %s_w3.x;",
 			                                 var, j, tex_name, var, j, var, tex_name, var, j, var, tex_name, var, j, var, tex_name, var, j, var));
 		}
 		parser_material_write(parser_material_kong,
@@ -2159,7 +2199,7 @@ static void make_image_node_write_fetch(char *var, char *tex_name, char *uv, i32
 		return;
 	}
 	if (filter == IMAGE_FILTER_LINEAR) {
-		// Bilinear by hand: four fetches, each exactly at a texel centre of the wrapped position, so the linear sampler
+		// Bilinear by hand: four fetches, each exactly at a texel centre of the wrapped position (sampler_point), so the sampler
 		// never blends two texels itself and the blend wraps at the border
 		parser_material_write(parser_material_kong, string_tmp("float2 %s_p = %s_uv * constants.%s_size - 0.5;", var, var, tex_name));
 		parser_material_write(parser_material_kong, string_tmp("float2 %s_f = floor(%s_p);", var, var));
@@ -2169,7 +2209,7 @@ static void make_image_node_write_fetch(char *var, char *tex_name, char *uv, i32
 			parser_material_write(parser_material_kong, string_tmp("float2 %s_q%d = (%s_f + %s + 0.5) / constants.%s_size;", var, k, var, off, tex_name));
 			parser_material_write(parser_material_kong, string_tmp("%s_q%d = (floor((%s_q%d - floor(%s_q%d)) * constants.%s_size) + 0.5) / constants.%s_size;", var,
 			                                                       k, var, k, var, k, tex_name, tex_name));
-			parser_material_write(parser_material_kong, string_tmp("float4 %s_s%d = sample_lod(%s, sampler_linear, %s_q%d, 0.0);", var, k, tex_name, var, k));
+			parser_material_write(parser_material_kong, string_tmp("float4 %s_s%d = sample_lod(%s, sampler_point, %s_q%d, 0.0);", var, k, tex_name, var, k));
 		}
 		parser_material_write(parser_material_kong, string_tmp("float4 %s = lerp(lerp(%s_s0, %s_s1, %s_t.x), lerp(%s_s2, %s_s3, %s_t.x), %s_t.y);", var, var, var,
 		                                                       var, var, var, var, var));
@@ -2177,7 +2217,7 @@ static void make_image_node_write_fetch(char *var, char *tex_name, char *uv, i32
 	}
 	parser_material_write(parser_material_kong, string_tmp("%s_uv = (floor((%s_uv - floor(%s_uv)) * constants.%s_size) + 0.5) / constants.%s_size;", var, var,
 	                                                       var, tex_name, tex_name));
-	parser_material_write(parser_material_kong, string_tmp("float4 %s = sample_lod(%s, sampler_linear, %s_uv, 0.0);", var, tex_name, var));
+	parser_material_write(parser_material_kong, string_tmp("float4 %s = sample_lod(%s, sampler_point, %s_uv, 0.0);", var, tex_name, var));
 }
 
 // Records the dependency of a capture on the node (id), binds its texture (texture_id: the id of the result, or the id of the second capture)
@@ -2627,9 +2667,13 @@ void make_image_node_sections(ui_node_t *def, ui_node_section_t *own, i32 own_co
 // a ramp (u, v, 0.25, 1) from a uniform and a constant 0.5 texture; two passes read the previous result (in0) and the constant (in1) and write
 // out0 = in0 * 2 + (0.125, 0, 0, 0) + in1 (uniforms float s, float4 o) and out1 = (1 - in0.r, in0.g, in0.b, 1). Returns the value at
 // pixel (x, y), channel 0 to 3, of which = 0: the ping-pong result after the second pass, 1: the second target of that pass, 2: the
-// ping-pong result after the first pass; -1 for an argument out of range, -2 when a texture could not be read.
+// ping-pong result after the first pass, 3 and 4: the number of passes with a texture drawn since the start with the point sampler (3) and the
+// linear sampler (4), the other arguments ignored; -1 for an argument out of range, -2 when a texture could not be read.
 f64 make_image_node_test_gpu_pass(i32 which, i32 x, i32 y, i32 channel) {
 	const i32 size = 16;
+	if (which == 3 || which == 4) {
+		return (f64)(which == 3 ? make_image_node_point_passes : make_image_node_linear_passes); // passes with textures drawn so far
+	}
 	if (which < 0 || which > 2 || x < 0 || y < 0 || x >= size || y >= size || channel < 0 || channel > 3) {
 		return -1.0;
 	}
@@ -2640,7 +2684,7 @@ f64 make_image_node_test_gpu_pass(i32 which, i32 x, i32 y, i32 channel) {
 	char             *step_uniforms[] = {"float s", "float4 o"};
 	shader_context_t *ramp = make_image_node_gpu_shader("output = float4(tex_coord.x, tex_coord.y, constants.k.z, 1.0);", NULL, 0, ramp_uniforms, 1, one, 1);
 	shader_context_t *half = make_image_node_gpu_shader("output = float4(0.5, 0.5, 0.5, 1.0);", NULL, 0, NULL, 0, one, 1);
-	shader_context_t *step = make_image_node_gpu_shader("float4 a = sample_lod(in0, sampler_linear, tex_coord, 0.0); float4 b = sample_lod(in1, sampler_linear, tex_coord, 0.0); "
+	shader_context_t *step = make_image_node_gpu_shader("float4 a = sample_lod(in0, sampler_point, tex_coord, 0.0); float4 b = sample_lod(in1, sampler_point, tex_coord, 0.0); "
 	                                                    "output[0] = a * constants.s + constants.o + b; output[1] = float4(1.0 - a.r, a.g, a.b, 1.0);",
 	                                                    step_inputs, 2, step_uniforms, 2, two, 2);
 	gpu_texture_t *ramp_rt = gpu_create_render_target(size, size, GPU_TEXTURE_FORMAT_RGBA128);
@@ -2707,9 +2751,9 @@ static gpu_texture_t *make_image_node_test_bake_run(ui_node_t *node, i32 size, v
 	char *inputs2[] = {"in0", "in1"};
 	char *inputs1[] = {"in0"};
 	char *uniforms[] = {"float s"};
-	shader_context_t *first  = make_image_node_gpu_shader("output = float4(sample_lod(in0, sampler_linear, tex_coord, 0.0).r * 2.0 + sample_lod(in1, sampler_linear, tex_coord, 0.0).r, 0.0, 0.0, 1.0);",
+	shader_context_t *first  = make_image_node_gpu_shader("output = float4(sample_lod(in0, sampler_point, tex_coord, 0.0).r * 2.0 + sample_lod(in1, sampler_point, tex_coord, 0.0).r, 0.0, 0.0, 1.0);",
 	                                                      inputs2, 2, NULL, 0, one, 1);
-	shader_context_t *second = make_image_node_gpu_shader("output = float4(sample_lod(in0, sampler_linear, tex_coord, 0.0).r * constants.s, 0.0, 0.0, 1.0);", inputs1, 1, uniforms, 1, one, 1);
+	shader_context_t *second = make_image_node_gpu_shader("output = float4(sample_lod(in0, sampler_point, tex_coord, 0.0).r * constants.s, 0.0, 0.0, 1.0);", inputs1, 1, uniforms, 1, one, 1);
 	make_image_node_ping_pong_t pp = make_image_node_ping_pong_create(size, GPU_TEXTURE_FORMAT_RGBA128);
 	gpu_texture_t *targets1[1]     = {make_image_node_ping_pong_dst(&pp)};
 	make_image_node_gpu_pass(first, targets1, 1, captures, 2, NULL);
