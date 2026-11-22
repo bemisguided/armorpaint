@@ -81,6 +81,7 @@ typedef struct make_image_node_state {
 	u64                capture_hash;    // Hash of the text of the shader that rendered it
 	bool               force_capture;   // An image node it samples changed: render again even when the text is the same
 	bool               direct;          // The image input is a baked node's result bound directly: no capture of its own
+	char              *direct_id;       // Preview id of that baked node while direct (the test hooks read its result as the node's image)
 	i32                capture_renders; // Renders of the capture since the state exists (make_image_node_pass_through_info)
 	i32                capture_skips;   // Captures that found the shader text unchanged and kept the target
 } make_image_node_state_t;
@@ -196,6 +197,7 @@ static void make_image_node_clear_pending(make_image_node_state_t *s) {
 
 static void make_image_node_free_state(make_image_node_state_t *s) {
 	make_image_node_clear_pending(s);
+	free(s->direct_id);
 	if (s->upstream != NULL) {
 		make_image_node_clear_upstream(s);
 		array_free(s->upstream);
@@ -1047,8 +1049,11 @@ static bool make_image_node_capture_pass_through(make_image_node_state_t *s, cha
 	parser_material_init();
 	make_image_node_parser_scope();
 
-	bool changed = false;
-	if (make_image_node_direct_source(node, t->image_input) != NULL) {
+	bool       changed = false;
+	ui_node_t *source  = make_image_node_direct_source(node, t->image_input);
+	free(s->direct_id);
+	s->direct_id = source != NULL ? string_copy(make_material_node_preview_id(source, NULL)) : NULL;
+	if (source != NULL) {
 		// The baked result is bound by the node's shader: no capture of its own
 		if (g_context->node_previews != NULL && any_map_get(g_context->node_previews, id) != NULL) {
 			make_image_node_delete_result(id);
