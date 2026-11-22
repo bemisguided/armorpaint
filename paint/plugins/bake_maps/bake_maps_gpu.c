@@ -31,7 +31,6 @@ extern bool       render_path_raytrace_ready;
 extern bool       render_path_raytrace_is_bake;
 extern bool       render_path_raytrace_init_shader;
 bool              render_path_raytrace_bake_lightmap_busy(void);
-float             render_path_raytrace_half_to_float(uint16_t h);
 void              context_set_viewport_mode(viewport_mode_t mode);
 gpu_texture_t    *gpu_create_texture_from_bytes_raw(buffer_t *data, i32 width, i32 height, i32 format);
 gpu_texture_t    *gpu_create_render_target(i32 width, i32 height, i32 format);
@@ -190,7 +189,8 @@ static bool gpo_upload_pair(i32 pair) {
 	buffer_t nor = {.buffer = (u8 *)gpo_nor, .length = sizeof(f32) * 4 * gpo_w * gpo_h};
 	gpo_pos_tex  = gpu_create_texture_from_bytes_raw(&pos, gpo_w, gpo_h, GPU_TEXTURE_FORMAT_RGBA128);
 	gpo_nor_tex  = gpu_create_texture_from_bytes_raw(&nor, gpo_w, gpo_h, GPU_TEXTURE_FORMAT_RGBA128);
-	gpo_target   = gpu_create_render_target(gpo_w, gpo_h, GPU_TEXTURE_FORMAT_RGBA64);
+	// 32 bit float: the shaders keep a running mean here, a 16 bit float store (Metal rounds toward zero) loses small updates and darkens the result with more samples
+	gpo_target   = gpu_create_render_target(gpo_w, gpo_h, GPU_TEXTURE_FORMAT_RGBA128);
 	return gpo_pos_tex != NULL && gpo_nor_tex != NULL && gpo_target != NULL;
 }
 
@@ -233,20 +233,20 @@ static void gpo_dispatch() {
 	gpo_sample++;
 }
 
-// Half float target into the pair's RGBA8 buffer, then dilated like a cpu result.
+// Float target into the pair's RGBA8 buffer, then dilated like a cpu result.
 // Thickness is a hit distance in world units, divided by the world scale to the mesh units of the cpu bake.
 static bool gpo_readback(i32 pair) {
 	buffer_t *pixels = gpu_get_texture_pixels(gpo_target);
 	u8       *out    = bake_maps_gpo_result(pair);
 	size_t    count  = (size_t)gpo_w * (size_t)gpo_h;
-	if (pixels == NULL || out == NULL || (size_t)pixels->length < count * 8) {
+	if (pixels == NULL || out == NULL || (size_t)pixels->length < count * 16) {
 		return false;
 	}
-	u16 *hp       = (u16 *)pixels->buffer;
+	f32 *fp       = (f32 *)pixels->buffer;
 	f32  to_units = gpo_type == BAKE_TYPE_THICKNESS ? 1.0f / gpo_world_scale() : 1.0f;
 	for (size_t i = 0; i < count; ++i) {
 		for (i32 c = 0; c < 3; ++c) {
-			f32 v          = render_path_raytrace_half_to_float(hp[i * 4 + c]) * to_units;
+			f32 v          = fp[i * 4 + c] * to_units;
 			v              = v < 0.0f ? 0.0f : v > 1.0f ? 1.0f : v;
 			out[i * 4 + c] = (u8)(v * 255.0f + 0.5f);
 		}
