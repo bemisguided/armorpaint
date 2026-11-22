@@ -1130,6 +1130,7 @@ typedef struct ui_nodes_editor_state {
 	f32              x;
 	f32              y;
 	ui_stops_t       stops;
+	ui_stops_t       stops_out; // Levels: the second row of handles (Out Low, Out High)
 	i32              interp;
 	ui_color_state_t color_state;
 	i32              line;

@@ -124,7 +124,7 @@ static const ui_node_section_t *ui_node_section(ui_node_t *node, int n);
 // Whether a button sits in a section that is drawn below the inputs (ui_node_section_t.after_inputs)
 static bool ui_node_button_after_inputs(ui_node_t *node, int index) {
 	int n = ui_node_section_of(node, UI_NODE_ITEM_BUTTON, index);
-	return n >= 0 && ui_node_section(node, n)->after_inputs;
+	return n >= 0 && (ui_node_section(node, n)->after_inputs || ui_node_section(node, n)->kind == UI_NODE_ITEM_INPUT);
 }
 
 // Height of the first length buttons (all for a negative length) that are drawn above the inputs (after false) or below them (after true)
@@ -221,6 +221,7 @@ static int ui_node_section_of(ui_node_t *node, ui_node_item_t kind, int index) {
 	const ui_node_section_t *sections = ui_nodes_on_sections(node);
 	for (int n = 0; sections != NULL && sections[n].title != NULL && n < UI_NODE_SECTIONS_MAX; ++n) {
 		if ((sections[n].kind == kind && index >= sections[n].first && index < sections[n].first + sections[n].count) ||
+		    (kind == UI_NODE_ITEM_BUTTON && sections[n].kind == UI_NODE_ITEM_INPUT && index >= sections[n].trailing_first && index < sections[n].trailing_first + sections[n].trailing_count) ||
 		    (kind == UI_NODE_ITEM_INPUT && index >= sections[n].inputs_first && index < sections[n].inputs_first + sections[n].inputs_count)) {
 			return n;
 		}

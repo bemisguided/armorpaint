@@ -198,7 +198,9 @@ void ui_stops_pin_colors(uint32_t bg_col, uint32_t text_col, ui_stops_colors_t *
 // and roof + box_h tall. The roof outline runs along the two slopes and, like the box outline, ends on the roof base: the
 // grey roof sits directly on the frame.
 // cx: pixel centre of the position, y: the bar bottom, w: ui_stops_pin_w(h). locked: the dimmed variant of a held stop.
-static void ui_stops_draw_house(float cx, float y, float w, float h, uint32_t fill, bool active, bool locked) {
+// flipped: the vertical mirror about y (y is then the tip of the roof, the house extends up from it): same geometry, same extent,
+// roof pointing down, for handles that sit on top of a bar.
+static void ui_stops_draw_house(float cx, float y, float w, float h, uint32_t fill, bool active, bool locked, bool flipped) {
 	ui_theme_t       *theme = ui_get_current()->ops->theme;
 	ui_stops_colors_t colors;
 	ui_stops_pin_colors((uint32_t)theme->WINDOW_BG_COL, (uint32_t)theme->TEXT_COL, &colors);
@@ -224,26 +226,40 @@ static void ui_stops_draw_house(float cx, float y, float w, float h, uint32_t fi
 		inset = roof > 1.0f ? roof - 1.0f : 0.0f;
 	}
 
+	// Rect of the normal house (top edge ty, height rh) and a point, mirrored about y when flipped
+#define UI_STOPS_FY(ty, rh) (flipped ? 2.0f * y - (ty) - (rh) : (ty))
+#define UI_STOPS_PY(py) (flipped ? 2.0f * y - (py) : (py))
 	draw_set_color(colors.outline);
-	draw_filled_rect(left, top, w, box_h);
+	draw_filled_rect(left, UI_STOPS_FY(top, box_h), w, box_h);
 	draw_set_color(colors.frame);
-	draw_filled_rect(left + d, top, w - d * 2.0f, box_h - d);
+	draw_filled_rect(left + d, UI_STOPS_FY(top, box_h - d), w - d * 2.0f, box_h - d);
 	draw_set_color(fill | 0xff000000);
-	draw_filled_rect(left + d + g, top + g, w - (d + g) * 2.0f, box_h - d - g * 2.0f);
+	draw_filled_rect(left + d + g, UI_STOPS_FY(top + g, box_h - d - g * 2.0f), w - (d + g) * 2.0f, box_h - d - g * 2.0f);
 	draw_set_color(colors.outline);
-	draw_filled_triangle(cx, y, left, top, cx + half, top);
+	draw_filled_triangle(cx, y, left, UI_STOPS_PY(top), cx + half, UI_STOPS_PY(top));
 	draw_set_color(active ? colors.roof_active : colors.roof);
-	draw_filled_triangle(cx, y + inset, left + d, top, cx + half - d, top);
+	draw_filled_triangle(cx, UI_STOPS_PY(y + inset), left + d, UI_STOPS_PY(top), cx + half - d, UI_STOPS_PY(top));
+#undef UI_STOPS_FY
+#undef UI_STOPS_PY
 	draw_set_color(0xffffffff);
 }
 
 void ui_stops_draw_pin(float cx, float y, float w, float h, uint32_t fill, bool active) {
-	ui_stops_draw_house(cx, y, w, h, fill, active, false);
+	ui_stops_draw_house(cx, y, w, h, fill, active, false, false);
 }
 
 // The house of a stop the consumer holds fixed (a linked value): dimmed, never active
 void ui_stops_draw_pin_locked(float cx, float y, float w, float h, uint32_t fill) {
-	ui_stops_draw_house(cx, y, w, h, fill, false, true);
+	ui_stops_draw_house(cx, y, w, h, fill, false, true, false);
+}
+
+// The same houses upside down, for handles on top of a bar: y is the tip of the roof (the bar's top edge), the house extends up from it
+void ui_stops_draw_pin_flipped(float cx, float y, float w, float h, uint32_t fill, bool active) {
+	ui_stops_draw_house(cx, y, w, h, fill, active, false, true);
+}
+
+void ui_stops_draw_pin_locked_flipped(float cx, float y, float w, float h, uint32_t fill) {
+	ui_stops_draw_house(cx, y, w, h, fill, false, true, true);
 }
 
 // Position line across the bar at a stop: 1 px wide at ordinary sizes, dashes alternating light and dark (readable on any
@@ -272,7 +288,7 @@ static float ui_stops_snap_x(float x, float w, float pos) {
 
 // One frame of the control. x, y, w: the track in window coordinates (the consumer insets its bar by
 // ui_stops_pin_extent(marker_h) on both sides, so the markers at 0 and 1 stay inside), bar_h the bar height, the markers
-// are drawn in the marker_h tall row below it; a press counts within the hit_h tall row (at least marker_h, a small drawn
+// are drawn in the marker_h tall row below it (above it when ops->flipped); a press counts within the hit_h tall row (at least marker_h, a small drawn
 // handle keeps a comfortable click zone) and horizontally within the track plus the pin extent. A press on a handle
 // selects it and starts a drag (a double click deletes it), a press on the bar adds a stop there and drags it, a press on
 // the margin beside the track selects the end stop (it never adds one).
@@ -301,9 +317,11 @@ int ui_stops_update(ui_stops_t *s, const ui_stops_ops_t *ops, void *data, float 
 
 	bool can_start = ui->enabled && ui->input_enabled && ui->input_started && s->drag == 0 &&
 	                 (ui->current_window == NULL || ui_input_in_rect(ui->_window_x, ui->_window_y, ui->_window_w, ui->_window_h));
-	if (can_start && mx >= x - extent && mx <= x + w + extent && my >= y && my < y + bar_h + hit_h) {
+	float zone_top = ops->flipped ? y - hit_h : y; // The press zone: the bar and the hit_h tall row of handles (above the bar when flipped, else below)
+	float zone_end = ops->flipped ? y + bar_h : y + bar_h + hit_h;
+	if (can_start && mx >= x - extent && mx <= x + w + extent && my >= zone_top && my < zone_end) {
 		flags |= UI_STOPS_CONSUMED;
-		bool in_bar = my < y + bar_h;
+		bool in_bar = ops->flipped ? my >= y : my < y + bar_h;
 		bool margin = mx < x || mx > x + w;
 		int  hit    = in_bar ? -1 : ui_stops_hit(ops->get_pos, data, n, mx, x, w, hit_w * 0.5f + 1.0f, s->active);
 		if (margin && hit < 0) {
@@ -370,17 +388,18 @@ int ui_stops_update(ui_stops_t *s, const ui_stops_ops_t *ops, void *data, float 
 	}
 
 	n = ops->count(data);
+	float anchor = ops->flipped ? y : y + bar_h; // Where the handles touch the bar: the roof tips
 	for (int i = 0; i < n; ++i) { // The active stop last, on top
 		if (i != s->active) {
 			float cx = ui_stops_snap_x(x, w, ops->get_pos(data, i));
 			ui_stops_draw_line(cx, y, bar_h, marker_h, false);
-			ops->draw(data, i, cx, y + bar_h, pin_w, marker_h, false);
+			ops->draw(data, i, cx, anchor, pin_w, marker_h, false);
 		}
 	}
 	if (n > 0) {
 		float cx = ui_stops_snap_x(x, w, ops->get_pos(data, s->active));
 		ui_stops_draw_line(cx, y, bar_h, marker_h, true);
-		ops->draw(data, s->active, cx, y + bar_h, pin_w, marker_h, true);
+		ops->draw(data, s->active, cx, anchor, pin_w, marker_h, true);
 	}
 	return flags;
 }

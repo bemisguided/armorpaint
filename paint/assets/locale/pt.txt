@@ -72,7 +72,6 @@ Bits
 Máscara Preta
 
 
-
 Executável do Blender
 Caminho do executável do Blender não definido
 Mistura
@@ -397,6 +396,9 @@ Importar arquivo de textura
 Importar...
 Importando malha
 Entrada
+
+
+
 Entrada
 Inflar
 Info: Ativo já importado
@@ -405,6 +407,7 @@ Inspecionar como Script
 Atualizar instantaneamente a pré-visualização do material ao alterar nó
 Intensidade
 Interface
+
 Interpolar
 Diretório de exportação inválido
 Caminho de script inválido
@@ -571,8 +574,6 @@ Orientação 3D
 Origem para Geometria
 Ortográfica
 Saída
-
-
 Sobrepor
 
 
@@ -916,7 +917,6 @@ Perfil da Onda
 Textura de Ondas
 Tipo de Onda
 O que há de Novo
-
 Máscara Branca
 Branqueamento
 Largura

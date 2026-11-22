@@ -72,7 +72,6 @@ Bit
 Masker Hitam
 
 
-
 Eksekusi Blender
 Path eksekusi Blender belum diatur
 Pencampuran
@@ -397,6 +396,9 @@ Impor berkas tekstur
 Impor...
 Mengimpor mesh
 Masuk
+
+
+
 Masuk
 Gembungkan
 Info: Aset sudah diimpor
@@ -405,6 +407,7 @@ Periksa sebagai Skrip
 Perbarui pratinjau material secara instan saat node berubah
 Intensitas
 Antarmuka
+
 Interpolasi
 Direktori ekspor tidak valid
 Jalur skrip tidak valid
@@ -571,8 +574,6 @@ Orientasi 3D
 Origin ke Geometri
 Ortografis
 Keluar
-
-
 Hampar
 
 
@@ -916,7 +917,6 @@ Profil Gelombang
 Tekstur Gelombang
 Jenis Gelombang
 Apa yang Baru
-
 Masker Putih
 Putih Total
 Lebar
