@@ -642,7 +642,6 @@ typedef struct ui_stops_ops {
 	void (*set_pos)(void *data, int i, float pos);
 	int (*add)(void *data, float pos);   // Inserts a stop and returns its index, or -1
 	uint32_t (*fill)(void *data, int i); // Colour of the handle of a stop
-	int max_count;
 } ui_stops_ops_t;
 
 // The track and its rows in window coordinates
@@ -658,5 +657,4 @@ typedef struct ui_stops_layout {
 int  ui_stops_update(ui_stops_t *s, const ui_stops_ops_t *ops, void *data, const ui_stops_layout_t *layout);
 int  ui_stops_pin_extent(float marker_h);
 int  ui_stops_after_remove(int active, int removed, int count_after);
-bool ui_stops_can_add(int count, int max_count);
 bool ui_stops_can_remove(int count, int min_count);
