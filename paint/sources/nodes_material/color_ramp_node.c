@@ -149,6 +149,7 @@ typedef struct color_ramp_stops {
 } color_ramp_stops_t;
 
 #define COLOR_RAMP_MIN_STOPS 1
+// Blender's limit (MAXCOLORBAND): + adds nothing and is greyed at it. A file with more stops still loads and draws all of them.
 #define COLOR_RAMP_MAX_STOPS 32
 
 static i32 color_ramp_stops_count(void *data) {
