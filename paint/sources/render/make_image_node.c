@@ -800,6 +800,8 @@ static u64 make_image_node_reference_signature(make_image_node_state_t *s, u64 s
 
 #define MAKE_IMAGE_NODE_MAX_GPU_CAPTURES 8
 
+static bool make_image_node_edge_cyclic(make_image_node_state_t *s, char *upstream_id);
+
 // Capture of a node whose result is a render target (image_node_type_t.result_by_reference): the shader of every capture is built and
 // compiled (the expression of the node, capture k = make_image_node_capture_index), the signature compared with what is baked, failed or
 // pending, and only a new signature renders. A node without gpu_bake has one capture, drawn into a render target of the result format, which
@@ -826,6 +828,21 @@ static bool make_image_node_capture_reference(make_image_node_state_t *s, char *
 		source_hash                 = make_image_node_hash(source_hash, &one, sizeof(one));
 	}
 	make_image_node_capture_k = 0;
+	// An image node this one samples that waits for its own bake (or capture) will change what is read: rendering now would draw the old result
+	// and again after the bake. Wait for it: the capture is repeated when the debounce fires (run_material captures a node whose upstream baked).
+	for (i32 i = 0; !force && s->upstream != NULL && i < s->upstream->length; ++i) {
+		char                    *up = s->upstream->buffer[i];
+		make_image_node_state_t *u  = make_image_node_states != NULL ? any_map_get(make_image_node_states, up) : NULL;
+		if (u != NULL && u != s && (u->pending || u->needs_capture) && !make_image_node_edge_cyclic(s, up)) {
+			for (i32 k = 0; k < count; ++k) {
+				make_image_node_gpu_shader_free(scons[k]);
+			}
+			free(params);
+			s->needs_capture = true;
+			make_image_node_schedule();
+			return false;
+		}
+	}
 	u64 sig                   = make_image_node_reference_signature(s, source_hash, size, params, t->params_size);
 	s->captured               = true;
 	s->captured_canvas        = g_context->material->canvas;
