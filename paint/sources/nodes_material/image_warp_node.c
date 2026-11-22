@@ -2,11 +2,11 @@
 
 // Warp (Filter menu): moves the pixels of the Image input along a direction, optionally smearing them along the way. A pass-through node
 // with capture (render/make_image_node.c, image_node_type_t.pass_through_capture): it bakes nothing. The Image input is evaluated in image
-// space and kept as a render target (32 bit float, one channel) of Capture Size, and in Slope mode the Map input too (a second target,
-// image_node_type_t.image_input2, only while Direction is Slope and Map is linked); the material shader reads the Image at p + d, repeating,
-// so the warp, the smear and every number are in the shader and a slider never captures again. In Direction Angle the Map is a shader input
-// evaluated at the current pixel (no capture of it). An Image or Map linked straight to the Image output of a baked node reads that node's
-// result instead (no copy). With Wrap Edges on (the default) the image repeats, so the warp wraps around the edges; off, samples outside
+// space and kept as a render target (32 bit float, one channel) of Capture Size, and the Map input too when it is linked (a second target,
+// image_node_type_t.image_input2, in both directions: the Map is evaluated in image space like the Image, as the baked node did, so a Map
+// node with an unlinked Vector sees the image uv, not bposition of the mesh); the material shader reads the Image at p + d, repeating,
+// so the warp, the smear and every number are in the shader and a slider never captures again. An unlinked Map is a literal. An Image or Map linked
+// straight to the Image output of a baked node reads that node's result instead (no copy). With Wrap Edges on (the default) the image repeats, so the warp wraps around the edges; off, samples outside
 // the image (the warp tap and the Map reads) clamp to the nearest edge pixel. This is Directional Warp and Slope Blur in one node.
 //
 // Every output pixel reads the image at p + d, like the Warp node of the Color menu (tex_coord + direction * mask): the content
@@ -24,7 +24,8 @@
 // p + d * (1 - Blur) to p + d, so Blur 1 smears over the whole displacement (Slope Blur, Directional Blur along a map).
 // Taps are one capture pixel apart or closer, at most IMAGE_WARP_MAX_TAPS (32: the cost is per mesh pixel and frame, decided D8 of the
 // bake audit; the baked node took up to 129): a smear longer than 32 pixels aliases (spacing above one pixel).
-// Strength, Angle, Blur and Map are evaluated per pixel (a linked number varies over the image).
+// Strength, Angle and Blur are shader inputs evaluated per pixel (a linked number varies over the image; a node feeding them with an unlinked
+// Vector sees bposition on a mesh: link Texture Coordinate UV to its Vector for image space behaviour). The Map is read from its capture.
 
 // Input socket indices
 enum {
@@ -64,12 +65,9 @@ static i32 image_warp_node_size(ui_node_t *node) {
 	return make_image_node_size(node, IMAGE_WARP_BUTTON_CAPTURE_SIZE);
 }
 
-// The Map is captured (second capture) only in Slope mode, where it is read at the neighbours of a pixel, and only when it is linked
-// (an unlinked Map is flat: no slope)
+// The Map is captured (second capture, in image space like the Image) whenever it is linked: Slope reads it at the neighbours of a pixel,
+// Angle at the pixel. An unlinked Map is a literal (flat: no slope, a constant strength factor) and needs no capture.
 static i32 image_warp_node_second_input(ui_node_t *node) {
-	if ((i32)make_image_node_button(node, IMAGE_WARP_BUTTON_DIRECTION) != IMAGE_WARP_DIRECTION_SLOPE) {
-		return -1;
-	}
 	return parser_material_get_input_link(node->inputs->buffer[IMAGE_WARP_INPUT_MAP]) != NULL ? IMAGE_WARP_INPUT_MAP : -1;
 }
 
@@ -133,7 +131,15 @@ static char *image_warp_node_warp(ui_node_t *node) {
 		}
 	}
 	else {
-		char *map   = parser_material_parse_value_input(node->inputs->buffer[IMAGE_WARP_INPUT_MAP], false);
+		char *map = NULL;
+		if (image_warp_node_second_input(node) >= 0) {
+			// The Map as captured in image space (a node with an unlinked Vector sees the image uv there, not bposition of the mesh)
+			make_image_node_fetch_input(node, 1, string_tmp("%s_mapv", name), string_tmp("%s_p", name), IMAGE_FILTER_LINEAR, wrap);
+			map = string_tmp("%s_mapv.r", name);
+		}
+		else {
+			map = parser_material_parse_value_input(node->inputs->buffer[IMAGE_WARP_INPUT_MAP], false);
+		}
 		char *angle = parser_material_parse_value_input(node->inputs->buffer[IMAGE_WARP_INPUT_ANGLE], false);
 		parser_material_write(parser_material_kong, string_tmp("float %s_angle = (%s) * (3.14159265 / 180.0);", name, angle));
 		parser_material_write(parser_material_kong, string_tmp("float2 %s_d = float2(cos(%s_angle), sin(%s_angle)) * (%s_strength * clamp(%s, 0.0, 1.0));", name,
