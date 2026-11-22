@@ -2079,7 +2079,7 @@ char *make_image_node_fetch_input(ui_node_t *node, i32 plane, char *var, char *u
 // node the input is linked straight to) and its size constant `constants.<name>_size` (float2) in the material shader, records the
 // dependency, and returns the texture name; NULL when the capture reads the node as black because they depend on each other (write
 // black then). For a node that writes its own sampling instead of make_image_node_sample_input_at (Transform: Catmull-Rom, tiling modes);
-// fetch with sample_lod(<name>, sampler_linear, uv, 0.0) at texel centres.
+// fetch with sample_lod(<name>, sampler_point, uv, 0.0) at texel centres (an exact load, see the Samplers paragraph of the spec).
 char *make_image_node_bind_input(ui_node_t *node) {
 	image_node_type_t *type   = make_image_node_type_of(node->type);
 	ui_node_t         *source = type != NULL && type->pass_through_capture ? make_image_node_direct_source(node, type->image_input) : NULL;
