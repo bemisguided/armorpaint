@@ -510,7 +510,7 @@ No response
 Node
 Node Previews
 Nodes
-Noise Generator
+Advanced Noise
 Noise Grain
 Noise Texture
 None
