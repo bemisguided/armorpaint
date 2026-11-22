@@ -17,6 +17,7 @@ A
 Acerca de
 Acerca de...
 Absoluto
+
 Añadir
 Añadir animación
 Añadir muestra
@@ -505,6 +506,7 @@ Nueva muestra
 Nuevo Tema
 Nueva máscara blanca
 Siguiente
+
 No
 Sin respuesta
 Nodo
@@ -628,6 +630,7 @@ Preajustes
 Controles de presión
 Anterior
 Carpeta anterior
+
 Procesando...
 Proyectar
 Proyecto guardado

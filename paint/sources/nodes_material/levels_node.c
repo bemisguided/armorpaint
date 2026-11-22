@@ -403,14 +403,9 @@ static bool levels_strip_is_locked(void *data, i32 i) {
 	return levels_node_linked(st->canvas, st->node->id, levels_strip_socket_of(st, i));
 }
 
-static void levels_strip_draw(void *data, i32 i, f32 cx, f32 y, f32 w, f32 h, bool active) {
+static u32 levels_strip_fill(void *data, i32 i) {
 	levels_strip_t *st = data;
-	if (levels_strip_is_locked(data, i)) {
-		ui_stops_draw_pin_locked(cx, y, w, h, st->range ? (i == 1 ? 0xff9a9a9a : 0xffd8d8d8) : (i == 0 ? 0xff202020 : i == 1 ? 0xff808080 : 0xffffffff)); // Linked: greyed, not draggable
-		return;
-	}
-	u32 fill = st->range ? (i == 1 ? 0xff9a9a9a : 0xffd8d8d8) : (i == 0 ? 0xff202020 : i == 1 ? 0xff808080 : 0xffffffff);
-	ui_stops_draw_pin(cx, y, w, h, fill, active);
+	return st->range ? (i == 1 ? 0xff9a9a9a : 0xffd8d8d8) : (i == 0 ? 0xff202020 : i == 1 ? 0xff808080 : 0xffffffff);
 }
 
 #define LEVELS_STRIP_BAR_LINES    1.6f // The histogram and value gradient
@@ -471,11 +466,12 @@ static void levels_node_strip_button(i32 node_id) {
 	                      .set_pos   = levels_strip_set_pos,
 	                      .add       = NULL,
 	                      .remove    = NULL,
-	                      .draw      = levels_strip_draw,
+	                      .fill      = levels_strip_fill,
 	                      .is_locked = levels_strip_is_locked,
 	                      .min_count = 3,
 	                      .max_count = 3};
-	i32 hit = ui_stops_update(&state->stops, &ops, &strip, g_ui->_x + extent, g_ui->_y, g_ui->_w - 2 * extent, bar_h, marker_h, hit_h);
+	ui_stops_layout_t layout = {.x = g_ui->_x + extent, .y = g_ui->_y, .w = g_ui->_w - 2 * extent, .bar_h = bar_h, .marker_h = marker_h, .hit_h = hit_h};
+	i32               hit    = ui_stops_update(&state->stops, &ops, &strip, &layout);
 	if (hit & UI_STOPS_CONSUMED) {
 		nodes->_input_started  = false;
 		g_context->select_time = 0; // Two quick presses on handles are not a node double click (2D view)

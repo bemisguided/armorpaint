@@ -17,6 +17,7 @@ A
 Névjegy
 Névjegy...
 Abszolút
+
 Hozzáadás
 Animáció hozzáadása
 Színminta hozzáadása
@@ -505,6 +506,7 @@ Neurális
 Új téma
 Új fehér maszk
 Következő
+
 Nem
 Nincs válasz
 Csomópont
@@ -628,6 +630,7 @@ Előbeállítások
 Nyomás érzékenység
 Előző
 Előző mappa
+
 Feldolgozás...
 Vetítés (Project)
 Projekt elmentve

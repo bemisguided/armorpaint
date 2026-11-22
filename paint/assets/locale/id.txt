@@ -17,6 +17,7 @@ A
 Tentang
 Tentang...
 Mutlak
+
 Tambah
 Tambah Animasi
 Tambah Contoh Warna
@@ -505,6 +506,7 @@ Contoh Warna Baru
 Tema Baru
 Masker Putih Baru
 Berikutnya
+
 Tidak
 Tidak ada respons
 Node
@@ -628,6 +630,7 @@ Preset
 Kontrol Tekanan
 Sebelumnya
 Folder sebelumnya
+
 Memproses...
 Proyek
 Proyek disimpan

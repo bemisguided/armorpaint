@@ -194,9 +194,47 @@ static void color_ramp_stops_remove(void *data, i32 i) {
 	vals->length -= 5;
 }
 
-static void color_ramp_stops_draw(void *data, i32 i, f32 cx, f32 y, f32 w, f32 h, bool active) {
+static u32 color_ramp_stops_fill(void *data, i32 i) {
 	f32_array_t *vals = ((color_ramp_stops_t *)data)->vals;
-	ui_stops_draw_pin(cx, y, w, h, color_from_floats(vals->buffer[i * 5 + 0], vals->buffer[i * 5 + 1], vals->buffer[i * 5 + 2], 1.0), active);
+	return color_from_floats(vals->buffer[i * 5 + 0], vals->buffer[i * 5 + 1], vals->buffer[i * 5 + 2], 1.0);
+}
+
+// Rank of stop i in position order (0 is the lowest position, equal positions keep their order, like color_ramp_sort)
+static i32 color_ramp_stops_rank(color_ramp_stops_t *ramp, i32 i) {
+	i32 len  = (i32)(ramp->vals->length / 5);
+	f32 pos  = ramp->vals->buffer[i * 5 + 4];
+	i32 rank = 0;
+	for (i32 j = 0; j < len; j++) {
+		f32 p = ramp->vals->buffer[j * 5 + 4];
+		if (p < pos || (p == pos && j < i)) {
+			rank++;
+		}
+	}
+	return rank;
+}
+
+// Stop of a rank in position order
+static i32 color_ramp_stops_at_rank(color_ramp_stops_t *ramp, i32 rank) {
+	i32 len = (i32)(ramp->vals->length / 5);
+	i32 sorted[len > 0 ? len : 1];
+	for (i32 i = 0; i < len; i++)
+		sorted[i] = i;
+	color_ramp_sort(sorted, len, ramp->vals);
+	return sorted[rank < 0 ? 0 : (rank > len - 1 ? len - 1 : rank)];
+}
+
+// Position of the stop the + button adds, as in Blender's color ramp: the middle between the active stop and the stop before
+// it in position order (the one after it for the first stop), 0.5 for fewer than two stops
+static f32 color_ramp_stops_add_pos(color_ramp_stops_t *ramp, i32 active) {
+	i32 len = (i32)(ramp->vals->length / 5);
+	if (len < 2) {
+		return 0.5f;
+	}
+	active     = active < 0 ? 0 : (active > len - 1 ? len - 1 : active);
+	i32 rank   = color_ramp_stops_rank(ramp, active);
+	i32 other  = color_ramp_stops_at_rank(ramp, rank > 0 ? rank - 1 : 1);
+	f32 middle = (ramp->vals->buffer[active * 5 + 4] + ramp->vals->buffer[other * 5 + 4]) * 0.5f;
+	return middle < 0.0f ? 0.0f : (middle > 1.0f ? 1.0f : middle);
 }
 
 void nodes_material_color_ramp_button(i32 node_id) {
@@ -208,16 +246,11 @@ void nodes_material_color_ramp_button(i32 node_id) {
 	f32                      ny     = g_ui->_y;
 	f32_array_t             *vals   = but->default_value; // [r, g, b, a, pos, r, g, b, a, pos, ..]
 	f32                      sw     = g_ui->_w / (float)UI_NODES_SCALE();
-	if (vals->length < 5) { // The handles need a stop to work with
-		f32 black[] = {0.0f, 0.0f, 0.0f, 1.0f, 0.0f};
-		for (i32 i = 0; i < 5; i++)
-			f32_array_push(vals, black[i]);
-	}
-	i32 len    = (i32)(vals->length / 5);
-	i32 interp = but->data->buffer[0];
+	i32                      len    = (i32)(vals->length / 5);
+	i32                      interp = but->data->buffer[0];
 
 	// Sort stops by position for preview
-	i32 sorted[len];
+	i32 sorted[len > 0 ? len : 1];
 	for (i32 i = 0; i < len; i++)
 		sorted[i] = i;
 	color_ramp_sort(sorted, len, vals);
@@ -233,32 +266,40 @@ void nodes_material_color_ramp_button(i32 node_id) {
 	i32 slices   = 64;
 	for (i32 s = 0; s < slices; s++) {
 		f32 t = (f32)s / (f32)slices;
-		f32 r, g, b, a;
-		color_ramp_eval_cpu(vals, sorted, len, interp, t, &r, &g, &b, &a);
+		f32 r = 0.0f, g = 0.0f, b = 0.0f, a = 1.0f;
+		if (len > 0) {
+			color_ramp_eval_cpu(vals, sorted, len, interp, t, &r, &g, &b, &a);
+		}
 		i32 col     = color_from_floats(r, g, b, 1.0);
 		f32 slice_w = bar_w / (f32)slices + 1.0f / UI_NODES_SCALE();
 		ui_fill(inset + t * bar_w, 0, slice_w, bar_h / UI_SCALE(), col);
 	}
 
 	// Handles below the bar: select, drag, add on the bar, double click deletes
-	color_ramp_stops_t  ramp = {.vals = vals, .interp = interp};
-	ui_stops_ops_t      ops  = {.count     = color_ramp_stops_count,
-	                            .get_pos   = color_ramp_stops_get_pos,
-	                            .set_pos   = color_ramp_stops_set_pos,
-	                            .add       = color_ramp_stops_add,
-	                            .remove    = color_ramp_stops_remove,
-	                            .draw      = color_ramp_stops_draw,
-	                            .min_count = COLOR_RAMP_MIN_STOPS,
-	                            .max_count = COLOR_RAMP_MAX_STOPS};
-	i32                 hit  = ui_stops_update(&state->stops, &ops, &ramp, g_ui->_x + extent, g_ui->_y, g_ui->_w - 2 * extent, bar_h, marker_h, hit_h);
+	color_ramp_stops_t ramp = {.vals = vals, .interp = interp};
+	ui_stops_ops_t     ops  = {.count     = color_ramp_stops_count,
+	                           .get_pos   = color_ramp_stops_get_pos,
+	                           .set_pos   = color_ramp_stops_set_pos,
+	                           .add       = color_ramp_stops_add,
+	                           .remove    = color_ramp_stops_remove,
+	                           .fill      = color_ramp_stops_fill,
+	                           .min_count = COLOR_RAMP_MIN_STOPS,
+	                           .max_count = COLOR_RAMP_MAX_STOPS};
+	ui_stops_layout_t  layout = {.x        = g_ui->_x + extent,
+	                             .y        = g_ui->_y,
+	                             .w        = g_ui->_w - 2 * extent,
+	                             .bar_h    = bar_h,
+	                             .marker_h = marker_h,
+	                             .hit_h    = hit_h};
+	i32                hit    = ui_stops_update(&state->stops, &ops, &ramp, &layout);
 	if (hit & UI_STOPS_CONSUMED) {
-		nodes->_input_started = false;
-		g_context->select_time = 0; // Two quick presses on handles are not a node double click (2D view)
+		nodes->_input_started  = false;
+		g_context->select_time = 0; // Two quick presses on handles must not open the 2D view (ui_nodes.c: double click on the selected node)
 	}
 	g_ui->_y += UI_LINE_H() + marker_h + gap_h;
 
 	// Edit controls
-	f32_array_t *row = f32_array_create_from_raw_tmp(
+	f32_array_t *row = f32_array_create_from_raw(
 	    (f32[]){
 	        1 / 4.0,
 	        1 / 4.0,
@@ -266,20 +307,25 @@ void nodes_material_color_ramp_button(i32 node_id) {
 	    },
 	    3);
 	ui_row(row);
+	bool enabled = g_ui->enabled;
+	g_ui->enabled = enabled && ui_stops_can_add(color_ramp_stops_count(&ramp), COLOR_RAMP_MAX_STOPS);
 	bool add_stop = ui_button("+", UI_ALIGN_CENTER, "");
 	if (g_ui->is_hovered) {
 		ui_tooltip(tr("Add stop"));
 	}
+	g_ui->enabled = enabled;
 	if (add_stop) {
-		i32 added = color_ramp_stops_add(&ramp, ui_stops_gap_pos(color_ramp_stops_get_pos, &ramp, color_ramp_stops_count(&ramp)));
+		i32 added = color_ramp_stops_add(&ramp, color_ramp_stops_add_pos(&ramp, state->stops.active));
 		if (added >= 0) {
 			state->stops.active = added;
 		}
 	}
+	g_ui->enabled = enabled && ui_stops_can_remove(color_ramp_stops_count(&ramp), COLOR_RAMP_MIN_STOPS);
 	bool delete_stop = ui_button("-", UI_ALIGN_CENTER, "");
 	if (g_ui->is_hovered) {
 		ui_tooltip(tr("Delete active stop"));
 	}
+	g_ui->enabled = enabled;
 	if (delete_stop && ui_stops_can_remove(color_ramp_stops_count(&ramp), COLOR_RAMP_MIN_STOPS)) {
 		i32 active = state->stops.active;
 		color_ramp_stops_remove(&ramp, active);
@@ -294,6 +340,11 @@ void nodes_material_color_ramp_button(i32 node_id) {
 	    2);
 	but->data->buffer[0] = ui_combo(&state->interp, interpolate_combo, tr("Interpolate"), false, UI_ALIGN_LEFT, true);
 
+	i32 count = color_ramp_stops_count(&ramp);
+	if (count <= 0) {
+		return; // An empty ramp from a file: only + can do something
+	}
+
 	// Active stop: position and colour
 	f32_array_t *row2 = f32_array_create_from_raw_tmp(
 	    (f32[]){
@@ -303,8 +354,8 @@ void nodes_material_color_ramp_button(i32 node_id) {
 	    2);
 	ui_row(row2);
 	i32 i = state->stops.active;
-	if (i >= color_ramp_stops_count(&ramp) || i < 0) {
-		state->stops.active = i = color_ramp_stops_count(&ramp) - 1;
+	if (i >= count || i < 0) {
+		state->stops.active = i = count - 1;
 	}
 	state->x                = vals->buffer[i * 5 + 4];
 	vals->buffer[i * 5 + 4] = ui_slider(&state->x, "Pos", 0, 1, true, 100, true, UI_ALIGN_LEFT, true);
@@ -320,6 +371,41 @@ void nodes_material_color_ramp_button(i32 node_id) {
 		f32 ry                = ny - ui_p(5);
 		nodes->_input_started = g_ui->input_started = false;
 		ui_nodes_rgba_popup(&state->color_state, vals->buffer + i * 5, math_floor(rx), math_floor(ry + UI_ELEMENT_H()));
+	}
+
+	// Active stop by number in position order: < n >. Choosing a stop is not an edit (no undo step, no recompile).
+	f32_array_t *row3 = f32_array_create_from_raw_tmp(
+	    (f32[]){
+	        1 / 5.0,
+	        3 / 5.0,
+	        1 / 5.0,
+	    },
+	    3);
+	ui_row(row3);
+	bool changed = g_ui->changed;
+	i32  rank    = color_ramp_stops_rank(&ramp, i);
+	g_ui->enabled = enabled && rank > 0;
+	bool previous = ui_button("<", UI_ALIGN_CENTER, "");
+	if (g_ui->is_hovered) {
+		ui_tooltip(tr("Previous stop"));
+	}
+	g_ui->enabled = enabled && count > 1;
+	state->index[0] = (f32)(rank + 1);
+	f32 number      = ui_slider(&state->index[0], tr("Stop"), 1, count > 1 ? (f32)count : 2.0f, false, 1, true, UI_ALIGN_LEFT, true);
+	if (g_ui->is_hovered) {
+		ui_tooltip(tr("Active stop"));
+	}
+	g_ui->enabled = enabled && rank < count - 1;
+	bool next = ui_button(">", UI_ALIGN_CENTER, "");
+	if (g_ui->is_hovered) {
+		ui_tooltip(tr("Next stop"));
+	}
+	g_ui->enabled = enabled;
+	g_ui->changed = changed;
+	i32 target    = previous ? rank - 1 : (next ? rank + 1 : (i32)(number + 0.5f) - 1);
+	target        = target < 0 ? 0 : (target > count - 1 ? count - 1 : target);
+	if (target != rank) {
+		state->stops.active = color_ramp_stops_at_rank(&ramp, target);
 	}
 }
 
