@@ -43,14 +43,11 @@ static util_node_layout_type_alias_t util_node_layout_type_aliases[] = {
 static util_node_layout_item_alias_t util_node_layout_item_aliases[] = {
     {"LEVELS", "levels_node_auto_button", "levels_auto_button"},
     {"LEVELS", "levels_node_strip_button", "levels_strip_button"},
-<<<<<<< HEAD
     {"TEX_TRANSFORM", "Size", "Capture Size"}, // The baked Transform (Size, state row, Tiling, Filter, Flip) became a pass-through node (Capture Size, Tiling, Filter, Flip): same type, the state row is dropped
-=======
     {"LEVELS", "Black", "In Low"}, // Substance names (decided 2026-11-21): Black, White, Out Black, Out White renamed; Gamma is gone (In Mid is a new absolute value: the old Gamma and its link are dropped)
     {"LEVELS", "White", "In High"},
     {"LEVELS", "Out Black", "Out Low"},
     {"LEVELS", "Out White", "Out High"},
->>>>>>> origin/fork/feat/node-layout-names
     {"TEX_TILE_UV", "Size", "Capture Size"}, // The baked Tile UV (Size, state row, Filter) became a pass-through node (Capture Size, Filter): same type, the state row is dropped
     {"TEX_SEAMLESS", "Size", "Capture Size"}, // The baked Seamless (Size, state row) became a pass-through node (Capture Size): same type, the state row is dropped
     {"TEX_IMAGE_WARP", "Size", "Capture Size"}, // The baked Warp (Size, state row, Direction, Wrap Edges) became a pass-through node (Capture Size, Direction, Wrap Edges): same type, the state row is dropped
