@@ -76,7 +76,9 @@ static void edge_detect_node_params(ui_node_t *node, void *params) {
 //   2. Sobel gradient magnitude (a step of 1 gives 1)
 //   3. the largest magnitude of the image: passes that halve the size taking the maximum of 2 x 2 texels until 1 x 1 (no blend max, no compute)
 //   4. normalise: Gradient (v - Tolerance) / (max - Tolerance), Boundary v > Tolerance (the 1 x 1 maximum is a texture input)
-//   5. Width > 0 only: three box blurs in x and y (six passes), the last applies the gain and, in Boundary, the smoothstep (RGBA64)
+//   5. Width > 0 only: three box blurs in x and y, the last applies the gain and, in Boundary, the smoothstep (RGBA64). A box narrower than
+//      EDGE_DETECT_WIDE_MIN_BOX texels is one pass of w taps (x, y, x, y, x, y); a wider one two passes (edge_detect_node_wide_box, about 2 sqrt(w) taps instead of w)
+//      and the order is x, x, x, y, y, y (the boxes of the two axes commute)
 // k = (size, wrap, x, y) of every pass; the texel index of a tap is computed in float (exact for the sizes up to 4096).
 #define EDGE_DETECT_TAP(var, x, y)                                                                                                                         \
 	"float " var "_x = " x "; float " var "_y = " y "; "                                                                                                   \
@@ -130,6 +132,80 @@ static char *edge_detect_node_box_last_body =
     EDGE_DETECT_BOX_LOOP "float g = min(v * constants.m.z, 1.0); "
                          "if (constants.m.w > 0.5) { float u = clamp((g - 0.4) / 0.2, 0.0, 1.0); g = u * u * (3.0 - 2.0 * u); } "
                          "output = float4(g, g, g, 1.0);";
+
+// The wide box blur (Edge Width above EDGE_DETECT_WIDE_MIN_BOX): one box of odd width w along an axis computed in two passes instead of w taps. With
+// w = a b + c (c < a) the sum of the w texels x - h ... x + h (h = w / 2) is b blocks of a texels plus c single texels:
+//   stage 1: A(t) = sum of a texels s(t) ... s(t + a - 1), over t = -h ... size + h - 1 (a texture of size + 2 h along the axis, the index of the texels
+//            of s wrapped or clamped like the one pass box, so that A is correct outside the image too)
+//   stage 2: out(x) = (A(x - h) + A(x - h + a) + ... (b blocks) + s(x - h + a b) + ... (c texels)) / w
+// a, b and c are picked to minimise a + b + c taps (about 2 sqrt(w) + c instead of w). The result is the one pass box up to the float rounding. k:
+//   um = (target width, target height, 1 for the y axis, Wrap Edges); ud = (size, extent of A along the axis, offset of A to s, a); ur = (b, c, 1 / w, gain); ub = Boundary
+// The index of a tap along the axis of the s texels: clamped, or wrapped when Wrap Edges (wrapf = 1).
+#define EDGE_DETECT_WIDE_PRE                                                                                                                               \
+	"float n = constants.ud.x; float vert = constants.um.z; float wrapf = constants.um.w; float inv = 1.0 / n; "                                           \
+	"float cx = floor(tex_coord.x * constants.um.x); float cy = floor(tex_coord.y * constants.um.y); "                                                      \
+	"float pa = cx + vert * (cy - cx); float pq = cy + vert * (cx - cy); float sum = 0.0; "
+#define EDGE_DETECT_WIDE_S_TAP(texture, index)                                                                                                             \
+	"{ float i = " index "; float ic = clamp(i, 0.0, n - 1.0); i = ic + (i - n * floor(i / n) - ic) * wrapf; "                                             \
+	"float tx = i + vert * (pq - i); float ty = pq + vert * (i - pq); "                                                                                    \
+	"sum += sample_lod(" texture ", sampler_linear, float2((tx + 0.5) * inv, (ty + 0.5) * inv), 0.0).r; } "
+
+static char *edge_detect_node_wide_a_body =
+    EDGE_DETECT_WIDE_PRE "int na = int(constants.ud.w); "
+                         "for (int j = 0; j < na; j += 1) " EDGE_DETECT_WIDE_S_TAP("in0", "pa + constants.ud.z + float(j)")
+                         "output = float4(sum, 0.0, 0.0, 1.0);";
+
+#define EDGE_DETECT_WIDE_BOX                                                                                                                               \
+	EDGE_DETECT_WIDE_PRE "float ae = constants.ud.y; float aw = ae + vert * (n - ae); float ah = n + vert * (ae - n); "                                    \
+	"int nb = int(constants.ur.x); int nc = int(constants.ur.y); float blk = constants.ud.w; "                                                             \
+	"for (int m = 0; m < nb; m += 1) { float i = pa + float(m) * blk; float tx = i + vert * (pq - i); float ty = pq + vert * (i - pq); "                  \
+	"sum += sample_lod(in0, sampler_linear, float2((tx + 0.5) / aw, (ty + 0.5) / ah), 0.0).r; } "                                                          \
+	"for (int j = 0; j < nc; j += 1) " EDGE_DETECT_WIDE_S_TAP("in1", "pa + blk * float(nb) + constants.ud.z + float(j)") "float v = sum * constants.ur.z; "
+
+static char *edge_detect_node_wide_box_body = EDGE_DETECT_WIDE_BOX "output = float4(v, 0.0, 0.0, 1.0);";
+
+// The last box of the last axis: the gain, the clamp and in Boundary the smoothstep, like edge_detect_node_box_last_body
+static char *edge_detect_node_wide_last_body =
+    EDGE_DETECT_WIDE_BOX "float g = min(v * constants.ur.w, 1.0); "
+                         "if (constants.ub > 0.5) { float u = clamp((g - 0.4) / 0.2, 0.0, 1.0); g = u * u * (3.0 - 2.0 * u); } "
+                         "output = float4(g, g, g, 1.0);";
+
+// Box widths from this many texels are computed in two passes (measured on an Apple M5 Pro: the direct sum of w taps is as fast up to about 16, the two passes win
+// above: Size 4096 Edge Width 0.02 90 -> 29 ms, 0.1 417 -> 44 ms)
+#define EDGE_DETECT_WIDE_MIN_BOX 16
+
+// Splits w = a b + c (c < a) for the fewest taps a + b + c
+static void edge_detect_node_wide_split(i32 w, i32 *a, i32 *b, i32 *c) {
+	i32 best = 0x7fffffff;
+	for (i32 t = 2; t <= w; ++t) {
+		i32 cost = t + w / t + w % t;
+		if (cost < best) {
+			best = cost;
+			*a   = t;
+			*b   = w / t;
+			*c   = w % t;
+		}
+	}
+}
+
+// One box (two passes) along an axis: s -> acc (A, size + 2 h along the axis) -> dst, size x size
+static void edge_detect_node_wide_box(shader_context_t *stage1, shader_context_t *stage2, gpu_texture_t *s, gpu_texture_t *acc, gpu_texture_t *dst, i32 size, bool vertical, i32 w,
+                                      f32 wrap, f32 gain, f32 boundary) {
+	i32 h = w / 2;
+	i32 a, b, c;
+	edge_detect_node_wide_split(w, &a, &b, &c);
+	f32 ext = (f32)(size + 2 * h);
+	f32 vert = vertical ? 1.0f : 0.0f;
+	f32 u[13] = {vertical ? (f32)size : ext, vertical ? ext : (f32)size, vert, wrap, (f32)size, ext, (f32)(-h), (f32)a, (f32)b, (f32)c, 1.0f / (f32)w, gain, boundary};
+	gpu_texture_t *in[2];
+	in[0] = s;
+	make_image_node_gpu_pass(stage1, &acc, 1, in, 1, u);
+	u[0] = (f32)size;
+	u[1] = (f32)size;
+	in[0] = acc;
+	in[1] = s;
+	make_image_node_gpu_pass(stage2, &dst, 1, in, 2, u);
+}
 
 // The edge image from the captured grey (captures[0], R32F, Size x Size): returns the result render target (RGBA64, the mask in R, G and B), NULL when a
 // target could not be created. The capture is used as scratch (the shared code deletes it), so a bake holds three planes: the capture, one more R32 and the result.
@@ -187,8 +263,18 @@ static gpu_texture_t *edge_detect_node_gpu_bake(ui_node_t *node, i32 size, void 
 	shader_context_t *reduce = make_image_node_gpu_shader(edge_detect_node_reduce_body, in0, 1, s1, 1, r32, 1);
 	shader_context_t *norm   = make_image_node_gpu_shader(edge_detect_node_normalise_body, in01, 2, k4, 1, smooth ? rgba64 : r32, 1);
 	shader_context_t *bin    = smooth ? make_image_node_gpu_shader(edge_detect_node_binomial_body, in0, 1, k4, 1, r32, 1) : NULL;
-	shader_context_t *box    = smooth ? NULL : make_image_node_gpu_shader(edge_detect_node_box_body, in0, 1, k4m4, 2, r32, 1);
-	shader_context_t *last   = smooth ? NULL : make_image_node_gpu_shader(edge_detect_node_box_last_body, in0, 1, k4m4, 2, rgba64, 1);
+	// The width of the three boxes: odd, sigma^2 = (w^2 - 1) / 4 for three of them
+	i32 w = 2 * (i32)((sqrtf(4.0f * sigma * sigma + 1.0f) - 1.0f) * 0.5f + 0.5f) + 1;
+	w     = w > size - 1 ? size - 1 : w;
+	bool wide = !smooth && w >= EDGE_DETECT_WIDE_MIN_BOX;
+	char *um_ud[]       = {"float4 um", "float4 ud"};
+	char *um_ud_ur[]    = {"float4 um", "float4 ud", "float4 ur"};
+	char *um_ud_ur_ub[] = {"float4 um", "float4 ud", "float4 ur", "float ub"};
+	shader_context_t *box    = smooth || wide ? NULL : make_image_node_gpu_shader(edge_detect_node_box_body, in0, 1, k4m4, 2, r32, 1);
+	shader_context_t *last   = smooth || wide ? NULL : make_image_node_gpu_shader(edge_detect_node_box_last_body, in0, 1, k4m4, 2, rgba64, 1);
+	shader_context_t *wide_a = wide ? make_image_node_gpu_shader(edge_detect_node_wide_a_body, in0, 1, um_ud, 2, r32, 1) : NULL;
+	shader_context_t *wide_b = wide ? make_image_node_gpu_shader(edge_detect_node_wide_box_body, in01, 2, um_ud_ur, 3, r32, 1) : NULL;
+	shader_context_t *wide_l = wide ? make_image_node_gpu_shader(edge_detect_node_wide_last_body, in01, 2, um_ud_ur_ub, 4, rgba64, 1) : NULL;
 
 	f32            u[4] = {(f32)size, wrap, 0.25f, 0.0f};
 	gpu_texture_t *in[2];
@@ -229,9 +315,33 @@ static gpu_texture_t *edge_detect_node_gpu_bake(ui_node_t *node, i32 size, void 
 	dst       = smooth ? result : a;
 	make_image_node_gpu_pass(norm, &dst, 1, in, 2, nu);
 
-	if (!smooth) {
-		i32 w = 2 * (i32)((sqrtf(4.0f * sigma * sigma + 1.0f) - 1.0f) * 0.5f + 0.5f) + 1; // Odd, three boxes of w: sigma^2 = (w^2 - 1) / 4
-		w     = w > size - 1 ? size - 1 : w;
+	if (wide) {
+		f32 fw   = (f32)w;
+		f32 gain = (4.0f * fw * fw * fw) / (3.0f * fw * fw + 1.0f);
+		// x, x, x then y, y, y (the boxes of the two axes commute, also with clamped indices: every box clamps its own input along its own axis)
+		gpu_texture_t *acc = gpu_create_render_target(size + 2 * (w / 2), size, GPU_TEXTURE_FORMAT_R32);
+		gpu_texture_t *accy = NULL;
+		bool           done = acc != NULL;
+		if (done) {
+			edge_detect_node_wide_box(wide_a, wide_b, a, acc, b, size, false, w, wrap, gain, boundary);
+			edge_detect_node_wide_box(wide_a, wide_b, b, acc, a, size, false, w, wrap, gain, boundary);
+			edge_detect_node_wide_box(wide_a, wide_b, a, acc, b, size, false, w, wrap, gain, boundary);
+			gpu_delete_texture(acc);
+			accy = gpu_create_render_target(size, size + 2 * (w / 2), GPU_TEXTURE_FORMAT_R32);
+			done = accy != NULL;
+		}
+		if (done) {
+			edge_detect_node_wide_box(wide_a, wide_b, b, accy, a, size, true, w, wrap, gain, boundary);
+			edge_detect_node_wide_box(wide_a, wide_b, a, accy, b, size, true, w, wrap, gain, boundary);
+			edge_detect_node_wide_box(wide_a, wide_l, b, accy, result, size, true, w, wrap, gain, boundary);
+			gpu_delete_texture(accy);
+		}
+		else {
+			gpu_delete_texture(result);
+			result = NULL;
+		}
+	}
+	else if (!smooth) {
 		f32 fw        = (f32)w;
 		f32 gain      = (4.0f * fw * fw * fw) / (3.0f * fw * fw + 1.0f); // 1 / peak of a one pixel wide line
 		f32 bu[8]     = {(f32)size, wrap, 1.0f, 0.0f, (f32)(w / 2), 1.0f / fw, gain, boundary};
@@ -258,6 +368,11 @@ static gpu_texture_t *edge_detect_node_gpu_bake(ui_node_t *node, i32 size, void 
 	if (box != NULL) {
 		make_image_node_gpu_shader_free(box);
 		make_image_node_gpu_shader_free(last);
+	}
+	if (wide_a != NULL) {
+		make_image_node_gpu_shader_free(wide_a);
+		make_image_node_gpu_shader_free(wide_b);
+		make_image_node_gpu_shader_free(wide_l);
 	}
 	for (i32 i = 0; i < chain_count; ++i) {
 		gpu_delete_texture(chain[i]);
