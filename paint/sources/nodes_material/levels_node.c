@@ -34,7 +34,8 @@
 // debounced, only for this strip and Auto Levels, never part of the output): 256 bins over all three channels (every pixel counts three
 // samples, so a colour image shows the overall level distribution and a grey image its grey histogram), drawn as sqrt(bin / largest bin) so
 // a few dominant bins do not flatten the rest. Auto Levels (button) sets In Low and In High to the 0.1 % and 99.9 % percentiles of those
-// samples (Range: Position to their mean); In Mid and the Out values stay as they are, a flat image is left alone, a linked socket is never set.
+// samples and In Mid to the midpoint of that range (gamma 1: a plain linear stretch) (Range: Position to their mean); the Out values stay as they are,
+// a flat image is left alone, a linked socket is never set (In Mid is only set when In Low, In High and In Mid are all unlinked).
 
 // Input socket indices
 enum {
@@ -176,6 +177,24 @@ static void levels_node_histogram(const f32 *samples, size_t n, levels_summary_t
 	out->low  = out->low < min ? min : out->low > max ? max : out->low;
 	out->high = out->high < min ? min : out->high > max ? max : out->high;
 }
+// Auto Levels of the Levels mode: the new In Low, In High and In Mid from the summary. Returns false for a flat image (nothing is set). A linked socket is not set (its flag
+// is true); In Mid becomes the midpoint of the new range (gamma 1) only when In Low, In High and In Mid are all unlinked.
+static bool levels_node_auto_levels(const levels_summary_t *s, bool low_linked, bool high_linked, bool mid_linked, f32 *in_low, f32 *in_high, f32 *in_mid) {
+	if (!(s->high - s->low > (f32)LEVELS_HANDLE_GAP)) {
+		return false;
+	}
+	if (!low_linked) {
+		*in_low = s->low;
+	}
+	if (!high_linked) {
+		*in_high = s->high;
+	}
+	if (!low_linked && !high_linked && !mid_linked) {
+		*in_mid = 0.5f * (s->low + s->high);
+	}
+	return true;
+}
+
 // levels logic end
 
 // The remap in the material shader (kong). Written in the common subset of kong and C so that the host test compiles this very text:
@@ -339,7 +358,8 @@ static levels_summary_t *levels_node_summary_of(ui_node_t *node) {
 	return make_image_node_summary(node);
 }
 
-// Auto Levels button: In Low and In High from the percentiles of the baked Image (never In Mid or the Out values), in Range mode the Position from its mean. A linked socket keeps its link and is not set.
+// Auto Levels button: In Low and In High from the percentiles of the baked Image and In Mid to the midpoint of the new range (never the Out values), in Range mode the Position from its mean.
+// A linked socket keeps its link and is not set; In Mid is left alone when In Low or In High is linked (no known range to centre in).
 static void levels_node_auto_button(i32 node_id) {
 	ui_node_t *node = ui_get_node(ui_nodes_get_canvas(true)->nodes, node_id);
 	if (node == NULL) {
@@ -362,12 +382,15 @@ static void levels_node_auto_button(i32 node_id) {
 			levels_node_set_input(node, LEVELS_INPUT_POSITION, s->mean);
 		}
 	}
-	else if (s->high - s->low > (f32)LEVELS_HANDLE_GAP) { // A flat image has no range to fit
-		if (!levels_node_linked(canvas, node->id, LEVELS_INPUT_IN_LOW)) {
-			levels_node_set_input(node, LEVELS_INPUT_IN_LOW, s->low);
-		}
-		if (!levels_node_linked(canvas, node->id, LEVELS_INPUT_IN_HIGH)) {
-			levels_node_set_input(node, LEVELS_INPUT_IN_HIGH, s->high);
+	else {
+		f32 in_low  = levels_node_input(node, LEVELS_INPUT_IN_LOW);
+		f32 in_high = levels_node_input(node, LEVELS_INPUT_IN_HIGH);
+		f32 in_mid  = levels_node_input(node, LEVELS_INPUT_IN_MID);
+		if (levels_node_auto_levels(s, levels_node_linked(canvas, node->id, LEVELS_INPUT_IN_LOW), levels_node_linked(canvas, node->id, LEVELS_INPUT_IN_HIGH),
+		                            levels_node_linked(canvas, node->id, LEVELS_INPUT_IN_MID), &in_low, &in_high, &in_mid)) {
+			levels_node_set_input(node, LEVELS_INPUT_IN_LOW, in_low);
+			levels_node_set_input(node, LEVELS_INPUT_IN_HIGH, in_high);
+			levels_node_set_input(node, LEVELS_INPUT_IN_MID, in_mid);
 		}
 	}
 	g_ui->changed = true;
