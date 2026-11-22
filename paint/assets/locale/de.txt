@@ -21,9 +21,9 @@ Absolutbetrag
 Hinzufügen
 Animation hinzufügen
 Farbfeld hinzufügen
-Neues Farbfeld hinzufügen
-Gewählte Farbe zu Farbfeldern hinzufügen
 
+
+Neues Farbfeld hinzufügen
 Alle
 Alle Verarbeitung erfolgt lokal auf dem Gerät
 Kamera über Kopf erlauben

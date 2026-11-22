@@ -663,19 +663,17 @@ int             ui_next_link_id(ui_node_link_array_t *links);
 ui_node_t      *ui_get_node(ui_node_array_t *nodes, int id);
 int             ui_next_node_id(ui_node_array_t *nodes);
 
-// Stops control: handles on a 0..1 bar that are selected, dragged, added and deleted (iron_ui_stops.c).
+// Stops control: handles on a 0..1 bar that are selected, dragged and added (iron_ui_stops.c).
 // The consumer owns the data (through ui_stops_ops_t) and draws the bar, the control draws the handles.
 #define UI_STOPS_CHANGED  1 // Data changed (ui->changed is set as well)
 #define UI_STOPS_SELECTED 2 // Active stop changed
 #define UI_STOPS_CONSUMED 4 // The press was used, the caller should not pass it on
 
 typedef struct ui_stops {
-	int    active;   // Index of the active stop
-	bool   drag;     // The active stop is held
-	bool   moved;    // The drag moved the stop
-	float  grab;     // Stop position minus mouse position at the press
-	int    last_hit; // Stop of the last press, for double click
-	double last_time;
+	int   active; // Index of the active stop
+	bool  drag;   // The active stop is held
+	bool  moved;  // The drag moved the stop
+	float grab;   // Stop position minus mouse position at the press
 } ui_stops_t;
 
 typedef float (*ui_stops_get_pos_t)(void *data, int i);
@@ -684,11 +682,9 @@ typedef struct ui_stops_ops {
 	int (*count)(void *data);
 	ui_stops_get_pos_t get_pos;
 	void (*set_pos)(void *data, int i, float pos);
-	int (*add)(void *data, float pos); // Inserts a stop and returns its index, or -1
-	void (*remove)(void *data, int i);
+	int (*add)(void *data, float pos);   // Inserts a stop and returns its index, or -1
 	uint32_t (*fill)(void *data, int i); // Colour of the handle of a stop
-	bool (*is_locked)(void *data, int i); // Optional (NULL: no stop is locked): a locked stop can be selected but not dragged or deleted, it is drawn dimmed
-	int min_count;
+	bool (*is_locked)(void *data, int i); // Optional (NULL: no stop is locked): a locked stop can be selected but not dragged, it is drawn dimmed
 	int max_count;
 	bool flipped; // The handles sit ABOVE the bar (houses with the roof pointing down, their tip on the top edge of the bar, ui_stops_draw_pin_flipped): the press zone is the hit_h tall row above the bar
 } ui_stops_ops_t;

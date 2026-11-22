@@ -241,9 +241,7 @@ static const ui_stops_ops_t color_ramp_stops_ops = {.count     = color_ramp_stop
                                                     .get_pos   = color_ramp_stops_get_pos,
                                                     .set_pos   = color_ramp_stops_set_pos,
                                                     .add       = color_ramp_stops_add,
-                                                    .remove    = color_ramp_stops_remove,
                                                     .fill      = color_ramp_stops_fill,
-                                                    .min_count = COLOR_RAMP_MIN_STOPS,
                                                     .max_count = COLOR_RAMP_MAX_STOPS};
 
 // Two quick releases inside the selected node open its 2D view (ui_nodes.c); a handle press or a click on a button of this node must not count.
@@ -302,7 +300,7 @@ void nodes_material_color_ramp_button(i32 node_id) {
 		ui_fill(inset + t * bar_w, 0, slice_w, bar_h / UI_SCALE(), col);
 	}
 
-	// Handles below the bar: select, drag, add on the bar, double click deletes
+	// Handles below the bar: select, drag, add on the bar
 	color_ramp_stops_t ramp   = {.vals = vals, .interp = interp};
 	ui_stops_layout_t  layout = {.x = g_ui->_x + extent, .y = g_ui->_y, .w = g_ui->_w - 2 * extent, .bar_h = bar_h, .marker_h = marker_h, .hit_h = hit_h};
 	i32                hit    = ui_stops_update(&state->stops, &color_ramp_stops_ops, &ramp, &layout);
@@ -325,7 +323,7 @@ void nodes_material_color_ramp_button(i32 node_id) {
 	color_ramp_node_clear_double_click_over_element(nodes);
 	bool add_stop = ui_button("+", UI_ALIGN_CENTER, "");
 	if (g_ui->is_hovered) {
-		ui_tooltip(tr("Add stop"));
+		ui_tooltip(tr("Add color stop"));
 	}
 	g_ui->enabled = enabled;
 	if (add_stop) {
@@ -338,7 +336,7 @@ void nodes_material_color_ramp_button(i32 node_id) {
 	color_ramp_node_clear_double_click_over_element(nodes);
 	bool delete_stop = ui_button("-", UI_ALIGN_CENTER, "");
 	if (g_ui->is_hovered) {
-		ui_tooltip(tr("Delete active stop"));
+		ui_tooltip(tr("Delete active color stop"));
 	}
 	g_ui->enabled = enabled;
 	if (delete_stop && ui_stops_can_remove(color_ramp_stops_count(&ramp), COLOR_RAMP_MIN_STOPS)) {

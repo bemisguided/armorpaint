@@ -21,9 +21,9 @@ Absolutní
 Přidat
 Přidat animaci
 Přidat vzorek
-Přidat nový vzorek
-Přidat vybranou barvu do vzorků
 
+
+Přidat nový vzorek
 Vše
 Veškeré zpracování probíhá lokálně na zařízení
 Povolit převrácenou kameru
