@@ -168,8 +168,9 @@ static char *edge_detect_node_wide_last_body =
                          "if (constants.ub > 0.5) { float u = clamp((g - 0.4) / 0.2, 0.0, 1.0); g = u * u * (3.0 - 2.0 * u); } "
                          "output = float4(g, g, g, 1.0);";
 
-// Box widths from this many texels are computed in two passes (the direct sum is faster for small widths)
-#define EDGE_DETECT_WIDE_MIN_BOX 24
+// Box widths from this many texels are computed in two passes (measured on an Apple M5 Pro: the direct sum of w taps is as fast up to about 16, the two passes win
+// above: Size 4096 Edge Width 0.02 90 -> 29 ms, 0.1 417 -> 44 ms)
+#define EDGE_DETECT_WIDE_MIN_BOX 16
 
 // Splits w = a b + c (c < a) for the fewest taps a + b + c
 static void edge_detect_node_wide_split(i32 w, i32 *a, i32 *b, i32 *c) {
@@ -263,8 +264,7 @@ static gpu_texture_t *edge_detect_node_gpu_bake(ui_node_t *node, i32 size, void 
 	// The width of the three boxes: odd, sigma^2 = (w^2 - 1) / 4 for three of them
 	i32 w = 2 * (i32)((sqrtf(4.0f * sigma * sigma + 1.0f) - 1.0f) * 0.5f + 0.5f) + 1;
 	w     = w > size - 1 ? size - 1 : w;
-	i32 wide_min = EDGE_DETECT_WIDE_MIN_BOX; /*TEMP*/ if (getenv("EW_MIN") != NULL) { wide_min = atoi(getenv("EW_MIN")); } /*TEMPEND*/
-	bool wide = !smooth && w >= wide_min;
+	bool wide = !smooth && w >= EDGE_DETECT_WIDE_MIN_BOX;
 	char *um_ud[]       = {"float4 um", "float4 ud"};
 	char *um_ud_ur[]    = {"float4 um", "float4 ud", "float4 ur"};
 	char *um_ud_ur_ub[] = {"float4 um", "float4 ud", "float4 ur", "float ub"};
