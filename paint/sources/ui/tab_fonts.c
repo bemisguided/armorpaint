@@ -66,17 +66,7 @@ void tab_fonts_draw(i32 *htab) {
 
 		ui_begin_sticky();
 
-		f32_array_t *row = f32_array_create(0);
-		f32_array_push(row, -100);
-		f32_array_push(row, -100);
-		f32_array_push(row, -200); // Search
-		if (ui_asset_tags_any(MC_FONT)) {
-			f32_array_push(row, -150); // Tags filter
-		}
-		if (!string_equals(tab_fonts_search, "")) {
-			f32_array_push(row, -40); // Clear search
-		}
-		ui_row(row);
+		ui_row(ui_asset_tray_row(MC_FONT, 2, -100, -200, !string_equals(tab_fonts_search, "")));
 
 		if (ui_icon_button(tr("Import"), ICON_IMPORT, UI_ALIGN_CENTER)) {
 			project_import_asset("ttf,ttc,otf", true);
@@ -147,15 +137,10 @@ void tab_fonts_draw(i32 *htab) {
 				gpu_texture_t *img = g_project->_->fonts->buffer[i]->image;
 
 				slot_font_t *font  = g_project->_->fonts->buffer[i];
-				u32          color = asset_tray_frame_color(ASSET_TRAY_FONTS, font);
-				if (color != 0) {
-					// ui_fill(1, -2, img.width + 3, img.height + 3, ui.ops.theme.HIGHLIGHT_COL); // TODO
-					i32 w = 50 * a;
-					ui_rect_round(-1, -1, w + 2, w + 2, color, 2 * UI_SCALE());
-				}
-
-				uix = g_ui->_x;
-				uiy = g_ui->_y;
+				i32          w     = 50 * a;
+				uix          = g_ui->_x;
+				uiy          = g_ui->_y;
+				asset_tray_plate_draw(ASSET_TRAY_FONTS, font, uix, uiy, -1, -1, w + 2, w + 2);
 				asset_selection_marquee_cell(font, uix, uiy, imgw_val, imgw_val);
 				i32 tile = UI_SCALE() > 1 ? 100 : 50;
 
@@ -171,6 +156,7 @@ void tab_fonts_draw(i32 *htab) {
 				else {
 					state = ui_sub_image(resource_get("icons.k"), -1, imgw, tile * 6, tile, tile, tile);
 				}
+				asset_tray_ring_draw(ASSET_TRAY_FONTS, font, uix, uiy, -1, -1, w + 2, w + 2);
 				g_ui->image_scroll_align = true;
 
 				if (state == UI_STATE_HOVERED && base_drag_font != NULL && string_equals(search, "") && !ui_asset_tags_active(MC_FONT)) {
