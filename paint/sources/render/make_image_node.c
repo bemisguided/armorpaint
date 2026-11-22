@@ -2098,16 +2098,16 @@ ui_node_button_t *make_image_node_state_button() {
 }
 
 // Registers the sections of a pass-through node (pass_through_capture): the button order of its definition is Capture Size
-// (make_image_node_capture_size_setting), then the other settings. 0 Texture: Capture Size alone, closed by default, drawn below the
-// inputs (after_inputs); 1 General: the other settings and the first n_general_inputs inputs, open; then the own sections (own, may be NULL);
-// without own sections the remaining inputs form one open section Parameters. No state row, no Size.
+// (make_image_node_capture_size_setting), then the other settings. Like make_image_node_sections the list is in DISPLAY order and its index
+// is the flag bit (8 + index): 0 General: the other settings and the first n_general_inputs inputs, open; then the own sections (own, may be
+// NULL); without own sections the remaining inputs form one open section Parameters; last Texture: Capture Size alone, closed by default,
+// drawn below the inputs (after_inputs). No state row, no Size.
 void make_image_node_sections_capture(ui_node_t *def, ui_node_section_t *own, i32 own_count, i32 n_general_inputs) {
 	i32                n_buttons = def->buttons->length;
 	i32                n_inputs  = def->inputs->length;
 	bool               params    = own_count == 0 && n_inputs > n_general_inputs;
 	ui_node_section_t *list      = calloc(own_count + 4, sizeof(ui_node_section_t));
 	i32                n         = 0;
-	list[n++]                    = (ui_node_section_t){.title = _tr("Texture"), .kind = UI_NODE_ITEM_BUTTON, .first = 0, .count = 1, .closed_by_default = true, .after_inputs = true};
 	list[n++]                    = (ui_node_section_t){.title             = _tr("General"),
 	                                                   .kind              = UI_NODE_ITEM_BUTTON,
 	                                                   .first             = 1,
@@ -2121,17 +2121,20 @@ void make_image_node_sections_capture(ui_node_t *def, ui_node_section_t *own, i3
 	if (params) {
 		list[n++] = (ui_node_section_t){.title = _tr("Parameters"), .kind = UI_NODE_ITEM_INPUT, .first = n_general_inputs, .count = n_inputs - n_general_inputs, .closed_by_default = false};
 	}
+	list[n++] = (ui_node_section_t){.title = _tr("Texture"), .kind = UI_NODE_ITEM_BUTTON, .first = 0, .count = 1, .closed_by_default = true, .after_inputs = true};
 	any_map_set(ui_nodes_sections, def->type, list); // The list ends with the zeroed entry
 }
 
-// Registers the sections of an image node type. Every row of the node is in a section, in this order of the list (= flag bits 8, 9, ...):
-// 0 Texture: the Size setting and the state row, the first two buttons of every image node, closed by default. It is drawn LAST, below the
-//   inputs and the other sections (after_inputs): the list index and the flag bit stay 0, only the place on the node differs (decided 2026-11-20).
-// 1 General: a mixed section (one header) with all the other buttons and the first n_general_inputs inputs, open by default.
+// Registers the sections of an image node type. The list is in DISPLAY order and its index is the flag bit (8 + index) of the section:
+// 0 General: a mixed section (one header) with all the buttons but the first two and the first n_general_inputs inputs, open by default.
 // then the own sections (own, may be NULL) of the node: ranges of the other inputs; without own sections the remaining inputs
 // (from n_general_inputs on) form one open section Parameters.
+// last Texture: the Size setting and the state row, the first two buttons of every image node, closed by default. These two buttons head the
+//   button list of the definition, so the section is drawn below the inputs (after_inputs) although they come first in the node definition.
 // n_general_inputs < 0 leaves the node without General and Parameters (Seamless: Image and Blend Width stay plain rows).
 // The ranges are by index in the node def, so the button and input order of the def must be: Size, state row, settings; general inputs first.
+// The table order replaced Texture, General, ... (decided 2026-11-21): a node saved with that order is remapped once on load
+// (make_image_node_sections_remap).
 void make_image_node_sections(ui_node_t *def, ui_node_section_t *own, i32 own_count, i32 n_general_inputs) {
 	i32                n_buttons = def->buttons->length;
 	i32                n_inputs  = def->inputs->length;
@@ -2139,7 +2142,6 @@ void make_image_node_sections(ui_node_t *def, ui_node_section_t *own, i32 own_co
 	bool               params    = general && own_count == 0 && n_inputs > n_general_inputs;
 	ui_node_section_t *list      = calloc(own_count + 4, sizeof(ui_node_section_t));
 	i32                n         = 0;
-	list[n++]                    = (ui_node_section_t){.title = _tr("Texture"), .kind = UI_NODE_ITEM_BUTTON, .first = 0, .count = 2, .closed_by_default = true, .after_inputs = true};
 	if (general) {
 		list[n++] = (ui_node_section_t){.title             = _tr("General"),
 		                                .kind              = UI_NODE_ITEM_BUTTON,
@@ -2155,5 +2157,35 @@ void make_image_node_sections(ui_node_t *def, ui_node_section_t *own, i32 own_co
 	if (params) {
 		list[n++] = (ui_node_section_t){.title = _tr("Parameters"), .kind = UI_NODE_ITEM_INPUT, .first = n_general_inputs, .count = n_inputs - n_general_inputs, .closed_by_default = false};
 	}
+	list[n++] = (ui_node_section_t){.title = _tr("Texture"), .kind = UI_NODE_ITEM_BUTTON, .first = 0, .count = 2, .closed_by_default = true, .after_inputs = true};
 	any_map_set(ui_nodes_sections, def->type, list); // The list ends with the zeroed entry
+}
+
+// Section bits (flag bit 8 + index) of an image node saved with the old table order (Texture first: Texture, General, own sections,
+// Parameters) in the order of the table now (Texture last): bit i of the old order moves to i - 1, the Texture bit 0 to count - 1.
+// count is the number of sections of the node type. A flags value that has the marker UI_NODE_FLAG_SECTIONS_V2 (bit 7) is of the new
+// order and returned as is; otherwise the bits are remapped and the marker set, so the remap runs once and is idempotent.
+u32 make_image_node_sections_remap_flags(u32 flags, i32 count) {
+	if ((flags & UI_NODE_FLAG_SECTIONS_V2) != 0 || count < 1 || count > UI_NODE_SECTIONS_MAX) {
+		return flags;
+	}
+	u32 mask = ((u32)1 << count) - 1;
+	u32 old  = (flags >> 8) & mask;
+	u32 now  = (old >> 1) | ((old & 1) << (count - 1));
+	return (flags & ~(mask << 8)) | (now << 8) | UI_NODE_FLAG_SECTIONS_V2;
+}
+
+// Applies make_image_node_sections_remap_flags to a node of an image node type (the last section of its table is Texture, drawn below the
+// inputs). Called wherever the sections of a node are looked up, before any bit is read; a node of another type is left alone.
+void make_image_node_sections_remap(ui_node_t *node, const ui_node_section_t *list) {
+	if (list == NULL || (node->flags & UI_NODE_FLAG_SECTIONS_V2) != 0) {
+		return;
+	}
+	i32 count = 0;
+	while (list[count].title != NULL && count < UI_NODE_SECTIONS_MAX) {
+		count++;
+	}
+	if (count > 0 && list[count - 1].after_inputs) {
+		node->flags = make_image_node_sections_remap_flags(node->flags, count);
+	}
 }
