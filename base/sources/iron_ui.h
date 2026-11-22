@@ -510,6 +510,9 @@ typedef enum ui_node_flag {
 	// A set bit means "toggled away from the default of the section" (closed_by_default), so 0, the value of every node saved before and of every new node,
 	// is the default state of all sections. Presentation only: no undo step, no compile, no format change (flags is saved as is).
 	UI_NODE_FLAG_SECTION_0 = 256,
+	// Marker of the section bits (8 and up): set = they follow the table order of today (image nodes: Texture last), clear = a node saved before
+	// the order was changed (Texture first), remapped once on load by make_image_node_sections_remap. Every node of the new layout carries it.
+	UI_NODE_FLAG_SECTIONS_V2 = 128,
 } ui_node_flag_t;
 
 #define UI_NODE_SECTIONS_MAX 23
@@ -534,7 +537,7 @@ typedef struct ui_node_section {
 	bool            closed_by_default; // State while the flag bit is clear
 	int             inputs_first;      // Mixed section (kind BUTTON only): index of its first input
 	int             inputs_count;      // Mixed section: number of inputs, 0 for a section of one kind
-	bool            after_inputs;      // BUTTON section only: drawn below all the inputs of the node instead of among the buttons above them (a visual order, the index and the flag bit of the section stay)
+	bool            after_inputs;      // BUTTON section only: drawn below all the inputs of the node instead of among the buttons above them (for buttons that head the button list of the node but come last in the table)
 } ui_node_section_t;
 
 typedef struct ui_node {
