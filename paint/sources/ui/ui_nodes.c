@@ -428,7 +428,8 @@ void ui_viewnodes_on_canvas_context_menu() {
 			ui_dock_redraw(TAB_AREA_STATUS);
 		}
 	}
-	if (ui_nodes_canvas_type == CANVAS_TYPE_MATERIAL && selected != NULL && make_image_node_type_of(selected->type) != NULL) {
+	image_node_type_t *selected_image_type = selected != NULL ? make_image_node_type_of(selected->type) : NULL;
+	if (ui_nodes_canvas_type == CANVAS_TYPE_MATERIAL && selected_image_type != NULL && !selected_image_type->summary_only) { // Summary only nodes have no result to regenerate
 		if (ui_menu_button(tr("Regenerate Image Nodes"), "", ICON_SYNC)) {
 			make_image_node_regenerate();
 		}
