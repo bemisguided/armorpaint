@@ -521,7 +521,6 @@ Textura de Ruído
 Nenhum
 Normal
 Mistura de Normal
-
 Mapa de Normais
 Mapa de Normais 1
 Mapa de Normais 2
