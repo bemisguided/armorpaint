@@ -45,6 +45,7 @@ int  ui_nodes_grid_snap_w                                = 40;
 int  ui_nodes_value_decimals                             = 3; // Decimals of the values in nodes
 char *(*ui_nodes_on_dot_label)(ui_node_t *)                       = NULL; // Label of a dot node, NULL for the node name
 int (*ui_nodes_on_dot_state)(ui_node_t *)                         = NULL; // ui_dot_state_t flags of a dot node
+void (*ui_nodes_on_dot_frame)(ui_node_canvas_t *)                = NULL; // Before the nodes are drawn: state of the dot nodes for this frame
 void (*ui_nodes_on_dot_overlay)(ui_node_canvas_t *)              = NULL; // Draw over the nodes, under the dot nodes
 void (*ui_nodes_on_dot_label_double_click)(ui_node_t *)           = NULL;
 void (*ui_nodes_on_dot_label_edited)(ui_node_t *, char *)         = NULL; // Text accepted by ui_nodes_dot_edit_label
@@ -109,6 +110,12 @@ float UI_LINE_H() {
 
 float UI_DOT_SIZE() {
 	return UI_LINE_H() * 0.7;
+}
+
+// Dot nodes: the icon (solid circle for a Sender, cup for a Receiver) has a short stem and a standard socket at its end. This is the distance
+// from the icon centre to the socket centre, the same for both: the selection ring radius (half the icon plus 6) plus the socket radius (6) plus a gap (2).
+float UI_DOT_STEM() {
+	return UI_DOT_SIZE() / 2.0 + 14.0 * UI_NODES_SCALE();
 }
 
 static int                      ui_node_section_of(ui_node_t *node, ui_node_item_t kind, int index);
@@ -299,7 +306,7 @@ float UI_NODE_H(ui_node_canvas_t *canvas, ui_node_t *node) {
 
 float UI_NODE_W(ui_node_t *node) {
 	if (node->flags & UI_NODE_FLAG_DOT)
-		return UI_DOT_SIZE();
+		return UI_DOT_SIZE() / 2.0 + UI_DOT_STEM(); // Half the icon, the stem to the socket (an input sits on the left edge, an output on the right edge)
 	return (node->width != 0 ? node->width : 140.0) * UI_NODES_SCALE();
 }
 
@@ -1165,7 +1172,8 @@ static float ui_dot_ring_radius() {
 }
 
 void ui_node_dot_center(ui_node_t *node, float *x, float *y) {
-	*x = UI_NODE_X(node) + UI_NODE_W(node) / 2.0;
+	// A Receiver (output) has the icon at the left end and the socket on the right edge, a Sender (input) the socket on the left edge and the icon at the right end
+	*x = node->outputs->length > 0 ? UI_NODE_X(node) + UI_DOT_SIZE() / 2.0 : UI_NODE_X(node) + UI_NODE_W(node) - UI_DOT_SIZE() / 2.0;
 	*y = UI_NODE_Y(node) + UI_NODE_H(NULL, node) / 2.0;
 }
 
@@ -1178,6 +1186,26 @@ static bool ui_dot_hit(ui_node_t *node) {
 	float dy = current->input_y - current->_window_y - cy;
 	float r  = ui_dot_ring_radius();
 	return dx * dx + dy * dy <= r * r;
+}
+
+// The node under the mouse for a click handler outside the editor pass: regular nodes first (canvas order, the node rect), then the dot nodes by
+// their ring. A dot node a regular node covers is never returned.
+ui_node_t *ui_node_at_input(ui_node_canvas_t *canvas) {
+	ui_t *current = ui_get_current();
+	for (int i = 0; i < canvas->nodes->length; ++i) {
+		ui_node_t *node = canvas->nodes->buffer[i];
+		if (!(node->flags & UI_NODE_FLAG_DOT) &&
+		    ui_input_in_rect(current->_window_x + UI_NODE_X(node), current->_window_y + UI_NODE_Y(node), UI_NODE_W(node), UI_NODE_H(canvas, node))) {
+			return node;
+		}
+	}
+	for (int i = 0; i < canvas->nodes->length; ++i) {
+		ui_node_t *node = canvas->nodes->buffer[i];
+		if ((node->flags & UI_NODE_FLAG_DOT) && ui_dot_hit(node)) {
+			return node;
+		}
+	}
+	return NULL;
 }
 
 // Label rect in window space: right of a dot with an input, left of a cup with an output
@@ -1199,17 +1227,57 @@ void ui_nodes_dot_edit_label(ui_node_t *node) {
 	ui_dot_edit_text     = string_copy(ui_dot_edit_original);
 }
 
-static void ui_node_draw_dot(ui_node_t *node) {
+// Draw and hit order: all dot nodes first (behind), then the regular nodes, each group in canvas order.
+// order[k] is the canvas index of the k-th node to process.
+void ui_node_draw_order(ui_node_t **nodes, int length, int *order) {
+	int k = 0;
+	for (int i = 0; i < length; ++i) {
+		if (nodes[i]->flags & UI_NODE_FLAG_DOT) {
+			order[k++] = i;
+		}
+	}
+	for (int i = 0; i < length; ++i) {
+		if (!(nodes[i]->flags & UI_NODE_FLAG_DOT)) {
+			order[k++] = i;
+		}
+	}
+}
+
+// A regular node covers the window space rect (a dot node is behind every regular node)
+static bool ui_regular_node_in_rect(ui_node_canvas_t *canvas, float x, float y, float w, float h) {
+	for (int i = 0; i < canvas->nodes->length; ++i) {
+		ui_node_t *n = canvas->nodes->buffer[i];
+		if (n->flags & UI_NODE_FLAG_DOT) {
+			continue;
+		}
+		if (UI_NODE_X(n) < x + w && UI_NODE_X(n) + UI_NODE_W(n) > x && UI_NODE_Y(n) < y + h && UI_NODE_Y(n) + UI_NODE_H(canvas, n) > y) {
+			return true;
+		}
+	}
+	return false;
+}
+
+// The mouse is over a regular node: it takes the input, not a dot node behind it
+static bool ui_mouse_over_regular_node(ui_node_canvas_t *canvas) {
+	ui_t *current = ui_get_current();
+	return ui_regular_node_in_rect(canvas, current->input_x - current->_window_x, current->input_y - current->_window_y, 0.01, 0.01);
+}
+
+// overlay_pass: the second drawing over the selection lines, only for a dot node no regular node covers; no input, no editing
+static void ui_node_draw_dot(ui_node_canvas_t *canvas, ui_node_t *node, bool overlay_pass) {
 	ui_t *current = ui_get_current();
 	float wx      = current->_window_x;
 	float wy      = current->_window_y;
 	float cx;
 	float cy;
 	ui_node_dot_center(node, &cx, &cy);
-	float r        = UI_NODE_W(node) / 2.0;
+	float r        = UI_DOT_SIZE() / 2.0;
 	bool  receiver = node->outputs->length > 0;
 	bool  editing  = ui_dot_edit_id == node->id;
 	bool  selected = ui_is_selected(node);
+	if (overlay_pass && editing) {
+		return;
+	}
 
 	ui_node_socket_t *soc   = receiver ? node->outputs->buffer[0] : node->inputs->length > 0 ? node->inputs->buffer[0] : NULL;
 	int               state = ui_nodes_on_dot_state != NULL ? ui_nodes_on_dot_state(node) : 0;
@@ -1222,6 +1290,22 @@ static void ui_node_draw_dot(ui_node_t *node) {
 	float lw;
 	float lh;
 	ui_dot_label_rect(node, text, &lx, &ly, &lw, &lh);
+	if (overlay_pass) {
+		float rr = ui_dot_ring_radius();
+		float bx = lx < cx - rr ? lx : cx - rr;
+		float bx2 = lx + lw > cx + rr ? lx + lw : cx + rr;
+		float by = ly < cy - rr ? ly : cy - rr;
+		float by2 = ly + lh > cy + rr ? ly + lh : cy + rr;
+		if (UI_NODE_X(node) < bx) {
+			bx = UI_NODE_X(node);
+		}
+		if (UI_NODE_X(node) + UI_NODE_W(node) > bx2) {
+			bx2 = UI_NODE_X(node) + UI_NODE_W(node);
+		}
+		if (ui_regular_node_in_rect(canvas, bx, by, bx2 - bx, by2 - by)) {
+			return; // Covered by a regular node: stays behind it, under the lines too
+		}
+	}
 	if (!editing) {
 		if (selected || (state & UI_DOT_PARTNER)) {
 			// Knockout, hides the selection lines under the name
@@ -1230,7 +1314,8 @@ static void ui_node_draw_dot(ui_node_t *node) {
 		}
 		draw_set_color((state & UI_DOT_ERROR) ? color : current->ops->theme->LABEL_COL);
 		draw_string(text, lx, ly);
-		if (current->input_enabled && current->input_started && ui_input_in_rect(wx + lx, wy + ly, lw, lh)) {
+		if (!overlay_pass && current->input_enabled && current->input_started && ui_input_in_rect(wx + lx, wy + ly, lw, lh) &&
+		    !ui_mouse_over_regular_node(canvas)) {
 			ui_dot_label_pressed = true;
 			double now           = iron_time();
 			if (ui_dot_click_id == node->id && now - ui_dot_click_time < 0.4) {
@@ -1243,6 +1328,18 @@ static void ui_node_draw_dot(ui_node_t *node) {
 				ui_dot_click_id   = node->id;
 				ui_dot_click_time = now;
 			}
+		}
+	}
+
+	// Stem and socket: a standard socket at the end of the stem (the link end, the drag handle of a Receiver, the snap target of a Sender)
+	{
+		float sx = receiver ? UI_NODE_X(node) + UI_NODE_W(node) : UI_NODE_X(node);
+		float sy = cy;
+		draw_set_color(color);
+		draw_line_aa(receiver ? cx + r - ui_p(1.6) : cx, cy, sx, sy, ui_p(2.5));
+		if (soc != NULL) {
+			draw_set_color(soc->color);
+			draw_scaled_image(&ui_socket_image, sx - ui_p(6), sy - ui_p(6), ui_p(12), ui_p(12));
 		}
 	}
 
@@ -1272,7 +1369,7 @@ static void ui_node_draw_dot(ui_node_t *node) {
 	}
 
 	// Inline label edit
-	if (editing) {
+	if (editing && !overlay_pass) {
 		float _x = current->_x;
 		float _y = current->_y;
 		float _w = current->_w;
@@ -1400,6 +1497,9 @@ void ui_node_canvas(ui_nodes_t *nodes, ui_node_canvas_t *canvas) {
 
 			for (int j = 0; j < canvas->nodes->length; ++j) {
 				ui_node_t *node   = canvas->nodes->buffer[j];
+				if ((node->flags & UI_NODE_FLAG_DOT) && ui_mouse_over_regular_node(canvas)) {
+					continue; // A dot node is behind the regular node under the mouse
+				}
 				float      node_h = UI_NODE_H(canvas, node);
 				float      rx     = wx + UI_NODE_X(node) - UI_LINE_H() / 2;
 				float      ry     = wy + UI_NODE_Y(node) - UI_LINE_H() / 2;
@@ -1458,7 +1558,20 @@ void ui_node_canvas(ui_nodes_t *nodes, ui_node_canvas_t *canvas) {
 		ui_draw_link(from_x - wx, from_y - wy, to_x - wx, to_y - wy, selected);
 	}
 
-	for (int i = 0; i < canvas->nodes->length; ++i) {
+	if (ui_nodes_on_dot_frame != NULL) {
+		ui_nodes_on_dot_frame(canvas);
+	}
+	// Dot nodes behind, then the regular nodes: the same order draws and takes input (the later covers the earlier)
+	static int *draw_order     = NULL;
+	static int  draw_order_cap = 0;
+	if (canvas->nodes->length > draw_order_cap) {
+		free(draw_order);
+		draw_order_cap = canvas->nodes->length * 2;
+		draw_order     = (int *)malloc(draw_order_cap * sizeof(int));
+	}
+	ui_node_draw_order(canvas->nodes->buffer, canvas->nodes->length, draw_order);
+	for (int oi = 0; oi < canvas->nodes->length; ++oi) {
+		int        i    = draw_order[oi];
 		ui_node_t *node = canvas->nodes->buffer[i];
 
 		// Cull
@@ -1484,7 +1597,7 @@ void ui_node_canvas(ui_nodes_t *nodes, ui_node_canvas_t *canvas) {
 		}
 
 		// Drag node
-		bool grab = is_dot ? ui_dot_hit(node) : ui_input_in_rect(wx + UI_NODE_X(node) - UI_LINE_H() / 2.0, wy + UI_NODE_Y(node), UI_NODE_W(node) + UI_LINE_H(), UI_LINE_H());
+		bool grab = is_dot ? (ui_dot_hit(node) && !ui_mouse_over_regular_node(canvas)) : ui_input_in_rect(wx + UI_NODE_X(node) - UI_LINE_H() / 2.0, wy + UI_NODE_Y(node), UI_NODE_W(node) + UI_LINE_H(), UI_LINE_H());
 		if (current->input_enabled && node_resize == NULL && grab) {
 			if (current->input_started) {
 				if (current->is_shift_down || current->is_ctrl_down) {
@@ -1512,7 +1625,7 @@ void ui_node_canvas(ui_nodes_t *nodes, ui_node_canvas_t *canvas) {
 			}
 		}
 
-		if (current->input_started && !(node->flags & UI_NODE_FLAG_COLLAPSED) && !(is_dot && grab) &&
+		if (current->input_started && !(node->flags & UI_NODE_FLAG_COLLAPSED) && !(is_dot && grab) && !(is_dot && ui_mouse_over_regular_node(canvas)) &&
 		    ui_input_in_rect(wx + UI_NODE_X(node) - UI_LINE_H() / 2, wy + UI_NODE_Y(node) - UI_LINE_H() / 2, UI_NODE_W(node) + UI_LINE_H(),
 		                     node_h + UI_LINE_H())) {
 			// Check sockets
@@ -1631,19 +1744,22 @@ void ui_node_canvas(ui_nodes_t *nodes, ui_node_canvas_t *canvas) {
 			node->y = ui_nodes_snap(node->y) / UI_NODES_SCALE();
 		}
 
-		if (!is_dot) {
+		if (is_dot) {
+			ui_node_draw_dot(canvas, node, false);
+		}
+		else {
 			ui_node_draw(node, canvas);
 		}
 	}
 
-	// Dot nodes are drawn last, over the overlay (selection lines)
+	// Selection lines over the nodes; the dot nodes no regular node covers are drawn again over them
 	if (ui_nodes_on_dot_overlay != NULL) {
 		ui_nodes_on_dot_overlay(canvas);
 	}
 	for (int i = 0; i < canvas->nodes->length; ++i) {
 		ui_node_t *node = canvas->nodes->buffer[i];
 		if ((node->flags & UI_NODE_FLAG_DOT) && (!ui_node_culled(canvas, node) || ui_is_selected(node))) {
-			ui_node_draw_dot(node);
+			ui_node_draw_dot(canvas, node, true);
 		}
 	}
 

@@ -364,8 +364,8 @@ static void sender_receiver_draw_line(ui_node_t *a, ui_node_t *b) {
 	ui_draw_link_dotted(ax, ay, bx, by, g_theme->HIGHLIGHT_COL);
 }
 
-// Called by the node editor after the nodes are drawn and before the dot nodes: state per frame and the dotted lines of the selection
-void sender_receiver_overlay(ui_node_canvas_t *canvas) {
+// Called by the node editor before the nodes are drawn: the state per frame (resolution, red states, names of the selection)
+void sender_receiver_frame(ui_node_canvas_t *canvas) {
 	ui_node_t_array_t *nodes = canvas->nodes;
 	sender_receiver_update(nodes, canvas->links);
 
@@ -380,6 +380,20 @@ void sender_receiver_overlay(ui_node_canvas_t *canvas) {
 		}
 		if (sender_receiver_is_sender(selected)) {
 			sender_receiver_selected_names[sender_receiver_selected_count++] = sender_receiver_name(selected);
+		}
+	}
+}
+
+// Called by the node editor after the nodes are drawn: the dotted lines of the selection (the dot nodes no regular node covers are drawn over them)
+void sender_receiver_overlay(ui_node_canvas_t *canvas) {
+	ui_node_t_array_t *nodes   = canvas->nodes;
+	ui_nodes_t        *ui_nodes = ui_nodes_get_nodes();
+	for (i32 i = 0; i < ui_nodes->nodes_selected_id->length; ++i) {
+		ui_node_t *selected = ui_get_node(nodes, ui_nodes->nodes_selected_id->buffer[i]);
+		if (selected == NULL) {
+			continue;
+		}
+		if (sender_receiver_is_sender(selected)) {
 			for (i32 j = 0; j < nodes->length; ++j) {
 				ui_node_t *r = nodes->buffer[j];
 				if (sender_receiver_is_receiver(r) && string_equals(sender_receiver_name(r), sender_receiver_name(selected))) {
@@ -635,6 +649,7 @@ void sender_receiver_on_paste_hook(ui_node_canvas_t *canvas, ui_node_t **pasted,
 void sender_receiver_init() {
 	ui_nodes_on_dot_label              = sender_receiver_dot_label;
 	ui_nodes_on_dot_state              = sender_receiver_dot_state;
+	ui_nodes_on_dot_frame              = sender_receiver_frame;
 	ui_nodes_on_dot_overlay            = sender_receiver_overlay;
 	ui_nodes_on_dot_label_double_click = sender_receiver_on_label_double_click;
 	ui_nodes_on_dot_label_edited       = sender_receiver_on_label_edited;
