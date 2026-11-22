@@ -1589,6 +1589,10 @@ bool make_image_node_is_pending(ui_node_t *node) {
 gpu_texture_t *make_image_node_result(ui_node_t *node) {
 	char                    *id;
 	make_image_node_state_t *s = make_image_node_state_of(node, &id);
+	if (s != NULL && s->type != NULL && s->type->pass_through_capture) {
+		// The result of a pass-through node (Tile UV) is its capture: what the old baked node held (the capture was copied as it is)
+		return s->capture_valid && g_context->node_previews != NULL ? any_map_get(g_context->node_previews, id) : NULL;
+	}
 	if (s == NULL || !s->has_baked || g_context->node_previews == NULL) {
 		return NULL;
 	}
