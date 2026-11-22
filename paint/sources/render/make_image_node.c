@@ -1856,3 +1856,58 @@ void make_image_node_sections(ui_node_t *def, ui_node_section_t *own, i32 own_co
 	}
 	any_map_set(ui_nodes_sections, def->type, list); // The list ends with the zeroed entry
 }
+
+#ifdef ARMORPAINT_TEST_NATIVES
+// Test hook of the GPU pass helper: passes of 16 x 16 RGBA128 over a ping-pong pair, two targets written at once. A first pass draws
+// a ramp (u, v, 0.25, 1) from a uniform and a constant 0.5 texture; two passes read the previous result (in0) and the constant (in1) and write
+// out0 = in0 * 2 + (0.125, 0, 0, 0) + in1 (uniforms float s, float4 o) and out1 = (1 - in0.r, in0.g, in0.b, 1). Returns the value at
+// pixel (x, y), channel 0 to 3, of which = 0: the ping-pong result after the second pass, 1: the second target of that pass, 2: the
+// ping-pong result after the first pass; -1 for an argument out of range, -2 when a texture could not be read.
+f64 make_image_node_test_gpu_pass(i32 which, i32 x, i32 y, i32 channel) {
+	const i32 size = 16;
+	if (which < 0 || which > 2 || x < 0 || y < 0 || x >= size || y >= size || channel < 0 || channel > 3) {
+		return -1.0;
+	}
+	char             *one[]           = {"RGBA128"};
+	char             *two[]           = {"RGBA128", "RGBA128"};
+	char             *ramp_uniforms[] = {"float4 k"};
+	char             *step_inputs[]   = {"in0", "in1"};
+	char             *step_uniforms[] = {"float s", "float4 o"};
+	shader_context_t *ramp = make_image_node_gpu_shader("output = float4(tex_coord.x, tex_coord.y, constants.k.z, 1.0);", NULL, 0, ramp_uniforms, 1, one, 1);
+	shader_context_t *half = make_image_node_gpu_shader("output = float4(0.5, 0.5, 0.5, 1.0);", NULL, 0, NULL, 0, one, 1);
+	shader_context_t *step = make_image_node_gpu_shader("float4 a = sample_lod(in0, sampler_linear, tex_coord, 0.0); float4 b = sample_lod(in1, sampler_linear, tex_coord, 0.0); "
+	                                                    "output[0] = a * constants.s + constants.o + b; output[1] = float4(1.0 - a.r, a.g, a.b, 1.0);",
+	                                                    step_inputs, 2, step_uniforms, 2, two, 2);
+	gpu_texture_t *ramp_rt = gpu_create_render_target(size, size, GPU_TEXTURE_FORMAT_RGBA128);
+	gpu_texture_t *half_rt = gpu_create_render_target(size, size, GPU_TEXTURE_FORMAT_RGBA128);
+	gpu_texture_t *second  = gpu_create_render_target(size, size, GPU_TEXTURE_FORMAT_RGBA128);
+	f32            k[4]    = {0.0f, 0.0f, 0.25f, 0.0f};
+	make_image_node_gpu_pass(ramp, &ramp_rt, 1, NULL, 0, k);
+	make_image_node_gpu_pass(half, &half_rt, 1, NULL, 0, NULL);
+	make_image_node_ping_pong_t pp = make_image_node_ping_pong_create(size, GPU_TEXTURE_FORMAT_RGBA128);
+	f32                         u[5] = {2.0f, 0.125f, 0.0f, 0.0f, 0.0f};
+	gpu_texture_t              *read = NULL;
+	for (i32 pass = 0; pass < 2; ++pass) {
+		gpu_texture_t *src        = pass == 0 ? ramp_rt : make_image_node_ping_pong_src(&pp);
+		gpu_texture_t *targets[2] = {make_image_node_ping_pong_dst(&pp), second};
+		gpu_texture_t *inputs[2]  = {src, half_rt};
+		make_image_node_gpu_pass(step, targets, 2, inputs, 2, u);
+		make_image_node_ping_pong_swap(&pp);
+		if (pass == 0 && which == 2) {
+			read = make_image_node_ping_pong_src(&pp);
+			break;
+		}
+	}
+	read          = read != NULL ? read : which == 1 ? second : make_image_node_ping_pong_src(&pp);
+	buffer_t *b   = gpu_get_texture_pixels(read);
+	f64       v   = b != NULL ? ((f32 *)b->buffer)[((size_t)y * size + x) * 4 + channel] : -2.0;
+	make_image_node_gpu_shader_free(ramp);
+	make_image_node_gpu_shader_free(half);
+	make_image_node_gpu_shader_free(step);
+	gpu_delete_texture(ramp_rt);
+	gpu_delete_texture(half_rt);
+	gpu_delete_texture(second);
+	make_image_node_ping_pong_free(&pp, NULL);
+	return v;
+}
+#endif
