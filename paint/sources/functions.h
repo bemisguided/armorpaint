@@ -1748,6 +1748,7 @@ void              distance_node_init();
 void              shape_generator_node_init();
 void              transform_node_init();
 void              normal_to_height_node_init();
+void              height_to_normal_node_init();
 void              levels_node_init();
 void              text_texture_node_init();
 void              texture_slot_node_init();

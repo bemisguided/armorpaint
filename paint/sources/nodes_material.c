@@ -53,6 +53,7 @@ void nodes_material_init() {
 	advanced_blur_node_init();
 	distance_node_init();
 	edge_detect_node_init();
+	height_to_normal_node_init();
 	levels_node_init();
 	normal_to_height_node_init();
 	seamless_node_init();
