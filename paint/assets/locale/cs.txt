@@ -13,6 +13,7 @@ A
 O programu
 O programu...
 Absolutní
+
 Přidat
 Přidat animaci
 Přidat vzorek
@@ -473,6 +474,7 @@ Nový vzorek
 Nové téma
 Nová bílá maska
 Další
+
 Ne
 Žádná odpověď
 Uzel
@@ -568,6 +570,7 @@ Předvolby
 Ovládání tlakem
 Předchozí
 Předchozí složka
+
 Zpracovávání...
 Projekt
 Projekt uložen

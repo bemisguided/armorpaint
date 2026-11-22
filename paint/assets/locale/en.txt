@@ -13,6 +13,7 @@ A
 About
 About...
 Absolute
+Active stop
 Add
 Add Animation
 Add Swatch
@@ -473,6 +474,7 @@ New Swatch
 New Theme
 New White Mask
 Next
+Next stop
 No
 No response
 Node
@@ -568,6 +570,7 @@ Presets
 Pressure controls
 Previous
 Previous folder
+Previous stop
 Processing...
 Project
 Project saved

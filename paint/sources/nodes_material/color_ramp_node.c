@@ -373,6 +373,40 @@ void nodes_material_color_ramp_button(i32 node_id) {
 		ui_nodes_rgba_popup(&state->color_state, vals->buffer + i * 5, math_floor(rx), math_floor(ry + UI_ELEMENT_H()));
 	}
 
+	// Active stop by number in position order: < n >. Choosing a stop is not an edit (no undo step, no recompile).
+	f32_array_t *row3 = f32_array_create_from_raw_tmp(
+	    (f32[]){
+	        1 / 5.0,
+	        3 / 5.0,
+	        1 / 5.0,
+	    },
+	    3);
+	ui_row(row3);
+	bool changed = g_ui->changed;
+	i32  rank    = color_ramp_stops_rank(&ramp, i);
+	g_ui->enabled = enabled && rank > 0;
+	bool previous = ui_button("<", UI_ALIGN_CENTER, "");
+	if (g_ui->is_hovered) {
+		ui_tooltip(tr("Previous stop"));
+	}
+	g_ui->enabled = enabled && count > 1;
+	state->index[0] = (f32)(rank + 1);
+	f32 number      = ui_slider(&state->index[0], tr("Stop"), 1, count > 1 ? (f32)count : 2.0f, false, 1, true, UI_ALIGN_LEFT, true);
+	if (g_ui->is_hovered) {
+		ui_tooltip(tr("Active stop"));
+	}
+	g_ui->enabled = enabled && rank < count - 1;
+	bool next = ui_button(">", UI_ALIGN_CENTER, "");
+	if (g_ui->is_hovered) {
+		ui_tooltip(tr("Next stop"));
+	}
+	g_ui->enabled = enabled;
+	g_ui->changed = changed;
+	i32 target    = previous ? rank - 1 : (next ? rank + 1 : (i32)(number + 0.5f) - 1);
+	target        = target < 0 ? 0 : (target > count - 1 ? count - 1 : target);
+	if (target != rank) {
+		state->stops.active = color_ramp_stops_at_rank(&ramp, target);
+	}
 }
 
 void color_ramp_node_init() {

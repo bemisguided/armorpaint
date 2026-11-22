@@ -13,6 +13,7 @@ A
 Sobre
 Sobre...
 Absoluto
+
 Adicionar
 Adicionar Animação
 Adicionar Amostra
@@ -473,6 +474,7 @@ Nova Amostra
 Novo Tema
 Nova Máscara Branca
 Próximo
+
 Não
 Sem resposta
 Nó
@@ -568,6 +570,7 @@ Pré-definições
 Controles de Pressão
 Anterior
 Pasta anterior
+
 Processando...
 Projeto
 Projeto salvo

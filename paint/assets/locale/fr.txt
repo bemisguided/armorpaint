@@ -13,6 +13,7 @@ A
 À propos
 À propos...
 Absolu
+
 Ajouter
 Ajouter une animation
 Ajouter l'échantillon
@@ -473,6 +474,7 @@ Nouvel échantillon
 Nouveau thème
 Nouveau masque blanc
 Suivant
+
 Non
 Aucune réponse
 Nœud
@@ -568,6 +570,7 @@ Préréglages
 Contrôles de pression
 Précédent
 Dossier précédent
+
 Traitement...
 Projet
 Projet enregistré

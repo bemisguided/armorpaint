@@ -13,6 +13,7 @@ A
 O programie
 O...
 Bezwględna
+
 Dodaj
 Dodaj animację
 Dodaj próbkę
@@ -473,6 +474,7 @@ Nowa próbka koloru
 Nowy motyw
 Nowa biała maska
 Następny
+
 Nie
 Brak odpowiedzi
 Węzeł
@@ -568,6 +570,7 @@ Presety
 Kontrola nacisku
 Poprzedni
 Poprzedni folder
+
 Przetwarzanie...
 Projekt
 Projekt zapisany
