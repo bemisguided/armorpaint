@@ -446,6 +446,22 @@ static char *tile_generator_node_gpu_body(i32 patterns, bool wrap, bool nearest,
 	return body;
 }
 
+// The uniforms k0 to k3 of the pass (16 floats). Reach of a tile in cells: the half diagonal of the largest tile (Scale; the Scale Random, Scale Map and the
+// clamp only make it smaller) plus the largest offset of its centre
+static void tile_generator_node_gpu_uniforms(tile_generator_params_t *p, i32 size, f32 *u) {
+	f32 radius = 0.5f * p->scale * (f32)math_sqrt(1.0 / ((f64)p->tiles_x * p->tiles_x) + 1.0 / ((f64)p->tiles_y * p->tiles_y));
+	radius     = radius * 1.0001f + 0.00001f;
+	f32 reach_x = 0.5f * p->offset_random + radius * p->tiles_x + TILE_GENERATOR_REACH_MARGIN;
+	f32 reach_y = 0.5f * p->offset_random + radius * p->tiles_y + TILE_GENERATOR_REACH_MARGIN;
+	f32 v[16]   = {(f32)p->tiles_x, (f32)p->tiles_y, (f32)size, (f32)p->patterns, // k0
+	               p->scale, p->scale_random, p->rotation, p->rotation_random,      // k1
+	               p->offset_random, p->brightness_random, reach_x, reach_y,        // k2
+	               (f32)(p->seed >> 16), (f32)(p->seed & 0xffff), (f32)p->mode, radius}; // k3, the seed in two halves (a float holds 24 bits)
+	for (i32 i = 0; i < 16; ++i) {
+		u[i] = v[i];
+	}
+}
+
 #ifdef ARMORPAINT_TEST_NATIVES
 // Test build only: with ARMORPAINT_TILEGEN_DUMP=<directory> in the environment every bake writes what the GPU pass read and wrote, for the host comparison with
 // the cpu reference (automation/host/tile_generator_gpu): bake_<n>.params (size, then tile_generator_params_t), bake_<n>_pat<k>.f32 (the pattern captures, RGBA
@@ -525,16 +541,8 @@ static gpu_texture_t *tile_generator_node_gpu_bake(ui_node_t *node, i32 size, vo
 		make_image_node_gpu_shader_free(shader);
 		return NULL;
 	}
-	// Reach of a tile in cells: the half diagonal of the largest tile (Scale; the Scale Random, Scale Map and the clamp only make it smaller) plus the
-	// largest offset of its centre
-	f32 radius = 0.5f * p->scale * (f32)math_sqrt(1.0 / ((f64)p->tiles_x * p->tiles_x) + 1.0 / ((f64)p->tiles_y * p->tiles_y));
-	radius     = radius * 1.0001f + 0.00001f;
-	f32 reach_x = 0.5f * p->offset_random + radius * p->tiles_x + TILE_GENERATOR_REACH_MARGIN;
-	f32 reach_y = 0.5f * p->offset_random + radius * p->tiles_y + TILE_GENERATOR_REACH_MARGIN;
-	f32 u[16]   = {(f32)p->tiles_x, (f32)p->tiles_y, (f32)size, (f32)p->patterns, // k0
-	               p->scale, p->scale_random, p->rotation, p->rotation_random,      // k1
-	               p->offset_random, p->brightness_random, reach_x, reach_y,        // k2
-	               (f32)(p->seed >> 16), (f32)(p->seed & 0xffff), (f32)p->mode, radius}; // k3, the seed in two halves (a float holds 24 bits)
+	f32 u[16];
+	tile_generator_node_gpu_uniforms(p, size, u);
 	gpu_texture_t *targets[2] = {first, second};
 	make_image_node_gpu_pass(shader, targets, 2, captures, count, u);
 	make_image_node_gpu_shader_free(shader);
