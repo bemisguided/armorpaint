@@ -383,11 +383,25 @@ f32 script_flood_fill_pixel(ui_node_t *node, f32 u, f32 v, i32 channel) {
 	script_gpu_end(current, in_use);
 	i32 x = (i32)math_floor(math_min(math_max(u, 0.0), 0.9999) * image->width);
 	i32 y = (i32)math_floor(math_min(math_max(v, 0.0), 0.9999) * image->height);
-	i32 bytes_per_pixel = image->format == GPU_TEXTURE_FORMAT_RGBA128 ? 16 : 8;
-	if (b == NULL || (i64)b->length < (i64)(y * image->width + x + 1) * bytes_per_pixel) {
-		// The readback is shorter than the texture says (a texture of another format than RGBA128 / RGBA64, or a stale one): report instead of reading outside
+	i32 bytes_per_pixel = gpu_texture_format_size(image->format);
+	if (b == NULL || bytes_per_pixel <= 0 || (i64)b->length < (i64)(y * image->width + x + 1) * bytes_per_pixel) {
+		// The readback is shorter than the texture says (a stale texture): report instead of reading outside
 		console_error(string("script_flood_fill_pixel: readback of %d bytes for a %d x %d texture of format %d (node %s)", b != NULL ? (i32)b->length : -1, image->width, image->height, (i32)image->format, node->type));
 		return -2.0;
+	}
+	i32 index = y * image->width + x;
+	// A pass-through node keeps its capture, in the format of the capture (a grey capture is one channel R32F: its value is in every channel)
+	if (image->format == GPU_TEXTURE_FORMAT_R32) {
+		return buffer_get_f32(b, index * 4);
+	}
+	if (image->format == GPU_TEXTURE_FORMAT_R16) {
+		return buffer_get_f16(b, index * 2);
+	}
+	if (image->format == GPU_TEXTURE_FORMAT_R8) {
+		return (f32)buffer_get_u8(b, index) / 255.0;
+	}
+	if (image->format == GPU_TEXTURE_FORMAT_RGBA32) {
+		return (f32)buffer_get_u8(b, index * 4 + channel) / 255.0;
 	}
 	if (image->format == GPU_TEXTURE_FORMAT_RGBA128) {
 		return buffer_get_f32(b, ((y * image->width + x) * 4 + channel) * 4);
