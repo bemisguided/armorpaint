@@ -1326,7 +1326,9 @@ const ui_node_section_t *ui_viewnodes_on_sections(ui_node_t *node) {
 	if (ui_nodes_canvas_type == CANVAS_TYPE_MATERIAL && make_image_node_type_of(node->type) != NULL) {
 		make_image_node_reconcile(node, ui_nodes_get_canvas(true)); // A node of an older save is completed before its rows are laid out
 	}
-	return any_map_get(ui_nodes_sections, node->type);
+	const ui_node_section_t *list = any_map_get(ui_nodes_sections, node->type);
+	make_image_node_sections_remap(node, list); // The section bits of a node saved with the old table order, before any bit is read
+	return list;
 }
 
 void ui_viewnodes_init() {
