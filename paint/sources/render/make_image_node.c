@@ -89,6 +89,11 @@ typedef struct make_image_node_state {
 	char              *direct_id;       // Preview id of that baked node while direct (the test hooks read its result as the node's image)
 	i32                capture_renders; // Renders of the capture since the state exists (make_image_node_pass_through_info)
 	i32                capture_skips;   // Captures that found the shader text unchanged and kept the target
+	// The second capture (image_node_type_t.image_input2): the same four fields for node_previews[id + "_2"]
+	bool               capture2_valid;
+	u64                capture2_hash;
+	bool               direct2;
+	char              *direct2_id;
 } make_image_node_state_t;
 
 // An image node of a material, found by make_image_node_collect
@@ -212,6 +217,7 @@ static void make_image_node_clear_pending(make_image_node_state_t *s) {
 static void make_image_node_free_state(make_image_node_state_t *s) {
 	make_image_node_clear_pending(s);
 	free(s->direct_id);
+	free(s->direct2_id);
 	if (s->upstream != NULL) {
 		make_image_node_clear_upstream(s);
 		array_free(s->upstream);
@@ -1502,8 +1508,75 @@ static void make_image_node_invalidate_dependents(make_image_node_state_t *s) {
 	make_image_node_free_keys(keys);
 }
 
-// Renders the image input of a pass-through node into its capture target, unless nothing it reads changed. Returns true when the
-// node's capture changed (rendered, or switched between a capture and a bound baked result), so what samples it must refresh.
+// Preview id of capture plane k of a node: the node's own id for the image input, id + "_2" for the second captured input
+static char *make_image_node_plane_id(char *id, i32 k) {
+	return k == 0 ? id : string_tmp("%s_2", id);
+}
+
+// Renders one captured input (plane k, input socket `input`, -1: the node needs no such plane) of a pass-through node into its target
+// node_previews[plane id], unless nothing it reads changed; frees the target when the plane is not needed or the input is bound to a
+// baked result directly. valid, hash, direct and direct_id are the state of the plane. Returns true when the plane changed (rendered,
+// or switched between a capture, a bound baked result and nothing), so what samples it must refresh. Runs inside the capture scope.
+static bool make_image_node_capture_plane(make_image_node_state_t *s, ui_node_t *node, char *id, i32 k, i32 input, bool force, bool *valid, u64 *hash, bool *direct,
+                                          char **direct_id) {
+	image_node_type_t *t       = s->type;
+	bool               changed = false;
+	ui_node_t         *source  = input >= 0 ? make_image_node_direct_source(node, input) : NULL;
+	free(*direct_id);
+	*direct_id = source != NULL ? string_copy(make_material_node_preview_id(source, NULL)) : NULL;
+	if (input < 0 || source != NULL) {
+		// The baked result is bound by the node's shader (no capture of its own), or the plane is not needed
+		if (g_context->node_previews != NULL && any_map_get(g_context->node_previews, id) != NULL) {
+			make_image_node_delete_result(id);
+		}
+		changed = input < 0 ? (*valid || *direct) : (!*direct || *valid);
+		*direct = source != NULL;
+		*valid  = false;
+		return changed;
+	}
+	i32            size   = t->size(node);
+	gpu_texture_t *target = g_context->node_previews != NULL ? any_map_get(g_context->node_previews, id) : NULL;
+	bool           keep   = !force && *valid && !*direct && target != NULL && target->width == size && s->captured_asset_version == util_version_assets();
+	make_image_node_capture_skip_hash = keep ? *hash : 0;
+	make_image_node_capture_dst       = size;
+	make_image_node_capture_k         = k;
+	shader_context_t *scon            = make_image_node_capture_shader(node, t->capture, make_image_node_capture_format_name(t->capture_format));
+	make_image_node_capture_k         = 0;
+	make_image_node_capture_dst       = 0;
+	make_image_node_capture_skip_hash = 0;
+	if (scon == NULL) {
+		s->capture_skips++; // Same shader text: the render is still right (a changed parameter of the node is not part of it)
+		return false;
+	}
+	if (util_render_screen_aligned_full_vb == NULL) {
+		util_render_create_screen_aligned_full_data();
+	}
+	if (g_context->node_previews == NULL) {
+		g_context->node_previews = any_map_create();
+	}
+	gpu_texture_format_t format = make_image_node_capture_gpu_format(t->capture_format);
+	if (target == NULL || target->width != size || target->height != size || target->format != format) {
+		if (target != NULL) {
+			gpu_delete_texture(target);
+		}
+		target = gpu_create_render_target(size, size, format);
+		any_map_set(g_context->node_previews, string_copy(id), target);
+	}
+	make_image_node_draw_capture(scon, target);
+	*hash   = make_image_node_capture_text_hash;
+	*valid  = true;
+	*direct = false;
+	s->capture_renders++;
+	make_image_node_captures++;
+	if (make_image_node_trace) {
+		iron_log("[image node] pass-through capture %d %s time %.3f", make_image_node_captures, id, sys_time());
+	}
+	return true;
+}
+
+// Renders the captured inputs of a pass-through node (the image input, and the second input of image_input2) into their capture targets,
+// unless nothing they read changed. Returns true when a capture of the node changed (rendered, or switched between a capture and a bound
+// baked result), so what samples it must refresh.
 // force renders even when the shader text is the same (Regenerate Image Nodes, an image node it samples changed).
 static bool make_image_node_capture_pass_through(make_image_node_state_t *s, char *id, ui_node_t *node, ui_node_canvas_t *group, ui_node_t_array_t *parents, bool force) {
 	image_node_type_t *t = s->type;
@@ -1518,57 +1591,12 @@ static bool make_image_node_capture_pass_through(make_image_node_state_t *s, cha
 	parser_material_init();
 	make_image_node_parser_scope();
 
-	bool       changed = false;
-	ui_node_t *source  = make_image_node_direct_source(node, t->image_input);
-	free(s->direct_id);
-	s->direct_id = source != NULL ? string_copy(make_material_node_preview_id(source, NULL)) : NULL;
-	if (source != NULL) {
-		// The baked result is bound by the node's shader: no capture of its own
-		if (g_context->node_previews != NULL && any_map_get(g_context->node_previews, id) != NULL) {
-			make_image_node_delete_result(id);
-		}
-		changed          = !s->direct || s->capture_valid;
-		s->direct        = true;
-		s->capture_valid = false;
-	}
-	else {
-		i32            size   = t->size(node);
-		gpu_texture_t *target = g_context->node_previews != NULL ? any_map_get(g_context->node_previews, id) : NULL;
-		bool           keep   = !force && s->capture_valid && !s->direct && target != NULL && target->width == size && s->captured_asset_version == util_version_assets();
-		make_image_node_capture_skip_hash = keep ? s->capture_hash : 0;
-		make_image_node_capture_dst       = size;
-		shader_context_t *scon            = make_image_node_capture_shader(node, t->capture, make_image_node_capture_format_name(t->capture_format));
-		make_image_node_capture_dst       = 0;
-		make_image_node_capture_skip_hash = 0;
-		if (scon == NULL) {
-			s->capture_skips++; // Same shader text: the render is still right (a changed parameter of the node is not part of it)
-		}
-		else {
-			if (util_render_screen_aligned_full_vb == NULL) {
-				util_render_create_screen_aligned_full_data();
-			}
-			if (g_context->node_previews == NULL) {
-				g_context->node_previews = any_map_create();
-			}
-			gpu_texture_format_t format = make_image_node_capture_gpu_format(t->capture_format);
-			if (target == NULL || target->width != size || target->height != size || target->format != format) {
-				if (target != NULL) {
-					gpu_delete_texture(target);
-				}
-				target = gpu_create_render_target(size, size, format);
-				any_map_set(g_context->node_previews, string_copy(id), target);
-			}
-			make_image_node_draw_capture(scon, target);
-			s->capture_hash  = make_image_node_capture_text_hash;
-			s->capture_valid = true;
-			s->direct        = false;
-			s->capture_renders++;
-			make_image_node_captures++;
-			if (make_image_node_trace) {
-				iron_log("[image node] pass-through capture %d %s time %.3f", make_image_node_captures, id, sys_time());
-			}
-			changed = true;
-		}
+	bool changed = make_image_node_capture_plane(s, node, id, 0, t->image_input, force, &s->capture_valid, &s->capture_hash, &s->direct, &s->direct_id);
+	if (t->image_input2 != NULL) {
+		i32 input2 = t->image_input2(node);
+		changed = make_image_node_capture_plane(s, node, make_image_node_plane_id(id, 1), 1, input2, force, &s->capture2_valid, &s->capture2_hash, &s->direct2,
+		                                        &s->direct2_id) ||
+		          changed;
 	}
 	make_image_node_capturing       = NULL;
 	make_image_node_capture_group   = NULL;
@@ -1761,8 +1789,8 @@ void make_image_node_on_traverse(ui_node_t *node, ui_node_canvas_t *group, ui_no
 	char *id = make_material_node_preview_id(node, parents);
 	any_array_push(g_context->node_previews_used, id); // Keeps the baked result
 	make_image_node_state_t *s = make_image_node_get_state(id, node);
-	if (s->type != NULL && s->type->second_result) {
-		any_array_push(g_context->node_previews_used, string_tmp("%s_2", id));
+	if (s->type != NULL && (s->type->second_result || s->type->image_input2 != NULL)) {
+		any_array_push(g_context->node_previews_used, make_image_node_plane_id(id, 1)); // Keeps the second result or the second capture (key "<id>_2")
 	}
 	if (linked) {
 		return; // A stroke changes layers, never the image space input (Layer nodes are neutral there)
@@ -1935,8 +1963,8 @@ static void make_image_node_write_fetch(char *var, char *tex_name, char *uv, i32
 	parser_material_write(parser_material_kong, string_tmp("float4 %s = sample_lod(%s, sampler_linear, %s_uv, 0.0);", var, tex_name, var));
 }
 
-// Records the dependency of a capture on the node, binds its result texture and size constant; returns the texture name,
-// NULL when the capture reads the node as black because they depend on each other
+// Records the dependency of a capture on the node (id), binds its texture (texture_id: the id of the result, or the id of the second capture)
+// and size constant; returns the texture name, NULL when the capture reads the node as black because they depend on each other
 static char *make_image_node_bind(ui_node_t *node, char *id, char *texture_id) {
 	if (make_image_node_capturing != NULL && string_array_index_of(make_image_node_capturing->upstream, id) == -1) {
 		any_array_push(make_image_node_capturing->upstream, string_copy(id)); // Chained: bakes before the node being captured
@@ -2035,32 +2063,52 @@ char *make_image_node_sample_at(ui_node_t *node, char *uv, i32 filter) {
 	return var;
 }
 
-// Pass-through with capture: the fetch of the node's image input at the float2 expression uv (repeating), once per node; returns the
-// float4 variable (rgba of the input). Reads the capture target of the node (make_image_node_capture_pass_through), or the result
-// of the baked image node the input is linked straight to (no capture of a copy). Black until the first capture. filter:
-// IMAGE_FILTER_NEAREST, _LINEAR or _CUBIC. Call it from the node functions with the placement as uv; everything else the node
-// computes is written next to it in the material shader, as literals or uniforms, never inside the capture.
-char *make_image_node_sample_input_at(ui_node_t *node, char *uv, i32 filter) {
+// Pass-through with capture: writes the fetch of a captured input of the node at the float2 expression uv into the float4 variable var (rgba
+// of the capture; the caller names var and writes it once per statement list: inside a loop the same text is fine, the variables are
+// local to the body). plane 0 is the image input, plane 1 the second input (image_input2: black when the node needs none). Reads the
+// capture target, or the result of the baked image node the input is linked straight to (no copy of it). Black until the first capture.
+// wrap true: repeating; false: positions outside the image read the edge texel (the uv is clamped to the texel centres of the edge, exact
+// for Nearest and Linear; the taps of Cubic still wrap). filter: IMAGE_FILTER_NEAREST, _LINEAR or _CUBIC. Returns var.
+char *make_image_node_fetch_input(ui_node_t *node, i32 plane, char *var, char *uv, i32 filter, bool wrap) {
 	image_node_type_t *type   = make_image_node_type_of(node->type);
-	ui_node_t         *source = type != NULL && type->pass_through_capture ? make_image_node_direct_source(node, type->image_input) : NULL;
-	char              *id     = make_material_node_preview_id(source != NULL ? source : node, NULL);
-	char              *var    = string_tmp("%s_input", parser_material_store_var_name(node));
-	char              *tex_name = make_image_node_bind(source != NULL ? source : node, id);
-	if (string_array_index_of(parser_material_parsed, var) >= 0) {
+	bool               pass   = type != NULL && type->pass_through_capture;
+	i32                input  = !pass ? 0 : plane == 0 ? type->image_input : type->image_input2 != NULL ? type->image_input2(node) : -1;
+	ui_node_t         *source = pass && input >= 0 ? make_image_node_direct_source(node, input) : NULL;
+	if (input < 0) {
+		parser_material_write(parser_material_kong, string_tmp("float4 %s = float4(0.0, 0.0, 0.0, 1.0);", var));
 		return var;
 	}
-	any_array_push(parser_material_parsed, var);
+	char *id       = make_material_node_preview_id(source != NULL ? source : node, NULL);
+	char *tex_name = make_image_node_bind(source != NULL ? source : node, id, source != NULL ? id : make_image_node_plane_id(id, plane));
 	if (tex_name == NULL) {
 		parser_material_write(parser_material_kong, string_tmp("float4 %s = float4(0.0, 0.0, 0.0, 1.0);", var));
 		return var;
+	}
+	if (!wrap) {
+		parser_material_write(parser_material_kong, string_tmp("float2 %s_c = clamp(%s, float2(0.5, 0.5) / constants.%s_size, float2(1.0, 1.0) - float2(0.5, 0.5) / constants.%s_size);",
+		                                                       var, uv, tex_name, tex_name));
+		uv = string_tmp("%s_c", var);
 	}
 	make_image_node_write_fetch(var, tex_name, uv, filter);
 	return var;
 }
 
+// Pass-through with capture: the fetch of the node's image input at the float2 expression uv (repeating), once per node; returns the
+// float4 variable (rgba of the input), see make_image_node_fetch_input. Call it from the node functions with the placement as uv;
+// everything else the node computes is written next to it in the material shader, as literals or uniforms, never inside the capture.
+char *make_image_node_sample_input_at(ui_node_t *node, char *uv, i32 filter) {
+	char *var = string_tmp("%s_input", parser_material_store_var_name(node));
+	if (string_array_index_of(parser_material_parsed, var) >= 0) {
+		return var;
+	}
+	any_array_push(parser_material_parsed, var);
+	return make_image_node_fetch_input(node, 0, var, uv, filter, true);
+}
+
 // Pass-through with capture, for the tests and the Console trace: which 0 renders of the capture since the node was first traversed,
 // 1 width of the capture target (0 when it has none), 2 the input is a baked result bound directly (0/1), 3 captures that found the
-// shader text unchanged and rendered nothing; -1 for an unknown node or number
+// shader text unchanged and rendered nothing, 4 and 5 the same as 1 and 2 for the second capture (image_input2); renders (0) and skips (3) count
+// both captures; -1 for an unknown node or number
 f64 make_image_node_pass_through_info(ui_node_t *node, i32 which) {
 	char                    *id;
 	make_image_node_state_t *s = make_image_node_state_of(node, &id);
@@ -2078,6 +2126,12 @@ f64 make_image_node_pass_through_info(ui_node_t *node, i32 which) {
 		return s->direct ? 1.0 : 0.0;
 	case 3:
 		return (f64)s->capture_skips;
+	case 4: {
+		gpu_texture_t *t = g_context->node_previews != NULL ? any_map_get(g_context->node_previews, make_image_node_plane_id(id, 1)) : NULL;
+		return t != NULL ? (f64)t->width : 0.0;
+	}
+	case 5:
+		return s->direct2 ? 1.0 : 0.0;
 	}
 	return -1.0;
 }

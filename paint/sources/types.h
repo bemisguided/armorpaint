@@ -1189,6 +1189,13 @@ typedef struct image_node_type {
 	bool pass_through_capture;
 	// Pass-through with capture: index of the input socket that is captured (0 when left out)
 	i32 image_input;
+	// Pass-through with capture: optional SECOND captured input, for an input the node reads at the neighbours of a pixel (Warp: the Map
+	// in Slope mode), which cannot be a shader input evaluated at the current pixel. Returns the index of the input socket to capture
+	// into a second render target of the node (node_previews[id + "_2"], the capture format and size of the first, direct binding of a baked
+	// node's result included), or -1 when the node needs none right now (decided on the links and settings; a target that is no longer
+	// needed is freed). NULL: never. Reads the links of the parser scope. The capture callback is called with make_image_node_capture_index()
+	// == 1 for it. Sampled with make_image_node_fetch_input(node, 1, ...).
+	i32 (*image_input2)(ui_node_t *node);
 } image_node_type_t;
 
 // A pair of render targets for a GPU pass that reads its previous result (a separable blur, a reduction chain): the pass reads
