@@ -25,6 +25,7 @@ any_map_t   *g_plugins;
 any_map_t       *ui_nodes_custom_buttons;
 any_map_t       *ui_nodes_sections; // Node type -> ui_node_section_t array (ends with an entry without title) of the collapsible sections of the node
 any_map_t       *ui_nodes_hidden_rules; // Node type -> bool (*)(ui_node_t *, ui_node_item_t, i32) telling which rows of the node are hidden
+any_map_t       *ui_nodes_settle_rules; // Node type -> void (*)(ui_node_t *, ui_node_canvas_t *) normalising stored values of the node while it is laid out (a value that follows a rule of the node)
 gpu_texture_t   *lut_image             = NULL;
 i32              lut_size              = 0;
 gpu_texture_t   *layers_temp_image     = NULL;

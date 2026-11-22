@@ -1359,6 +1359,10 @@ const ui_node_section_t *ui_viewnodes_on_sections(ui_node_t *node) {
 	if (ui_nodes_canvas_type == CANVAS_TYPE_MATERIAL && make_image_node_type_of(node->type) != NULL) {
 		make_image_node_reconcile(node, ui_nodes_get_canvas(true)); // A node of an older save is completed before its rows are laid out
 	}
+	void (*settle)(ui_node_t *, ui_node_canvas_t *) = any_map_get(ui_nodes_settle_rules, node->type);
+	if (settle != NULL) {
+		settle(node, ui_nodes_get_canvas(true)); // A value that follows a rule of the node (Gradient Generator Rotation) is corrected before its row is drawn
+	}
 	const ui_node_section_t *list = any_map_get(ui_nodes_sections, node->type);
 	make_image_node_sections_remap(node, list); // The section bits of a node saved with the old table order, before any bit is read
 	return list;
