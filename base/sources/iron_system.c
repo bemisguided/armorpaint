@@ -61,6 +61,9 @@ void iron_log_args(iron_log_level_t level, const char *format, va_list args) {
 	printf("%s", buffer); ////
 #else
 	fprintf(level == IRON_LOG_LEVEL_INFO ? stdout : stderr, "%s", buffer);
+	if (level == IRON_LOG_LEVEL_INFO) {
+		fflush(stdout); // stdout is block buffered when redirected to a file or pipe: a log line (a script compile error) never shows in an app that is killed
+	}
 #endif
 #endif
 }
