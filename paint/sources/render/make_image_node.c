@@ -2310,6 +2310,19 @@ char *make_image_node_fetch_input(ui_node_t *node, i32 plane, char *var, char *u
 	return var;
 }
 
+// Pass-through with capture: binds the texture the node's image input is read from (its capture target, or the result of the baked image
+// node the input is linked straight to) and its size constant `constants.<name>_size` (float2) in the material shader, records the
+// dependency, and returns the texture name; NULL when the capture reads the node as black because they depend on each other (write
+// black then). For a node that writes its own sampling instead of make_image_node_sample_input_at (Transform: Catmull-Rom, tiling modes);
+// fetch with sample_lod(<name>, sampler_linear, uv, 0.0) at texel centres.
+char *make_image_node_bind_input(ui_node_t *node) {
+	image_node_type_t *type   = make_image_node_type_of(node->type);
+	ui_node_t         *source = type != NULL && type->pass_through_capture ? make_image_node_direct_source(node, type->image_input) : NULL;
+	ui_node_t         *from   = source != NULL ? source : node;
+	char              *id     = make_material_node_preview_id(from, NULL);
+	return make_image_node_bind(from, id, id);
+}
+
 // Pass-through with capture: the fetch of the node's image input at the float2 expression uv (repeating), once per node; returns the
 // float4 variable (rgba of the input), see make_image_node_fetch_input. Call it from the node functions with the placement as uv;
 // everything else the node computes is written next to it in the material shader, as literals or uniforms, never inside the capture.
