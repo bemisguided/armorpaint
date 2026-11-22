@@ -102,6 +102,7 @@ Mégse
 Háttér rögzítése
 Kimenet rögzítése
 Képernyőkép rögzítése
+
 Videó rögzítése
 Plafon (Ceil)
 Cella mérete pixelben

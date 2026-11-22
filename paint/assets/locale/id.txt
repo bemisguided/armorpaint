@@ -102,6 +102,7 @@ Batal
 Tangkap Latar
 Tangkap Keluaran
 Tangkap Cuplikan Layar
+
 Tangkap Video
 Langit-langit
 Ukuran sel dalam piksel

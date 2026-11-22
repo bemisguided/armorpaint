@@ -102,6 +102,7 @@ Cancelar
 Capturar Fundo
 Capturar Saída
 Capturar Tela
+
 Capturar Vídeo
 Teto
 Tamanho da célula em pixels
