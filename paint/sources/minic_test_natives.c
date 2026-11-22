@@ -365,6 +365,22 @@ i32 script_image_node_dump(ui_node_t *node, char *path, i32 channel) {
 	return image->width;
 }
 
+// Saves the raw bytes of the baked result texture of a node (the readback as the GPU holds it: 8 bytes per pixel for RGBA64, 16 for RGBA128, row after row)
+// to a file; returns the byte count, -1 when the node has no result. For host comparisons of a GPU baked result with a reference (Edge Detect).
+i32 script_image_node_result_save(ui_node_t *node, char *path) {
+	gpu_texture_t *image = script_flood_fill_result(node);
+	if (image == NULL || path == NULL) {
+		return -1;
+	}
+	gpu_texture_t *current;
+	bool           in_use;
+	script_gpu_begin(&current, &in_use);
+	buffer_t *b = gpu_get_texture_pixels(image);
+	script_gpu_end(current, in_use);
+	iron_file_save_bytes(path, b, (i32)b->length);
+	return (i32)b->length;
+}
+
 // Capture format round trip (make_image_node_test_capture): the value of float4(u, v, 0.25, 1) at pixel (x, y), channel c, of a size x size
 // capture in a format (IMAGE_CAPTURE_*); channel -1 the channels of the format, -2 the bytes, -3 the start of the next capture
 f32 script_image_node_test_capture(i32 format, i32 size, i32 x, i32 y, i32 channel) {
@@ -394,6 +410,26 @@ f32 script_flood_fill_pixel(ui_node_t *node, f32 u, f32 v, i32 channel) {
 	script_gpu_end(current, in_use);
 	i32 x = (i32)math_floor(math_min(math_max(u, 0.0), 0.9999) * image->width);
 	i32 y = (i32)math_floor(math_min(math_max(v, 0.0), 0.9999) * image->height);
+	i32 bytes_per_pixel = gpu_texture_format_size(image->format);
+	if (b == NULL || bytes_per_pixel <= 0 || (i64)b->length < (i64)(y * image->width + x + 1) * bytes_per_pixel) {
+		// The readback is shorter than the texture says (a stale texture): report instead of reading outside
+		console_error(string("script_flood_fill_pixel: readback of %d bytes for a %d x %d texture of format %d (node %s)", b != NULL ? (i32)b->length : -1, image->width, image->height, (i32)image->format, node->type));
+		return -2.0;
+	}
+	i32 index = y * image->width + x;
+	// A pass-through node keeps its capture, in the format of the capture (a grey capture is one channel R32F: its value is in every channel)
+	if (image->format == GPU_TEXTURE_FORMAT_R32) {
+		return buffer_get_f32(b, index * 4);
+	}
+	if (image->format == GPU_TEXTURE_FORMAT_R16) {
+		return buffer_get_f16(b, index * 2);
+	}
+	if (image->format == GPU_TEXTURE_FORMAT_R8) {
+		return (f32)buffer_get_u8(b, index) / 255.0;
+	}
+	if (image->format == GPU_TEXTURE_FORMAT_RGBA32) {
+		return (f32)buffer_get_u8(b, index * 4 + channel) / 255.0;
+	}
 	if (image->format == GPU_TEXTURE_FORMAT_RGBA128) {
 		return buffer_get_f32(b, ((y * image->width + x) * 4 + channel) * 4);
 	}
