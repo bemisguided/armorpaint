@@ -1007,6 +1007,7 @@ i32                       make_image_node_capture_count();
 f64                       make_image_node_gpu_stat(ui_node_t *node, i32 which);
 #ifdef ARMORPAINT_TEST_NATIVES
 f64                       make_image_node_test_gpu_pass(i32 which, i32 x, i32 y, i32 channel);
+void                      make_image_node_test_register();
 #endif
 shader_context_t         *make_image_node_gpu_shader(char *body, char **inputs, i32 input_count, char **uniforms, i32 uniform_count, char **formats, i32 target_count);
 void                      make_image_node_gpu_shader_free(shader_context_t *shader);
