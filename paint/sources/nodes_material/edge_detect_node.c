@@ -76,7 +76,9 @@ static void edge_detect_node_params(ui_node_t *node, void *params) {
 //   2. Sobel gradient magnitude (a step of 1 gives 1)
 //   3. the largest magnitude of the image: passes that halve the size taking the maximum of 2 x 2 texels until 1 x 1 (no blend max, no compute)
 //   4. normalise: Gradient (v - Tolerance) / (max - Tolerance), Boundary v > Tolerance (the 1 x 1 maximum is a texture input)
-//   5. Width > 0 only: three box blurs in x and y (six passes), the last applies the gain and, in Boundary, the smoothstep (RGBA64)
+//   5. Width > 0 only: three box blurs in x and y, the last applies the gain and, in Boundary, the smoothstep (RGBA64). A box narrower than
+//      EDGE_DETECT_WIDE_MIN_BOX texels is one pass of w taps (x, y, x, y, x, y); a wider one two passes (edge_detect_node_wide_box, about 2 sqrt(w) taps instead of w)
+//      and the order is x, x, x, y, y, y (the boxes of the two axes commute)
 // k = (size, wrap, x, y) of every pass; the texel index of a tap is computed in float (exact for the sizes up to 4096).
 #define EDGE_DETECT_TAP(var, x, y)                                                                                                                         \
 	"float " var "_x = " x "; float " var "_y = " y "; "                                                                                                   \
