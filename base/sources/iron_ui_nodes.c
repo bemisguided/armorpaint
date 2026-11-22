@@ -42,6 +42,7 @@ bool ui_nodes_grid_snap                                  = true;
 int  ui_nodes_grid_snap_w                                = 40;
 char *(*ui_nodes_on_dot_label)(ui_node_t *)                       = NULL; // Label of a dot node, NULL for the node name
 int (*ui_nodes_on_dot_state)(ui_node_t *)                         = NULL; // ui_dot_state_t flags of a dot node
+void (*ui_nodes_on_dot_frame)(ui_node_canvas_t *)                = NULL; // Before the nodes are drawn: state of the dot nodes for this frame
 void (*ui_nodes_on_dot_overlay)(ui_node_canvas_t *)              = NULL; // Draw over the nodes, under the dot nodes
 void (*ui_nodes_on_dot_label_double_click)(ui_node_t *)           = NULL;
 void (*ui_nodes_on_dot_label_edited)(ui_node_t *, char *)         = NULL; // Text accepted by ui_nodes_dot_edit_label
@@ -1267,6 +1268,9 @@ void ui_node_canvas(ui_nodes_t *nodes, ui_node_canvas_t *canvas) {
 		ui_draw_link(from_x - wx, from_y - wy, to_x - wx, to_y - wy, selected);
 	}
 
+	if (ui_nodes_on_dot_frame != NULL) {
+		ui_nodes_on_dot_frame(canvas);
+	}
 	// Dot nodes behind, then the regular nodes: the same order draws and takes input (the later covers the earlier)
 	static int *draw_order     = NULL;
 	static int  draw_order_cap = 0;

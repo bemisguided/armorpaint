@@ -605,6 +605,7 @@ extern void (*ui_nodes_on_node_changed)(ui_node_t *);
 extern bool ui_nodes_grid_snap;
 extern char *(*ui_nodes_on_dot_label)(ui_node_t *);                       // Label of a dot node, NULL for the node name
 extern int (*ui_nodes_on_dot_state)(ui_node_t *);                         // ui_dot_state_t flags of a dot node
+extern void (*ui_nodes_on_dot_frame)(ui_node_canvas_t *);                // Before the nodes are drawn: state of the dot nodes for this frame
 extern void (*ui_nodes_on_dot_overlay)(ui_node_canvas_t *);              // Draw over the nodes, under the dot nodes not covered by a regular node
 extern void (*ui_nodes_on_dot_label_double_click)(ui_node_t *);
 extern void (*ui_nodes_on_dot_label_edited)(ui_node_t *, char *);        // Text accepted by ui_nodes_dot_edit_label
