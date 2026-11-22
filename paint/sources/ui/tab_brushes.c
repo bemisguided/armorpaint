@@ -112,14 +112,7 @@ void tab_brushes_draw(i32 *htab) {
 		}
 
 		ui_begin_sticky();
-		f32_array_t *row = f32_array_create(0);
-		for (i32 i = 0; i < 3; ++i) {
-			f32_array_push(row, -64);
-		}
-		if (ui_asset_tags_any(MC_BRUSH)) {
-			f32_array_push(row, -150); // Tags filter
-		}
-		ui_row(row);
+		ui_row(ui_asset_tray_row(MC_BRUSH, 3, -64, 0, false));
 		if (ui_icon_button(tr("New"), ICON_PLUS, UI_ALIGN_CENTER)) {
 			g_context->brush = slot_brush_create(NULL);
 			any_array_push(g_project->_->brushes, g_context->brush);
