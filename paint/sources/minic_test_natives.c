@@ -401,6 +401,18 @@ void script_show_node_editor(bool only, f32 zoom, f32 pan_x, f32 pan_y) {
 	}
 }
 
+// Whether the 2D view is showing (a double click on a selected node opens it)
+bool script_view2d_shown() {
+	return ui_view2d_show;
+}
+
+// Closes the 2D view when it is showing (test builds, to start a case from a known state)
+void script_view2d_hide() {
+	if (ui_view2d_show) {
+		ui_base_show_2d_view(ui_view2d_type); // The same type toggles it off
+	}
+}
+
 // Node editor layout, in rows (UI_LINE_H) so that the zoom does not matter. kind: 0 input, 1 output, 2 button.
 // Whether a row is hidden by the rules of its node (a socket with a link is never hidden, see ui_node_item_hidden)
 i32 script_node_item_hidden(ui_node_t *node, i32 kind, i32 index) {

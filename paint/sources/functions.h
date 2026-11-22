@@ -807,6 +807,8 @@ void                   script_viewport_view(char *name);
 void                   script_key_char(char *key, char *ch);
 void                   script_plugin_enable(char *name);
 void                   script_show_node_editor(bool only, f32 zoom, f32 pan_x, f32 pan_y);
+bool                   script_view2d_shown();
+void                   script_view2d_hide();
 i32                    script_node_item_hidden(ui_node_t *node, i32 kind, i32 index);
 f32                    script_node_rows(ui_node_t *node);
 f32                    script_node_socket_row(ui_node_t *node, i32 is_input, i32 index);
