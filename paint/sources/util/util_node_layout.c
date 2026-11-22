@@ -44,6 +44,7 @@ static util_node_layout_item_alias_t util_node_layout_item_aliases[] = {
     {"LEVELS", "levels_node_auto_button", "levels_auto_button"},
     {"LEVELS", "levels_node_strip_button", "levels_strip_button"},
     {"TEX_TILE_UV", "Size", "Capture Size"}, // The baked Tile UV (Size, state row, Filter) became a pass-through node (Capture Size, Filter): same type, the state row is dropped
+    {"TEX_IMAGE_WARP", "Size", "Capture Size"}, // The baked Warp (Size, state row, Direction, Wrap Edges) became a pass-through node (Capture Size, Direction, Wrap Edges): same type, the state row is dropped
     {NULL, NULL, NULL},
 };
 
