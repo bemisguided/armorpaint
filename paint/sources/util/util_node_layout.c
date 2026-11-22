@@ -418,6 +418,7 @@ i32 util_node_layout_resolve(ui_node_canvas_t *canvas, ui_node_t *(*lookup)(char
 		}
 		util_node_layout_remap_t *r = &remaps[changed++];
 		r->node                      = node;
+		node->color                  = def->color; // The header follows the definition too (a node that became a pass-through node loses its orange header), like its sockets
 		r->id                        = node->id;
 		r->in_count                  = node->inputs->length;
 		r->out_count                 = node->outputs->length;
