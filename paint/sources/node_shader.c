@@ -156,8 +156,34 @@ void node_shader_vstruct_to_vsin(node_shader_t *raw) {
 	}
 }
 
+// True when a part of the shader (stage code or function) contains the text
+static bool node_shader_uses(node_shader_t *raw, char *text) {
+	buffer_t *parts[] = {&raw->vert, &raw->vert_end, &raw->vert_normal, &raw->vert_attribs, &raw->frag, &raw->frag_end, &raw->frag_normal, &raw->frag_attribs};
+	for (i32 i = 0; i < 8; ++i) {
+		if (string_index_of(string_buffer_get(parts[i]), text) > -1) {
+			return true;
+		}
+	}
+	string_array_t *keys = map_keys(raw->functions);
+	bool            used = false;
+	for (i32 i = 0; i < keys->length && !used; ++i) {
+		used = string_index_of(any_map_get(raw->functions, keys->buffer[i]), text) > -1;
+	}
+	array_free(keys);
+	free(keys);
+	return used;
+}
+
 char *node_shader_get(node_shader_t *raw) {
 	node_shader_vstruct_to_vsin(raw);
+
+	// The engine binds ONE sampler to a draw. A shader reads with sampler_linear (hardware filtering) or sampler_point (exact texel loads: the
+	// image nodes read at texel centres and interpolate by hand, so that no filtering of a float texture is needed). A pass that allows it
+	// (allow_point_sampler: the image node passes) whose shader reads only with sampler_point declares sampler_point and is drawn with the point
+	// sampler (point_sampler, make_image_node_gpu_pass). Any other shader (it also filters, or it is a material) declares sampler_linear and
+	// reads its sampler_point loads with it: they sit at texel centres, which a linear sampler returns exactly.
+	bool uses_point    = node_shader_uses(raw, "sampler_point");
+	raw->point_sampler = raw->allow_point_sampler && uses_point && !node_shader_uses(raw, "sampler_linear");
 
 	static buffer_t out;
 	static bool     out_first = true;
@@ -200,7 +226,7 @@ char *node_shader_get(node_shader_t *raw) {
 	string_buffer_append(sb, "};\n\n");
 
 	if (raw->textures->length > 0) {
-		string_buffer_append(sb, "sampler sampler_linear;\n\n");
+		string_buffer_append(sb, raw->point_sampler ? "sampler sampler_point;\n\n" : "sampler sampler_linear;\n\n");
 	}
 
 	for (i32 i = 0; i < raw->textures->length; ++i) {
@@ -255,6 +281,13 @@ char *node_shader_get(node_shader_t *raw) {
 	string_buffer_free(&raw->frag_end);
 	string_buffer_free(&raw->frag_normal);
 	string_buffer_free(&raw->frag_attribs);
+
+	if (uses_point && !raw->point_sampler) {
+		char *linear = string_replace_all(string_buffer_get(&out), "sampler_point", "sampler_linear");
+		string_buffer_reset(&out);
+		string_buffer_append(&out, linear);
+		free(linear);
+	}
 
 	if (node_shader_dump_to_script) {
 		node_shader_dump_to_script = false;
