@@ -299,6 +299,10 @@ void project_format_set_defaults(project_t *raw) {
 		i32_array_push(raw->mesh_ids, i + 1);
 	}
 	raw->next_object_id = mesh_count;
+	// Mesh node canvases name their object by paint id, older files by position (ids are position + 1 here)
+	for (i32 i = 0; raw->mesh_nodes_objects != NULL && i < raw->mesh_nodes_objects->length; ++i) {
+		raw->mesh_nodes_objects->buffer[i]++;
+	}
 	project_format_reset_tiles(raw, mesh_count);
 	raw->udim_tiles->length = 0; // Converted projects have a single tile, not the one of the project that is open now
 	i32_array_push(raw->udim_tiles, 1001);

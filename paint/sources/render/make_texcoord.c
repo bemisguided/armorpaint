@@ -1,6 +1,20 @@
 
 #include "../global.h"
 
+static char *make_texcoord_atlas_src   = NULL; // Vertex attribute holding the unscaled, unrotated uv
+static bool  make_texcoord_atlas_added = false;
+
+// Atlas uv for "UV: Atlas" image nodes: the mesh uv itself, the layer's UV scale and angle do not move it.
+// The interpolant is only added when a node asks for it.
+char *make_texcoord_atlas_uv(node_shader_t *kong) {
+	if (!make_texcoord_atlas_added) {
+		node_shader_add_out(kong, "float2 tex_coord_atlas");
+		node_shader_write_vert(kong, string_tmp("output.tex_coord_atlas = %s;", make_texcoord_atlas_src));
+		make_texcoord_atlas_added = true;
+	}
+	return "input.tex_coord_atlas";
+}
+
 void make_texcoord_run(node_shader_t *kong, bool is_atlas) {
 
 	bool      fill_layer = g_context->layer->fill_material != NULL;
@@ -10,6 +24,8 @@ void make_texcoord_run(node_shader_t *kong, bool is_atlas) {
 	f32       uv_angle   = fill_layer ? g_context->layer->angle : angle;
 
 	parser_material_tex_coord_atlas = NULL;
+	make_texcoord_atlas_src         = NULL;
+	make_texcoord_atlas_added       = false;
 
 	char *scale = "1.0";
 	if (!is_atlas) {
@@ -141,6 +157,8 @@ void make_texcoord_run(node_shader_t *kong, bool is_atlas) {
 	}
 	else if (uv_type == UV_TYPE_UVMAP) { // TexCoords - uvmap
 		node_shader_add_out(kong, "float2 tex_coord");
+		make_texcoord_atlas_src         = g_context->layer->uv_map == 1 ? "input.tex1" : "input.tex";
+		parser_material_tex_coord_atlas = "tex_coord_atlas"; // Marks that "UV: Atlas" nodes can ask for it
 
 		if (g_context->layer->uv_map == 1) {
 			node_shader_write_vert(kong, string_tmp("output.tex_coord = input.tex1 * %s;", scale));
@@ -149,8 +167,6 @@ void make_texcoord_run(node_shader_t *kong, bool is_atlas) {
 			// Materials repeat per udim tile, bake reads layer textures in atlas space
 			node_shader_add_constant(kong, "float atlas_stride", "_atlas_stride");
 			node_shader_write_vert(kong, string_tmp("output.tex_coord = (input.tex * constants.atlas_stride) * %s;", scale));
-			// "UV: Atlas" image nodes sample the atlas uv, written only by such nodes
-			parser_material_tex_coord_atlas = "tex_coord * (1.0 / constants.atlas_stride)";
 		}
 		else {
 			node_shader_write_vert(kong, string_tmp("output.tex_coord = input.tex * %s;", scale));

@@ -1008,7 +1008,7 @@ void nodes_mesh_export_begin() {
 			export_arm_export_node(c->nodes->buffer[j], NULL);
 		}
 		any_array_push(g_project->mesh_nodes, c);
-		i32_array_push(g_project->mesh_nodes_objects, i);
+		i32_array_push(g_project->mesh_nodes_objects, o->paint_id);
 		if (slot->output != slot->input) {
 			slot->output = o->data;
 			o->data      = slot->input;
@@ -1051,19 +1051,18 @@ void nodes_mesh_import() {
 		return;
 	}
 	for (i32 i = 0; i < g_project->mesh_nodes->length && i < g_project->mesh_nodes_objects->length; ++i) {
-		i32 index = g_project->mesh_nodes_objects->buffer[i];
-		if (index < 0 || index >= g_project->_->paint_objects->length) {
+		mesh_object_t *o = project_object_by_id(g_project->mesh_nodes_objects->buffer[i]);
+		if (o == NULL) {
 			continue;
 		}
-		mesh_object_t *o    = g_project->_->paint_objects->buffer[index];
-		mesh_nodes_t  *slot = nodes_mesh_get(o, true);
+		mesh_nodes_t *slot = nodes_mesh_get(o, true);
 		slot->canvas        = nodes_mesh_import_canvas(g_project->mesh_nodes->buffer[i]);
 	}
 	// Scene mesh nodes need all the canvases in place
 	for (i32 i = 0; i < g_project->mesh_nodes->length && i < g_project->mesh_nodes_objects->length; ++i) {
-		i32 index = g_project->mesh_nodes_objects->buffer[i];
-		if (index >= 0 && index < g_project->_->paint_objects->length) {
-			nodes_mesh_update(g_project->_->paint_objects->buffer[index], true);
+		mesh_object_t *o = project_object_by_id(g_project->mesh_nodes_objects->buffer[i]);
+		if (o != NULL) {
+			nodes_mesh_update(o, true);
 		}
 	}
 }
