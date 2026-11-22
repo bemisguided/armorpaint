@@ -491,7 +491,6 @@ Rausch Textur
 Keins
 Normale
 Normalen mischen
-
 Normal Map
 Normal Map 1
 Normal Map 2
