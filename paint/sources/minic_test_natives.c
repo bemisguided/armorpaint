@@ -307,6 +307,27 @@ f32 script_image_node_stat(ui_node_t *node, i32 which) {
 	return node != NULL ? (f32)make_image_node_stat(node, which) : -1.0;
 }
 
+// Numbers of a node with a result by reference (make_image_node_gpu_stat): 0 renders since the start, 1 ms of its last render
+f32 script_image_node_gpu_stat(ui_node_t *node, i32 which) {
+	return node != NULL ? (f32)make_image_node_gpu_stat(node, which) : -1.0;
+}
+
+// The GPU pass helper (make_image_node_test_gpu_pass): the value at pixel (x, y), channel, of a ping-pong result (which 0 and 2) or of the second
+// of two targets written at once (which 1)
+f32 script_image_node_test_gpu_pass(i32 which, i32 x, i32 y, i32 channel) {
+	gpu_texture_t *current;
+	bool           in_use;
+	script_gpu_begin(&current, &in_use);
+	f32 v = (f32)make_image_node_test_gpu_pass(which, x, y, channel);
+	script_gpu_end(current, in_use);
+	return v;
+}
+
+// Registers the test only image node TEX_TEST_GPU_BAKE (make_image_node_test_register: two captures, a gpu_bake with two passes, result = Image + 0.125)
+void script_image_node_test_register() {
+	make_image_node_test_register();
+}
+
 // Hash of the bytes of the baked result texture (xxHash64 of the readback), half 0 = low 31 bits, 1 = high 31 bits; -1 when not baked.
 // Bit identical results give the same hash: the proof that a capture format change did not change a bake.
 i32 script_image_node_result_hash(ui_node_t *node, i32 half) {
