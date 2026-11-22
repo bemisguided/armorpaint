@@ -1482,9 +1482,9 @@ static void make_image_node_write_fetch(char *var, char *tex_name, char *uv, i32
 	parser_material_write(parser_material_kong, string_tmp("float4 %s = sample_lod(%s, sampler_linear, %s_uv, 0.0);", var, tex_name, var));
 }
 
-// Records the dependency of a capture on the node, binds its result texture and size constant; returns the texture name,
-// NULL when the capture reads the node as black because they depend on each other
-static char *make_image_node_bind(ui_node_t *node, char *id) {
+// Records the dependency of a capture on the node (id), binds its texture (texture_id: the id of the result, or the id of the second capture)
+// and size constant; returns the texture name, NULL when the capture reads the node as black because they depend on each other
+static char *make_image_node_bind(ui_node_t *node, char *id, char *texture_id) {
 	if (make_image_node_capturing != NULL && string_array_index_of(make_image_node_capturing->upstream, id) == -1) {
 		any_array_push(make_image_node_capturing->upstream, string_copy(id)); // Chained: bakes before the node being captured
 	}
@@ -1492,7 +1492,7 @@ static char *make_image_node_bind(ui_node_t *node, char *id) {
 		make_image_node_tell_cycle(make_image_node_capturing, id);
 		return NULL;
 	}
-	char *tex_name = string_tmp("teximage_%s", id);
+	char *tex_name = string_tmp("teximage_%s", texture_id);
 	node_shader_add_texture(parser_material_kong, tex_name, string_tmp("_%s", tex_name));
 	node_shader_add_constant(parser_material_kong, string_tmp("float2 %s_size", tex_name), string_tmp("_size(_%s)", tex_name));
 	return tex_name;
@@ -1505,7 +1505,7 @@ static char *make_image_node_bind(ui_node_t *node, char *id) {
 char *make_image_node_sample(ui_node_t *node) {
 	char *id  = make_material_node_preview_id(node, NULL);
 	char *var = string_tmp("%s_image", parser_material_store_var_name(node));
-	char *tex_name = make_image_node_bind(node, id);
+	char *tex_name = make_image_node_bind(node, id, id);
 	if (string_array_index_of(parser_material_parsed, var) >= 0) {
 		return var;
 	}
@@ -1560,7 +1560,7 @@ char *make_image_node_sample(ui_node_t *node) {
 char *make_image_node_sample_at(ui_node_t *node, char *uv, i32 filter) {
 	char *id  = make_material_node_preview_id(node, NULL);
 	char *var = string_tmp("%s_tile", parser_material_store_var_name(node));
-	char *tex_name = make_image_node_bind(node, id);
+	char *tex_name = make_image_node_bind(node, id, id);
 	if (string_array_index_of(parser_material_parsed, var) >= 0) {
 		return var;
 	}
@@ -1589,7 +1589,7 @@ char *make_image_node_fetch_input(ui_node_t *node, i32 plane, char *var, char *u
 		return var;
 	}
 	char *id       = make_material_node_preview_id(source != NULL ? source : node, NULL);
-	char *tex_name = make_image_node_bind(source != NULL ? source : node, source != NULL ? id : make_image_node_plane_id(id, plane));
+	char *tex_name = make_image_node_bind(source != NULL ? source : node, id, source != NULL ? id : make_image_node_plane_id(id, plane));
 	if (tex_name == NULL) {
 		parser_material_write(parser_material_kong, string_tmp("float4 %s = float4(0.0, 0.0, 0.0, 1.0);", var));
 		return var;
