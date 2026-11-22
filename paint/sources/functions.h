@@ -969,6 +969,7 @@ char                     *asset_selection_unique_path(char *dir, char *name, cha
 i32_array_t              *asset_tray_filter(asset_tray_t tray, char *search, bool tags);
 void                      ui_asset_details_show(i32 category, i32 index);
 bool                      ui_asset_tags_any(i32 category);
+f32_array_t              *ui_asset_tray_row(i32 category, i32 buttons, f32 button_w, f32 search_w, bool clear_search);
 bool                      ui_asset_tags_filter(i32 category);
 bool                      ui_asset_tags_active(i32 category);
 bool                      ui_asset_tags_visible(i32 category, i32 index);
