@@ -6,7 +6,8 @@
 // processed on the cpu by the node's type (image_node_type_t, make_image_node_register). The result is uploaded into
 // g_context->node_previews under the node's preview id and sampled by the node like an Image Texture at the
 // current texture coordinate, repeating (make_image_node_sample; Tile UV places an image on the uv with
-// make_image_node_sample_at; bound as _teximage_<preview id>). Image nodes have no Vector input.
+// make_image_node_sample_at; bound as _teximage_<preview id>). Baked image nodes have no Vector input (Tile UV places on it, and the
+// pass-through generators have one: make_image_node_coord).
 // Nothing is saved with the project.
 // Every node preview traversal captures the node; a changed capture or parameter set makes it pending, and 0.5 s
 // after the last change, with no mouse button held and no Bake Texture running, the pending nodes are baked:
@@ -62,7 +63,7 @@ typedef struct make_image_node_state {
 	u64                failed_signature;
 	bool               pending;      // pending_pixels wait for the debounce
 	u64                pending_signature;
-	u8                *pending_pixels; // pending_size * pending_size RGBA8
+	u8                *pending_pixels; // The captures one after the other (image_node_type_t.capture_format)
 	size_t             pending_bytes;  // Size of pending_pixels, for make_image_node_plane_free
 	i32                pending_size;
 	void              *pending_params;
@@ -94,6 +95,8 @@ static bool                     make_image_node_force_all       = false; // Rege
 static make_image_node_state_t *make_image_node_capturing       = NULL;  // Collects the image nodes sampled by the capture
 static ui_node_canvas_t        *make_image_node_capture_group   = NULL;
 static ui_node_t_array_t       *make_image_node_capture_parents = NULL;
+static i32                      make_image_node_capture_k       = 0; // Capture of a type with several, see make_image_node_capture_index
+static void                    *make_image_node_capture_params_ptr = NULL; // See make_image_node_capture_params
 static i32                      make_image_node_capture_input   = 0; // Input of make_image_node_input_value
 
 static void make_image_node_update(void *_);
@@ -284,10 +287,24 @@ static u64 make_image_node_hash(u64 seed, const void *data, size_t n) {
 // xxh64 end
 
 // 64 bit signature over the captured pixels, the size and the processing parameters: xxHash64 chained over the three
-static u64 make_image_node_signature(u8 *pixels, i32 pixel_bytes, i32 size, void *params, i32 params_size) {
-	u64 h = make_image_node_hash(0, pixels, (size_t)size * size * pixel_bytes);
+static u64 make_image_node_signature(u8 *pixels, size_t bytes, i32 size, void *params, i32 params_size) {
+	u64 h = make_image_node_hash(0, pixels, bytes);
 	h     = make_image_node_hash(h, &size, sizeof(size));
 	return make_image_node_hash(h, params, params_size);
+}
+
+// Points the material parser at the canvas (and group chain) of the node being captured, so that the links of its inputs can be read
+static void make_image_node_parser_scope() {
+	parser_material_canvases = any_array_create_from_raw(
+	    (void *[]){
+	        g_context->material->canvas,
+	    },
+	    1);
+	parser_material_nodes = g_context->material->canvas->nodes;
+	parser_material_links = g_context->material->canvas->links;
+	if (make_image_node_capture_group != NULL) {
+		parser_material_push_group_chain(make_image_node_capture_group, make_image_node_capture_parents);
+	}
 }
 
 // Shader evaluating expr(node) over the image square: a full screen triangle with tex_coord = the image uv,
@@ -321,16 +338,7 @@ static shader_context_t *make_image_node_capture_shader(ui_node_t *node, char *(
 	node_shader_write_attrib_frag(kong, "float2 tex_coord = input.tex_coord;");
 
 	parser_material_init();
-	parser_material_canvases = any_array_create_from_raw(
-	    (void *[]){
-	        g_context->material->canvas,
-	    },
-	    1);
-	parser_material_nodes = g_context->material->canvas->nodes;
-	parser_material_links = g_context->material->canvas->links;
-	if (make_image_node_capture_group != NULL) {
-		parser_material_push_group_chain(make_image_node_capture_group, make_image_node_capture_parents);
-	}
+	make_image_node_parser_scope();
 	parser_material_con                   = con;
 	parser_material_kong                  = kong;
 	parser_material_image_space           = true;
@@ -352,11 +360,60 @@ static shader_context_t *make_image_node_capture_shader(ui_node_t *node, char *(
 	return scon;
 }
 
-// Renders expr(node) over the image square into a size x size target of format and reads it back.
+#define MAKE_IMAGE_NODE_CAPTURE_ALIGN 16 // Every capture of a type with several starts at a multiple of this (any format can follow any other)
+
+// The render target format of a capture format (IMAGE_CAPTURE_*)
+static gpu_texture_format_t make_image_node_capture_gpu_format(i32 format) {
+	switch (format) {
+	case IMAGE_CAPTURE_RGBA32F:
+		return GPU_TEXTURE_FORMAT_RGBA128;
+	case IMAGE_CAPTURE_R32F:
+		return GPU_TEXTURE_FORMAT_R32;
+	case IMAGE_CAPTURE_R16F:
+		return GPU_TEXTURE_FORMAT_R16;
+	case IMAGE_CAPTURE_R8:
+		return GPU_TEXTURE_FORMAT_R8;
+	}
+	return GPU_TEXTURE_FORMAT_RGBA32;
+}
+
+// The format name of the shader context (render_path_get_tex_format)
+static char *make_image_node_capture_format_name(i32 format) {
+	switch (format) {
+	case IMAGE_CAPTURE_RGBA32F:
+		return "RGBA128";
+	case IMAGE_CAPTURE_R32F:
+		return "R32";
+	case IMAGE_CAPTURE_R16F:
+		return "R16";
+	case IMAGE_CAPTURE_R8:
+		return "R8";
+	}
+	return "RGBA32";
+}
+
+// Channels of a capture format: 4 for the RGBA formats, 1 for the single channel formats (the value is in the first)
+i32 make_image_node_capture_channels(i32 format) {
+	return format == IMAGE_CAPTURE_R32F || format == IMAGE_CAPTURE_R16F || format == IMAGE_CAPTURE_R8 ? 1 : 4;
+}
+
+// Bytes of a capture of size x size pixels in a format
+size_t make_image_node_capture_bytes(i32 size, i32 format) {
+	return (size_t)size * size * gpu_texture_format_size(make_image_node_capture_gpu_format(format));
+}
+
+// Start of the capture that follows a capture of size and format that starts at offset (for process of a type with several captures)
+size_t make_image_node_capture_next(size_t offset, i32 size, i32 format) {
+	size_t end = offset + make_image_node_capture_bytes(size, format);
+	return (end + MAKE_IMAGE_NODE_CAPTURE_ALIGN - 1) / MAKE_IMAGE_NODE_CAPTURE_ALIGN * MAKE_IMAGE_NODE_CAPTURE_ALIGN;
+}
+
+// Renders expr(node) over the image square into a size x size target of a capture format (IMAGE_CAPTURE_*) and reads it back.
 // Returns the pixels (the caller frees them), or NULL when the readback fails.
-static u8 *make_image_node_capture_pixels(ui_node_t *node, char *(*expr)(ui_node_t *), i32 size, gpu_texture_format_t format) {
+static u8 *make_image_node_capture_pixels(ui_node_t *node, char *(*expr)(ui_node_t *), i32 size, i32 capture_format) {
+	gpu_texture_format_t format = make_image_node_capture_gpu_format(capture_format);
 	make_image_node_capture_dst = size;
-	shader_context_t *scon      = make_image_node_capture_shader(node, expr, format == GPU_TEXTURE_FORMAT_RGBA128 ? "RGBA128" : "RGBA32");
+	shader_context_t *scon      = make_image_node_capture_shader(node, expr, make_image_node_capture_format_name(capture_format));
 	make_image_node_capture_dst = 0;
 	if (util_render_screen_aligned_full_vb == NULL) {
 		util_render_create_screen_aligned_full_data();
@@ -469,6 +526,27 @@ static char *make_image_node_input_expr(ui_node_t *node) {
 	return string_tmp("float4(%s, %s, %s, 1.0)", v, v, v);
 }
 
+// Which capture of the node is being written, 0 to capture_count - 1; for the capture callback of a type with several
+i32 make_image_node_capture_index() {
+	return make_image_node_capture_k;
+}
+
+// The parameters of the node being captured (what the type's params callback filled in), for the capture callback
+void *make_image_node_capture_params() {
+	return make_image_node_capture_params_ptr;
+}
+
+// Width and height of capture k: the type's capture_size (0 or no callback: the size of the node)
+static i32 make_image_node_capture_size_of(image_node_type_t *t, ui_node_t *node, i32 size, i32 k) {
+	i32 ks = t->capture_size != NULL ? t->capture_size(node, k) : 0;
+	return ks > 0 ? ks : size;
+}
+
+// Format of capture k (IMAGE_CAPTURE_*)
+static i32 make_image_node_capture_format_of(image_node_type_t *t, ui_node_t *node, i32 k) {
+	return t->capture_format_at != NULL ? t->capture_format_at(node, k) : t->capture_format;
+}
+
 #define MAKE_IMAGE_NODE_MAX_THREADS 32
 
 typedef struct make_image_node_rows_job {
@@ -518,12 +596,12 @@ f32 make_image_node_input_value(ui_node_t *node, i32 input) {
 		return socket->default_value->buffer[0];
 	}
 	make_image_node_capture_input = input;
-	f32 *pixels                   = (f32 *)make_image_node_capture_pixels(node, make_image_node_input_expr, 1, GPU_TEXTURE_FORMAT_RGBA128);
+	f32 *pixels                   = (f32 *)make_image_node_capture_pixels(node, make_image_node_input_expr, 1, IMAGE_CAPTURE_R32F);
 	if (pixels == NULL) {
 		return socket->default_value->buffer[0];
 	}
 	f32 v = pixels[0]; // A 1 x 1 target: its pixel centre is the image centre
-	make_image_node_plane_free(pixels, 16);
+	make_image_node_plane_free(pixels, 4);
 	if (!isfinite(v)) {
 		return socket->default_value->buffer[0]; // A NaN (Square Root of a negative value) or infinity would turn the whole result into one
 	}
@@ -557,19 +635,62 @@ static bool make_image_node_capture(make_image_node_state_t *s, char *id, ui_nod
 	make_image_node_capture_group   = group;
 	make_image_node_capture_parents = parents;
 	i32   size                      = t->size(node);
-	i32   pixel_bytes               = t->capture_float ? 16 : 4;
-	size_t pixels_bytes             = (size_t)size * size * pixel_bytes;
-	u8   *pixels                    = make_image_node_capture_pixels(node, t->capture, size, t->capture_float ? GPU_TEXTURE_FORMAT_RGBA128 : GPU_TEXTURE_FORMAT_RGBA32);
-	void *params                    = NULL;
-	if (pixels != NULL) {
-		params = calloc(1, t->params_size > 0 ? t->params_size : 1);
-		if (params == NULL) {
-			make_image_node_plane_free(pixels, pixels_bytes);
+	// The parameters first: the capture callbacks may read them (make_image_node_capture_params), and a linked scalar input is
+	// captured here, not inside the shader of another capture
+	void *params = calloc(1, t->params_size > 0 ? t->params_size : 1);
+	if (params != NULL) {
+		parser_material_init();
+		make_image_node_parser_scope();
+	}
+	if (params != NULL && t->params != NULL) {
+		t->params(node, params);
+	}
+	make_image_node_capture_params_ptr = params;
+	// The count after the scope: a capture_count that reads the links of the node (Advanced Blur: a Mask plane only when linked)
+	// would read the links of whatever the parser was pointed at last, and process (which reads the same links through params)
+	// would find a different number of planes than the capture made
+	i32 count = t->capture_count != NULL ? t->capture_count(node) : 1;
+	u8    *pixels                      = NULL;
+	size_t total                       = 0; // Bytes of all captures, each of its own size and format, starting at multiples of 16
+	size_t offset                      = 0;
+	size_t start = 0;
+	for (i32 k = 0; k < count && params != NULL; ++k) {
+		i32 ks = make_image_node_capture_size_of(t, node, size, k);
+		i32 kf = make_image_node_capture_format_of(t, node, k);
+		total  = start + make_image_node_capture_bytes(ks, kf);
+		start  = make_image_node_capture_next(start, ks, kf);
+	}
+	for (i32 k = 0; k < count && params != NULL; ++k) {
+		make_image_node_capture_k = k;
+		i32    ks                 = make_image_node_capture_size_of(t, node, size, k);
+		i32    kf                 = make_image_node_capture_format_of(t, node, k);
+		size_t one                = make_image_node_capture_bytes(ks, kf);
+		u8    *p                  = make_image_node_capture_pixels(node, t->capture, ks, kf);
+		if (p == NULL) {
+			make_image_node_plane_free(pixels, total);
 			pixels = NULL;
+			break;
 		}
-		else {
-			t->params(node, params); // May capture a linked scalar input
+		if (count == 1) {
+			pixels = p;
+			break;
 		}
+		if (pixels == NULL) {
+			pixels = make_image_node_plane_alloc(total);
+			if (pixels == NULL) {
+				make_image_node_plane_free(p, one);
+				break;
+			}
+		}
+		memcpy(pixels + offset, p, one);
+		offset = make_image_node_capture_next(offset, ks, kf);
+		make_image_node_plane_free(p, one);
+	}
+	make_image_node_capture_k = 0;
+	make_image_node_capture_params_ptr = NULL;
+	if (pixels == NULL) {
+		free(params);
+		params = NULL;
 	}
 	make_image_node_capturing       = NULL;
 	make_image_node_capture_group   = NULL;
@@ -584,28 +705,28 @@ static bool make_image_node_capture(make_image_node_state_t *s, char *id, ui_nod
 	s->captured_canvas        = g_context->material->canvas;
 	s->captured_graph_version = util_version_graph(g_context->material);
 	s->captured_asset_version = util_version_assets();
-	u64 sig = make_image_node_signature(pixels, pixel_bytes, size, params, t->params_size);
+	u64 sig = make_image_node_signature(pixels, total, size, params, t->params_size);
 
 	bool has_result = g_context->node_previews != NULL && any_map_get(g_context->node_previews, id) != NULL;
 	if (!force && has_result && s->has_baked && sig == s->baked_signature) {
 		make_image_node_clear_pending(s); // Back to what is baked, e.g. a change undone within the debounce
-		make_image_node_plane_free(pixels, pixels_bytes);
+		make_image_node_plane_free(pixels, total);
 		free(params);
 		return false;
 	}
 	if (!force && s->failed && sig == s->failed_signature) {
-		make_image_node_plane_free(pixels, pixels_bytes); // Failed already, retried after a change or Regenerate Image Nodes
+		make_image_node_plane_free(pixels, total); // Failed already, retried after a change or Regenerate Image Nodes
 		free(params);
 		return false;
 	}
 	if (!force && s->pending && sig == s->pending_signature) {
-		make_image_node_plane_free(pixels, pixels_bytes); // Already waiting for this one
+		make_image_node_plane_free(pixels, total); // Already waiting for this one
 		free(params);
 		return false;
 	}
 	make_image_node_clear_pending(s);
 	s->pending_pixels    = pixels;
-	s->pending_bytes     = pixels_bytes;
+	s->pending_bytes     = total;
 	s->pending_params    = params;
 	s->pending_size      = size;
 	s->pending_signature = sig;
@@ -1303,6 +1424,95 @@ ui_node_socket_t *make_image_node_socket(char *name, char *type, u32 color, f32_
 	                                     .display       = 0});
 }
 
+// The Vector input of a pass-through generator (Gradient Generator, Shape Generator) and of Tile UV: a VECTOR socket named Vector, purple, default 0, 0, 0.
+// Appended LAST in the input list of the definition (Tile UV precedent), so the indices of the other inputs of an older save stay valid.
+// Baked image nodes (they work in image space on an Image input) have none. Unlinked it is the image uv, see make_image_node_coord.
+ui_node_socket_t *make_image_node_vector_socket() {
+	return make_image_node_socket(_tr("Vector"), "VECTOR", NODES_MATERIAL_VECTOR_COLOR, f32_array_create_xyz(0.0, 0.0, 0.0), 0.0, 1.0, 100);
+}
+
+// ---- Coordinate of a pass-through generator (block extracted by the host test automation/host/image_node_coord) ----
+// One rule for the coordinate generators: the pattern is a function of a float2 coordinate that comes from the Vector input.
+//   unlinked Vector: the image uv, tex_coord (the uv of the mesh in a material, the image uv of a capture): NOT upstream's bposition, so the picture
+//                    of a node without a link is the one it always drew;
+//   linked Vector:   the xy of that expression (Mapping, Texture Coordinate UV / Generated / Object: a 3D vector uses xy).
+//   Wrap Edges on:   the result repeats across the border: the coordinate is reduced with x - floor(x) (a Mapping scale of 3 gives 3 copies);
+//   Wrap Edges off:  the raw coordinate (Blender style, nothing repeats).
+// Both are returned: a derivative (the pixel size of the Shape Generator) must be taken of the UNWRAPPED coordinate, the wrapped one jumps at the seam.
+// A linked Vector is parsed once and copied to a variable (the linked graph is not repeated in the text).
+
+// The coordinate of one projection from `source` (a float2/float3 expression with .x and .y); name is the prefix of the variables written
+static char *make_image_node_coord_of(char *name, char *source, bool linked, bool wrap, char **unwrapped) {
+	char *raw = source;
+	if (linked) {
+		raw = string_tmp("%s_uv", name);
+		if (string_array_index_of(parser_material_parsed, raw) == -1) {
+			any_array_push(parser_material_parsed, raw);
+			parser_material_write(parser_material_kong, string_tmp("float2 %s = %s.xy;", raw, source));
+		}
+	}
+	if (unwrapped != NULL) {
+		*unwrapped = raw;
+	}
+	if (!wrap) {
+		return raw;
+	}
+	char *w = string_tmp("%s_uvw", name);
+	if (string_array_index_of(parser_material_parsed, w) == -1) {
+		any_array_push(parser_material_parsed, w);
+		parser_material_write(parser_material_kong, string_tmp("float2 %s = float2(%s.x - floor(%s.x), %s.y - floor(%s.y));", w, raw, raw, raw, raw));
+	}
+	return w;
+}
+
+static ui_node_socket_t *make_image_node_vector_input(ui_node_t *node, i32 vector_input) {
+	// A node saved with fewer inputs than its definition (an older save, see make_image_node_reconcile): the Vector is unlinked
+	return vector_input >= 0 && vector_input < node->inputs->length ? node->inputs->buffer[vector_input] : NULL;
+}
+
+// The float2 coordinate expression of the node as a shader text, see above. Out: the unwrapped coordinate (may be NULL).
+char *make_image_node_coord(ui_node_t *node, i32 vector_input, bool wrap, char **unwrapped) {
+	ui_node_socket_t *vector = make_image_node_vector_input(node, vector_input);
+	char             *name   = parser_material_store_var_name(node);
+	if (vector != NULL && parser_material_get_input_link(vector) != NULL) {
+		return make_image_node_coord_of(name, parser_material_parse_vector_input(vector), true, wrap, unwrapped);
+	}
+	if (!parser_material_image_space) {
+		node_shader_context_add_elem(parser_material_kong->context, "tex", "short2norm");
+	}
+	return make_image_node_coord_of(name, "tex_coord", false, wrap, unwrapped);
+}
+
+// Evaluates the pattern of the node (value_at: a float expression for a given coordinate) and returns the name of the float variable that holds it,
+// written once under `store`. value_at(node, uv, uv_unwrapped, store) gets the coordinate and its unwrapped form (for derivatives) and the name to
+// prefix its own variables with. Unlinked Vector under triplanar projection (a mesh, not a capture): one evaluation per projection (tex_coord,
+// tex_coord1, tex_coord2) blended with tex_coord_blend, like Image Texture. A linked Vector is one expression and is evaluated once, as upstream does.
+char *make_image_node_eval_coord(ui_node_t *node, i32 vector_input, bool wrap, char *store, char *(*value_at)(ui_node_t *node, char *uv, char *uv_unwrapped, char *store)) {
+	if (string_array_index_of(parser_material_parsed, store) >= 0) {
+		return store;
+	}
+	any_array_push(parser_material_parsed, store);
+	ui_node_socket_t *vector = make_image_node_vector_input(node, vector_input);
+	bool              linked = vector != NULL && parser_material_get_input_link(vector) != NULL;
+	if (!linked && parser_material_triplanar && !parser_material_image_space) {
+		node_shader_context_add_elem(parser_material_kong->context, "tex", "short2norm");
+		char *sources[3] = {"tex_coord", "tex_coord1", "tex_coord2"};
+		for (i32 k = 0; k < 3; ++k) {
+			char *part      = string_tmp("%s%d", store, k);
+			char *unwrapped = NULL;
+			char *uv        = make_image_node_coord_of(part, sources[k], false, wrap, &unwrapped);
+			parser_material_write(parser_material_kong, string_tmp("float %s = %s;", part, value_at(node, uv, unwrapped, part)));
+		}
+		parser_material_write(parser_material_kong, string_tmp("float %s = %s0 * tex_coord_blend.x + %s1 * tex_coord_blend.y + %s2 * tex_coord_blend.z;", store, store, store, store));
+		return store;
+	}
+	char *unwrapped = NULL;
+	char *uv        = make_image_node_coord(node, vector_input, wrap, &unwrapped);
+	parser_material_write(parser_material_kong, string_tmp("float %s = %s;", store, value_at(node, uv, unwrapped, store)));
+	return store;
+}
+// ---- end of the coordinate block ----
+
 // Setting (button) of an image node definition, data holds the items of an ENUM
 ui_node_button_t *make_image_node_setting(char *name, char *type, f32 default_value, char *data) {
 	return ALLOC_INIT(ui_node_button_t, {.name          = name,
@@ -1344,14 +1554,16 @@ ui_node_button_t *make_image_node_state_button() {
 	                                     .height        = 1});
 }
 
-// Registers the sections of an image node type. Every row of the node is in a section, in this order of the list (= flag bits 8, 9, ...):
-// 0 Texture: the Size setting and the state row, the first two buttons of every image node, closed by default. It is drawn LAST, below the
-//   inputs and the other sections (after_inputs): the list index and the flag bit stay 0, only the place on the node differs (decided 2026-11-20).
-// 1 General: a mixed section (one header) with all the other buttons and the first n_general_inputs inputs, open by default.
+// Registers the sections of an image node type. The list is in DISPLAY order and its index is the flag bit (8 + index) of the section:
+// 0 General: a mixed section (one header) with all the buttons but the first two and the first n_general_inputs inputs, open by default.
 // then the own sections (own, may be NULL) of the node: ranges of the other inputs; without own sections the remaining inputs
 // (from n_general_inputs on) form one open section Parameters.
+// last Texture: the Size setting and the state row, the first two buttons of every image node, closed by default. These two buttons head the
+//   button list of the definition, so the section is drawn below the inputs (after_inputs) although they come first in the node definition.
 // n_general_inputs < 0 leaves the node without General and Parameters (Seamless: Image and Blend Width stay plain rows).
 // The ranges are by index in the node def, so the button and input order of the def must be: Size, state row, settings; general inputs first.
+// The table order replaced Texture, General, ... (decided 2026-11-21): a node saved with that order is remapped once on load
+// (make_image_node_sections_remap).
 void make_image_node_sections(ui_node_t *def, ui_node_section_t *own, i32 own_count, i32 n_general_inputs) {
 	i32                n_buttons = def->buttons->length;
 	i32                n_inputs  = def->inputs->length;
@@ -1359,7 +1571,6 @@ void make_image_node_sections(ui_node_t *def, ui_node_section_t *own, i32 own_co
 	bool               params    = general && own_count == 0 && n_inputs > n_general_inputs;
 	ui_node_section_t *list      = calloc(own_count + 4, sizeof(ui_node_section_t));
 	i32                n         = 0;
-	list[n++]                    = (ui_node_section_t){.title = _tr("Texture"), .kind = UI_NODE_ITEM_BUTTON, .first = 0, .count = 2, .closed_by_default = true, .after_inputs = true};
 	if (general) {
 		list[n++] = (ui_node_section_t){.title             = _tr("General"),
 		                                .kind              = UI_NODE_ITEM_BUTTON,
@@ -1375,5 +1586,35 @@ void make_image_node_sections(ui_node_t *def, ui_node_section_t *own, i32 own_co
 	if (params) {
 		list[n++] = (ui_node_section_t){.title = _tr("Parameters"), .kind = UI_NODE_ITEM_INPUT, .first = n_general_inputs, .count = n_inputs - n_general_inputs, .closed_by_default = false};
 	}
+	list[n++] = (ui_node_section_t){.title = _tr("Texture"), .kind = UI_NODE_ITEM_BUTTON, .first = 0, .count = 2, .closed_by_default = true, .after_inputs = true};
 	any_map_set(ui_nodes_sections, def->type, list); // The list ends with the zeroed entry
+}
+
+// Section bits (flag bit 8 + index) of an image node saved with the old table order (Texture first: Texture, General, own sections,
+// Parameters) in the order of the table now (Texture last): bit i of the old order moves to i - 1, the Texture bit 0 to count - 1.
+// count is the number of sections of the node type. A flags value that has the marker UI_NODE_FLAG_SECTIONS_V2 (bit 7) is of the new
+// order and returned as is; otherwise the bits are remapped and the marker set, so the remap runs once and is idempotent.
+u32 make_image_node_sections_remap_flags(u32 flags, i32 count) {
+	if ((flags & UI_NODE_FLAG_SECTIONS_V2) != 0 || count < 1 || count > UI_NODE_SECTIONS_MAX) {
+		return flags;
+	}
+	u32 mask = ((u32)1 << count) - 1;
+	u32 old  = (flags >> 8) & mask;
+	u32 now  = (old >> 1) | ((old & 1) << (count - 1));
+	return (flags & ~(mask << 8)) | (now << 8) | UI_NODE_FLAG_SECTIONS_V2;
+}
+
+// Applies make_image_node_sections_remap_flags to a node of an image node type (the last section of its table is Texture, drawn below the
+// inputs). Called wherever the sections of a node are looked up, before any bit is read; a node of another type is left alone.
+void make_image_node_sections_remap(ui_node_t *node, const ui_node_section_t *list) {
+	if (list == NULL || (node->flags & UI_NODE_FLAG_SECTIONS_V2) != 0) {
+		return;
+	}
+	i32 count = 0;
+	while (list[count].title != NULL && count < UI_NODE_SECTIONS_MAX) {
+		count++;
+	}
+	if (count > 0 && list[count - 1].after_inputs) {
+		node->flags = make_image_node_sections_remap_flags(node->flags, count);
+	}
 }
