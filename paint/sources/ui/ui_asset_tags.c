@@ -105,6 +105,29 @@ bool ui_asset_tags_any(i32 category) {
 	return ui_asset_tags_in_use(category)->length > 0;
 }
 
+// The sticky row of an asset tray: `buttons` cells of width `button_w`, a search cell of width `search_w` when it is not 0, the tag filter cell when a tag is in use in the
+// category and the clear search cell when `clear_search`. The cells are laid out in the order the tray draws them. The row lives in the per frame tmp memory and is
+// valid until the end of the frame (ui_row only needs it until the row ends)
+f32_array_t *ui_asset_tray_row(i32 category, i32 buttons, f32 button_w, f32 search_w, bool clear_search) {
+	bool tags = ui_asset_tags_any(category);
+	i32  n    = buttons + (search_w != 0 ? 1 : 0) + (tags ? 1 : 0) + (clear_search ? 1 : 0);
+	f32_array_t *row = f32_array_create_from_raw_tmp(NULL, n);
+	i32          i   = 0;
+	for (; i < buttons; ++i) {
+		row->buffer[i] = button_w;
+	}
+	if (search_w != 0) {
+		row->buffer[i++] = search_w;
+	}
+	if (tags) {
+		row->buffer[i++] = -150; // Tags filter
+	}
+	if (clear_search) {
+		row->buffer[i++] = -40; // Clear search
+	}
+	return row;
+}
+
 // Draws the tag filter combo of a category as one cell of the tray row, only when a tag is in use there (otherwise draws nothing).
 // The row must have a cell for it when ui_asset_tags_any is true. Call it every frame before ui_asset_tags_visible. Returns true when the combo was drawn
 bool ui_asset_tags_filter(i32 category) {
@@ -125,10 +148,10 @@ bool ui_asset_tags_filter(i32 category) {
 	if (tags->length == 0) {
 		return false;
 	}
-	string_array_t *texts = string_array_create(0);
-	string_array_push(texts, tr("All"));
+	string_array_t *texts = any_array_create_from_raw_tmp(NULL, tags->length + 1); // Per frame list, the combo copies the texts it opens with
+	texts->buffer[0]      = tr("All");
 	for (i32 i = 0; i < tags->length; ++i) {
-		string_array_push(texts, tags->buffer[i]);
+		texts->buffer[i + 1] = tags->buffer[i];
 	}
 	ui_combo(&idx, texts, tr("Tags"), false, UI_ALIGN_LEFT, true);
 	if (ui_item_changed()) { // Copied only on change, the combo runs every frame

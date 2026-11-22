@@ -66,17 +66,7 @@ void tab_fonts_draw(i32 *htab) {
 
 		ui_begin_sticky();
 
-		f32_array_t *row = f32_array_create(0);
-		f32_array_push(row, -100);
-		f32_array_push(row, -100);
-		f32_array_push(row, -200); // Search
-		if (ui_asset_tags_any(MC_FONT)) {
-			f32_array_push(row, -150); // Tags filter
-		}
-		if (!string_equals(tab_fonts_search, "")) {
-			f32_array_push(row, -40); // Clear search
-		}
-		ui_row(row);
+		ui_row(ui_asset_tray_row(MC_FONT, 2, -100, -200, !string_equals(tab_fonts_search, "")));
 
 		if (ui_icon_button(tr("Import"), ICON_IMPORT, UI_ALIGN_CENTER)) {
 			project_import_asset("ttf,ttc,otf", true);
