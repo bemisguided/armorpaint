@@ -90,6 +90,7 @@ typedef struct make_image_node_state {
 	f64                stat_bake_ms;         // Time of the last bake (process and upload)
 #endif
 	gpu_texture_t     *pending_target; // Result by reference: the rendered result waits for the debounce (it replaces the result at the bake)
+	gpu_texture_t     *pending_second; // Result by reference with second_result: the second result (key "<id>_2") that waits with it
 	i32                gpu_renders;    // Result by reference: renders of this node since the start (a test hook, make_image_node_gpu_stat)
 	f64                gpu_render_ms;  // Result by reference: time of the last capture that rendered (shader, hash, pass), see make_image_node_gpu_stat
 	f64                gpu_pass_ms;    // Result by reference: time of the pass of that render alone
@@ -129,6 +130,7 @@ static ui_node_t_array_t       *make_image_node_capture_parents = NULL;
 static i32                      make_image_node_capture_input   = 0; // Input of make_image_node_input_value
 static i32                      make_image_node_capture_k       = 0; // Capture of a type with several, see make_image_node_capture_index
 static void                    *make_image_node_capture_params_ptr = NULL; // See make_image_node_capture_params
+static gpu_texture_t           *make_image_node_gpu_second_result = NULL; // Set by gpu_bake of a second_result type, see make_image_node_gpu_set_second
 static u64                      make_image_node_capture_skip_hash = 0; // Capture shader text hash that needs no render (0: always render), see make_image_node_capture_shader
 
 static void make_image_node_update(void *_);
@@ -214,6 +216,10 @@ static void make_image_node_clear_pending(make_image_node_state_t *s) {
 	if (s->pending_target != NULL) {
 		gpu_delete_texture(s->pending_target);
 		s->pending_target = NULL;
+	}
+	if (s->pending_second != NULL) {
+		gpu_delete_texture(s->pending_second);
+		s->pending_second = NULL;
 	}
 	s->pending_pixels = NULL;
 	s->pending_bytes  = 0;
@@ -440,7 +446,17 @@ static shader_context_t *make_image_node_capture_shader(ui_node_t *node, char *(
 // (render_path_get_tex_format names), one per target. make_image_node_gpu_pass binds the inputs and the floats of the uniforms in the order
 // of these lists. Free with make_image_node_gpu_shader_free.
 shader_context_t *make_image_node_gpu_shader(char *body, char **inputs, i32 input_count, char **uniforms, i32 uniform_count, char **formats, i32 target_count) {
+	return make_image_node_gpu_shader_with_functions(NULL, body, inputs, input_count, uniforms, uniform_count, formats, target_count);
+}
+
+// The same with helper functions: functions is kong source of one or more functions (float f(float a) { ... }, hash helpers, a sampler written once)
+// that the body calls; NULL for none. A function cannot take a texture, the body reads the textures.
+shader_context_t *make_image_node_gpu_shader_with_functions(char *functions, char *body, char **inputs, i32 input_count, char **uniforms, i32 uniform_count, char **formats,
+                                                            i32 target_count) {
 	make_image_node_pass_t p = make_image_node_pass_begin(formats, target_count);
+	if (functions != NULL) {
+		node_shader_add_function(p.kong, functions);
+	}
 	for (i32 i = 0; i < input_count; ++i) {
 		node_shader_add_texture(p.kong, inputs[i], NULL);
 	}
@@ -454,6 +470,12 @@ shader_context_t *make_image_node_gpu_shader(char *body, char **inputs, i32 inpu
 
 void make_image_node_gpu_shader_free(shader_context_t *shader) {
 	make_material_delete_context(shader); // The pipeline may still be in use by this frame: deleted on the next one
+}
+
+// A gpu_bake of a type with second_result hands over the render target of the second result (key "<preview id>_2", same size) here before it returns
+// the first one; the shared pass keeps both pending together and swaps both in at the bake. Not called: a second_result node fails the render.
+void make_image_node_gpu_set_second(gpu_texture_t *second) {
+	make_image_node_gpu_second_result = second;
 }
 
 // Number of floats of a constant type of make_image_node_gpu_shader (0 for a type it does not set)
@@ -1055,14 +1077,26 @@ static bool make_image_node_capture_reference(make_image_node_state_t *s, char *
 	for (i32 k = 0; k < count; ++k) {
 		failed = failed || targets[k] == NULL;
 	}
+	gpu_texture_t *second = NULL;
 	if (t->gpu_bake != NULL && !failed) {
-		result = t->gpu_bake(node, size, params, targets, count);
+		make_image_node_gpu_second_result = NULL;
+		result                            = t->gpu_bake(node, size, params, targets, count);
+		second                            = make_image_node_gpu_second_result;
+		make_image_node_gpu_second_result = NULL;
 		for (i32 k = 0; k < count; ++k) {
 			if (targets[k] != result) {
 				gpu_delete_texture(targets[k]); // The captures are inputs of the passes, the result is what gpu_bake returned
 			}
 		}
-		failed = result == NULL;
+		failed = result == NULL || (t->second_result && second == NULL);
+		if (failed && second != NULL && second != result) {
+			gpu_delete_texture(second);
+			second = NULL;
+		}
+		if (failed && result != NULL && second == NULL && t->second_result) {
+			gpu_delete_texture(result); // A second_result node without its second result is no result
+			result = NULL;
+		}
 	}
 	else if (failed) {
 		for (i32 k = 0; k < count; ++k) {
@@ -1088,6 +1122,7 @@ static bool make_image_node_capture_reference(make_image_node_state_t *s, char *
 		iron_log("[image node] render %s %d x %d %.3f ms (passes %.3f ms)", id, size, size, s->gpu_render_ms, s->gpu_pass_ms);
 	}
 	s->pending_target    = result;
+	s->pending_second    = second;
 	s->pending_size      = size;
 	s->pending_signature = sig;
 	s->pending           = true;
@@ -1312,7 +1347,16 @@ static void make_image_node_bake_reference(make_image_node_state_t *s, char *id)
 		gpu_delete_texture(old);
 	}
 	any_map_set(g_context->node_previews, string_copy(id), s->pending_target);
-	s->pending_target  = NULL; // The result owns it now
+	s->pending_target = NULL; // The result owns it now
+	if (s->pending_second != NULL) {
+		char          *id2  = string_tmp("%s_2", id);
+		gpu_texture_t *old2 = any_map_get(g_context->node_previews, id2);
+		if (old2 != NULL && old2 != s->pending_second) {
+			gpu_delete_texture(old2);
+		}
+		any_map_set(g_context->node_previews, string_copy(id2), s->pending_second);
+		s->pending_second = NULL;
+	}
 	s->has_baked       = true;
 	s->baked_signature = s->pending_signature;
 	s->failed          = false;
@@ -1844,7 +1888,7 @@ void make_image_node_on_traverse(ui_node_t *node, ui_node_canvas_t *group, ui_no
 	any_array_push(g_context->node_previews_used, id); // Keeps the baked result
 	make_image_node_state_t *s = make_image_node_get_state(id, node);
 	if (s->type != NULL && (s->type->second_result || s->type->image_input2 != NULL)) {
-		any_array_push(g_context->node_previews_used, make_image_node_plane_id(id, 1)); // Keeps the second result or capture
+		any_array_push(g_context->node_previews_used, make_image_node_plane_id(id, 1)); // Keeps the second result or the second capture (key "<id>_2")
 	}
 	if (linked) {
 		return; // A stroke changes layers, never the image space input (Layer nodes are neutral there)

@@ -1210,6 +1210,7 @@ typedef struct image_node_type {
 	// make_image_node_ping_pong_t for passes that read the one before) and returns the render target of the result (result_format, size x size):
 	// a new target or one of the captures. The shared pass deletes the other captures. NULL = failed (Console error, not retried for this
 	// signature). The node is the node of the capture: read its settings from params, not from the node. NULL: the result is capture 0 itself.
+	// A type with second_result hands over the target of its second result (RGBA64 or any format, size x size) with make_image_node_gpu_set_second before returning.
 	gpu_texture_t *(*gpu_bake)(ui_node_t *node, i32 size, void *params, gpu_texture_t **captures, i32 count);
 	// false: the result is read at the nearest texel (ids, labels, anything that must not blend). true: cubic on the mesh
 	// (bilinear in a capture), for smooth results (blurs, edges) that would show texel steps and slope jumps when magnified.

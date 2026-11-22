@@ -1191,7 +1191,9 @@ f64                       make_image_node_test_gpu_pass(i32 which, i32 x, i32 y,
 void                      make_image_node_test_register();
 #endif
 shader_context_t         *make_image_node_gpu_shader(char *body, char **inputs, i32 input_count, char **uniforms, i32 uniform_count, char **formats, i32 target_count);
+shader_context_t         *make_image_node_gpu_shader_with_functions(char *functions, char *body, char **inputs, i32 input_count, char **uniforms, i32 uniform_count, char **formats, i32 target_count);
 void                      make_image_node_gpu_shader_free(shader_context_t *shader);
+void                      make_image_node_gpu_set_second(gpu_texture_t *second);
 void                      make_image_node_gpu_pass(shader_context_t *shader, gpu_texture_t **targets, i32 target_count, gpu_texture_t **inputs, i32 input_count, f32 *uniforms);
 make_image_node_ping_pong_t make_image_node_ping_pong_create(i32 size, gpu_texture_format_t format);
 gpu_texture_t            *make_image_node_ping_pong_src(make_image_node_ping_pong_t *pp);
