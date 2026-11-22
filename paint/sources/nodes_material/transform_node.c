@@ -114,7 +114,7 @@ static char *transform_node_write_wrap(char *idx, char *vec, char *n, i32 tiling
 }
 
 // The float4 variable of the node's image input at the transformed coordinate, once per node. The texture is the capture of the Image input
-// (or the result of the baked node it is linked to), read at texel centres with sample_lod and the one linear sampler, which then never
+// (or the result of the baked node it is linked to), read at texel centres with sample_lod and sampler_point (an exact load), which then never
 // blends two texels itself. Black until the first capture.
 static char *transform_node_sample(ui_node_t *node) {
 	char *var      = string_tmp("%s_input", parser_material_store_var_name(node));
@@ -216,13 +216,13 @@ static char *transform_node_sample(ui_node_t *node) {
 			transform_node_write(string_tmp("%s = %s * %s;", wx, wx, masks[a])); // None: a texel outside has no weight
 		}
 	}
-	char *fetch_fmt = "sample_lod(%s, sampler_linear, float2(%s + 0.5, %s + 0.5) / %s_n, 0.0)";
+	char *fetch_fmt = "sample_lod(%s, sampler_point, float2(%s + 0.5, %s + 0.5) / %s_n, 0.0)";
 	if (filter == IMAGE_FILTER_NEAREST) {
 		char *mask = "";
 		if (masks[0] != NULL) {
 			mask = string_tmp(" * %s * %s", masks[0], masks[1]);
 		}
-		transform_node_write(string_tmp("float4 %s = sample_lod(%s, sampler_linear, float2(%s_ix + 0.5, %s_iy + 0.5) / %s_n, 0.0)%s;", var, tex_name, var, var, var, mask));
+		transform_node_write(string_tmp("float4 %s = sample_lod(%s, sampler_point, float2(%s_ix + 0.5, %s_iy + 0.5) / %s_n, 0.0)%s;", var, tex_name, var, var, var, mask));
 		return var;
 	}
 	for (i32 j = 0; j < taps; ++j) {
