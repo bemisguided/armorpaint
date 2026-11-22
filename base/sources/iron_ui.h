@@ -504,13 +504,13 @@ typedef enum ui_node_flag {
 	UI_NODE_FLAG_COLLAPSED = 1,
 	UI_NODE_FLAG_PREVIEW   = 2,
 	UI_NODE_FLAG_CODE_HIDE = 4,
-	// Marker of the section bits (8 and up): set = they follow the table order of today (image nodes: Texture last), clear = a node saved before
-	// the order was changed (Texture first), remapped once on load by make_image_node_sections_remap. Every node of the new layout carries it.
-	UI_NODE_FLAG_SECTIONS_V2 = 128,
 	// Bits 8 and up: section n (ui_node_section_t, index in the list of its node type) uses bit 8 + n, at most UI_NODE_SECTIONS_MAX sections.
 	// A set bit means "toggled away from the default of the section" (closed_by_default), so 0, the value of every node saved before and of every new node,
 	// is the default state of all sections. Presentation only: no undo step, no compile, no format change (flags is saved as is).
 	UI_NODE_FLAG_SECTION_0 = 256,
+	// Marker of the section bits (8 and up): set = they follow the table order of today (image nodes: Texture last), clear = a node saved before
+	// the order was changed (Texture first), remapped once on load by make_image_node_sections_remap. Every node of the new layout carries it.
+	UI_NODE_FLAG_SECTIONS_V2 = 128,
 } ui_node_flag_t;
 
 #define UI_NODE_SECTIONS_MAX 23
