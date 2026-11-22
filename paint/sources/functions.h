@@ -1005,11 +1005,25 @@ char                     *make_image_node_sample(ui_node_t *node);
 char                     *make_image_node_sample_at(ui_node_t *node, char *uv, i32 filter);
 char                     *make_image_node_sample_input_at(ui_node_t *node, char *uv, i32 filter);
 char                     *make_image_node_bind_input(ui_node_t *node);
+char                     *make_image_node_fetch_input(ui_node_t *node, i32 plane, char *var, char *uv, i32 filter, bool wrap);
 f64                       make_image_node_pass_through_info(ui_node_t *node, i32 which);
 ui_node_button_t         *make_image_node_capture_size_setting();
 void                      make_image_node_sections_capture(ui_node_t *def, ui_node_section_t *own, i32 own_count, i32 n_general_inputs);
 void                      make_image_node_regenerate();
 i32                       make_image_node_capture_count();
+f64                       make_image_node_gpu_stat(ui_node_t *node, i32 which);
+#ifdef ARMORPAINT_TEST_NATIVES
+f64                       make_image_node_test_gpu_pass(i32 which, i32 x, i32 y, i32 channel);
+void                      make_image_node_test_register();
+#endif
+shader_context_t         *make_image_node_gpu_shader(char *body, char **inputs, i32 input_count, char **uniforms, i32 uniform_count, char **formats, i32 target_count);
+void                      make_image_node_gpu_shader_free(shader_context_t *shader);
+void                      make_image_node_gpu_pass(shader_context_t *shader, gpu_texture_t **targets, i32 target_count, gpu_texture_t **inputs, i32 input_count, f32 *uniforms);
+make_image_node_ping_pong_t make_image_node_ping_pong_create(i32 size, gpu_texture_format_t format);
+gpu_texture_t            *make_image_node_ping_pong_src(make_image_node_ping_pong_t *pp);
+gpu_texture_t            *make_image_node_ping_pong_dst(make_image_node_ping_pong_t *pp);
+void                      make_image_node_ping_pong_swap(make_image_node_ping_pong_t *pp);
+void                      make_image_node_ping_pong_free(make_image_node_ping_pong_t *pp, gpu_texture_t *keep);
 ui_node_button_t         *make_image_node_state_button();
 void                      make_image_node_sections(ui_node_t *def, ui_node_section_t *own, i32 own_count, i32 n_general_inputs);
 u32                       make_image_node_sections_remap_flags(u32 flags, i32 count);

@@ -76,6 +76,10 @@ typedef struct make_image_node_state {
 	u32                captured_asset_version;
 	bool               cycle_seen;    // The running capture sampled a node that depends on this node, see make_image_node_edge_cyclic
 	bool               cycle_told;    // The Console told about the loop this node is in
+	gpu_texture_t     *pending_target; // Result by reference: the rendered result waits for the debounce (it replaces the result at the bake)
+	i32                gpu_renders;    // Result by reference: renders of this node since the start (a test hook, make_image_node_gpu_stat)
+	f64                gpu_render_ms;  // Result by reference: time of the last capture that rendered (shader, hash, pass), see make_image_node_gpu_stat
+	f64                gpu_pass_ms;    // Result by reference: time of the pass of that render alone
 	// Pass-through with capture (image_node_type_t.pass_through_capture): the capture render target is node_previews[id]
 	bool               capture_valid;   // The target holds the render of the shader with capture_hash
 	u64                capture_hash;    // Hash of the text of the shader that rendered it
@@ -84,6 +88,11 @@ typedef struct make_image_node_state {
 	char              *direct_id;       // Preview id of that baked node while direct (the test hooks read its result as the node's image)
 	i32                capture_renders; // Renders of the capture since the state exists (make_image_node_pass_through_info)
 	i32                capture_skips;   // Captures that found the shader text unchanged and kept the target
+	// The second capture (image_node_type_t.image_input2): the same four fields for node_previews[id + "_2"]
+	bool               capture2_valid;
+	u64                capture2_hash;
+	bool               direct2;
+	char              *direct2_id;
 } make_image_node_state_t;
 
 // An image node of a material, found by make_image_node_collect
@@ -189,6 +198,10 @@ static void make_image_node_clear_upstream(make_image_node_state_t *s) {
 static void make_image_node_clear_pending(make_image_node_state_t *s) {
 	make_image_node_plane_free(s->pending_pixels, s->pending_bytes);
 	free(s->pending_params);
+	if (s->pending_target != NULL) {
+		gpu_delete_texture(s->pending_target);
+		s->pending_target = NULL;
+	}
 	s->pending_pixels = NULL;
 	s->pending_bytes  = 0;
 	s->pending_params = NULL;
@@ -198,6 +211,7 @@ static void make_image_node_clear_pending(make_image_node_state_t *s) {
 static void make_image_node_free_state(make_image_node_state_t *s) {
 	make_image_node_clear_pending(s);
 	free(s->direct_id);
+	free(s->direct2_id);
 	if (s->upstream != NULL) {
 		make_image_node_clear_upstream(s);
 		array_free(s->upstream);
@@ -318,12 +332,26 @@ static void make_image_node_parser_scope() {
 	}
 }
 
-// Shader evaluating expr(node) over the image square: a full screen triangle with tex_coord = the image uv,
-// [0, 1] across the target, no mesh (parser_material_image_space gives mesh based inputs a neutral value).
-// The node writes the expression while make_image_node_capturing is set. The hash of the shader text is left in
-// make_image_node_capture_text_hash; when make_image_node_capture_skip_hash is set and equals it NULL is returned without
-// compiling (the pass-through captures keep their render when the text did not change).
-static shader_context_t *make_image_node_capture_shader(ui_node_t *node, char *(*expr)(ui_node_t *), char *format) {
+// ---- GPU passes ----
+// Every GPU render of an image node is a full screen pass: one triangle over the target, tex_coord = the image uv ([0, 1] across the
+// target, uv (0, 0) at the top left like the paint uvs), no mesh. The capture of an input graph is one (make_image_node_capture_shader draws the
+// expression of the node); the GPU baked nodes (the section GPU baked nodes of IMAGE_NODES.md) draw their own passes with
+// make_image_node_gpu_shader and make_image_node_gpu_pass, chained over a ping-pong pair when a pass reads the one before.
+
+// A pass shader being written: the kong shader and the contexts that end it
+typedef struct make_image_node_pass {
+	node_shader_context_t *con;
+	node_shader_t         *kong;
+	material_t            *data;
+} make_image_node_pass_t;
+
+// Starts a full screen pass shader writing count targets of the named formats (render_path_get_tex_format names: RGBA128, RGBA64,
+// R32, R16, R8, RGBA32). The vertex stage and tex_coord are written, the caller writes the fragment stage (node_shader_write_frag, frag_out)
+static make_image_node_pass_t make_image_node_pass_begin(char **formats, i32 count) {
+	any_array_t *attachments = any_array_create_from_raw((void *[]){}, 0);
+	for (i32 i = 0; i < count; ++i) {
+		any_array_push(attachments, formats[i]);
+	}
 	shader_context_t      *props = ALLOC_INIT(shader_context_t, {.name            = "mesh",
 	                                                             .depth_write     = false,
 	                                                             .compare_mode    = "always",
@@ -336,49 +364,197 @@ static shader_context_t *make_image_node_capture_shader(ui_node_t *node, char *(
 	                                                                     ALLOC_INIT(vertex_element_t, {.name = "col", .data = "short4norm"}),
 	                                                                 },
 	                                                                 4),
-	                                                             .color_attachments = any_array_create_from_raw(
-	                                                                 (void *[]){
-	                                                                     format,
-	                                                                 },
-	                                                                 1)});
-	material_t            *data  = ALLOC_INIT(material_t, {.name = "Material", .canvas = g_context->material->canvas});
-	node_shader_context_t *con   = node_shader_context_create(data, props);
-	node_shader_t         *kong  = node_shader_context_make_kong(con);
-	// util_render_screen_aligned_full_vb: one triangle covering the target, uv (0, 0) at the top left like the paint uvs
-	node_shader_write_attrib_vert(kong, "output.pos = float4(input.pos.xy * 3.0, 0.0, 1.0);");
-	node_shader_add_out(kong, "float2 tex_coord");
-	node_shader_write_attrib_vert(kong, "output.tex_coord = float2(output.pos.x * 0.5 + 0.5, 0.5 - output.pos.y * 0.5);");
-	node_shader_write_attrib_frag(kong, "float2 tex_coord = input.tex_coord;");
+	                                                             .color_attachments = attachments});
+	make_image_node_pass_t p     = {0};
+	p.data                       = ALLOC_INIT(material_t, {.name = "Material", .canvas = g_context->material->canvas});
+	p.con                        = node_shader_context_create(p.data, props);
+	p.kong                       = node_shader_context_make_kong(p.con);
+	// util_render_screen_aligned_full_vb: one triangle covering the target
+	node_shader_write_attrib_vert(p.kong, "output.pos = float4(input.pos.xy * 3.0, 0.0, 1.0);");
+	node_shader_add_out(p.kong, "float2 tex_coord");
+	node_shader_write_attrib_vert(p.kong, "output.tex_coord = float2(output.pos.x * 0.5 + 0.5, 0.5 - output.pos.y * 0.5);");
+	node_shader_write_attrib_frag(p.kong, "float2 tex_coord = input.tex_coord;");
+	return p;
+}
 
+// Ends a pass shader: compiles it into a shader context. The xxHash64 of the shader text is left in make_image_node_capture_text_hash; when
+// make_image_node_capture_skip_hash is set and equals it NULL is returned without compiling (the pass-through captures keep their render
+// when the text did not change). A result by reference node reads the hash for its signature.
+static shader_context_t *make_image_node_pass_end(make_image_node_pass_t *p) {
+	char *source = node_shader_get(p->kong);
+	make_image_node_capture_text_hash = make_image_node_hash(0, source, string_length(source));
+	p->con->data->shader_from_source = true;
+	if (make_image_node_capture_skip_hash != 0 && make_image_node_capture_text_hash == make_image_node_capture_skip_hash) {
+		node_shader_context_free(p->con);
+		free(p->data);
+		return NULL;
+	}
+	gpu_create_shaders_from_kong(source, &p->con->data->vertex_shader, &p->con->data->fragment_shader, &p->con->data->_->vertex_shader_size,
+	                             &p->con->data->_->fragment_shader_size);
+	shader_context_load(p->con->data);
+	shader_context_t *scon = p->con->data;
+	node_shader_context_free(p->con);
+	free(p->data);
+	return scon;
+}
+
+// Shader evaluating expr(node) over the image square: a full screen pass (see above), mesh based inputs get a neutral value
+// (parser_material_image_space). The node writes the expression while make_image_node_capturing is set. The hash of the shader text is left
+// in make_image_node_capture_text_hash; when make_image_node_capture_skip_hash is set and equals it NULL is returned without compiling.
+static shader_context_t *make_image_node_capture_shader(ui_node_t *node, char *(*expr)(ui_node_t *), char *format) {
+	make_image_node_pass_t p = make_image_node_pass_begin(&format, 1);
 	parser_material_init();
 	make_image_node_parser_scope();
-	parser_material_con                   = con;
-	parser_material_kong                  = kong;
+	parser_material_con                   = p.con;
+	parser_material_kong                  = p.kong;
 	parser_material_image_space           = true;
 	parser_material_transform_color_space = false;
 	char *res                             = expr(node);
 	parser_material_transform_color_space = true;
 	parser_material_image_space           = false;
 
-	kong->frag_out = "float4";
-	node_shader_write_frag(kong, string_tmp("output = %s;", res));
-	parser_material_finalize(con);
-	con->data->shader_from_source = true;
-	char *text = node_shader_get(kong);
-	make_image_node_capture_text_hash = make_image_node_hash(0, text, string_length(text));
-	if (make_image_node_capture_skip_hash != 0 && make_image_node_capture_text_hash == make_image_node_capture_skip_hash) {
-		// Same text as the render the caller kept: no compile, no render
-		node_shader_context_free(con);
-		free(data);
-		return NULL;
+	p.kong->frag_out = "float4";
+	node_shader_write_frag(p.kong, string_tmp("output = %s;", res));
+	parser_material_finalize(p.con);
+	return make_image_node_pass_end(&p);
+}
+
+// A hand written fragment pass of a GPU baked node (an Advanced Blur stage, the Edge Detect Sobel, a reduction step). body is kong fragment
+// code: it reads tex_coord (the image uv of the target pixel) and writes output (one target) or output[0], output[1], ... (target_count > 1);
+// all float4, a single channel target keeps R. inputs names the textures it reads (sample_lod(name, sampler_linear, uv, 0.0)), uniforms the
+// constants it reads, each "float4 name" (types float, float2, float3, float4; in the code constants.name). formats are the target formats
+// (render_path_get_tex_format names), one per target. make_image_node_gpu_pass binds the inputs and the floats of the uniforms in the order
+// of these lists. Free with make_image_node_gpu_shader_free.
+shader_context_t *make_image_node_gpu_shader(char *body, char **inputs, i32 input_count, char **uniforms, i32 uniform_count, char **formats, i32 target_count) {
+	make_image_node_pass_t p = make_image_node_pass_begin(formats, target_count);
+	for (i32 i = 0; i < input_count; ++i) {
+		node_shader_add_texture(p.kong, inputs[i], NULL);
 	}
-	gpu_create_shaders_from_kong(text, &con->data->vertex_shader, &con->data->fragment_shader, &con->data->_->vertex_shader_size,
-	                             &con->data->_->fragment_shader_size);
-	shader_context_load(con->data);
-	shader_context_t *scon = con->data;
-	node_shader_context_free(con);
-	free(data);
-	return scon;
+	for (i32 i = 0; i < uniform_count; ++i) {
+		node_shader_add_constant(p.kong, uniforms[i], NULL);
+	}
+	p.kong->frag_out = target_count > 1 ? string_tmp("float4[%d]", target_count) : "float4";
+	node_shader_write_frag(p.kong, body);
+	return make_image_node_pass_end(&p);
+}
+
+void make_image_node_gpu_shader_free(shader_context_t *shader) {
+	make_material_delete_context(shader); // The pipeline may still be in use by this frame: deleted on the next one
+}
+
+// Number of floats of a constant type of make_image_node_gpu_shader (0 for a type it does not set)
+static i32 make_image_node_uniform_floats(char *type) {
+	if (string_equals(type, "float")) {
+		return 1;
+	}
+	if (string_equals(type, "float2")) {
+		return 2;
+	}
+	if (string_equals(type, "float3")) {
+		return 3;
+	}
+	return string_equals(type, "float4") ? 4 : 0;
+}
+
+// Draws one full screen pass of shader into targets (target_count render targets written at once: MRT, all of one size), reading the
+// textures inputs (bound in the order the shader lists them in make_image_node_gpu_shader; NULL and 0 for the shader of an input graph)
+// and the floats of uniforms (consumed by the constants of the shader that carry no link, in their order; NULL for none). The targets
+// are cleared to 0 first. Nothing is read back: the targets stay on the GPU and the next pass reads them. The shader is NOT freed, a node runs it for
+// every pass of its algorithm (make_image_node_gpu_shader_free). Call it where a capture runs, with no other pass active.
+void make_image_node_gpu_pass(shader_context_t *shader, gpu_texture_t **targets, i32 target_count, gpu_texture_t **inputs, i32 input_count, f32 *uniforms) {
+	if (util_render_screen_aligned_full_vb == NULL) {
+		util_render_create_screen_aligned_full_data();
+	}
+	static string_array_t *empty = NULL;
+	if (empty == NULL) {
+		empty = any_array_create_from_raw(
+		    (void *[]){
+		        "",
+		    },
+		    1);
+	}
+	any_array_t *additional = NULL;
+	if (target_count > 1) {
+		additional = any_array_create_from_raw((void *[]){}, 0);
+		for (i32 i = 1; i < target_count; ++i) {
+			any_array_push(additional, targets[i]);
+		}
+	}
+	_gpu_begin(targets[0], additional, NULL, GPU_CLEAR_COLOR, 0x00000000, 0.0);
+	gpu_set_pipeline(shader->_->pipe);
+	uniforms_set_context_consts(shader, empty);
+	uniforms_set_obj_consts(shader, g_context->paint_object->base); // Time, picker and other constants the graph reads
+	i32 input = 0;
+	for (i32 j = 0; shader->texture_units != NULL && j < shader->texture_units->length && j < shader->_->tex_units->length; ++j) {
+		if (shader->texture_units->buffer[j]->link != NULL) {
+			continue; // Bound by the links of the graph (uniforms_set_obj_consts)
+		}
+		if (input < input_count && inputs[input] != NULL) {
+			gpu_set_texture(shader->_->tex_units->buffer[j], inputs[input]);
+		}
+		input++;
+	}
+	i32 next = 0;
+	for (i32 i = 0; uniforms != NULL && shader->constants != NULL && i < shader->constants->length && i < shader->_->constants->length; ++i) {
+		shader_const_t *c = shader->constants->buffer[i];
+		i32             n = c->link == NULL ? make_image_node_uniform_floats(c->type) : 0;
+		i32             l = shader->_->constants->buffer[i];
+		f32            *u = uniforms + next;
+		if (n == 1) {
+			gpu_set_float(l, u[0]);
+		}
+		else if (n == 2) {
+			gpu_set_float2(l, u[0], u[1]);
+		}
+		else if (n == 3) {
+			gpu_set_float3(l, u[0], u[1], u[2]);
+		}
+		else if (n == 4) {
+			gpu_set_float4(l, u[0], u[1], u[2], u[3]);
+		}
+		next += n;
+	}
+	gpu_set_vertex_buffer(util_render_screen_aligned_full_vb);
+	gpu_set_index_buffer(util_render_screen_aligned_full_ib);
+	gpu_draw();
+	gpu_end();
+	_mesh_object_last_pipeline = NULL; // Mesh draws set their pipeline again
+	if (additional != NULL) {
+		array_free(additional);
+		free(additional);
+	}
+}
+
+// A ping-pong pair of size x size render targets of a format: pass 1 reads src and writes dst, then make_image_node_ping_pong_swap, and so on.
+// Nothing is in src at first: the first pass reads an input of its own (or src is written first).
+make_image_node_ping_pong_t make_image_node_ping_pong_create(i32 size, gpu_texture_format_t format) {
+	make_image_node_ping_pong_t pp = {0};
+	pp.targets[0]                  = gpu_create_render_target(size, size, format);
+	pp.targets[1]                  = gpu_create_render_target(size, size, format);
+	pp.src                         = 0;
+	return pp;
+}
+
+gpu_texture_t *make_image_node_ping_pong_src(make_image_node_ping_pong_t *pp) {
+	return pp->targets[pp->src];
+}
+
+gpu_texture_t *make_image_node_ping_pong_dst(make_image_node_ping_pong_t *pp) {
+	return pp->targets[1 - pp->src];
+}
+
+void make_image_node_ping_pong_swap(make_image_node_ping_pong_t *pp) {
+	pp->src = 1 - pp->src;
+}
+
+// Frees both targets except keep (the one that holds the result: the node keeps it, may be NULL)
+void make_image_node_ping_pong_free(make_image_node_ping_pong_t *pp, gpu_texture_t *keep) {
+	for (i32 i = 0; i < 2; ++i) {
+		if (pp->targets[i] != NULL && pp->targets[i] != keep) {
+			gpu_delete_texture(pp->targets[i]);
+		}
+		pp->targets[i] = NULL;
+	}
 }
 
 #define MAKE_IMAGE_NODE_CAPTURE_ALIGN 16 // Every capture of a type with several starts at a multiple of this (any format can follow any other)
@@ -398,19 +574,26 @@ static gpu_texture_format_t make_image_node_capture_gpu_format(i32 format) {
 	return GPU_TEXTURE_FORMAT_RGBA32;
 }
 
-// The format name of the shader context (render_path_get_tex_format)
-static char *make_image_node_capture_format_name(i32 format) {
+// The format name of the shader context (render_path_get_tex_format) of a render target format
+static char *make_image_node_gpu_format_name(gpu_texture_format_t format) {
 	switch (format) {
-	case IMAGE_CAPTURE_RGBA32F:
+	case GPU_TEXTURE_FORMAT_RGBA128:
 		return "RGBA128";
-	case IMAGE_CAPTURE_R32F:
+	case GPU_TEXTURE_FORMAT_RGBA64:
+		return "RGBA64";
+	case GPU_TEXTURE_FORMAT_R32:
 		return "R32";
-	case IMAGE_CAPTURE_R16F:
+	case GPU_TEXTURE_FORMAT_R16:
 		return "R16";
-	case IMAGE_CAPTURE_R8:
+	case GPU_TEXTURE_FORMAT_R8:
 		return "R8";
 	}
 	return "RGBA32";
+}
+
+// The format name of the shader context of a capture format
+static char *make_image_node_capture_format_name(i32 format) {
+	return make_image_node_gpu_format_name(make_image_node_capture_gpu_format(format));
 }
 
 // Channels of a capture format: 4 for the RGBA formats, 1 for the single channel formats (the value is in the first)
@@ -431,24 +614,8 @@ size_t make_image_node_capture_next(size_t offset, i32 size, i32 format) {
 
 // Draws the capture shader over the whole target (a full screen triangle) and frees the shader context
 static void make_image_node_draw_capture(shader_context_t *scon, gpu_texture_t *target) {
-	static string_array_t *empty = NULL;
-	if (empty == NULL) {
-		empty = any_array_create_from_raw(
-		    (void *[]){
-		        "",
-		    },
-		    1);
-	}
-	_gpu_begin(target, NULL, NULL, GPU_CLEAR_COLOR, 0x00000000, 0.0);
-	gpu_set_pipeline(scon->_->pipe);
-	uniforms_set_context_consts(scon, empty);
-	uniforms_set_obj_consts(scon, g_context->paint_object->base); // Time, picker and other constants the graph reads
-	gpu_set_vertex_buffer(util_render_screen_aligned_full_vb);
-	gpu_set_index_buffer(util_render_screen_aligned_full_ib);
-	gpu_draw();
-	gpu_end();
-	_mesh_object_last_pipeline = NULL; // Mesh draws set their pipeline again
-	make_material_delete_context(scon);
+	make_image_node_gpu_pass(scon, &target, 1, NULL, 0, NULL);
+	make_image_node_gpu_shader_free(scon);
 }
 
 // Renders expr(node) over the image square into a size x size target of a capture format (IMAGE_CAPTURE_*) and reads it back.
@@ -458,9 +625,6 @@ static u8 *make_image_node_capture_pixels(ui_node_t *node, char *(*expr)(ui_node
 	make_image_node_capture_dst = size;
 	shader_context_t *scon      = make_image_node_capture_shader(node, expr, make_image_node_capture_format_name(capture_format));
 	make_image_node_capture_dst = 0;
-	if (util_render_screen_aligned_full_vb == NULL) {
-		util_render_create_screen_aligned_full_data();
-	}
 	gpu_texture_t *target = gpu_create_render_target(size, size, format);
 	make_image_node_draw_capture(scon, target);
 
@@ -742,6 +906,140 @@ static bool make_image_node_unchanged(make_image_node_state_t *s) {
 	       s->captured_graph_version == util_version_graph(g_context->material) && s->captured_asset_version == util_version_assets();
 }
 
+// Signature of a bake by reference: the xxHash64 of the shader source (every literal of the inputs and settings is in it, a linked
+// input is its graph), the size, the params, the asset version and the baked signature of every image node the shader samples (an
+// upstream node that baked other pixels changes it, one that did not does not)
+static u64 make_image_node_reference_signature(make_image_node_state_t *s, u64 source_hash, i32 size, void *params, i32 params_size) {
+	u64 h = make_image_node_hash(source_hash, &size, sizeof(size));
+	h     = make_image_node_hash(h, params, params_size);
+	u32 assets = util_version_assets();
+	h          = make_image_node_hash(h, &assets, sizeof(assets));
+	for (i32 i = 0; s->upstream != NULL && i < s->upstream->length; ++i) {
+		make_image_node_state_t *u  = make_image_node_states != NULL ? any_map_get(make_image_node_states, s->upstream->buffer[i]) : NULL;
+		u64                      up = u != NULL && u->has_baked ? u->baked_signature : 0;
+		h                           = make_image_node_hash(h, s->upstream->buffer[i], strlen(s->upstream->buffer[i]));
+		h                           = make_image_node_hash(h, &up, sizeof(up));
+	}
+	return h;
+}
+
+#define MAKE_IMAGE_NODE_MAX_GPU_CAPTURES 8
+
+static bool make_image_node_edge_cyclic(make_image_node_state_t *s, char *upstream_id);
+
+// Capture of a node whose result is a render target (image_node_type_t.result_by_reference): the shader of every capture is built and
+// compiled (the expression of the node, capture k = make_image_node_capture_index), the signature compared with what is baked, failed or
+// pending, and only a new signature renders. A node without gpu_bake has one capture, drawn into a render target of the result format, which
+// IS the result. With gpu_bake the captures are drawn into render targets of their capture formats and sizes (no readback) and gpu_bake
+// runs the passes of the node and returns the result target. The result waits for the debounce as pending_target (make_image_node_bake_reference
+// makes it the result). params is freed here. Returns true when the node is pending.
+static bool make_image_node_capture_reference(make_image_node_state_t *s, char *id, ui_node_t *node, i32 size, void *params, bool force) {
+	image_node_type_t *t           = s->type;
+	f64                start       = sys_time();
+	i32                count       = t->gpu_bake != NULL && t->capture_count != NULL ? t->capture_count(node) : 1;
+	count                          = count < 1 ? 1 : count > MAKE_IMAGE_NODE_MAX_GPU_CAPTURES ? MAKE_IMAGE_NODE_MAX_GPU_CAPTURES : count;
+	shader_context_t *scons[MAKE_IMAGE_NODE_MAX_GPU_CAPTURES];
+	gpu_texture_format_t formats[MAKE_IMAGE_NODE_MAX_GPU_CAPTURES];
+	i32               sizes[MAKE_IMAGE_NODE_MAX_GPU_CAPTURES];
+	u64               source_hash = 0;
+	for (i32 k = 0; k < count; ++k) {
+		make_image_node_capture_k   = k;
+		sizes[k]                    = make_image_node_capture_size_of(t, node, size, k);
+		formats[k]                  = t->gpu_bake != NULL ? make_image_node_capture_gpu_format(make_image_node_capture_format_of(t, node, k)) : t->result_format;
+		make_image_node_capture_skip_hash = 0; // Always compile
+		make_image_node_capture_dst       = sizes[k];
+		scons[k]                          = make_image_node_capture_shader(node, t->capture, make_image_node_gpu_format_name(formats[k]));
+		make_image_node_capture_dst       = 0;
+		source_hash                       = make_image_node_hash(source_hash, &make_image_node_capture_text_hash, sizeof(make_image_node_capture_text_hash));
+	}
+	make_image_node_capture_k = 0;
+	// An image node this one samples that waits for its own bake (or capture) will change what is read: rendering now would draw the old result
+	// and again after the bake. Wait for it: the capture is repeated when the debounce fires (run_material captures a node whose upstream baked).
+	for (i32 i = 0; !force && s->upstream != NULL && i < s->upstream->length; ++i) {
+		char                    *up = s->upstream->buffer[i];
+		make_image_node_state_t *u  = make_image_node_states != NULL ? any_map_get(make_image_node_states, up) : NULL;
+		if (u != NULL && u != s && (u->pending || u->needs_capture) && !make_image_node_edge_cyclic(s, up)) {
+			for (i32 k = 0; k < count; ++k) {
+				make_image_node_gpu_shader_free(scons[k]);
+			}
+			free(params);
+			s->needs_capture = true;
+			make_image_node_schedule();
+			return false;
+		}
+	}
+	u64 sig                   = make_image_node_reference_signature(s, source_hash, size, params, t->params_size);
+	s->captured               = true;
+	s->captured_canvas        = g_context->material->canvas;
+	s->captured_graph_version = util_version_graph(g_context->material);
+	s->captured_asset_version = util_version_assets();
+
+	bool has_result = g_context->node_previews != NULL && any_map_get(g_context->node_previews, id) != NULL;
+	bool baked      = has_result && s->has_baked && sig == s->baked_signature;
+	if (!force && (baked || (s->failed && sig == s->failed_signature) || (s->pending && sig == s->pending_signature))) {
+		if (baked) {
+			make_image_node_clear_pending(s); // Back to what is baked, e.g. a change undone within the debounce
+		}
+		for (i32 k = 0; k < count; ++k) {
+			make_image_node_gpu_shader_free(scons[k]);
+		}
+		free(params);
+		return false;
+	}
+	make_image_node_clear_pending(s);
+	gpu_texture_t *targets[MAKE_IMAGE_NODE_MAX_GPU_CAPTURES];
+	f64            pass_start = sys_time();
+	for (i32 k = 0; k < count; ++k) {
+		targets[k] = gpu_create_render_target(sizes[k], sizes[k], formats[k]);
+		if (targets[k] != NULL) {
+			make_image_node_gpu_pass(scons[k], &targets[k], 1, NULL, 0, NULL);
+		}
+		make_image_node_gpu_shader_free(scons[k]);
+	}
+	gpu_texture_t *result = targets[0];
+	bool           failed = false;
+	for (i32 k = 0; k < count; ++k) {
+		failed = failed || targets[k] == NULL;
+	}
+	if (t->gpu_bake != NULL && !failed) {
+		result = t->gpu_bake(node, size, params, targets, count);
+		for (i32 k = 0; k < count; ++k) {
+			if (targets[k] != result) {
+				gpu_delete_texture(targets[k]); // The captures are inputs of the passes, the result is what gpu_bake returned
+			}
+		}
+		failed = result == NULL;
+	}
+	else if (failed) {
+		for (i32 k = 0; k < count; ++k) {
+			if (targets[k] != NULL) {
+				gpu_delete_texture(targets[k]);
+			}
+		}
+	}
+	free(params);
+	if (failed) {
+		console_error(tr("Image node bake: out of memory"));
+		s->failed           = true;
+		s->failed_signature = sig; // Not retried for this signature, like a bake that failed
+		return false; // Keep what is baked
+	}
+	if (make_image_node_trace) {
+		gpu_execute_and_wait(); // The time of the render, not of its submission
+	}
+	s->gpu_pass_ms   = (sys_time() - pass_start) * 1000.0;
+	s->gpu_render_ms = (sys_time() - start) * 1000.0;
+	s->gpu_renders++;
+	if (make_image_node_trace) {
+		iron_log("[image node] render %s %d x %d %.3f ms (passes %.3f ms)", id, size, size, s->gpu_render_ms, s->gpu_pass_ms);
+	}
+	s->pending_target    = result;
+	s->pending_size      = size;
+	s->pending_signature = sig;
+	s->pending           = true;
+	return true;
+}
+
 // Captures the node in image space. A new capture or parameter set makes the node pending, returns true then.
 // force keeps it pending even when it matches the baked result.
 static bool make_image_node_capture(make_image_node_state_t *s, char *id, ui_node_t *node, ui_node_canvas_t *group, ui_node_t_array_t *parents, bool force) {
@@ -771,6 +1069,17 @@ static bool make_image_node_capture(make_image_node_state_t *s, char *id, ui_nod
 		t->params(node, params);
 	}
 	make_image_node_capture_params_ptr = params;
+	if (params != NULL && t->result_by_reference) {
+		bool pending                       = make_image_node_capture_reference(s, id, node, size, params, force);
+		make_image_node_capture_params_ptr = NULL;
+		make_image_node_capturing          = NULL;
+		make_image_node_capture_group      = NULL;
+		make_image_node_capture_parents    = NULL;
+		if (!s->cycle_seen) {
+			s->cycle_told = false; // The loop is gone, tells again when it returns
+		}
+		return pending;
+	}
 	// The count after the scope: a capture_count that reads the links of the node (Advanced Blur: a Mask plane only when linked)
 	// would read the links of whatever the parser was pointed at last, and process (which reads the same links through params)
 	// would find a different number of planes than the capture made
@@ -926,6 +1235,20 @@ static void make_image_node_delete_result(char *id) {
 	free(keys);
 }
 
+// A node whose result is its render target (make_image_node_capture_reference): the rendered target replaces the result, nothing else to do
+static void make_image_node_bake_reference(make_image_node_state_t *s, char *id) {
+	gpu_texture_t *old = any_map_get(g_context->node_previews, id);
+	if (old != NULL && old != s->pending_target) {
+		gpu_delete_texture(old);
+	}
+	any_map_set(g_context->node_previews, string_copy(id), s->pending_target);
+	s->pending_target  = NULL; // The result owns it now
+	s->has_baked       = true;
+	s->baked_signature = s->pending_signature;
+	s->failed          = false;
+	make_image_node_clear_pending(s);
+}
+
 // Processes the pending capture of s into its result texture
 static void make_image_node_bake(make_image_node_state_t *s, char *id) {
 	if (!s->pending || s->type == NULL) {
@@ -933,6 +1256,10 @@ static void make_image_node_bake(make_image_node_state_t *s, char *id) {
 	}
 	if (g_context->node_previews == NULL) {
 		g_context->node_previews = any_map_create();
+	}
+	if (s->type->result_by_reference) {
+		make_image_node_bake_reference(s, id);
+		return;
 	}
 	image_node_type_t *t      = s->type;
 	i32                size   = s->pending_size;
@@ -1116,7 +1443,7 @@ static ui_node_t *make_image_node_direct_source(ui_node_t *node, i32 input) {
 		return NULL;
 	}
 	image_node_type_t *t = make_image_node_type_of(from->type);
-	return t != NULL && !t->pass_through_capture && t->process != NULL ? from : NULL;
+	return t != NULL && !t->pass_through_capture && (t->process != NULL || t->result_by_reference) ? from : NULL;
 }
 
 // Marks the nodes that sampled the capture of s (through the recorded upstream) to capture again, whatever their shader text
@@ -1132,8 +1459,75 @@ static void make_image_node_invalidate_dependents(make_image_node_state_t *s) {
 	make_image_node_free_keys(keys);
 }
 
-// Renders the image input of a pass-through node into its capture target, unless nothing it reads changed. Returns true when the
-// node's capture changed (rendered, or switched between a capture and a bound baked result), so what samples it must refresh.
+// Preview id of capture plane k of a node: the node's own id for the image input, id + "_2" for the second captured input
+static char *make_image_node_plane_id(char *id, i32 k) {
+	return k == 0 ? id : string_tmp("%s_2", id);
+}
+
+// Renders one captured input (plane k, input socket `input`, -1: the node needs no such plane) of a pass-through node into its target
+// node_previews[plane id], unless nothing it reads changed; frees the target when the plane is not needed or the input is bound to a
+// baked result directly. valid, hash, direct and direct_id are the state of the plane. Returns true when the plane changed (rendered,
+// or switched between a capture, a bound baked result and nothing), so what samples it must refresh. Runs inside the capture scope.
+static bool make_image_node_capture_plane(make_image_node_state_t *s, ui_node_t *node, char *id, i32 k, i32 input, bool force, bool *valid, u64 *hash, bool *direct,
+                                          char **direct_id) {
+	image_node_type_t *t       = s->type;
+	bool               changed = false;
+	ui_node_t         *source  = input >= 0 ? make_image_node_direct_source(node, input) : NULL;
+	free(*direct_id);
+	*direct_id = source != NULL ? string_copy(make_material_node_preview_id(source, NULL)) : NULL;
+	if (input < 0 || source != NULL) {
+		// The baked result is bound by the node's shader (no capture of its own), or the plane is not needed
+		if (g_context->node_previews != NULL && any_map_get(g_context->node_previews, id) != NULL) {
+			make_image_node_delete_result(id);
+		}
+		changed = input < 0 ? (*valid || *direct) : (!*direct || *valid);
+		*direct = source != NULL;
+		*valid  = false;
+		return changed;
+	}
+	i32            size   = t->size(node);
+	gpu_texture_t *target = g_context->node_previews != NULL ? any_map_get(g_context->node_previews, id) : NULL;
+	bool           keep   = !force && *valid && !*direct && target != NULL && target->width == size && s->captured_asset_version == util_version_assets();
+	make_image_node_capture_skip_hash = keep ? *hash : 0;
+	make_image_node_capture_dst       = size;
+	make_image_node_capture_k         = k;
+	shader_context_t *scon            = make_image_node_capture_shader(node, t->capture, make_image_node_capture_format_name(t->capture_format));
+	make_image_node_capture_k         = 0;
+	make_image_node_capture_dst       = 0;
+	make_image_node_capture_skip_hash = 0;
+	if (scon == NULL) {
+		s->capture_skips++; // Same shader text: the render is still right (a changed parameter of the node is not part of it)
+		return false;
+	}
+	if (util_render_screen_aligned_full_vb == NULL) {
+		util_render_create_screen_aligned_full_data();
+	}
+	if (g_context->node_previews == NULL) {
+		g_context->node_previews = any_map_create();
+	}
+	gpu_texture_format_t format = make_image_node_capture_gpu_format(t->capture_format);
+	if (target == NULL || target->width != size || target->height != size || target->format != format) {
+		if (target != NULL) {
+			gpu_delete_texture(target);
+		}
+		target = gpu_create_render_target(size, size, format);
+		any_map_set(g_context->node_previews, string_copy(id), target);
+	}
+	make_image_node_draw_capture(scon, target);
+	*hash   = make_image_node_capture_text_hash;
+	*valid  = true;
+	*direct = false;
+	s->capture_renders++;
+	make_image_node_captures++;
+	if (make_image_node_trace) {
+		iron_log("[image node] pass-through capture %d %s time %.3f", make_image_node_captures, id, sys_time());
+	}
+	return true;
+}
+
+// Renders the captured inputs of a pass-through node (the image input, and the second input of image_input2) into their capture targets,
+// unless nothing they read changed. Returns true when a capture of the node changed (rendered, or switched between a capture and a bound
+// baked result), so what samples it must refresh.
 // force renders even when the shader text is the same (Regenerate Image Nodes, an image node it samples changed).
 static bool make_image_node_capture_pass_through(make_image_node_state_t *s, char *id, ui_node_t *node, ui_node_canvas_t *group, ui_node_t_array_t *parents, bool force) {
 	image_node_type_t *t = s->type;
@@ -1148,57 +1542,12 @@ static bool make_image_node_capture_pass_through(make_image_node_state_t *s, cha
 	parser_material_init();
 	make_image_node_parser_scope();
 
-	bool       changed = false;
-	ui_node_t *source  = make_image_node_direct_source(node, t->image_input);
-	free(s->direct_id);
-	s->direct_id = source != NULL ? string_copy(make_material_node_preview_id(source, NULL)) : NULL;
-	if (source != NULL) {
-		// The baked result is bound by the node's shader: no capture of its own
-		if (g_context->node_previews != NULL && any_map_get(g_context->node_previews, id) != NULL) {
-			make_image_node_delete_result(id);
-		}
-		changed          = !s->direct || s->capture_valid;
-		s->direct        = true;
-		s->capture_valid = false;
-	}
-	else {
-		i32            size   = t->size(node);
-		gpu_texture_t *target = g_context->node_previews != NULL ? any_map_get(g_context->node_previews, id) : NULL;
-		bool           keep   = !force && s->capture_valid && !s->direct && target != NULL && target->width == size && s->captured_asset_version == util_version_assets();
-		make_image_node_capture_skip_hash = keep ? s->capture_hash : 0;
-		make_image_node_capture_dst       = size;
-		shader_context_t *scon            = make_image_node_capture_shader(node, t->capture, make_image_node_capture_format_name(t->capture_format));
-		make_image_node_capture_dst       = 0;
-		make_image_node_capture_skip_hash = 0;
-		if (scon == NULL) {
-			s->capture_skips++; // Same shader text: the render is still right (a changed parameter of the node is not part of it)
-		}
-		else {
-			if (util_render_screen_aligned_full_vb == NULL) {
-				util_render_create_screen_aligned_full_data();
-			}
-			if (g_context->node_previews == NULL) {
-				g_context->node_previews = any_map_create();
-			}
-			gpu_texture_format_t format = make_image_node_capture_gpu_format(t->capture_format);
-			if (target == NULL || target->width != size || target->height != size || target->format != format) {
-				if (target != NULL) {
-					gpu_delete_texture(target);
-				}
-				target = gpu_create_render_target(size, size, format);
-				any_map_set(g_context->node_previews, string_copy(id), target);
-			}
-			make_image_node_draw_capture(scon, target);
-			s->capture_hash  = make_image_node_capture_text_hash;
-			s->capture_valid = true;
-			s->direct        = false;
-			s->capture_renders++;
-			make_image_node_captures++;
-			if (make_image_node_trace) {
-				iron_log("[image node] pass-through capture %d %s time %.3f", make_image_node_captures, id, sys_time());
-			}
-			changed = true;
-		}
+	bool changed = make_image_node_capture_plane(s, node, id, 0, t->image_input, force, &s->capture_valid, &s->capture_hash, &s->direct, &s->direct_id);
+	if (t->image_input2 != NULL) {
+		i32 input2 = t->image_input2(node);
+		changed = make_image_node_capture_plane(s, node, make_image_node_plane_id(id, 1), 1, input2, force, &s->capture2_valid, &s->capture2_hash, &s->direct2,
+		                                        &s->direct2_id) ||
+		          changed;
 	}
 	make_image_node_capturing       = NULL;
 	make_image_node_capture_group   = NULL;
@@ -1391,6 +1740,9 @@ void make_image_node_on_traverse(ui_node_t *node, ui_node_canvas_t *group, ui_no
 	char *id = make_material_node_preview_id(node, parents);
 	any_array_push(g_context->node_previews_used, id); // Keeps the baked result
 	make_image_node_state_t *s = make_image_node_get_state(id, node);
+	if (s->type != NULL && s->type->image_input2 != NULL) {
+		any_array_push(g_context->node_previews_used, make_image_node_plane_id(id, 1)); // Keeps the second capture
+	}
 	if (linked) {
 		return; // A stroke changes layers, never the image space input (Layer nodes are neutral there)
 	}
@@ -1468,6 +1820,18 @@ static make_image_node_state_t *make_image_node_state_of(ui_node_t *node, char *
 // Captures made since the start (a capture is a render, a readback and a hash of the node's inputs)
 i32 make_image_node_capture_count() {
 	return make_image_node_captures;
+}
+
+// Test hook for the nodes with a result by reference (the stats natives of the test build): 0 renders of the node since the start,
+// 1 time in ms of its last capture that rendered (shader, hash and pass), 2 the pass of that render alone; both to completion of the GPU
+// when ARMORPAINT_IMAGE_NODE_TRACE is set, else to the submission. -1 when the node has no state
+f64 make_image_node_gpu_stat(ui_node_t *node, i32 which) {
+	char                    *id = NULL;
+	make_image_node_state_t *s  = make_image_node_state_of(node, &id);
+	if (s == NULL) {
+		return -1.0;
+	}
+	return which == 0 ? (f64)s->gpu_renders : which == 1 ? s->gpu_render_ms : which == 2 ? s->gpu_pass_ms : -1.0;
 }
 
 // Regenerate image nodes: captures and bakes every image node of the project on the next update, also the ones whose
@@ -1550,9 +1914,9 @@ static void make_image_node_write_fetch(char *var, char *tex_name, char *uv, i32
 	parser_material_write(parser_material_kong, string_tmp("float4 %s = sample_lod(%s, sampler_linear, %s_uv, 0.0);", var, tex_name, var));
 }
 
-// Records the dependency of a capture on the node, binds its result texture and size constant; returns the texture name,
-// NULL when the capture reads the node as black because they depend on each other
-static char *make_image_node_bind(ui_node_t *node, char *id) {
+// Records the dependency of a capture on the node (id), binds its texture (texture_id: the id of the result, or the id of the second capture)
+// and size constant; returns the texture name, NULL when the capture reads the node as black because they depend on each other
+static char *make_image_node_bind(ui_node_t *node, char *id, char *texture_id) {
 	if (make_image_node_capturing != NULL && string_array_index_of(make_image_node_capturing->upstream, id) == -1) {
 		any_array_push(make_image_node_capturing->upstream, string_copy(id)); // Chained: bakes before the node being captured
 	}
@@ -1560,7 +1924,7 @@ static char *make_image_node_bind(ui_node_t *node, char *id) {
 		make_image_node_tell_cycle(make_image_node_capturing, id);
 		return NULL;
 	}
-	char *tex_name = string_tmp("teximage_%s", id);
+	char *tex_name = string_tmp("teximage_%s", texture_id);
 	node_shader_add_texture(parser_material_kong, tex_name, string_tmp("_%s", tex_name));
 	node_shader_add_constant(parser_material_kong, string_tmp("float2 %s_size", tex_name), string_tmp("_size(_%s)", tex_name));
 	return tex_name;
@@ -1573,7 +1937,7 @@ static char *make_image_node_bind(ui_node_t *node, char *id) {
 char *make_image_node_sample(ui_node_t *node) {
 	char *id  = make_material_node_preview_id(node, NULL);
 	char *var = string_tmp("%s_image", parser_material_store_var_name(node));
-	char *tex_name = make_image_node_bind(node, id);
+	char *tex_name = make_image_node_bind(node, id, id);
 	if (string_array_index_of(parser_material_parsed, var) >= 0) {
 		return var;
 	}
@@ -1628,7 +1992,7 @@ char *make_image_node_sample(ui_node_t *node) {
 char *make_image_node_sample_at(ui_node_t *node, char *uv, i32 filter) {
 	char *id  = make_material_node_preview_id(node, NULL);
 	char *var = string_tmp("%s_tile", parser_material_store_var_name(node));
-	char *tex_name = make_image_node_bind(node, id);
+	char *tex_name = make_image_node_bind(node, id, id);
 	if (string_array_index_of(parser_material_parsed, var) >= 0) {
 		return var;
 	}
@@ -1636,6 +2000,36 @@ char *make_image_node_sample_at(ui_node_t *node, char *uv, i32 filter) {
 	if (tex_name == NULL) {
 		parser_material_write(parser_material_kong, string_tmp("float4 %s = float4(0.0, 0.0, 0.0, 1.0);", var));
 		return var;
+	}
+	make_image_node_write_fetch(var, tex_name, uv, filter);
+	return var;
+}
+
+// Pass-through with capture: writes the fetch of a captured input of the node at the float2 expression uv into the float4 variable var (rgba
+// of the capture; the caller names var and writes it once per statement list: inside a loop the same text is fine, the variables are
+// local to the body). plane 0 is the image input, plane 1 the second input (image_input2: black when the node needs none). Reads the
+// capture target, or the result of the baked image node the input is linked straight to (no copy of it). Black until the first capture.
+// wrap true: repeating; false: positions outside the image read the edge texel (the uv is clamped to the texel centres of the edge, exact
+// for Nearest and Linear; the taps of Cubic still wrap). filter: IMAGE_FILTER_NEAREST, _LINEAR or _CUBIC. Returns var.
+char *make_image_node_fetch_input(ui_node_t *node, i32 plane, char *var, char *uv, i32 filter, bool wrap) {
+	image_node_type_t *type   = make_image_node_type_of(node->type);
+	bool               pass   = type != NULL && type->pass_through_capture;
+	i32                input  = !pass ? 0 : plane == 0 ? type->image_input : type->image_input2 != NULL ? type->image_input2(node) : -1;
+	ui_node_t         *source = pass && input >= 0 ? make_image_node_direct_source(node, input) : NULL;
+	if (input < 0) {
+		parser_material_write(parser_material_kong, string_tmp("float4 %s = float4(0.0, 0.0, 0.0, 1.0);", var));
+		return var;
+	}
+	char *id       = make_material_node_preview_id(source != NULL ? source : node, NULL);
+	char *tex_name = make_image_node_bind(source != NULL ? source : node, id, source != NULL ? id : make_image_node_plane_id(id, plane));
+	if (tex_name == NULL) {
+		parser_material_write(parser_material_kong, string_tmp("float4 %s = float4(0.0, 0.0, 0.0, 1.0);", var));
+		return var;
+	}
+	if (!wrap) {
+		parser_material_write(parser_material_kong, string_tmp("float2 %s_c = clamp(%s, float2(0.5, 0.5) / constants.%s_size, float2(1.0, 1.0) - float2(0.5, 0.5) / constants.%s_size);",
+		                                                       var, uv, tex_name, tex_name));
+		uv = string_tmp("%s_c", var);
 	}
 	make_image_node_write_fetch(var, tex_name, uv, filter);
 	return var;
@@ -1650,32 +2044,26 @@ char *make_image_node_bind_input(ui_node_t *node) {
 	image_node_type_t *type   = make_image_node_type_of(node->type);
 	ui_node_t         *source = type != NULL && type->pass_through_capture ? make_image_node_direct_source(node, type->image_input) : NULL;
 	ui_node_t         *from   = source != NULL ? source : node;
-	return make_image_node_bind(from, make_material_node_preview_id(from, NULL));
+	char              *id     = make_material_node_preview_id(from, NULL);
+	return make_image_node_bind(from, id, id);
 }
 
 // Pass-through with capture: the fetch of the node's image input at the float2 expression uv (repeating), once per node; returns the
-// float4 variable (rgba of the input). Reads the capture target of the node (make_image_node_capture_pass_through), or the result
-// of the baked image node the input is linked straight to (no capture of a copy). Black until the first capture. filter:
-// IMAGE_FILTER_NEAREST, _LINEAR or _CUBIC. Call it from the node functions with the placement as uv; everything else the node
-// computes is written next to it in the material shader, as literals or uniforms, never inside the capture.
+// float4 variable (rgba of the input), see make_image_node_fetch_input. Call it from the node functions with the placement as uv;
+// everything else the node computes is written next to it in the material shader, as literals or uniforms, never inside the capture.
 char *make_image_node_sample_input_at(ui_node_t *node, char *uv, i32 filter) {
-	char *var      = string_tmp("%s_input", parser_material_store_var_name(node));
-	char *tex_name = make_image_node_bind_input(node);
+	char *var = string_tmp("%s_input", parser_material_store_var_name(node));
 	if (string_array_index_of(parser_material_parsed, var) >= 0) {
 		return var;
 	}
 	any_array_push(parser_material_parsed, var);
-	if (tex_name == NULL) {
-		parser_material_write(parser_material_kong, string_tmp("float4 %s = float4(0.0, 0.0, 0.0, 1.0);", var));
-		return var;
-	}
-	make_image_node_write_fetch(var, tex_name, uv, filter);
-	return var;
+	return make_image_node_fetch_input(node, 0, var, uv, filter, true);
 }
 
 // Pass-through with capture, for the tests and the Console trace: which 0 renders of the capture since the node was first traversed,
 // 1 width of the capture target (0 when it has none), 2 the input is a baked result bound directly (0/1), 3 captures that found the
-// shader text unchanged and rendered nothing; -1 for an unknown node or number
+// shader text unchanged and rendered nothing, 4 and 5 the same as 1 and 2 for the second capture (image_input2); renders (0) and skips (3) count
+// both captures; -1 for an unknown node or number
 f64 make_image_node_pass_through_info(ui_node_t *node, i32 which) {
 	char                    *id;
 	make_image_node_state_t *s = make_image_node_state_of(node, &id);
@@ -1693,6 +2081,12 @@ f64 make_image_node_pass_through_info(ui_node_t *node, i32 which) {
 		return s->direct ? 1.0 : 0.0;
 	case 3:
 		return (f64)s->capture_skips;
+	case 4: {
+		gpu_texture_t *t = g_context->node_previews != NULL ? any_map_get(g_context->node_previews, make_image_node_plane_id(id, 1)) : NULL;
+		return t != NULL ? (f64)t->width : 0.0;
+	}
+	case 5:
+		return s->direct2 ? 1.0 : 0.0;
 	}
 	return -1.0;
 }
@@ -1944,6 +2338,149 @@ void make_image_node_sections(ui_node_t *def, ui_node_section_t *own, i32 own_co
 	any_map_set(ui_nodes_sections, def->type, list); // The list ends with the zeroed entry
 }
 
+#ifdef ARMORPAINT_TEST_NATIVES
+// Test hook of the GPU pass helper: passes of 16 x 16 RGBA128 over a ping-pong pair, two targets written at once. A first pass draws
+// a ramp (u, v, 0.25, 1) from a uniform and a constant 0.5 texture; two passes read the previous result (in0) and the constant (in1) and write
+// out0 = in0 * 2 + (0.125, 0, 0, 0) + in1 (uniforms float s, float4 o) and out1 = (1 - in0.r, in0.g, in0.b, 1). Returns the value at
+// pixel (x, y), channel 0 to 3, of which = 0: the ping-pong result after the second pass, 1: the second target of that pass, 2: the
+// ping-pong result after the first pass; -1 for an argument out of range, -2 when a texture could not be read.
+f64 make_image_node_test_gpu_pass(i32 which, i32 x, i32 y, i32 channel) {
+	const i32 size = 16;
+	if (which < 0 || which > 2 || x < 0 || y < 0 || x >= size || y >= size || channel < 0 || channel > 3) {
+		return -1.0;
+	}
+	char             *one[]           = {"RGBA128"};
+	char             *two[]           = {"RGBA128", "RGBA128"};
+	char             *ramp_uniforms[] = {"float4 k"};
+	char             *step_inputs[]   = {"in0", "in1"};
+	char             *step_uniforms[] = {"float s", "float4 o"};
+	shader_context_t *ramp = make_image_node_gpu_shader("output = float4(tex_coord.x, tex_coord.y, constants.k.z, 1.0);", NULL, 0, ramp_uniforms, 1, one, 1);
+	shader_context_t *half = make_image_node_gpu_shader("output = float4(0.5, 0.5, 0.5, 1.0);", NULL, 0, NULL, 0, one, 1);
+	shader_context_t *step = make_image_node_gpu_shader("float4 a = sample_lod(in0, sampler_linear, tex_coord, 0.0); float4 b = sample_lod(in1, sampler_linear, tex_coord, 0.0); "
+	                                                    "output[0] = a * constants.s + constants.o + b; output[1] = float4(1.0 - a.r, a.g, a.b, 1.0);",
+	                                                    step_inputs, 2, step_uniforms, 2, two, 2);
+	gpu_texture_t *ramp_rt = gpu_create_render_target(size, size, GPU_TEXTURE_FORMAT_RGBA128);
+	gpu_texture_t *half_rt = gpu_create_render_target(size, size, GPU_TEXTURE_FORMAT_RGBA128);
+	gpu_texture_t *second  = gpu_create_render_target(size, size, GPU_TEXTURE_FORMAT_RGBA128);
+	f32            k[4]    = {0.0f, 0.0f, 0.25f, 0.0f};
+	make_image_node_gpu_pass(ramp, &ramp_rt, 1, NULL, 0, k);
+	make_image_node_gpu_pass(half, &half_rt, 1, NULL, 0, NULL);
+	make_image_node_ping_pong_t pp = make_image_node_ping_pong_create(size, GPU_TEXTURE_FORMAT_RGBA128);
+	f32                         u[5] = {2.0f, 0.125f, 0.0f, 0.0f, 0.0f};
+	gpu_texture_t              *read = NULL;
+	for (i32 pass = 0; pass < 2; ++pass) {
+		gpu_texture_t *src        = pass == 0 ? ramp_rt : make_image_node_ping_pong_src(&pp);
+		gpu_texture_t *targets[2] = {make_image_node_ping_pong_dst(&pp), second};
+		gpu_texture_t *inputs[2]  = {src, half_rt};
+		make_image_node_gpu_pass(step, targets, 2, inputs, 2, u);
+		make_image_node_ping_pong_swap(&pp);
+		if (pass == 0 && which == 2) {
+			read = make_image_node_ping_pong_src(&pp);
+			break;
+		}
+	}
+	read          = read != NULL ? read : which == 1 ? second : make_image_node_ping_pong_src(&pp);
+	buffer_t *b   = gpu_get_texture_pixels(read);
+	f64       v   = b != NULL ? ((f32 *)b->buffer)[((size_t)y * size + x) * 4 + channel] : -2.0;
+	make_image_node_gpu_shader_free(ramp);
+	make_image_node_gpu_shader_free(half);
+	make_image_node_gpu_shader_free(step);
+	gpu_delete_texture(ramp_rt);
+	gpu_delete_texture(half_rt);
+	gpu_delete_texture(second);
+	make_image_node_ping_pong_free(&pp, NULL);
+	return v;
+}
+// A test only image node (TEX_TEST_GPU_BAKE, registered by make_image_node_test_register) that uses the multi capture gpu_bake path: capture 0 is the Image input
+// (RGBA32F at Size), capture 1 a constant 0.25 (R32F, 8 x 8); gpu_bake runs two passes over a ping-pong pair: pass 1 writes in0 * 2 + in1, pass 2 reads it and
+// writes it times the uniform 0.5, so the result is Image + 0.125 (exact in float). The node is not in any menu.
+static char *make_image_node_test_bake_capture(ui_node_t *node) {
+	if (make_image_node_capture_index() == 1) {
+		return "float4(0.25, 0.25, 0.25, 1.0)";
+	}
+	char *v = parser_material_parse_value_input(node->inputs->buffer[0], false);
+	return string_tmp("float4(%s, %s, %s, 1.0)", v, v, v);
+}
+
+static i32 make_image_node_test_bake_size(ui_node_t *node) {
+	return make_image_node_size(node, 0);
+}
+
+static i32 make_image_node_test_bake_count(ui_node_t *node) {
+	return 2;
+}
+
+static i32 make_image_node_test_bake_capture_size(ui_node_t *node, i32 k) {
+	return k == 1 ? 8 : 0;
+}
+
+static i32 make_image_node_test_bake_capture_format(ui_node_t *node, i32 k) {
+	return k == 1 ? IMAGE_CAPTURE_R32F : IMAGE_CAPTURE_RGBA32F;
+}
+
+static gpu_texture_t *make_image_node_test_bake_run(ui_node_t *node, i32 size, void *params, gpu_texture_t **captures, i32 count) {
+	char *one[]     = {"RGBA128"};
+	char *inputs2[] = {"in0", "in1"};
+	char *inputs1[] = {"in0"};
+	char *uniforms[] = {"float s"};
+	shader_context_t *first  = make_image_node_gpu_shader("output = float4(sample_lod(in0, sampler_linear, tex_coord, 0.0).r * 2.0 + sample_lod(in1, sampler_linear, tex_coord, 0.0).r, 0.0, 0.0, 1.0);",
+	                                                      inputs2, 2, NULL, 0, one, 1);
+	shader_context_t *second = make_image_node_gpu_shader("output = float4(sample_lod(in0, sampler_linear, tex_coord, 0.0).r * constants.s, 0.0, 0.0, 1.0);", inputs1, 1, uniforms, 1, one, 1);
+	make_image_node_ping_pong_t pp = make_image_node_ping_pong_create(size, GPU_TEXTURE_FORMAT_RGBA128);
+	gpu_texture_t *targets1[1]     = {make_image_node_ping_pong_dst(&pp)};
+	make_image_node_gpu_pass(first, targets1, 1, captures, 2, NULL);
+	make_image_node_ping_pong_swap(&pp);
+	gpu_texture_t *targets2[1] = {make_image_node_ping_pong_dst(&pp)};
+	gpu_texture_t *inputs[1]   = {make_image_node_ping_pong_src(&pp)};
+	f32            half        = 0.5f;
+	make_image_node_gpu_pass(second, targets2, 1, inputs, 1, &half);
+	gpu_texture_t *result = targets2[0];
+	make_image_node_gpu_shader_free(first);
+	make_image_node_gpu_shader_free(second);
+	make_image_node_ping_pong_free(&pp, result);
+	return result;
+}
+
+static image_node_type_t make_image_node_test_bake_type = {
+    .type                = "TEX_TEST_GPU_BAKE",
+    .result_format       = GPU_TEXTURE_FORMAT_RGBA128,
+    .result_by_reference = true,
+    .params_size         = 0,
+    .size                = make_image_node_test_bake_size,
+    .capture             = make_image_node_test_bake_capture,
+    .capture_count       = make_image_node_test_bake_count,
+    .capture_size        = make_image_node_test_bake_capture_size,
+    .capture_format_at   = make_image_node_test_bake_capture_format,
+    .gpu_bake            = make_image_node_test_bake_run,
+};
+
+static char *make_image_node_test_bake_value(ui_node_t *node, ui_node_socket_t *socket) {
+	return string_tmp("%s.r", make_image_node_sample(node));
+}
+
+// Registers TEX_TEST_GPU_BAKE (once): the node is created with script_material_create_node_at. Input 0 Image (VALUE), output 0 Image, buttons Size and the state row.
+void make_image_node_test_register() {
+	static bool registered = false;
+	if (registered) {
+		return;
+	}
+	registered = true;
+	ui_node_t *def = ALLOC_INIT(ui_node_t, {.id      = 0,
+	                                         .name    = "Test GPU Bake",
+	                                         .type    = "TEX_TEST_GPU_BAKE",
+	                                         .x       = 0,
+	                                         .y       = 0,
+	                                         .color   = NODES_MATERIAL_IMAGE_COLOR,
+	                                         .inputs  = any_array_create_from_raw((void *[]){make_image_node_socket("Image", "VALUE", NODES_MATERIAL_IMAGE_COLOR, f32_array_create_x(0.5), 0.0, 1.0, 100)}, 1),
+	                                         .outputs = any_array_create_from_raw((void *[]){make_image_node_socket("Image", "VALUE", NODES_MATERIAL_IMAGE_COLOR, f32_array_create_x(0.0), 0.0, 1.0, 100)}, 1),
+	                                         .buttons = any_array_create_from_raw((void *[]){make_image_node_setting("Size", "ENUM", 1, MAKE_IMAGE_NODE_SIZE_ITEMS), make_image_node_state_button()}, 2),
+	                                         .width   = 0,
+	                                         .flags   = 0});
+	any_array_push(nodes_material_pattern, def);
+	any_map_set(parser_material_node_values, "TEX_TEST_GPU_BAKE", make_image_node_test_bake_value);
+	make_image_node_register(&make_image_node_test_bake_type);
+}
+#endif
 // Section bits (flag bit 8 + index) of an image node saved with the old table order (Texture first: Texture, General, own sections,
 // Parameters) in the order of the table now (Texture last): bit i of the old order moves to i - 1, the Texture bit 0 to count - 1.
 // count is the number of sections of the node type. A flags value that has the marker UI_NODE_FLAG_SECTIONS_V2 (bit 7) is of the new
