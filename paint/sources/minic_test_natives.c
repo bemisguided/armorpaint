@@ -296,6 +296,12 @@ f32 script_image_node_summary(ui_node_t *node, i32 index) {
 	return summary != NULL && index >= 0 ? summary[index] : -1.0;
 }
 
+// Capture of a pass-through node (Tile UV): 0 renders of its capture so far, 1 width of its capture target (0: none), 2 the input is a baked
+// result bound directly (0/1), 3 captures that found the shader text unchanged (make_image_node_pass_through_info); -1 for an unknown node
+f32 script_image_node_capture_info(ui_node_t *node, i32 which) {
+	return node != NULL ? (f32)make_image_node_pass_through_info(node, which) : -1.0;
+}
+
 // Numbers of the node's last capture and bake (make_image_node_stat): 0 capture bytes, 1 readback bytes, 2 renders, 3 capture ms, 4 process ms
 f32 script_image_node_stat(ui_node_t *node, i32 which) {
 	return node != NULL ? (f32)make_image_node_stat(node, which) : -1.0;
