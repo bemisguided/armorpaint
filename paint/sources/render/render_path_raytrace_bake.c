@@ -60,7 +60,7 @@ bool render_path_raytrace_bake_commands(void (*parse_paint_material)(bool)) {
 			t->name            = "baketex2";
 			t->width           = config_get_texture_res_x();
 			t->height          = config_get_texture_res_y();
-			t->format          = "RGBA64"; // Match raytrace_target format
+			t->format          = "RGBA128"; // Accumulates the samples, 16 bit float rounds away the small updates
 			render_path_create_render_target(t);
 		}
 
