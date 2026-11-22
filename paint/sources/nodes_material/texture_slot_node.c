@@ -17,18 +17,21 @@ static void texture_slot_node_button(i32 node_id) {
 	f32_array_t    *values = node->buttons->buffer[0]->default_value;
 	i32             btp    = (i32)values->buffer[0];
 	i32             count  = asset_bake_type_count();
-	string_array_t *labels = any_array_create_from_raw((void *[]){}, 0);
+	string_array_t *labels = any_array_create_from_raw_tmp(NULL, count + 1); // Per frame list (node button), room for the unknown type
 	i32             sel    = -1;
 	for (i32 i = 0; i < count; ++i) {
-		i32 id = asset_bake_type_at(i);
-		any_array_push(labels, asset_bake_type_label(id));
+		i32 id         = asset_bake_type_at(i);
+		labels->buffer[i] = asset_bake_type_label(id);
 		if (id == btp) {
 			sel = i;
 		}
 	}
 	if (sel < 0) { // Unknown id of a newer version, kept until another type is picked
-		any_array_push(labels, asset_bake_type_label(btp));
-		sel = count;
+		labels->buffer[count] = asset_bake_type_label(btp);
+		sel                   = count;
+	}
+	else {
+		labels->length = count;
 	}
 	ui_set_next_id((ui_id_t)&values->buffer[0]);
 	ui_combo(&sel, labels, tr("Bake Type"), false, UI_ALIGN_LEFT, true);
@@ -77,7 +80,7 @@ static char *texture_slot_node_sample(ui_node_t *node) {
 	char *store   = parser_material_store_var_name(node);
 	char *uv_name = parser_material_tex_coord;
 	if (parser_material_tex_coord_atlas != NULL) {
-		parser_material_write(parser_material_kong, string_tmp("float2 %s_atlas = %s;", store, parser_material_tex_coord_atlas));
+		parser_material_write(parser_material_kong, string_tmp("float2 %s_atlas = %s;", store, make_texcoord_atlas_uv(parser_material_kong)));
 		uv_name = string_tmp("%s_atlas", store);
 	}
 	if (parser_material_is_frag) {

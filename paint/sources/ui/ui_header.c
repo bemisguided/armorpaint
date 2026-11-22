@@ -246,7 +246,8 @@ void ui_header_draw_tool_properties_import(char *path) {
 
 static void ui_header_crop_layers() {
 	if (util_udim_count() > 1) {
-		return; // The crop size would become the per tile resolution of every tile
+		console_error("Crop is not available with more than one tile."); // The crop size would become the per tile resolution of every tile
+		return;
 	}
 	i32 res_x = config_get_texture_res_x();
 	i32 res_y = config_get_texture_res_y();
