@@ -1098,6 +1098,15 @@ enum {
 	IMAGE_FILTER_CUBIC   = 2,
 };
 
+// Capture formats of an image node type (image_node_type_t.capture_format): the bytes per pixel and the channels are in the type
+enum {
+	IMAGE_CAPTURE_RGBA8   = 0,
+	IMAGE_CAPTURE_RGBA32F = 1,
+	IMAGE_CAPTURE_R32F    = 2,
+	IMAGE_CAPTURE_R16F    = 3,
+	IMAGE_CAPTURE_R8      = 4,
+};
+
 #define MAKE_IMAGE_NODE_SIZE_ITEMS "512\n1024\n2048\n4096" // The Size setting of every image node
 
 // An image node type (render/make_image_node.c): the shared pass captures the node's inputs in image space,
@@ -1112,15 +1121,32 @@ typedef struct image_node_type {
 	// Readback may swap R and B on some backends: a single value goes into R, G and B.
 	char *(*capture)(ui_node_t *node);
 	// Copies the settings and scalar inputs the processing needs into params (zeroed, params_size bytes).
-	// They are part of the signature; the node itself is not kept for the bake.
+	// They are part of the signature; the node itself is not kept for the bake. Runs before the captures:
+	// the capture callbacks may read it with make_image_node_capture_params (Distance puts its Threshold into the capture).
 	void (*params)(ui_node_t *node, void *params);
-	// false: the capture is 8 bit per channel (RGBA8), enough for masks. true: 32 bit float per channel (size * size * 16 bytes,
-	// 268 MB at 4096), for height maps and blurs that would band; process then gets the pixels as a f32 array (cast to f32 *).
-	bool capture_float;
+	// Number of captures of the node, NULL for one. Capture k (make_image_node_capture_index) calls capture again;
+	// the captures are handed to process one after the other, each starting at a multiple of 16 bytes
+	// (make_image_node_capture_next gives the start of the capture after one).
+	i32 (*capture_count)(ui_node_t *node);
+	// Width and height of capture k, NULL (or 0) for the node size on every capture. A small capture is enough for inputs that are
+	// read at few points (Tile Generator per tile maps, a linked scalar: 1).
+	i32 (*capture_size)(ui_node_t *node, i32 k);
+	// Format of every capture (IMAGE_CAPTURE_*), RGBA8 when left out: 4 bytes per pixel, enough for masks.
+	// The capture shader writes float4: a single channel format keeps the red channel (write the value there, a single value
+	// is also written to G and B for the RGBA formats, a red/blue swap on readback does not matter for them).
+	// The capture formats and what process finds in the bytes of a capture (size * size pixels, row by row, no padding):
+	//   RGBA8   4 bytes per pixel: u8 r, g, b, a (0..255)
+	//   RGBA32F 16 bytes per pixel: f32 r, g, b, a
+	//   R32F    4 bytes per pixel: f32 (a plane)
+	//   R16F    2 bytes per pixel: half float (render_path_raytrace_half_to_float)
+	//   R8      1 byte per pixel: u8 (0..255, value * 255 rounded)
+	i32 capture_format;
+	// Optional: the format of capture k, for a type whose captures differ (overrides capture_format).
+	i32 (*capture_format_at)(ui_node_t *node, i32 k);
 	// false: the result is read at the nearest texel (ids, labels, anything that must not blend). true: cubic on the mesh
 	// (bilinear in a capture), for smooth results (blurs, edges) that would show texel steps and slope jumps when magnified.
 	bool smooth_sample;
-	// Turns the captured pixels (size * size RGBA8, or size * size * 4 floats with capture_float) into size * size * 4 floats (RGBA).
+	// Turns the captured pixels (the captures one after the other, see capture_format) into size * size * 4 floats (RGBA).
 	// Returns -1 when memory runs out, else 0 or a count of the type's own (Flood Fill: islands).
 	i32 (*process)(u8 *pixels, i32 size, void *params, f32 *result);
 } image_node_type_t;
