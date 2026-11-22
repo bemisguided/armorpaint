@@ -77,7 +77,8 @@ typedef struct make_image_node_state {
 	bool               cycle_told;    // The Console told about the loop this node is in
 	gpu_texture_t     *pending_target; // Result by reference: the rendered result waits for the debounce (it replaces the result at the bake)
 	i32                gpu_renders;    // Result by reference: renders of this node since the start (a test hook, make_image_node_gpu_stat)
-	f64                gpu_render_ms;  // Result by reference: time of the last render
+	f64                gpu_render_ms;  // Result by reference: time of the last capture that rendered (shader, hash, pass), see make_image_node_gpu_stat
+	f64                gpu_pass_ms;    // Result by reference: time of the pass of that render alone
 } make_image_node_state_t;
 
 // An image node of a material, found by make_image_node_collect
@@ -838,9 +839,10 @@ static u64 make_image_node_reference_signature(make_image_node_state_t *s, u64 s
 // the result format that waits for the debounce as pending_target (make_image_node_bake_reference makes it the result). No readback,
 // no pixel hash, no plane. params is freed here. Returns true when the node is pending.
 static bool make_image_node_capture_reference(make_image_node_state_t *s, char *id, ui_node_t *node, i32 size, void *params, bool force) {
-	image_node_type_t *t = s->type;
+	image_node_type_t *t           = s->type;
 	u64                source_hash = 0;
-	make_image_node_capture_dst = size;
+	f64                start       = sys_time();
+	make_image_node_capture_dst    = size;
 	shader_context_t *scon = make_image_node_capture_shader(node, t->capture, make_image_node_gpu_format_name(t->result_format), &source_hash);
 	make_image_node_capture_dst = 0;
 	u64 sig = make_image_node_reference_signature(s, source_hash, size, params, t->params_size);
@@ -864,16 +866,17 @@ static bool make_image_node_capture_reference(make_image_node_state_t *s, char *
 		make_image_node_gpu_shader_free(scon);
 		return false; // Keep what is baked
 	}
-	f64 start = sys_time();
+	f64 pass_start = sys_time();
 	make_image_node_gpu_pass(scon, &target, 1, NULL, 0, NULL);
 	make_image_node_gpu_shader_free(scon);
 	if (make_image_node_trace) {
 		gpu_execute_and_wait(); // The time of the render, not of its submission
 	}
+	s->gpu_pass_ms   = (sys_time() - pass_start) * 1000.0;
 	s->gpu_render_ms = (sys_time() - start) * 1000.0;
 	s->gpu_renders++;
 	if (make_image_node_trace) {
-		iron_log("[image node] render %s %d x %d %.3f ms", id, size, size, s->gpu_render_ms);
+		iron_log("[image node] render %s %d x %d %.3f ms (pass %.3f ms)", id, size, size, s->gpu_render_ms, s->gpu_pass_ms);
 	}
 	s->pending_target    = target;
 	s->pending_size      = size;
@@ -1500,14 +1503,15 @@ i32 make_image_node_capture_count() {
 }
 
 // Test hook for the nodes with a result by reference (the stats natives of the test build): 0 renders of the node since the start,
-// 1 time of its last render in ms (to completion when ARMORPAINT_IMAGE_NODE_TRACE is set, else the submission), -1 when the node has no state
+// 1 time in ms of its last capture that rendered (shader, hash and pass), 2 the pass of that render alone; both to completion of the GPU
+// when ARMORPAINT_IMAGE_NODE_TRACE is set, else to the submission. -1 when the node has no state
 f64 make_image_node_gpu_stat(ui_node_t *node, i32 which) {
 	char                    *id = NULL;
 	make_image_node_state_t *s  = make_image_node_state_of(node, &id);
 	if (s == NULL) {
 		return -1.0;
 	}
-	return which == 0 ? (f64)s->gpu_renders : which == 1 ? s->gpu_render_ms : -1.0;
+	return which == 0 ? (f64)s->gpu_renders : which == 1 ? s->gpu_render_ms : which == 2 ? s->gpu_pass_ms : -1.0;
 }
 
 // Regenerate image nodes: captures and bakes every image node of the project on the next update, also the ones whose
