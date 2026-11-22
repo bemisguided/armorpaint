@@ -343,7 +343,7 @@ void box_preferences_theme_tab() {
 			*field = b;
 		}
 		else if (string_equals(key, "LINK_STYLE")) {
-			string_array_t *styles = any_array_create_from_raw(
+			string_array_t *styles = any_array_create_from_raw_tmp(
 			    (void *[]){
 			        tr("Straight"),
 			        tr("Curved"),
