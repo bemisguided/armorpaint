@@ -537,9 +537,9 @@ typedef struct ui_node_section {
 	bool            closed_by_default; // State while the flag bit is clear
 	int             inputs_first;      // Mixed section (kind BUTTON only): index of its first input
 	int             inputs_count;      // Mixed section: number of inputs, 0 for a section of one kind
+	bool            after_inputs;      // BUTTON section only: drawn below all the inputs of the node instead of among the buttons above them (for buttons that head the button list of the node but come last in the table)
 	int             trailing_first;    // INPUT section only: the buttons trailing_first .. trailing_first + trailing_count - 1 are members of this section too, drawn below ALL the inputs of the node (without a header of their own), hidden while the section is closed
 	int             trailing_count;    // Number of trailing buttons, 0 for none
-	bool            after_inputs;      // BUTTON section only: drawn below all the inputs of the node instead of among the buttons above them (for buttons that head the button list of the node but come last in the table)
 } ui_node_section_t;
 
 typedef struct ui_node {
