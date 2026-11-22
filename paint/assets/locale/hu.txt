@@ -327,6 +327,7 @@ Csoport kimenet
 Keménység
 Magasság
 Magasság keverése
+
 Súgó
 3D Nézet elrejtése
 High Poly
@@ -844,6 +845,7 @@ Ablak
 Drótváz
 Munkaterület
 Világ
+
 Egér átfordítása
 Kamera mozgatása közben az egér átfordul a képernyő szélein
 X

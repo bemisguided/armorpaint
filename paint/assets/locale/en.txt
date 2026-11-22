@@ -327,6 +327,7 @@ Group Output
 Hardness
 Height
 Height Blend
+Height to Normal
 Help
 Hide 3D View
 High Poly
@@ -844,6 +845,7 @@ Window
 Wireframe
 Workspace
 World
+Wrap Edges
 Wrap Mouse
 Wrap mouse around view boundaries during camera control
 X

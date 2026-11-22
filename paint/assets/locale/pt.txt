@@ -327,6 +327,7 @@ Saída de Grupo
 Dureza
 Altura
 Mistura de Altura
+
 Ajuda
 Ocultar Visualização 3D
 Alto Polígonos
@@ -844,6 +845,7 @@ Janela
 Aramado
 Área de Trabalho
 Mundo
+
 Envolver Mouse
 Envolver mouse nas bordas da visualização durante controle da câmera
 X

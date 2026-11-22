@@ -327,6 +327,7 @@ Keluaran Grup
 Kekerasan
 Tinggi
 Campur Tinggi
+
 Bantuan
 Sembunyikan Tampilan 3D
 Poly Tinggi
@@ -844,6 +845,7 @@ Jendela
 Wireframe
 Ruang Kerja
 Dunia
+
 Bungkus Mouse
 Bungkus mouse di sekitar batas tampilan saat mengontrol kamera
 X

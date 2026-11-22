@@ -327,6 +327,7 @@ Wyjście grupy
 Twardość
 Wysokość
 Mieszanie wysokości
+
 Pomoc
 Ukryj widok 3D
 Wysoki poly
@@ -844,6 +845,7 @@ Okno
 Siatka
 Przestrzeń robocza
 Świat
+
 Zawijaj mysz
 Zawijaj mysz wokół granic widoku podczas sterowania kamerą
 X

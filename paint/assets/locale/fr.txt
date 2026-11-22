@@ -327,6 +327,7 @@ Sortie groupe
 Dureté
 Hauteur
 Mélange hauteur
+
 Aide
 Masquer la vue 3D
 High Poly
@@ -844,6 +845,7 @@ Fenêtre
 Fil de fer
 Espace de travail
 Monde
+
 Boucler la souris
 Boucler la souris autour des limites de la vue pendant le contrôle caméra
 X

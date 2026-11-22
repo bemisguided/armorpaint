@@ -327,6 +327,7 @@ Výstup skupiny
 Tvrdost
 Výška
 Míchání výšky
+
 Nápověda
 Skrýt 3D pohled
 Vysoký počet polygonů
@@ -844,6 +845,7 @@ Okno
 Drátěný model
 Pracovní prostor
 Svět
+
 Obtáčet myš
 Obtáčet myš kolem hranic pohledu při ovládání kamery
 X
