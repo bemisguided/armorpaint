@@ -799,6 +799,7 @@ f32                    script_image_node_test_gpu_pass(i32 which, i32 x, i32 y, 
 void                   script_image_node_test_register();
 i32                    script_image_node_result_hash(ui_node_t *node, i32 half);
 i32                    script_image_node_result_save(ui_node_t *node, char *path);
+i32                    script_image_node_dump(ui_node_t *node, char *path, i32 channel);
 f32                    script_image_node_test_capture(i32 format, i32 size, i32 x, i32 y, i32 channel);
 i32                    script_flood_fill_width(ui_node_t *node);
 f32                    script_flood_fill_pixel(ui_node_t *node, f32 u, f32 v, i32 channel);

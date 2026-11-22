@@ -338,6 +338,27 @@ i32 script_image_node_result_hash(ui_node_t *node, i32 half) {
 	return (i32)(half == 0 ? (h & 0x7fffffffu) : ((h >> 32) & 0x7fffffffu));
 }
 
+// Writes one channel (0..3) of the baked result texture of node to path as raw float32 (width * height values, row after row from the top), for
+// the host comparison of a GPU bake with its cpu reference; returns the width, -1 when the node has no result or the file cannot be written.
+i32 script_image_node_dump(ui_node_t *node, char *path, i32 channel) {
+	gpu_texture_t *image = script_flood_fill_result(node);
+	if (image == NULL || channel < 0 || channel > 3 || image->format != GPU_TEXTURE_FORMAT_RGBA128) {
+		return -1;
+	}
+	gpu_texture_t *current;
+	bool           in_use;
+	script_gpu_begin(&current, &in_use);
+	buffer_t *b = gpu_get_texture_pixels(image);
+	script_gpu_end(current, in_use);
+	i32       n   = image->width * image->height;
+	buffer_t *out = buffer_create(n * 4);
+	for (i32 i = 0; i < n; ++i) {
+		buffer_set_f32(out, i * 4, buffer_get_f32(b, (i * 4 + channel) * 4));
+	}
+	iron_file_save_bytes(script_resolve_path(path), out, (u64)(n * 4));
+	return image->width;
+}
+
 // Saves the raw bytes of the baked result texture of a node (the readback as the GPU holds it: 8 bytes per pixel for RGBA64, 16 for RGBA128, row after row)
 // to a file; returns the byte count, -1 when the node has no result. For host comparisons of a GPU baked result with a reference (Edge Detect).
 i32 script_image_node_result_save(ui_node_t *node, char *path) {
