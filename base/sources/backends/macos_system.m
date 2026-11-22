@@ -666,9 +666,32 @@ bool iron_internal_handle_messages(void) {
 	return true;
 }
 
+// The requested size is in pixels: convert it with the scale of the screen the window lands on, and clamp it to that screen
+static int window_pick_screen(const NSRect *frames, int count, int mn, int x, int y, float main_scale) {
+	NSPoint p = NSMakePoint(x / main_scale, frames[mn].size.height - y / main_scale);
+	for (int i = 0; i < count && x >= 0 && y >= 0; ++i) {
+		if (NSPointInRect(p, frames[i])) {
+			return i;
+		}
+	}
+	return mn;
+}
+
+static void window_size_points(int px_w, int px_h, float scale, NSSize visible, float chrome_h, int *w, int *h) {
+	*w = fminf(px_w / scale, visible.width);
+	*h = fminf(px_h / scale, visible.height - chrome_h);
+}
+
 static void create_window(iron_window_options_t *options) {
-	int width     = options->width / [[NSScreen mainScreen] backingScaleFactor];
-	int height    = options->height / [[NSScreen mainScreen] backingScaleFactor];
+	NSArray *screens = [NSScreen screens];
+	NSRect   frames[16];
+	int      count = (int)fmin([screens count], 16), mn = 0;
+	for (int i = 0; i < count; ++i) {
+		frames[i] = [screens[i] frame];
+		mn        = screens[i] == [NSScreen mainScreen] ? i : mn;
+	}
+	NSScreen *screen = screens[window_pick_screen(frames, count, mn, options->x, options->y, [screens[mn] backingScaleFactor])];
+
 	int styleMask = NSWindowStyleMaskTitled | NSWindowStyleMaskClosable;
 	if ((options->features & IRON_WINDOW_FEATURES_RESIZABLE) || (options->features & IRON_WINDOW_FEATURES_MAXIMIZABLE)) {
 		styleMask |= NSWindowStyleMaskResizable;
@@ -676,10 +699,13 @@ static void create_window(iron_window_options_t *options) {
 	if (options->features & IRON_WINDOW_FEATURES_MINIMIZABLE) {
 		styleMask |= NSWindowStyleMaskMiniaturizable;
 	}
+	int   width, height;
+	float chrome_h = [NSWindow frameRectForContentRect:NSZeroRect styleMask:styleMask].size.height;
+	window_size_points(options->width, options->height, [screen backingScaleFactor], [screen visibleFrame].size, chrome_h, &width, &height);
 
 	view = [[BasicMTKView alloc] initWithFrame:NSMakeRect(0, 0, width, height)];
 	[view registerForDraggedTypes:[NSArray arrayWithObjects:NSURLPboardType, nil]];
-	window   = [[NSWindow alloc] initWithContentRect:NSMakeRect(0, 0, width, height) styleMask:styleMask backing:NSBackingStoreBuffered defer:TRUE];
+	window = [[NSWindow alloc] initWithContentRect:NSMakeRect(0, 0, width, height) styleMask:styleMask backing:NSBackingStoreBuffered defer:TRUE screen:screen];
 	delegate = [IronAppDelegate alloc];
 	[window setDelegate:delegate];
 	[window setTitle:[NSString stringWithCString:options->title encoding:NSUTF8StringEncoding]];
