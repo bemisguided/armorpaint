@@ -33,10 +33,17 @@ static i32 asset_tray_meta_category(asset_tray_t tray) {
 }
 
 // Tray indices of the items that pass the tag filter of the tray (tags: false shows all) and whose name contains the search text
-// (lower case, NULL or empty for no search)
+// (lower case, NULL or empty for no search). Called every frame: the result is one array per tray, emptied and refilled by the next call
+// (valid until then, the trays only use it while they draw), so a redraw allocates nothing
 i32_array_t *asset_tray_filter(asset_tray_t tray, char *search, bool tags) {
-	any_array_t *items    = asset_selection_tray_items(tray);
-	i32_array_t *filtered = i32_array_create_from_raw((i32[]){}, 0);
+	static i32_array_t *filtered_of_tray[ASSET_TRAY_COUNT];
+	any_array_t        *items    = asset_selection_tray_items(tray);
+	i32_array_t        *filtered = filtered_of_tray[tray];
+	if (filtered == NULL) {
+		filtered = i32_array_create(0);
+		filtered_of_tray[tray] = filtered;
+	}
+	filtered->length = 0;
 	for (i32 i = 0; i < items->length; ++i) {
 		if (tags && !ui_asset_tags_visible(asset_tray_meta_category(tray), i)) {
 			continue;
