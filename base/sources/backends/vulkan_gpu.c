@@ -1398,6 +1398,27 @@ void gpu_get_render_target_pixels(gpu_texture_t *render_target, uint8_t *data) {
 	vkUnmapMemory(device, readback_mem);
 }
 
+// Linear filtering of a format is optional in Vulkan (32 bit float formats on some devices). Queried once per format.
+static bool format_filterable(gpu_texture_format_t format) {
+	static int8_t cache[GPU_TEXTURE_FORMAT_RGBA32_BC7 + 1]; // 0 unknown, 1 yes, -1 no
+	if (cache[format] == 0) {
+		VkFormatProperties props;
+		vkGetPhysicalDeviceFormatProperties(gpu, convert_image_format(format), &props);
+		cache[format] = (props.optimalTilingFeatures & VK_FORMAT_FEATURE_SAMPLED_IMAGE_FILTER_LINEAR_BIT) ? 1 : -1;
+	}
+	return cache[format] > 0;
+}
+
+// A draw that reads a texture the device cannot filter must not use the linear sampler (same rule as unfilterable_texture_bound in webgpu_gpu.c)
+static bool unfilterable_texture_bound(void) {
+	for (int i = 0; i < GPU_MAX_TEXTURES; ++i) {
+		if (current_textures[i] != NULL && !format_filterable(current_textures[i]->format)) {
+			return true;
+		}
+	}
+	return false;
+}
+
 static VkDescriptorSet get_descriptor_set(VkBuffer buffer) {
 	VkDescriptorSet descriptor_set = descriptor_sets[constant_buffer_index];
 
@@ -1428,7 +1449,7 @@ static VkDescriptorSet get_descriptor_set(VkBuffer buffer) {
 	write_count++;
 
 	VkDescriptorImageInfo sampler_info = {
-	    .sampler = linear_sampling ? linear_sampler : point_sampler,
+	    .sampler = (linear_sampling && !unfilterable_texture_bound()) ? linear_sampler : point_sampler,
 	};
 	writes[1].sType           = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
 	writes[1].dstSet          = descriptor_set;
