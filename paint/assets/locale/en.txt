@@ -710,6 +710,8 @@ Sine
 Size
 Slot
 Smooth
+Smooth F1
+Smoothness
 Smudge
 Snap
 Snippets

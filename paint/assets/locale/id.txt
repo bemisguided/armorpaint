@@ -710,6 +710,8 @@ Sinus
 Ukuran
 Slot
 Haluskan
+
+
 Oleskan
 Snap
 Snippet

@@ -710,6 +710,8 @@ Szinusz
 Méret
 Hely
 Simítás
+
+
 Elkenés
 Illesztés
 Kódrészletek

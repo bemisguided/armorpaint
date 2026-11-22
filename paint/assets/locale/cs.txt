@@ -710,6 +710,8 @@ Sinus
 Velikost
 Slot
 Vyhladit
+
+
 Rozmazat
 Přichytit
 Úryvky

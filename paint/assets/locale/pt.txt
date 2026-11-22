@@ -710,6 +710,8 @@ Seno
 Tamanho
 Slot
 Suavizar
+
+
 Borrar
 Ajustar
 Trechos

@@ -710,6 +710,8 @@ Sinus
 Rozmiar
 Slot
 Wygładzanie
+
+
 Rozmazanie
 Przyciągaj
 Fragmenty
