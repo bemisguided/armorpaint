@@ -1143,10 +1143,43 @@ typedef struct image_node_type {
 	i32 capture_format;
 	// Optional: the format of capture k, for a type whose captures differ (overrides capture_format).
 	i32 (*capture_format_at)(ui_node_t *node, i32 k);
+	// GPU baked node, result by reference: the result texture IS the render target the capture shader draws into (result_format,
+	// RGBA128 or R32 for a float result, RGBA64 or R16 for half floats). Nothing is read back, hashed, processed or uploaded:
+	// process stays NULL, capture_count and capture_size are not used, capture writes the result per pixel (a float4, a single
+	// channel result keeps R). The signature of a bake is the source of the capture shader (every literal of every input and
+	// setting is in it) with the size, the params, the asset version and the baked signatures of the image nodes the shader samples;
+	// an unchanged signature does not render again. See the section GPU baked nodes of specs/image-nodes/IMAGE_NODES.md.
+	bool result_by_reference;
+	// With result_by_reference, a GPU baked node that needs passes of its own (a blur, a Sobel and a reduction, a tile composition): capture_count captures
+	// (capture_format_at, capture_size, capture(node) with make_image_node_capture_index) are drawn into render targets, NOT read back, and
+	// gpu_bake(node, size, params, captures, count) runs the passes (make_image_node_gpu_pass over shaders of make_image_node_gpu_shader, a
+	// make_image_node_ping_pong_t for passes that read the one before) and returns the render target of the result (result_format, size x size):
+	// a new target or one of the captures. The shared pass deletes the other captures. NULL = failed (Console error, not retried for this
+	// signature). The node is the node of the capture: read its settings from params, not from the node. NULL: the result is capture 0 itself.
+	gpu_texture_t *(*gpu_bake)(ui_node_t *node, i32 size, void *params, gpu_texture_t **captures, i32 count);
 	// false: the result is read at the nearest texel (ids, labels, anything that must not blend). true: cubic on the mesh
 	// (bilinear in a capture), for smooth results (blurs, edges) that would show texel steps and slope jumps when magnified.
 	bool smooth_sample;
 	// Turns the captured pixels (the captures one after the other, see capture_format) into size * size * 4 floats (RGBA).
 	// Returns -1 when memory runs out, else 0 or a count of the type's own (Flood Fill: islands).
 	i32 (*process)(u8 *pixels, i32 size, void *params, f32 *result);
+	// Pass-through with capture (a grey node, NODES_MATERIAL_PASS_THROUGH_COLOR): the node bakes nothing. Its image input (input
+	// image_input) is rendered in image space into a render target of the node (capture_format RGBA32F, the size of size(node), the
+	// Capture Size setting) that is kept as a texture and bound in the material shader; the node functions (*_node_value, *_node_vector)
+	// write the shader that samples it (make_image_node_sample_input_at). No readback, no hash of pixels, no params, no process, no
+	// result_format, no state row and no Regenerate. The capture is rendered again only when the text of the capture shader changes
+	// (the graph above the image input, not a parameter of the node: a slider drag never recaptures), the image assets, the capture
+	// size or an image node it samples change. An image input linked straight to the Image output (output 0, RGBA) of a baked image node
+	// is not captured at all: its result texture is bound instead (no copy, its own resolution). Needs size and capture; a type with
+	// this flag must not set params, process, capture_count, capture_size, capture_format_at or smooth_sample.
+	bool pass_through_capture;
+	// Pass-through with capture: index of the input socket that is captured (0 when left out)
+	i32 image_input;
 } image_node_type_t;
+
+// A pair of render targets for a GPU pass that reads its previous result (a separable blur, a reduction chain): the pass reads
+// src and writes dst, make_image_node_ping_pong_swap exchanges them. See make_image_node_gpu_pass.
+typedef struct make_image_node_ping_pong {
+	gpu_texture_t *targets[2];
+	i32            src; // Index of the target the next pass reads, the other one is written
+} make_image_node_ping_pong_t;
