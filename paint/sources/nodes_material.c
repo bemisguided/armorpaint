@@ -42,7 +42,7 @@ void nodes_material_init() {
 	nodes_material_pattern = any_array_create_from_raw((void *[]){}, 0); // Image nodes that make a pattern (make_image_node.c): they add themselves
 	nodes_material_filter  = any_array_create_from_raw((void *[]){}, 0); // Image nodes that filter an image
 	// Pattern nodes, keep alphabetical by English name (the menu lists them in this order)
-	noise_generator_node_init();
+	advanced_noise_node_init();
 	tile_uv_node_init();
 	// Filter nodes, keep alphabetical by English name (the menu lists them in this order)
 
