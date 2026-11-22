@@ -516,7 +516,6 @@ Ruido
 Ninguno
 Normal
 Mezcla de normales
-
 Mapa de normales
 Mapa de normales 1
 Mapa de normales 2

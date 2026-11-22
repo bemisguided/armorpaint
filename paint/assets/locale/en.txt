@@ -516,7 +516,6 @@ Noise Texture
 None
 Normal
 Normal Blend
-Normal Converter
 Normal Map
 Normal Map 1
 Normal Map 2
