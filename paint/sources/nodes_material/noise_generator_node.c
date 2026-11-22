@@ -1,8 +1,9 @@
 #include "../global.h"
 
 // Noise Generator (Pattern menu): a tileable noise image. An image node (render/make_image_node.c) that generates its image
-// itself: the capture shader writes the noise per pixel in image space (uv across the image, float, grey), the result is the
-// baked texture at the Size setting, sampled by Tile UV like every other pattern node. No Vector input (image space rule).
+// itself: the capture shader writes the noise per pixel in image space (uv across the image, float, grey) and the render target it
+// draws into IS the result texture at the Size setting (a GPU baked node, result by reference: no readback, no copy, no upload),
+// sampled by Tile UV like every other pattern node. No Vector input (image space rule).
 // Next to Noise Texture (Blender style 3D procedural noise on the mesh, no resolution limit) it is the Substance style
 // generator: modes, tileable by construction, composes with the other image nodes (specs/noise/NOISE_GENERATOR.md).
 // The Mode setting decides the maths and which inputs and settings are shown (ui_nodes_hidden_rules, a linked socket is
@@ -410,26 +411,22 @@ static char *noise_generator_node_capture(ui_node_t *node) {
 	return string_tmp("float4(%s, %s, %s, 1.0)", var, var, var);
 }
 
-// Everything is in the shader (and so in the signature of the captured pixels): no processing parameters
+// Everything is in the shader (and so in the signature, which hashes the shader text): no processing parameters
 static void noise_generator_node_params(ui_node_t *node, void *params) {
 }
 
-// The result is the capture: copied into the RGBA result
-static i32 noise_generator_node_process(u8 *bytes, i32 size, void *params, f32 *result) {
-	memcpy(result, bytes, (size_t)size * size * 4 * sizeof(f32));
-	return 0;
-}
-
+// GPU baked, result by reference: the render target the capture shader draws into is the result (no readback, no copy, no upload).
+// Float, a Bump node or a blur reads the slopes of the noise, half floats would band.
 static image_node_type_t noise_generator_node_image_type = {
-    .type          = "TEX_NOISE_GENERATOR",
-    .result_format = GPU_TEXTURE_FORMAT_RGBA128, // Float: a Bump node or a blur reads the slopes of the noise, half floats would band
-    .params_size   = 0,
-    .size          = noise_generator_node_size,
-    .capture       = noise_generator_node_capture,
-    .capture_format = IMAGE_CAPTURE_RGBA32F,
-    .smooth_sample = true,
-    .params        = noise_generator_node_params,
-    .process       = noise_generator_node_process,
+    .type                = "TEX_NOISE_GENERATOR",
+    .result_format       = GPU_TEXTURE_FORMAT_RGBA128,
+    .result_by_reference = true,
+    .params_size         = 0,
+    .size                = noise_generator_node_size,
+    .capture             = noise_generator_node_capture,
+    .smooth_sample       = true,
+    .params              = noise_generator_node_params,
+    .process             = NULL,
 };
 
 char *noise_generator_node_vector(ui_node_t *node, ui_node_socket_t *socket) {
