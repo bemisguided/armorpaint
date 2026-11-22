@@ -67,6 +67,10 @@ int ui_stops_after_remove(int active, int removed, int count_after) {
 	return active < 0 ? 0 : active;
 }
 
+bool ui_stops_can_add(int count, int max_count) {
+	return count < max_count;
+}
+
 bool ui_stops_can_remove(int count, int min_count) {
 	return count > min_count;
 }
@@ -308,7 +312,7 @@ int ui_stops_update(ui_stops_t *s, const ui_stops_ops_t *ops, void *data, const 
 			s->moved  = false;
 			s->grab   = ui_stops_clamp(ops->get_pos(data, hit)) - (mx - x) / w;
 		}
-		else if (in_bar && !margin) {
+		else if (in_bar && !margin && ui_stops_can_add(n, ops->max_count)) {
 			int added = ops->add(data, ui_stops_clamp((mx - x) / w));
 			if (added >= 0) {
 				s->active = added;

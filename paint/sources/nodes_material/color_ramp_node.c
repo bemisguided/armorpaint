@@ -149,6 +149,8 @@ typedef struct color_ramp_stops {
 } color_ramp_stops_t;
 
 #define COLOR_RAMP_MIN_STOPS 1
+// Blender's limit (MAXCOLORBAND): + adds nothing and is greyed at it. A file with more stops still loads and draws all of them.
+#define COLOR_RAMP_MAX_STOPS 32
 
 static i32 color_ramp_stops_count(void *data) {
 	return (i32)(((color_ramp_stops_t *)data)->vals->length / 5);
@@ -162,11 +164,14 @@ static void color_ramp_stops_set_pos(void *data, i32 i, f32 pos) {
 	((color_ramp_stops_t *)data)->vals->buffer[i * 5 + 4] = pos;
 }
 
-// Adds a stop at pos with the colour and alpha the ramp has there, returns its index
+// Adds a stop at pos with the colour and alpha the ramp has there, returns its index or -1
 static i32 color_ramp_stops_add(void *data, f32 pos) {
 	color_ramp_stops_t *ramp = data;
 	i32                 len  = (i32)(ramp->vals->length / 5);
-	f32                 r = 0.0f, g = 0.0f, b = 0.0f, a = 1.0f;
+	if (len >= COLOR_RAMP_MAX_STOPS) {
+		return -1;
+	}
+	f32 r = 0.0f, g = 0.0f, b = 0.0f, a = 1.0f;
 	if (len > 0) {
 		i32 sorted[len];
 		for (i32 i = 0; i < len; i++)
@@ -233,11 +238,12 @@ static f32 color_ramp_stops_add_pos(color_ramp_stops_t *ramp, i32 active) {
 	return middle < 0.0f ? 0.0f : (middle > 1.0f ? 1.0f : middle);
 }
 
-static const ui_stops_ops_t color_ramp_stops_ops = {.count   = color_ramp_stops_count,
-                                                    .get_pos = color_ramp_stops_get_pos,
-                                                    .set_pos = color_ramp_stops_set_pos,
-                                                    .add     = color_ramp_stops_add,
-                                                    .fill    = color_ramp_stops_fill};
+static const ui_stops_ops_t color_ramp_stops_ops = {.count     = color_ramp_stops_count,
+                                                    .get_pos   = color_ramp_stops_get_pos,
+                                                    .set_pos   = color_ramp_stops_set_pos,
+                                                    .add       = color_ramp_stops_add,
+                                                    .fill      = color_ramp_stops_fill,
+                                                    .max_count = COLOR_RAMP_MAX_STOPS};
 
 // Two quick releases inside the selected node open its 2D view (ui_nodes.c); a handle press or a click on a button of this node must not count.
 static void color_ramp_node_clear_double_click(ui_nodes_t *nodes) {
@@ -313,14 +319,19 @@ void nodes_material_color_ramp_button(i32 node_id) {
 	    },
 	    3);
 	ui_row(row);
-	bool enabled = g_ui->enabled;
+	bool enabled  = g_ui->enabled;
+	g_ui->enabled = enabled && ui_stops_can_add(color_ramp_stops_count(&ramp), COLOR_RAMP_MAX_STOPS);
 	color_ramp_node_clear_double_click_over_element(nodes);
 	bool add_stop = ui_button("+", UI_ALIGN_CENTER, "");
 	if (g_ui->is_hovered) {
 		ui_tooltip(tr("Add color stop"));
 	}
+	g_ui->enabled = enabled;
 	if (add_stop) {
-		state->stops.active = color_ramp_stops_add(&ramp, color_ramp_stops_add_pos(&ramp, state->stops.active));
+		i32 added = color_ramp_stops_add(&ramp, color_ramp_stops_add_pos(&ramp, state->stops.active));
+		if (added >= 0) {
+			state->stops.active = added;
+		}
 	}
 	g_ui->enabled = enabled && ui_stops_can_remove(color_ramp_stops_count(&ramp), COLOR_RAMP_MIN_STOPS);
 	color_ramp_node_clear_double_click_over_element(nodes);
