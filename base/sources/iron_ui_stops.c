@@ -4,8 +4,6 @@
 #include <math.h>
 #include <stdbool.h>
 
-#define UI_STOPS_DOUBLE_CLICK 0.2 // Seconds, as the double clicks of the node editor and the mesh tab
-
 static float ui_stops_clamp(float pos) {
 	if (!(pos > 0.0f)) {
 		return 0.0f; // Also NaN
@@ -75,10 +73,6 @@ bool ui_stops_can_add(int count, int max_count) {
 
 bool ui_stops_can_remove(int count, int min_count) {
 	return count > min_count;
-}
-
-static bool ui_stops_is_double_click(double now, double last_time, int last_hit, int hit) {
-	return hit >= 0 && hit == last_hit && now - last_time < UI_STOPS_DOUBLE_CLICK;
 }
 
 // Marker geometry: every size derives from marker_h (the handle row, it includes UI scale and node zoom) and snaps to
@@ -287,7 +281,7 @@ static void ui_stops_draw(const ui_stops_t *s, const ui_stops_ops_t *ops, void *
 // One frame of the control. The layout is the track (the consumer insets its bar by ui_stops_pin_extent(marker_h) on both
 // sides, so the markers at 0 and 1 stay inside), the bar_h tall bar, the marker_h tall row of markers below it and the hit_h
 // tall click zone (at least marker_h); a press counts within the track plus the pin extent. A press on a handle selects it
-// and starts a drag (a double click deletes it), a press on the bar adds a stop there and drags it, a press on the margin
+// and starts a drag, a press on the bar adds a stop there and drags it, a press on the margin
 // beside the track selects the end stop (it never adds one).
 int ui_stops_update(ui_stops_t *s, const ui_stops_ops_t *ops, void *data, const ui_stops_layout_t *layout) {
 	ui_t *ui    = ui_get_current();
@@ -330,37 +324,24 @@ int ui_stops_update(ui_stops_t *s, const ui_stops_ops_t *ops, void *data, const 
 			if (s->active != hit) {
 				flags |= UI_STOPS_SELECTED;
 			}
-			s->active   = hit;
-			s->last_hit = -1;
+			s->active = hit;
 		}
 		else if (hit >= 0) {
-			if (ui_stops_is_double_click(iron_time(), s->last_time, s->last_hit, hit) && ui_stops_can_remove(n, ops->min_count)) {
-				ops->remove(data, hit);
-				s->active   = ui_stops_after_remove(s->active, hit, ops->count(data));
-				s->last_hit = -1;
-				flags |= UI_STOPS_CHANGED | UI_STOPS_SELECTED;
-				ui->changed = true;
+			if (s->active != hit) {
+				flags |= UI_STOPS_SELECTED;
 			}
-			else {
-				if (s->active != hit) {
-					flags |= UI_STOPS_SELECTED;
-				}
-				s->active    = hit;
-				s->drag      = true;
-				s->moved     = false;
-				s->grab      = ui_stops_clamp(ops->get_pos(data, hit)) - (mx - x) / w;
-				s->last_hit  = hit;
-				s->last_time = iron_time();
-			}
+			s->active = hit;
+			s->drag   = true;
+			s->moved  = false;
+			s->grab   = ui_stops_clamp(ops->get_pos(data, hit)) - (mx - x) / w;
 		}
 		else if (in_bar && !margin && ui_stops_can_add(n, ops->max_count)) {
 			int added = ops->add(data, ui_stops_clamp((mx - x) / w));
 			if (added >= 0) {
-				s->active   = added;
-				s->drag     = true;
-				s->moved    = true;
-				s->grab     = 0.0f;
-				s->last_hit = -1;
+				s->active = added;
+				s->drag   = true;
+				s->moved  = true;
+				s->grab   = 0.0f;
 				flags |= UI_STOPS_CHANGED | UI_STOPS_SELECTED;
 				ui->changed = true;
 			}
@@ -382,9 +363,6 @@ int ui_stops_update(ui_stops_t *s, const ui_stops_ops_t *ops, void *data, const 
 		}
 		else {
 			s->drag = false;
-			if (s->moved) {
-				s->last_hit = -1; // A drag is not the first click of a double click
-			}
 		}
 	}
 

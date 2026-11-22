@@ -21,9 +21,9 @@ Absolu
 Ajouter
 Ajouter une animation
 Ajouter l'échantillon
-Ajouter nouvel échantillon
-Ajouter la couleur sélectionnée aux échantillons
 
+
+Ajouter nouvel échantillon
 Tout
 Tout le traitement est effectué localement sur l'appareil
 Autoriser la caméra à l'envers

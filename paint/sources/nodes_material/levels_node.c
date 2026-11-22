@@ -626,7 +626,6 @@ static void levels_node_strip_button(i32 node_id) {
 		                      .set_pos   = levels_strip_set_pos,
 		                      .fill      = levels_strip_fill_cb,
 		                      .is_locked = levels_strip_is_locked,
-		                      .min_count = 3,
 		                      .max_count = 3};
 		ui_stops_layout_t layout = {.x = g_ui->_x + extent, .y = g_ui->_y + bar_y, .w = track_w, .bar_h = bar_h, .marker_h = marker_h, .hit_h = hit_h};
 		hit |= ui_stops_update(&state->stops, &ops, &strip, &layout);
@@ -640,7 +639,6 @@ static void levels_node_strip_button(i32 node_id) {
 		                            .set_pos   = levels_strip_set_pos,
 		                            .fill      = levels_strip_fill_cb,
 		                            .is_locked = levels_strip_is_locked,
-		                            .min_count = 3,
 		                            .max_count = 3,
 		                            .flipped   = true};
 		ui_stops_ops_t out_ops   = {.count     = levels_strip_count,
@@ -648,7 +646,6 @@ static void levels_node_strip_button(i32 node_id) {
 		                            .set_pos   = levels_strip_set_pos,
 		                            .fill      = levels_strip_fill_cb,
 		                            .is_locked = levels_strip_is_locked,
-		                            .min_count = 2,
 		                            .max_count = 2};
 		// The input handles on top of the histogram box (their press zone above it), the output handles below the bar. A press in the box does nothing.
 		ui_stops_layout_t in_layout  = {.x = g_ui->_x + extent, .y = g_ui->_y + hist_y, .w = track_w, .bar_h = hist_h, .marker_h = marker_h, .hit_h = hit_h};
