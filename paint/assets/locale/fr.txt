@@ -72,7 +72,6 @@ Bits
 Masque noir
 
 
-
 Exécutable Blender
 Chemin vers l'exécutable Blender non défini
 Mode de fusion
@@ -384,6 +383,9 @@ Importer le fichier de texture
 Importer...
 Import du maillage
 Entrée
+
+
+
 Entrante
 Gonfler
 Info : Ressource déjà importée
@@ -392,6 +394,7 @@ Inspecter en tant que script
 Mettre à jour instantanément l'aperçu du matériau lors du changement de nœud
 Intensité
 Interface
+
 Interpolator
 Dossier d'export invalide
 Chemin de script invalide
@@ -555,8 +558,6 @@ Orientation 3D
 Origine vers la géométrie
 Orthographique
 Sortie
-
-
 Superposer
 
 
@@ -896,7 +897,6 @@ Profil d'onde
 Texture d'onde
 Type d'onde
 Quoi de neuf ?
-
 Masque blanc
 Voile blanc
 Largeur

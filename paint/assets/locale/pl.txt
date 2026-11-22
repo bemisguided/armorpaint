@@ -72,7 +72,6 @@ Bity
 Czarna maska
 
 
-
 Plik wykonywalny Blendera
 Ścieżka do pliku wykonywalnego Blendera nie ustawiona
 Mieszanie
@@ -384,6 +383,9 @@ Importuj plik tekstury
 Importuj...
 Importowanie modelu
 Wejście
+
+
+
 Przychodzące
 Nadmuchaj
 Informacja: Zasób już zaimportowany
@@ -392,6 +394,7 @@ Zbadaj jako skrypt
 Natychmiast aktualizuj podgląd materiału przy zmianie węzła
 Intensywność
 Interfejs
+
 Interpoluj
 Nieprawidłowy katalog eksportu
 Nieprawidłowa ścieżka skryptu
@@ -555,8 +558,6 @@ Orientacja 3D
 Środek do geometrii
 Ortograficzny
 Wyjście
-
-
 Nakładka
 
 
@@ -896,7 +897,6 @@ Profil fali
 Tekstura fali
 Typ fali
 Co nowego
-
 Biała maska
 Bielenie
 Szerokość
