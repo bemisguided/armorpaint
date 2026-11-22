@@ -17,18 +17,21 @@ static void texture_slot_node_button(i32 node_id) {
 	f32_array_t    *values = node->buttons->buffer[0]->default_value;
 	i32             btp    = (i32)values->buffer[0];
 	i32             count  = asset_bake_type_count();
-	string_array_t *labels = any_array_create_from_raw((void *[]){}, 0);
+	string_array_t *labels = any_array_create_from_raw_tmp(NULL, count + 1); // Per frame list (node button), room for the unknown type
 	i32             sel    = -1;
 	for (i32 i = 0; i < count; ++i) {
-		i32 id = asset_bake_type_at(i);
-		any_array_push(labels, asset_bake_type_label(id));
+		i32 id         = asset_bake_type_at(i);
+		labels->buffer[i] = asset_bake_type_label(id);
 		if (id == btp) {
 			sel = i;
 		}
 	}
 	if (sel < 0) { // Unknown id of a newer version, kept until another type is picked
-		any_array_push(labels, asset_bake_type_label(btp));
-		sel = count;
+		labels->buffer[count] = asset_bake_type_label(btp);
+		sel                   = count;
+	}
+	else {
+		labels->length = count;
 	}
 	ui_set_next_id((ui_id_t)&values->buffer[0]);
 	ui_combo(&sel, labels, tr("Bake Type"), false, UI_ALIGN_LEFT, true);

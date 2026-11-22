@@ -475,14 +475,7 @@ void tab_materials_draw_edit() {
 void tab_materials_draw_full(i32 *htab) {
 	if (ui_tab(htab, tr("Materials"), false, -1, false)) {
 		ui_begin_sticky();
-		f32_array_t *row = f32_array_create(0);
-		for (i32 i = 0; i < 3; ++i) {
-			f32_array_push(row, -64);
-		}
-		if (ui_asset_tags_any(MC_MATERIAL)) {
-			f32_array_push(row, -150); // Tags filter
-		}
-		ui_row(row);
+		ui_row(ui_asset_tray_row(MC_MATERIAL, 3, -64, 0, false));
 
 		tab_materials_button_new(tr("New"));
 		tab_materials_button_nodes();

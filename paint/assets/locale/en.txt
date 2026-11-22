@@ -71,7 +71,6 @@ Bent Normal
 Bevel
 Bias
 Bits
-Black
 Black Mask
 Blend
 Blend Width
@@ -385,6 +384,9 @@ Import texture file
 Import...
 Importing mesh
 In
+In High
+In Low
+In Mid
 Incoming
 Inflate
 Info: Asset already imported
@@ -393,6 +395,7 @@ Inspect as Script
 Instantly update material preview on node change
 Intensity
 Interface
+Intermediary Clamp
 Interpolate
 Invalid export directory
 Invalid script path
@@ -512,7 +515,7 @@ No response
 Node
 Node Previews
 Nodes
-Noise Generator
+Advanced Noise
 Noise Grain
 Noise Texture
 None
@@ -557,8 +560,6 @@ Orientation 3D
 Origin to Geometry
 Orthographic
 Out
-Out Black
-Out White
 Overlay
 Pattern Mode
 By Map
@@ -899,7 +900,6 @@ Wave Profile
 Wave Texture
 Wave Type
 What's New
-White
 White Mask
 Whiteout
 Width

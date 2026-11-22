@@ -510,6 +510,9 @@ typedef enum ui_node_flag {
 	// A set bit means "toggled away from the default of the section" (closed_by_default), so 0, the value of every node saved before and of every new node,
 	// is the default state of all sections. Presentation only: no undo step, no compile, no format change (flags is saved as is).
 	UI_NODE_FLAG_SECTION_0 = 256,
+	// Marker of the section bits (8 and up): set = they follow the table order of today (image nodes: Texture last), clear = a node saved before
+	// the order was changed (Texture first), remapped once on load by make_image_node_sections_remap. Every node of the new layout carries it.
+	UI_NODE_FLAG_SECTIONS_V2 = 128,
 } ui_node_flag_t;
 
 #define UI_NODE_SECTIONS_MAX 23
@@ -534,7 +537,9 @@ typedef struct ui_node_section {
 	bool            closed_by_default; // State while the flag bit is clear
 	int             inputs_first;      // Mixed section (kind BUTTON only): index of its first input
 	int             inputs_count;      // Mixed section: number of inputs, 0 for a section of one kind
-	bool            after_inputs;      // BUTTON section only: drawn below all the inputs of the node instead of among the buttons above them (a visual order, the index and the flag bit of the section stay)
+	bool            after_inputs;      // BUTTON section only: drawn below all the inputs of the node instead of among the buttons above them (for buttons that head the button list of the node but come last in the table)
+	int             trailing_first;    // INPUT section only: the buttons trailing_first .. trailing_first + trailing_count - 1 are members of this section too, drawn below ALL the inputs of the node (without a header of their own), hidden while the section is closed
+	int             trailing_count;    // Number of trailing buttons, 0 for none
 } ui_node_section_t;
 
 typedef struct ui_node {
@@ -685,6 +690,7 @@ typedef struct ui_stops_ops {
 	bool (*is_locked)(void *data, int i); // Optional (NULL: no stop is locked): a locked stop can be selected but not dragged or deleted, it is drawn dimmed
 	int min_count;
 	int max_count;
+	bool flipped; // The handles sit ABOVE the bar (houses with the roof pointing down, their tip on the top edge of the bar, ui_stops_draw_pin_flipped): the press zone is the hit_h tall row above the bar
 } ui_stops_ops_t;
 
 // The track and its rows in window coordinates
@@ -702,3 +708,4 @@ int  ui_stops_pin_extent(float marker_h);
 int  ui_stops_after_remove(int active, int removed, int count_after);
 bool ui_stops_can_add(int count, int max_count);
 bool ui_stops_can_remove(int count, int min_count);
+void ui_stops_pin_rings(float marker_h, int *outline, int *frame); // Fork only: Levels lays out its histogram frame with it

@@ -73,7 +73,6 @@ Bits
 Mascara negra
 
 
-
 Ejecutable de Blender
 Ruta al ejecutable de Blender no establecida
 Fusión
@@ -385,6 +384,9 @@ Importar textura
 Importar...
 Importando malla
 Entrada
+
+
+
 Entrante
 Inflar
 Info: Recurso ya importado
@@ -393,6 +395,7 @@ Inspeccionar como script
 Actualizar instantáneamente la vista previa del material en el cambio de nodo
 Intensidad
 Interfaz
+
 Interpolar
 Directorio de exportación inválido
 Ruta de script no válida
@@ -557,8 +560,6 @@ Orientación 3D
 Origen a la geometría
 Ortográfica
 Salida
-
-
 Superponer
 
 
@@ -899,7 +900,6 @@ Perfil de onda
 Onda
 Tipo de onda
 Que hay de nuevo
-
 Mascara blanca
 Blanqueado
 Anchura

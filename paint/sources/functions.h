@@ -969,6 +969,7 @@ char                     *asset_selection_unique_path(char *dir, char *name, cha
 i32_array_t              *asset_tray_filter(asset_tray_t tray, char *search, bool tags);
 void                      ui_asset_details_show(i32 category, i32 index);
 bool                      ui_asset_tags_any(i32 category);
+f32_array_t              *ui_asset_tray_row(i32 category, i32 buttons, f32 button_w, f32 search_w, bool clear_search);
 bool                      ui_asset_tags_filter(i32 category);
 bool                      ui_asset_tags_active(i32 category);
 bool                      ui_asset_tags_visible(i32 category, i32 index);
@@ -1173,6 +1174,8 @@ void                      make_image_node_bake_now(ui_node_t *node);
 #endif
 ui_node_button_t         *make_image_node_state_button();
 void                      make_image_node_sections(ui_node_t *def, ui_node_section_t *own, i32 own_count, i32 n_general_inputs);
+u32                       make_image_node_sections_remap_flags(u32 flags, i32 count);
+void                      make_image_node_sections_remap(ui_node_t *node, const ui_node_section_t *list);
 f32                       make_image_node_button(ui_node_t *node, i32 i);
 i32                       make_image_node_size(ui_node_t *node, i32 button);
 ui_node_socket_t         *make_image_node_socket(char *name, char *type, u32 color, f32_array_t *default_value, f32 min, f32 max, f32 precision);
@@ -1751,7 +1754,7 @@ char             *script_node_text(ui_node_t *node);
 void              script_node_button(i32 node_id);
 void              combine_color_node_init();
 void              combine_xyz_node_init();
-void              noise_generator_node_init();
+void              advanced_noise_node_init();
 void              noise_texture_node_init();
 void              brightness_contrast_node_init();
 void              color_mask_node_init();

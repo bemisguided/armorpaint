@@ -99,7 +99,7 @@ static int ui_stops_pin_w(float marker_h) {
 
 // Black outline and grey frame of the marker box in pixels, both inside the silhouette (ui_stops_pin_w wide). The frame
 // shrinks first when the fill would get less than 3 px (1 px at pin_w 3, no outline at pin_w 1).
-static void ui_stops_pin_rings(float marker_h, int *outline, int *frame) {
+void ui_stops_pin_rings(float marker_h, int *outline, int *frame) { // Fork only: not static, Levels uses it
 	*outline = ui_stops_clamp_int(ui_stops_round(0.075f * marker_h), 1, 8);
 	*frame   = *outline;
 	int w    = ui_stops_pin_w(marker_h);
@@ -162,6 +162,7 @@ static void ui_stops_pin_colors(uint32_t bg_col, uint32_t text_col, ui_stops_col
 // A marker is a house like Blender's color ramp handle: a roof over a box with the stop colour. Geometry and colours are
 // the same for all markers of a control.
 typedef struct ui_stops_house {
+	bool              flipped; // Fork only: the house is mirrored about the roof tip y, it extends up from it (handles on top of a bar)
 	float             w; // Silhouette width, odd
 	float             half;
 	float             roof; // Height of the 45 degree roof
@@ -193,22 +194,26 @@ static void ui_stops_house_init(ui_stops_house_t *h, float marker_h) {
 static void ui_stops_draw_box(const ui_stops_house_t *h, float cx, float y, uint32_t fill) {
 	float left = cx - h->half;
 	float top  = y + h->roof;
+#define UI_STOPS_FY(ty, rh) (h->flipped ? 2.0f * y - (ty) - (rh) : (ty)) // Fork only: rect of the normal house mirrored about y
 	draw_set_color(h->colors.outline);
-	draw_filled_rect(left, top, h->w, h->box_h);
+	draw_filled_rect(left, UI_STOPS_FY(top, h->box_h), h->w, h->box_h);
 	draw_set_color(h->colors.frame);
-	draw_filled_rect(left + h->d, top, h->w - h->d * 2.0f, h->box_h - h->d);
+	draw_filled_rect(left + h->d, UI_STOPS_FY(top, h->box_h - h->d), h->w - h->d * 2.0f, h->box_h - h->d);
 	draw_set_color(fill | 0xff000000);
-	draw_filled_rect(left + h->d + h->g, top + h->g, h->w - (h->d + h->g) * 2.0f, h->box_h - h->d - h->g * 2.0f);
+	draw_filled_rect(left + h->d + h->g, UI_STOPS_FY(top + h->g, h->box_h - h->d - h->g * 2.0f), h->w - (h->d + h->g) * 2.0f, h->box_h - h->d - h->g * 2.0f);
+#undef UI_STOPS_FY
 }
 
 // The roof: black outline over a grey roof, the select grey when active. It lies in the rows above the box.
 static void ui_stops_draw_roof(const ui_stops_house_t *h, float cx, float y, bool active) {
 	float left = cx - h->half;
 	float top  = y + h->roof;
+#define UI_STOPS_PY(py) (h->flipped ? 2.0f * y - (py) : (py)) // Fork only: point mirrored about y
 	draw_set_color(h->colors.outline);
-	draw_filled_triangle(cx, y, left, top, cx + h->half, top);
+	draw_filled_triangle(cx, y, left, UI_STOPS_PY(top), cx + h->half, UI_STOPS_PY(top));
 	draw_set_color(active ? h->colors.roof_active : h->colors.roof);
-	draw_filled_triangle(cx, y + h->inset, left + h->d, top, cx + h->half - h->d, top);
+	draw_filled_triangle(cx, UI_STOPS_PY(y + h->inset), left + h->d, UI_STOPS_PY(top), cx + h->half - h->d, UI_STOPS_PY(top));
+#undef UI_STOPS_PY
 }
 
 // Position line across the bar at a stop: 1 px wide at ordinary sizes, dashes alternating light and dark (readable on any
@@ -253,8 +258,9 @@ static void ui_stops_draw(const ui_stops_t *s, const ui_stops_ops_t *ops, void *
 	}
 	ui_stops_house_t h;
 	ui_stops_house_init(&h, l->marker_h);
+	h.flipped    = ops->flipped; // Fork only
 	float line_y = floorf(l->y); // Whole pixels: the triangles are not truncated like the rects
-	float pin_y  = floorf(l->y + l->bar_h);
+	float pin_y  = floorf(ops->flipped ? l->y : l->y + l->bar_h); // The roof tips touch the bar: its bottom, its top when flipped
 	for (int k = 0; k < n; ++k) {
 		int i = ui_stops_draw_order(k, n, s->active);
 		ui_stops_draw_line(ui_stops_snap_x(l->x, l->w, ops->get_pos(data, i)), line_y, l->bar_h, l->marker_h, i == s->active);
@@ -309,9 +315,11 @@ int ui_stops_update(ui_stops_t *s, const ui_stops_ops_t *ops, void *data, const 
 
 	bool can_start = ui->enabled && ui->input_enabled && ui->input_started && !s->drag &&
 	                 (ui->current_window == NULL || ui_input_in_rect(ui->_window_x, ui->_window_y, ui->_window_w, ui->_window_h));
-	if (can_start && mx >= x - extent && mx <= x + w + extent && my >= y && my < y + bar_h + hit_h) {
+	float zone_top = ops->flipped ? y - hit_h : y; // Fork only: the press zone is the bar and the hit_h tall row of handles (above the bar when flipped)
+	float zone_end = ops->flipped ? y + bar_h : y + bar_h + hit_h;
+	if (can_start && mx >= x - extent && mx <= x + w + extent && my >= zone_top && my < zone_end) {
 		flags |= UI_STOPS_CONSUMED;
-		bool in_bar = my < y + bar_h;
+		bool in_bar = ops->flipped ? my >= y : my < y + bar_h;
 		bool margin = mx < x || mx > x + w;
 		int  hit    = in_bar ? -1 : ui_stops_hit(ops->get_pos, data, n, mx, x, w, hit_w * 0.5f + 1.0f, s->active);
 		if (margin && hit < 0) {
