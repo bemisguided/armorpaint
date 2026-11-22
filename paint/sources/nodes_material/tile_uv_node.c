@@ -6,8 +6,12 @@
 // 4 x 4 times. Rotation follows the rotation convention of all image nodes (armorpaint-admin
 // specs/image-nodes/ROTATION_CONVENTION.md): degrees, a positive angle turns the placed image clockwise as seen on the
 // uv (y down), about the uv centre; the Offset is not turned with it (for a uniform Scale it moves the image along the
-// uv axes whatever the Rotation, like Transform's Offset). It is an image node itself (render/make_image_node.c): its
-// Image input is evaluated in image space, baked at Size (32 bit float so colour and smooth gradients keep their precision) and sampled at the placed uv.
+// uv axes whatever the Rotation, like Transform's Offset).
+// A pass-through node with capture (render/make_image_node.c, image_node_type_t.pass_through_capture): it bakes nothing. Its Image
+// input is evaluated in image space and kept as a render target (32 bit float, so colour and smooth gradients keep their precision)
+// of Capture Size, and the material shader samples that texture at the placed uv; the placement, the Filter and every number are in
+// the shader, so a slider never captures again. An Image linked straight to the Image output of a baked node reads that node's
+// result instead (no copy).
 // Chosen over evaluating the Image graph at the placed uv in the material shader: whatever sits between the image
 // nodes and Tile UV (Math, Mix, ...) then stays a plain image space graph, nothing is evaluated twice at a
 // different coordinate, and chained image nodes keep reading each other 1:1.
@@ -27,39 +31,28 @@ enum {
 
 // Node button indices (settings)
 enum {
-	TILE_UV_BUTTON_SIZE   = 0,
-	TILE_UV_BUTTON_FILTER = 2, // The state row is button 1
+	TILE_UV_BUTTON_CAPTURE_SIZE = 0,
+	TILE_UV_BUTTON_FILTER       = 1,
 };
 
-// Width and height of the baked image: Size 512, 1024, 2048 or 4096
+// Width and height of the capture of the Image input: Capture Size 512, 1024, 2048 or 4096
 static i32 tile_uv_node_size(ui_node_t *node) {
-	return make_image_node_size(node, TILE_UV_BUTTON_SIZE);
+	return make_image_node_size(node, TILE_UV_BUTTON_CAPTURE_SIZE);
 }
 
-// Captured per pixel: the Image input
+// Captured per pixel: the Image input (the capture target of the shared pass)
 static char *tile_uv_node_capture(ui_node_t *node) {
 	char *image = parser_material_parse_vector_input(node->inputs->buffer[TILE_UV_INPUT_IMAGE]);
 	return string_tmp("float4(%s, 1.0)", image);
 }
 
-static void tile_uv_node_params(ui_node_t *node, void *params) {
-}
-
-// The captured image is the result
-static i32 tile_uv_node_process(u8 *bytes, i32 size, void *params, f32 *result) {
-	memcpy(result, bytes, (size_t)size * size * 4 * sizeof(f32));
-	return 0;
-}
-
 static image_node_type_t tile_uv_node_image_type = {
-    .type          = "TEX_TILE_UV",
-    .result_format = GPU_TEXTURE_FORMAT_RGBA128,
-    .params_size   = 0,
-    .size          = tile_uv_node_size,
-    .capture       = tile_uv_node_capture,
-    .capture_format = IMAGE_CAPTURE_RGBA32F,
-    .params        = tile_uv_node_params,
-    .process       = tile_uv_node_process,
+    .type                 = "TEX_TILE_UV",
+    .size                 = tile_uv_node_size,
+    .capture              = tile_uv_node_capture,
+    .capture_format       = IMAGE_CAPTURE_RGBA32F,
+    .pass_through_capture = true,
+    .image_input          = TILE_UV_INPUT_IMAGE,
 };
 
 // The image placed on the uv: p = R^-1 * (Vector (unlinked: tex_coord) - 0.5), times (Scale X, Scale Y), plus 0.5 plus
@@ -101,7 +94,7 @@ static char *tile_uv_node_sample(ui_node_t *node) {
 	}
 	i32 setting = (i32)make_image_node_button(node, TILE_UV_BUTTON_FILTER); // 0 Linear, 1 Cubic, 2 Nearest
 	i32 filter  = setting == 0 ? IMAGE_FILTER_LINEAR : setting == 1 ? IMAGE_FILTER_CUBIC : IMAGE_FILTER_NEAREST;
-	return make_image_node_sample_at(node, p, filter);
+	return make_image_node_sample_input_at(node, p, filter);
 }
 
 char *tile_uv_node_vector(ui_node_t *node, ui_node_socket_t *socket) {
@@ -113,7 +106,7 @@ char *tile_uv_node_value(ui_node_t *node, ui_node_socket_t *socket) {
 }
 
 void tile_uv_node_init() {
-	u32 value_color = 0xffa1a1a1;
+	u32 value_color = NODES_MATERIAL_VALUE_COLOR;
 
 	ui_node_t *tile_uv_node_def =
 	    ALLOC_INIT(ui_node_t,
@@ -122,10 +115,10 @@ void tile_uv_node_init() {
 	                .type   = "TEX_TILE_UV",
 	                .x      = 0,
 	                .y      = 0,
-	                .color  = NODES_MATERIAL_IMAGE_COLOR,
+	                .color  = NODES_MATERIAL_PASS_THROUGH_COLOR, // Bakes nothing: a shader on the mesh over a capture of the Image
 	                .inputs = any_array_create_from_raw(
 	                    (void *[]){
-	                        make_image_node_socket(_tr("Image"), "RGBA", NODES_MATERIAL_IMAGE_COLOR, f32_array_create_xyzw(1.0, 1.0, 1.0, 1.0), 0.0, 1.0, 100),
+	                        make_image_node_socket(_tr("Image"), "RGBA", NODES_MATERIAL_IMAGE_COLOR, f32_array_create_xyzw(1.0, 1.0, 1.0, 1.0), 0.0, 1.0, 100), // Expects a tileable image (the one orange socket of a grey node)
 	                        make_image_node_socket(_tr("Scale X"), "VALUE", value_color, f32_array_create_x(1.0), 0.0, 32.0, 100),
 	                        make_image_node_socket(_tr("Scale Y"), "VALUE", value_color, f32_array_create_x(1.0), 0.0, 32.0, 100),
 	                        make_image_node_socket(_tr("Rotation"), "VALUE", value_color, f32_array_create_x(0.0), 0.0, 360.0, 10),
@@ -136,22 +129,21 @@ void tile_uv_node_init() {
 	                    7),
 	                .outputs = any_array_create_from_raw(
 	                    (void *[]){
-	                        make_image_node_socket(_tr("Image"), "RGBA", NODES_MATERIAL_IMAGE_COLOR, f32_array_create_xyzw(0.0, 0.0, 0.0, 1.0), 0.0, 1.0, 100),
+	                        make_image_node_socket(_tr("Image"), "RGBA", NODES_MATERIAL_RGBA_COLOR, f32_array_create_xyzw(0.0, 0.0, 0.0, 1.0), 0.0, 1.0, 100),
 	                    },
 	                    1),
 	                .buttons = any_array_create_from_raw(
 	                    (void *[]){
-	                        make_image_node_setting(_tr("Size"), "ENUM", 1, MAKE_IMAGE_NODE_SIZE_ITEMS),
-	                        make_image_node_state_button(),
+	                        make_image_node_capture_size_setting(),
 	                        make_image_node_setting(_tr("Filter"), "ENUM", 1, "Linear\nCubic\nNearest"),
 	                    },
-	                    3),
+	                    2),
 	                .width = 0,
 	                .flags = 0});
 
 	any_array_push(nodes_material_pattern, tile_uv_node_def);
 	any_map_set(parser_material_node_values, "TEX_TILE_UV", tile_uv_node_value);
 	any_map_set(parser_material_node_vectors, "TEX_TILE_UV", tile_uv_node_vector);
-	make_image_node_sections(tile_uv_node_def, NULL, 0, 1);
+	make_image_node_sections_capture(tile_uv_node_def, NULL, 0, 1); // Texture: Capture Size; General: Filter and Image; Parameters: the rest
 	make_image_node_register(&tile_uv_node_image_type);
 }
