@@ -1138,7 +1138,7 @@ static ui_node_t *make_image_node_run_material(slot_material_t *m, bool force_al
 			for (i32 j = 0; s->upstream != NULL && j < s->upstream->length; ++j) {
 				upstream_baked = upstream_baked || string_array_index_of(baked, s->upstream->buffer[j]) >= 0;
 			}
-				bool pass_through = s->type != NULL && s->type->pass_through_capture;
+			bool pass_through = s->type != NULL && s->type->pass_through_capture;
 			bool rendered     = false;
 			if (force_all || s->needs_capture || upstream_baked) {
 				if (pass_through) {
