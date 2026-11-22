@@ -17,9 +17,9 @@ Mutlak
 Tambah
 Tambah Animasi
 Tambah Contoh Warna
+
 Tambah contoh warna baru
 Tambah warna yang dipilih ke contoh warna
-
 Semua
 Semua pemrosesan dilakukan secara lokal di perangkat
 Izinkan Kamera Terbalik

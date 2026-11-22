@@ -628,12 +628,10 @@ int             ui_next_node_id(ui_node_array_t *nodes);
 #define UI_STOPS_CONSUMED 4 // The press was used, the caller should not pass it on
 
 typedef struct ui_stops {
-	int    active;   // Index of the active stop
-	bool   drag;     // The active stop is held
-	bool   moved;    // The drag moved the stop
-	float  grab;     // Stop position minus mouse position at the press
-	int    last_hit; // Stop of the last press, for double click
-	double last_time;
+	int   active; // Index of the active stop
+	bool  drag;   // The active stop is held
+	bool  moved;  // The drag moved the stop
+	float grab;   // Stop position minus mouse position at the press
 } ui_stops_t;
 
 typedef float (*ui_stops_get_pos_t)(void *data, int i);
@@ -642,10 +640,8 @@ typedef struct ui_stops_ops {
 	int (*count)(void *data);
 	ui_stops_get_pos_t get_pos;
 	void (*set_pos)(void *data, int i, float pos);
-	int (*add)(void *data, float pos); // Inserts a stop and returns its index, or -1
-	void (*remove)(void *data, int i);
+	int (*add)(void *data, float pos);   // Inserts a stop and returns its index, or -1
 	uint32_t (*fill)(void *data, int i); // Colour of the handle of a stop
-	int min_count;
 	int max_count;
 } ui_stops_ops_t;
 

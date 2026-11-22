@@ -17,9 +17,9 @@ Absoluto
 Añadir
 Añadir animación
 Añadir muestra
+
 Añadir nueva muestra
 Añadir color seleccionado a muestras
-
 Todo
 Todo el procesamiento se realiza localmente en el dispositivo
 Permitir cámara invertida

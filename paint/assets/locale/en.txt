@@ -17,9 +17,9 @@ Active stop
 Add
 Add Animation
 Add Swatch
+Add color stop
 Add new swatch
 Add picked color to swatches
-Add stop
 All
 All processing is done locally on device
 Allow Upside Down Camera
@@ -180,7 +180,7 @@ Delete Material
 Delete Node Group
 Delete Swatch
 Delete Unused
-Delete active stop
+Delete active color stop
 Delta
 Depth
 Depth Reject

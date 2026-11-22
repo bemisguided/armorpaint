@@ -17,9 +17,9 @@ Abszolút
 Hozzáadás
 Animáció hozzáadása
 Színminta hozzáadása
+
 Új színminta hozzáadása
 Kiválasztott szín hozzáadása a mintákhoz
-
 Összes
 Minden feldolgozás helyben történik
 Fejjel lefelé álló kamera engedélyezése

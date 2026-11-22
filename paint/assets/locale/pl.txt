@@ -17,9 +17,9 @@ Bezwględna
 Dodaj
 Dodaj animację
 Dodaj próbkę
+
 Dodaj nową próbkę
 Dodaj wybrany kolor do próbek
-
 Wszystkie
 Wszystkie przetwarzanie odbywa się lokalnie na urządzeniu
 Zezwól na odwróconą kamerę
