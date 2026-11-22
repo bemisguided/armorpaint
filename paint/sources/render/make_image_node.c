@@ -798,41 +798,90 @@ static u64 make_image_node_reference_signature(make_image_node_state_t *s, u64 s
 	return h;
 }
 
-// Capture of a node whose result is its render target (image_node_type_t.result_by_reference): the shader of the node is built and
-// compiled, its signature compared with what is baked, failed or pending, and only a new signature renders, into a render target of
-// the result format that waits for the debounce as pending_target (make_image_node_bake_reference makes it the result). No readback,
-// no pixel hash, no plane. params is freed here. Returns true when the node is pending.
+#define MAKE_IMAGE_NODE_MAX_GPU_CAPTURES 8
+
+// Capture of a node whose result is a render target (image_node_type_t.result_by_reference): the shader of every capture is built and
+// compiled (the expression of the node, capture k = make_image_node_capture_index), the signature compared with what is baked, failed or
+// pending, and only a new signature renders. A node without gpu_bake has one capture, drawn into a render target of the result format, which
+// IS the result. With gpu_bake the captures are drawn into render targets of their capture formats and sizes (no readback) and gpu_bake
+// runs the passes of the node and returns the result target. The result waits for the debounce as pending_target (make_image_node_bake_reference
+// makes it the result). params is freed here. Returns true when the node is pending.
 static bool make_image_node_capture_reference(make_image_node_state_t *s, char *id, ui_node_t *node, i32 size, void *params, bool force) {
 	image_node_type_t *t           = s->type;
-	u64                source_hash = 0;
 	f64                start       = sys_time();
-	make_image_node_capture_dst    = size;
-	shader_context_t *scon = make_image_node_capture_shader(node, t->capture, make_image_node_gpu_format_name(t->result_format), &source_hash);
-	make_image_node_capture_dst = 0;
-	u64 sig = make_image_node_reference_signature(s, source_hash, size, params, t->params_size);
-	free(params);
+	i32                count       = t->gpu_bake != NULL && t->capture_count != NULL ? t->capture_count(node) : 1;
+	count                          = count < 1 ? 1 : count > MAKE_IMAGE_NODE_MAX_GPU_CAPTURES ? MAKE_IMAGE_NODE_MAX_GPU_CAPTURES : count;
+	shader_context_t *scons[MAKE_IMAGE_NODE_MAX_GPU_CAPTURES];
+	gpu_texture_format_t formats[MAKE_IMAGE_NODE_MAX_GPU_CAPTURES];
+	i32               sizes[MAKE_IMAGE_NODE_MAX_GPU_CAPTURES];
+	u64               source_hash = 0;
+	for (i32 k = 0; k < count; ++k) {
+		make_image_node_capture_k   = k;
+		sizes[k]                    = make_image_node_capture_size_of(t, node, size, k);
+		formats[k]                  = t->gpu_bake != NULL ? make_image_node_capture_gpu_format(make_image_node_capture_format_of(t, node, k)) : t->result_format;
+		u64 one                     = 0;
+		make_image_node_capture_dst = sizes[k];
+		scons[k]                    = make_image_node_capture_shader(node, t->capture, make_image_node_gpu_format_name(formats[k]), &one);
+		make_image_node_capture_dst = 0;
+		source_hash                 = make_image_node_hash(source_hash, &one, sizeof(one));
+	}
+	make_image_node_capture_k = 0;
+	u64 sig                   = make_image_node_reference_signature(s, source_hash, size, params, t->params_size);
 	s->captured               = true;
 	s->captured_canvas        = g_context->material->canvas;
 	s->captured_graph_version = util_version_graph(g_context->material);
 	s->captured_asset_version = util_version_assets();
 
 	bool has_result = g_context->node_previews != NULL && any_map_get(g_context->node_previews, id) != NULL;
-	if (!force && ((has_result && s->has_baked && sig == s->baked_signature) || (s->failed && sig == s->failed_signature) || (s->pending && sig == s->pending_signature))) {
-		if (has_result && s->has_baked && sig == s->baked_signature) {
+	bool baked      = has_result && s->has_baked && sig == s->baked_signature;
+	if (!force && (baked || (s->failed && sig == s->failed_signature) || (s->pending && sig == s->pending_signature))) {
+		if (baked) {
 			make_image_node_clear_pending(s); // Back to what is baked, e.g. a change undone within the debounce
 		}
-		make_image_node_gpu_shader_free(scon);
+		for (i32 k = 0; k < count; ++k) {
+			make_image_node_gpu_shader_free(scons[k]);
+		}
+		free(params);
 		return false;
 	}
 	make_image_node_clear_pending(s);
-	gpu_texture_t *target = gpu_create_render_target(size, size, t->result_format);
-	if (target == NULL) {
-		make_image_node_gpu_shader_free(scon);
+	gpu_texture_t *targets[MAKE_IMAGE_NODE_MAX_GPU_CAPTURES];
+	f64            pass_start = sys_time();
+	for (i32 k = 0; k < count; ++k) {
+		targets[k] = gpu_create_render_target(sizes[k], sizes[k], formats[k]);
+		if (targets[k] != NULL) {
+			make_image_node_gpu_pass(scons[k], &targets[k], 1, NULL, 0, NULL);
+		}
+		make_image_node_gpu_shader_free(scons[k]);
+	}
+	gpu_texture_t *result = targets[0];
+	bool           failed = false;
+	for (i32 k = 0; k < count; ++k) {
+		failed = failed || targets[k] == NULL;
+	}
+	if (t->gpu_bake != NULL && !failed) {
+		result = t->gpu_bake(node, size, params, targets, count);
+		for (i32 k = 0; k < count; ++k) {
+			if (targets[k] != result) {
+				gpu_delete_texture(targets[k]); // The captures are inputs of the passes, the result is what gpu_bake returned
+			}
+		}
+		failed = result == NULL;
+	}
+	else if (failed) {
+		for (i32 k = 0; k < count; ++k) {
+			if (targets[k] != NULL) {
+				gpu_delete_texture(targets[k]);
+			}
+		}
+	}
+	free(params);
+	if (failed) {
+		console_error(tr("Image node bake: out of memory"));
+		s->failed           = true;
+		s->failed_signature = sig; // Not retried for this signature, like a bake that failed
 		return false; // Keep what is baked
 	}
-	f64 pass_start = sys_time();
-	make_image_node_gpu_pass(scon, &target, 1, NULL, 0, NULL);
-	make_image_node_gpu_shader_free(scon);
 	if (make_image_node_trace) {
 		gpu_execute_and_wait(); // The time of the render, not of its submission
 	}
@@ -840,9 +889,9 @@ static bool make_image_node_capture_reference(make_image_node_state_t *s, char *
 	s->gpu_render_ms = (sys_time() - start) * 1000.0;
 	s->gpu_renders++;
 	if (make_image_node_trace) {
-		iron_log("[image node] render %s %d x %d %.3f ms (pass %.3f ms)", id, size, size, s->gpu_render_ms, s->gpu_pass_ms);
+		iron_log("[image node] render %s %d x %d %.3f ms (passes %.3f ms)", id, size, size, s->gpu_render_ms, s->gpu_pass_ms);
 	}
-	s->pending_target    = target;
+	s->pending_target    = result;
 	s->pending_size      = size;
 	s->pending_signature = sig;
 	s->pending           = true;
@@ -1913,5 +1962,94 @@ f64 make_image_node_test_gpu_pass(i32 which, i32 x, i32 y, i32 channel) {
 	gpu_delete_texture(second);
 	make_image_node_ping_pong_free(&pp, NULL);
 	return v;
+}
+// A test only image node (TEX_TEST_GPU_BAKE, registered by make_image_node_test_register) that uses the multi capture gpu_bake path: capture 0 is the Image input
+// (RGBA32F at Size), capture 1 a constant 0.25 (R32F, 8 x 8); gpu_bake runs two passes over a ping-pong pair: pass 1 writes in0 * 2 + in1, pass 2 reads it and
+// writes it times the uniform 0.5, so the result is Image + 0.125 (exact in float). The node is not in any menu.
+static char *make_image_node_test_bake_capture(ui_node_t *node) {
+	if (make_image_node_capture_index() == 1) {
+		return "float4(0.25, 0.25, 0.25, 1.0)";
+	}
+	char *v = parser_material_parse_value_input(node->inputs->buffer[0], false);
+	return string_tmp("float4(%s, %s, %s, 1.0)", v, v, v);
+}
+
+static i32 make_image_node_test_bake_size(ui_node_t *node) {
+	return make_image_node_size(node, 0);
+}
+
+static i32 make_image_node_test_bake_count(ui_node_t *node) {
+	return 2;
+}
+
+static i32 make_image_node_test_bake_capture_size(ui_node_t *node, i32 k) {
+	return k == 1 ? 8 : 0;
+}
+
+static i32 make_image_node_test_bake_capture_format(ui_node_t *node, i32 k) {
+	return k == 1 ? IMAGE_CAPTURE_R32F : IMAGE_CAPTURE_RGBA32F;
+}
+
+static gpu_texture_t *make_image_node_test_bake_run(ui_node_t *node, i32 size, void *params, gpu_texture_t **captures, i32 count) {
+	char *one[]     = {"RGBA128"};
+	char *inputs2[] = {"in0", "in1"};
+	char *inputs1[] = {"in0"};
+	char *uniforms[] = {"float s"};
+	shader_context_t *first  = make_image_node_gpu_shader("output = float4(sample_lod(in0, sampler_linear, tex_coord, 0.0).r * 2.0 + sample_lod(in1, sampler_linear, tex_coord, 0.0).r, 0.0, 0.0, 1.0);",
+	                                                      inputs2, 2, NULL, 0, one, 1);
+	shader_context_t *second = make_image_node_gpu_shader("output = float4(sample_lod(in0, sampler_linear, tex_coord, 0.0).r * constants.s, 0.0, 0.0, 1.0);", inputs1, 1, uniforms, 1, one, 1);
+	make_image_node_ping_pong_t pp = make_image_node_ping_pong_create(size, GPU_TEXTURE_FORMAT_RGBA128);
+	gpu_texture_t *targets1[1]     = {make_image_node_ping_pong_dst(&pp)};
+	make_image_node_gpu_pass(first, targets1, 1, captures, 2, NULL);
+	make_image_node_ping_pong_swap(&pp);
+	gpu_texture_t *targets2[1] = {make_image_node_ping_pong_dst(&pp)};
+	gpu_texture_t *inputs[1]   = {make_image_node_ping_pong_src(&pp)};
+	f32            half        = 0.5f;
+	make_image_node_gpu_pass(second, targets2, 1, inputs, 1, &half);
+	gpu_texture_t *result = targets2[0];
+	make_image_node_gpu_shader_free(first);
+	make_image_node_gpu_shader_free(second);
+	make_image_node_ping_pong_free(&pp, result);
+	return result;
+}
+
+static image_node_type_t make_image_node_test_bake_type = {
+    .type                = "TEX_TEST_GPU_BAKE",
+    .result_format       = GPU_TEXTURE_FORMAT_RGBA128,
+    .result_by_reference = true,
+    .params_size         = 0,
+    .size                = make_image_node_test_bake_size,
+    .capture             = make_image_node_test_bake_capture,
+    .capture_count       = make_image_node_test_bake_count,
+    .capture_size        = make_image_node_test_bake_capture_size,
+    .capture_format_at   = make_image_node_test_bake_capture_format,
+    .gpu_bake            = make_image_node_test_bake_run,
+};
+
+static char *make_image_node_test_bake_value(ui_node_t *node, ui_node_socket_t *socket) {
+	return string_tmp("%s.r", make_image_node_sample(node));
+}
+
+// Registers TEX_TEST_GPU_BAKE (once): the node is created with script_material_create_node_at. Input 0 Image (VALUE), output 0 Image, buttons Size and the state row.
+void make_image_node_test_register() {
+	static bool registered = false;
+	if (registered) {
+		return;
+	}
+	registered = true;
+	ui_node_t *def = ALLOC_INIT(ui_node_t, {.id      = 0,
+	                                         .name    = "Test GPU Bake",
+	                                         .type    = "TEX_TEST_GPU_BAKE",
+	                                         .x       = 0,
+	                                         .y       = 0,
+	                                         .color   = NODES_MATERIAL_IMAGE_COLOR,
+	                                         .inputs  = any_array_create_from_raw((void *[]){make_image_node_socket("Image", "VALUE", NODES_MATERIAL_IMAGE_COLOR, f32_array_create_x(0.5), 0.0, 1.0, 100)}, 1),
+	                                         .outputs = any_array_create_from_raw((void *[]){make_image_node_socket("Image", "VALUE", NODES_MATERIAL_IMAGE_COLOR, f32_array_create_x(0.0), 0.0, 1.0, 100)}, 1),
+	                                         .buttons = any_array_create_from_raw((void *[]){make_image_node_setting("Size", "ENUM", 1, MAKE_IMAGE_NODE_SIZE_ITEMS), make_image_node_state_button()}, 2),
+	                                         .width   = 0,
+	                                         .flags   = 0});
+	any_array_push(nodes_material_pattern, def);
+	any_map_set(parser_material_node_values, "TEX_TEST_GPU_BAKE", make_image_node_test_bake_value);
+	make_image_node_register(&make_image_node_test_bake_type);
 }
 #endif

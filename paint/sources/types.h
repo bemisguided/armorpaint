@@ -1150,6 +1150,13 @@ typedef struct image_node_type {
 	// setting is in it) with the size, the params, the asset version and the baked signatures of the image nodes the shader samples;
 	// an unchanged signature does not render again. See the section GPU baked nodes of specs/image-nodes/IMAGE_NODES.md.
 	bool result_by_reference;
+	// With result_by_reference, a GPU baked node that needs passes of its own (a blur, a Sobel and a reduction, a tile composition): capture_count captures
+	// (capture_format_at, capture_size, capture(node) with make_image_node_capture_index) are drawn into render targets, NOT read back, and
+	// gpu_bake(node, size, params, captures, count) runs the passes (make_image_node_gpu_pass over shaders of make_image_node_gpu_shader, a
+	// make_image_node_ping_pong_t for passes that read the one before) and returns the render target of the result (result_format, size x size):
+	// a new target or one of the captures. The shared pass deletes the other captures. NULL = failed (Console error, not retried for this
+	// signature). The node is the node of the capture: read its settings from params, not from the node. NULL: the result is capture 0 itself.
+	gpu_texture_t *(*gpu_bake)(ui_node_t *node, i32 size, void *params, gpu_texture_t **captures, i32 count);
 	// false: the result is read at the nearest texel (ids, labels, anything that must not blend). true: cubic on the mesh
 	// (bilinear in a capture), for smooth results (blurs, edges) that would show texel steps and slope jumps when magnified.
 	bool smooth_sample;
