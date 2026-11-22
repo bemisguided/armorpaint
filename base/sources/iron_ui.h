@@ -621,7 +621,7 @@ int             ui_next_link_id(ui_node_link_array_t *links);
 ui_node_t      *ui_get_node(ui_node_array_t *nodes, int id);
 int             ui_next_node_id(ui_node_array_t *nodes);
 
-// Stops control: handles on a 0..1 bar that are selected, dragged, added and deleted (iron_ui_stops.c).
+// Stops control: handles on a 0..1 bar that are selected, dragged and added (iron_ui_stops.c).
 // The consumer owns the data (through ui_stops_ops_t) and draws the bar, the control draws the handles.
 #define UI_STOPS_CHANGED  1 // Data changed (ui->changed is set as well)
 #define UI_STOPS_SELECTED 2 // Active stop changed
