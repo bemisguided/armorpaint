@@ -2,7 +2,8 @@
 
 // Advanced Blur (Filter menu): blurs the Image input. An image node (render/make_image_node.c): Image and Mask are
 // evaluated in image space and captured as R32F planes (one float per pixel: Image, then Mask; an unlinked Mask is no
-// capture, its value holds everywhere), the blur is computed on the cpu into one RGBA128 texture per node, R = the blurred image.
+// capture, its value holds everywhere), the blur is computed on the GPU into one RGBA128 render target per node, R = the blurred image, which is
+// the result texture itself (result by reference: no readback, no cpu pass, no upload).
 // The texture is sampled like an Image Texture at tex_coord, repeating (Tile UV places it on the uv). With Wrap Edges on
 // (the default) the image repeats, so the blur wraps around the edges; off, samples outside the image clamp to the nearest edge pixel.
 //
@@ -99,213 +100,171 @@ static void advanced_blur_node_params(ui_node_t *node, void *params) {
 	p->mask_value             = p->mask_linked ? 1.0f : make_image_node_input_value(node, ADVANCED_BLUR_INPUT_MASK);
 }
 
-typedef f32 (*advanced_blur_sample_t)(f32 *img, i32 size, f32 x, f32 y);
+// The blur runs on the GPU (result by reference, render/make_image_node.c): Image and Mask are captured into R32F render targets (not read back),
+// every stage of the blur is one fragment pass of the shader below over a ping-pong pair of R32F targets (dx, dy, radius and the stage as uniforms),
+// the last stage writes the RGBA128 result target, which IS the result texture. The stages and their per pixel rules (dense gaussian, boxes,
+// the radius times the Mask of the pixel it writes) are those of the former cpu code (kept as the test reference in
+// armorpaint-admin/automation/host/advanced_blur_gpu/reference.inc): taps are bilinear samples at pixel positions, four texel loads by hand
+// (each exactly at a texel centre, so no sampler precision is lost, and Wrap Edges wraps or clamps the texel index).
+//
+// Box of width w along (dx, dy): up to ADVANCED_BLUR_BOX_DENSE pixels one pass of ceil(w) taps one pixel apart or closer (stage 0; stage 1
+// copies). Wider boxes take two passes: a dense box of width / k (stage 0) and k taps width / k apart (stage 1), which together are the wide box.
+// Gaussian of radius r (3 sigma, taps -r..r, weight exp(-4.5 u^2), u in -1..1): up to ADVANCED_BLUR_GAUSS_DENSE pixels one dense pass (stage 0, at
+// most ADVANCED_BLUR_MAX_TAPS taps); larger: three boxes of width 2r / 3 (stages 1 to 6, two stages each), stage 0 copies.
+#define ADVANCED_BLUR_STAGES_GAUSSIAN 7
+#define ADVANCED_BLUR_STAGES_BOX 2
 
-// Bilinear sample at pixel position (x, y), positions outside the image clamp to the nearest edge pixel
-static f32 advanced_blur_node_sample_clamp(f32 *img, i32 size, f32 x, f32 y) {
-	f32 fx = floorf(x);
-	f32 fy = floorf(y);
-	f32 tx = x - fx;
-	f32 ty = y - fy;
-	f32 hi = (f32)size;
-	fx     = fx < -1.0f ? -1.0f : fx > hi ? hi : fx; // Keeps the cast in range
-	fy     = fy < -1.0f ? -1.0f : fy > hi ? hi : fy;
-	i32 mx = size - 1;
-	i32 x0 = (i32)fx;
-	i32 y0 = (i32)fy;
-	i32 x1 = x0 + 1;
-	i32 y1 = y0 + 1;
-	x0     = x0 < 0 ? 0 : x0 > mx ? mx : x0;
-	y0     = y0 < 0 ? 0 : y0 > mx ? mx : y0;
-	x1     = x1 < 0 ? 0 : x1 > mx ? mx : x1;
-	y1     = y1 < 0 ? 0 : y1 > mx ? mx : y1;
-	f32 a  = img[(size_t)y0 * size + x0] * (1.0f - tx) + img[(size_t)y0 * size + x1] * tx;
-	f32 b  = img[(size_t)y1 * size + x0] * (1.0f - tx) + img[(size_t)y1 * size + x1] * tx;
-	return a * (1.0f - ty) + b * ty;
+// Stage uniforms: bp = size, dx, dy, radius (pixels, before the mask); bq = stage, gaussian, mask linked, mask value; bw = wrap
+static char *advanced_blur_node_shader_body(bool final) {
+	char *common = string_tmp(
+	    "float sz = constants.bp.x;"
+	    "float2 pix = floor(tex_coord * sz);"
+	    "float2 cuv = (pix + 0.5) / sz;"
+	    "float m = constants.bq.w;"
+	    "if (constants.bq.z > 0.5) { m = sample_lod(msk, sampler_linear, cuv, 0.0).r; }"
+	    "float r = constants.bp.w * max(m, 0.0);"
+	    "r = min(r, %d.0 * sz);"
+	    "float stage = constants.bq.x;"
+	    "float width = 0.0;"
+	    "float kind = 0.0;"   // 0 copy, 1 box, 2 dense gaussian
+	    "float bstage = 0.0;"
+	    "if (constants.bq.y > 0.5) {"
+	    "  if (r >= 0.5) {"
+	    "    if (r > %d.0) {"
+	    "      if (stage > 0.5) { kind = 1.0; width = 2.0 * r / 3.0; bstage = (stage - 1.0) - 2.0 * floor((stage - 1.0) * 0.5); }"
+	    "    }"
+	    "    else if (stage < 0.5) { kind = 2.0; }"
+	    "  }"
+	    "}"
+	    "else { kind = 1.0; width = 2.0 * r; bstage = stage; }"
+	    "float n = 0.0;"
+	    "float s = 0.0;"
+	    "if (kind > 0.5 && kind < 1.5) {"
+	    "  if (width < 1.0) { kind = 0.0; }"
+	    "  else if (width <= %d.0) {"
+	    "    if (bstage > 0.5) { kind = 0.0; }"
+	    "    else { n = ceil(width); s = width / n; }"
+	    "  }"
+	    "  else {"
+	    "    float k = ceil(sqrt(width));"
+	    "    float w1 = width / k;"
+	    "    if (bstage < 0.5) { n = max(floor(w1 + 0.5), 1.0); s = w1 / n; }"
+	    "    else { n = k; s = w1; }"
+	    "  }"
+	    "}"
+	    "if (kind > 1.5) { n = max(min(floor(2.0 * r) + 1.0, %d.0), 3.0); }"
+	    "float acc = 0.0;"
+	    "float wsum = 0.0;"
+	    "if (kind < 0.5) { acc = sample_lod(src, sampler_linear, cuv, 0.0).r; wsum = 1.0; }"
+	    "else {"
+	    "  float2 dir = float2(constants.bp.y, constants.bp.z);"
+	    "  int cnt = int(n);"
+	    "  for (int j = 0; j < cnt; j += 1) {"
+	    "    float jf = float(j);"
+	    "    float t = (jf - (n - 1.0) * 0.5) * s;"
+	    "    float wg = 1.0;"
+	    "    if (kind > 1.5) {"
+	    "      float u = -1.0 + 2.0 * jf / (n - 1.0);"
+	    "      t = u * r;"
+	    "      wg = exp(-4.5 * u * u);"
+	    "    }"
+	    "    float2 p = pix + dir * t;"
+	    "    float2 f = floor(p);"
+	    "    float2 tt = p - f;"
+	    "    float2 a = f;"
+	    "    float2 b = f + 1.0;"
+	    "    if (constants.bw > 0.5) { a = a - floor(a / sz) * sz; b = b - floor(b / sz) * sz; }"
+	    "    else { float2 lo = float2(0.0, 0.0); float2 hi = float2(sz - 1.0, sz - 1.0); a = min(max(a, lo), hi); b = min(max(b, lo), hi); }"
+	    "    float2 ca = (a + 0.5) / sz;"
+	    "    float2 cb = (b + 0.5) / sz;"
+	    "    float v00 = sample_lod(src, sampler_linear, float2(ca.x, ca.y), 0.0).r;"
+	    "    float v10 = sample_lod(src, sampler_linear, float2(cb.x, ca.y), 0.0).r;"
+	    "    float v01 = sample_lod(src, sampler_linear, float2(ca.x, cb.y), 0.0).r;"
+	    "    float v11 = sample_lod(src, sampler_linear, float2(cb.x, cb.y), 0.0).r;"
+	    "    float top = v00 * (1.0 - tt.x) + v10 * tt.x;"
+	    "    float bot = v01 * (1.0 - tt.x) + v11 * tt.x;"
+	    "    acc += wg * (top * (1.0 - tt.y) + bot * tt.y);"
+	    "    wsum += wg;"
+	    "  }"
+	    "}"
+	    "float v = acc / wsum;",
+	    (i32)ADVANCED_BLUR_MAX_RADIUS_SIZES, ADVANCED_BLUR_GAUSS_DENSE, ADVANCED_BLUR_BOX_DENSE, ADVANCED_BLUR_MAX_TAPS);
+	return string_tmp("%s%s", common, final ? "float c = clamp(v, 0.0, 1.0); output = float4(c, c, c, 1.0);" : "output = float4(v, 0.0, 0.0, 1.0);");
 }
 
-// Value of a box of the given width (pixels) along (dx, dy) at (x, y). Up to ADVANCED_BLUR_BOX_DENSE pixels wide it is one
-// pass of taps one pixel apart (stage 0; stage 1 copies). Wider boxes take two passes of about sqrt(width) taps: stage 0 a
-// dense box of width / k, stage 1 k taps width / k apart, which together are exactly the wide box. A pass never skips pixels,
-// so there is no comb or stair pattern at large radii.
-static f32 advanced_blur_node_box(f32 *src, i32 size, i32 x, i32 y, f32 dx, f32 dy, f32 width, i32 stage, advanced_blur_sample_t sample) {
-	size_t i = (size_t)y * size + x;
-	if (width < 1.0f) {
-		return src[i];
-	}
-	i32 n;
-	f32 s;
-	if (width <= (f32)ADVANCED_BLUR_BOX_DENSE) {
-		if (stage == 1) {
-			return src[i];
-		}
-		n = (i32)ceilf(width);
-		s = width / (f32)n;
-	}
-	else {
-		i32 k  = (i32)ceilf(sqrtf(width));
-		f32 w1 = width / (f32)k;
-		if (stage == 0) {
-			n = (i32)(w1 + 0.5f);
-			n = n < 1 ? 1 : n;
-			s = w1 / (f32)n;
-		}
-		else {
-			n = k;
-			s = w1;
-		}
-	}
-	f32 sum = 0.0f;
-	for (i32 j = 0; j < n; ++j) {
-		f32 t = ((f32)j - (f32)(n - 1) * 0.5f) * s;
-		sum += sample(src, size, (f32)x + dx * t, (f32)y + dy * t);
-	}
-	return sum / (f32)n;
-}
-
-// Weight of tap k of n of the dense gaussian: the taps span -r to r with sigma = r / 3, so the weight is independent of r.
-// Filled once before the worker threads start (advanced_blur_node_init_weights).
-static f32  advanced_blur_node_weights[ADVANCED_BLUR_MAX_TAPS + 1][ADVANCED_BLUR_MAX_TAPS];
-static f32  advanced_blur_node_weight_sums[ADVANCED_BLUR_MAX_TAPS + 1];
-static bool advanced_blur_node_weights_ready = false;
-
-static void advanced_blur_node_init_weights() {
-	if (advanced_blur_node_weights_ready) {
-		return;
-	}
-	for (i32 n = 3; n <= ADVANCED_BLUR_MAX_TAPS; ++n) {
-		f32 sum = 0.0f;
-		for (i32 k = 0; k < n; ++k) {
-			f32 u = -1.0f + 2.0f * (f32)k / (f32)(n - 1);
-			advanced_blur_node_weights[n][k] = expf(-4.5f * u * u);
-			sum += advanced_blur_node_weights[n][k];
-		}
-		advanced_blur_node_weight_sums[n] = sum;
-	}
-	advanced_blur_node_weights_ready = true;
-}
-
-// Gaussian of radius r (3 sigma) at (x, y). Up to ADVANCED_BLUR_GAUSS_DENSE pixels: one dense pass (stage 0). Larger: three
-// boxes of width 2r / 3 (their sum is a Gaussian within a few percent, variance 3 * width^2 / 12 = sigma^2), each box
-// two stages, stages 1 to 6.
-static f32 advanced_blur_node_gauss(f32 *src, i32 size, i32 x, i32 y, f32 dx, f32 dy, f32 r, i32 stage, advanced_blur_sample_t sample) {
-	size_t i = (size_t)y * size + x;
-	if (r < 0.5f) {
-		return src[i];
-	}
-	if (r > (f32)ADVANCED_BLUR_GAUSS_DENSE) {
-		if (stage == 0) {
-			return src[i];
-		}
-		return advanced_blur_node_box(src, size, x, y, dx, dy, 2.0f * r / 3.0f, (stage - 1) & 1, sample);
-	}
-	if (stage != 0) {
-		return src[i];
-	}
-	i32 n     = (i32)(2.0f * r) + 1;
-	n         = n > ADVANCED_BLUR_MAX_TAPS ? ADVANCED_BLUR_MAX_TAPS : n;
-	n         = n < 3 ? 3 : n;
-	f32 sum = 0.0f;
-	for (i32 k = 0; k < n; ++k) {
-		f32 t = -r + 2.0f * r * (f32)k / (f32)(n - 1);
-		sum += advanced_blur_node_weights[n][k] * sample(src, size, (f32)x + dx * t, (f32)y + dy * t);
-	}
-	return sum / advanced_blur_node_weight_sums[n];
-}
-
-typedef struct advanced_blur_stage_ctx {
-	f32 *src;
-	f32 *dst;
-	f32 *mask;
-	i32  mask_stride; // Floats between two pixels of mask: 1, or 0 for a one pixel mask
-	i32  size;
+typedef struct advanced_blur_stage {
 	f32  dx;
 	f32  dy;
-	f32  radius;
+	f32  radius; // Pixels, before the mask
 	bool gaussian;
 	i32  stage;
-	bool wrap;
-} advanced_blur_stage_ctx_t;
+} advanced_blur_stage_t;
 
-// Rows [begin, end) of one stage of the blur
-static void advanced_blur_node_stage_rows(void *param, i32 begin, i32 end) {
-	advanced_blur_stage_ctx_t *c = param;
-	advanced_blur_sample_t     sample = c->wrap ? make_image_node_sample_bilinear : advanced_blur_node_sample_clamp; // Picked once per call
-	for (i32 y = begin; y < end; ++y) {
-		for (i32 x = 0; x < c->size; ++x) {
-			size_t i = (size_t)y * c->size + x;
-			f32    m = c->mask[i * c->mask_stride];
-			f32    r = c->radius * (m < 0.0f ? 0.0f : m);
-			f32    rmax = ADVANCED_BLUR_MAX_RADIUS_SIZES * (f32)c->size;
-			r    = r > rmax ? rmax : r;
-			c->dst[i] = c->gaussian ? advanced_blur_node_gauss(c->src, c->size, x, y, c->dx, c->dy, r, c->stage, sample)
-			                        : advanced_blur_node_box(c->src, c->size, x, y, c->dx, c->dy, 2.0f * r, c->stage, sample);
-		}
-	}
-}
-
-// One blur along (dx, dy) of radius pixels * the mask of each pixel (the Mask capture), gaussian or box (box width 2 * radius), from
-// *cur into *cur again (the buffers are swapped between the stages); every stage runs its rows on all hardware threads
-static void advanced_blur_node_run(f32 **cur, f32 **nxt, f32 *mask, i32 mask_stride, i32 size, f32 dx, f32 dy, f32 radius, bool gaussian, bool wrap) {
-	i32 stages = gaussian ? 7 : 2;
+// The stages of one blur along (dx, dy)
+static i32 advanced_blur_node_add_stages(advanced_blur_stage_t *list, i32 count, f32 dx, f32 dy, f32 radius, bool gaussian) {
+	i32 stages = gaussian ? ADVANCED_BLUR_STAGES_GAUSSIAN : ADVANCED_BLUR_STAGES_BOX;
 	for (i32 st = 0; st < stages; ++st) {
-		advanced_blur_stage_ctx_t c = {.src = *cur, .dst = *nxt, .mask = mask, .mask_stride = mask_stride, .size = size, .dx = dx, .dy = dy, .radius = radius, .gaussian = gaussian, .stage = st, .wrap = wrap};
-		make_image_node_parallel(size, advanced_blur_node_stage_rows, &c);
-		f32 *src = *cur;
-		*cur     = *nxt;
-		*nxt     = src;
+		list[count++] = (advanced_blur_stage_t){.dx = dx, .dy = dy, .radius = radius, .gaussian = gaussian, .stage = st};
 	}
+	return count;
 }
 
-// Blurred image from the captured float pixels; returns 0, or -1 when memory runs out
-static i32 advanced_blur_node_process(u8 *pixels, i32 size, void *params, f32 *result) {
-	advanced_blur_node_init_weights();
-	advanced_blur_params_t p  = *(advanced_blur_params_t *)params;
-	f32                   *px = (f32 *)pixels; // R32F captures: the Image, then the Mask
-	f32                    mask_value  = p.mask_value;
-	f32                   *mask        = p.mask_linked ? (f32 *)(pixels + make_image_node_capture_next(0, size, IMAGE_CAPTURE_R32F)) : &mask_value;
-	i32                    mask_stride = p.mask_linked ? 1 : 0; // An unlinked Mask is one value for every pixel
-	size_t                 n  = (size_t)size * size;
-	size_t                 plane_bytes = n * sizeof(f32);
-	f32                   *a           = make_image_node_plane_alloc(plane_bytes);
-	f32                   *b           = make_image_node_plane_alloc(plane_bytes);
-	if (a == NULL || b == NULL) {
-		make_image_node_plane_free(a, plane_bytes);
-		make_image_node_plane_free(b, plane_bytes);
-		return -1;
-	}
-	for (size_t i = 0; i < n; ++i) {
-		a[i] = px[i];
-	}
-	f32  radius   = (p.radius < 0.0f ? 0.0f : p.radius > ADVANCED_BLUR_MAX_RADIUS ? ADVANCED_BLUR_MAX_RADIUS : p.radius) * (f32)size;
-	f32  aspect   = p.aspect < 1.0f ? 1.0f : p.aspect > ADVANCED_BLUR_MAX_ASPECT ? ADVANCED_BLUR_MAX_ASPECT : p.aspect;
-	f32  ux       = cosf(p.angle);
-	f32  uy       = sinf(p.angle);
-	bool gaussian = p.mode == ADVANCED_BLUR_MODE_GAUSSIAN;
-	f32 *cur      = a;
-	f32 *nxt      = b;
+// The blur of the captured Image (captures[0], R32F) with the captured Mask (captures[1] when linked): one pass per stage over a ping-pong
+// pair, the last into the RGBA128 result (R = G = B = the blurred image clamped to 0..1, A = 1). Returns the result target, NULL when memory runs out.
+static gpu_texture_t *advanced_blur_node_gpu_bake(ui_node_t *node, i32 size, void *params, gpu_texture_t **captures, i32 count) {
+	advanced_blur_params_t p = *(advanced_blur_params_t *)params;
+	bool                   mask_linked = p.mask_linked != 0 && count > 1;
+	f32                    radius      = (p.radius < 0.0f ? 0.0f : p.radius > ADVANCED_BLUR_MAX_RADIUS ? ADVANCED_BLUR_MAX_RADIUS : p.radius) * (f32)size;
+	f32                    aspect      = p.aspect < 1.0f ? 1.0f : p.aspect > ADVANCED_BLUR_MAX_ASPECT ? ADVANCED_BLUR_MAX_ASPECT : p.aspect;
+	f32                    ux          = cosf(p.angle);
+	f32                    uy          = sinf(p.angle);
+	bool                   gaussian    = p.mode == ADVANCED_BLUR_MODE_GAUSSIAN;
+	advanced_blur_stage_t  stages[2 * ADVANCED_BLUR_STAGES_GAUSSIAN];
+	i32                    n_stages = 0;
 	if (p.mode == ADVANCED_BLUR_MODE_DIRECTIONAL) {
-		advanced_blur_node_run(&cur, &nxt, mask, mask_stride, size, ux, uy, radius, false, p.wrap != 0);
+		n_stages = advanced_blur_node_add_stages(stages, n_stages, ux, uy, radius, false);
 	}
 	else {
-		advanced_blur_node_run(&cur, &nxt, mask, mask_stride, size, ux, uy, radius * aspect, gaussian, p.wrap != 0);
-		advanced_blur_node_run(&cur, &nxt, mask, mask_stride, size, -uy, ux, radius, gaussian, p.wrap != 0);
+		n_stages = advanced_blur_node_add_stages(stages, n_stages, ux, uy, radius * aspect, gaussian);
+		n_stages = advanced_blur_node_add_stages(stages, n_stages, -uy, ux, radius, gaussian);
 	}
-	for (size_t i = 0; i < n; ++i) {
-		f32 v             = cur[i] < 0.0f ? 0.0f : cur[i] > 1.0f ? 1.0f : cur[i];
-		result[i * 4]     = v;
-		result[i * 4 + 1] = v;
-		result[i * 4 + 2] = v;
-		result[i * 4 + 3] = 1.0f;
+	char *input_names[]   = {"src", "msk"};
+	char *uniform_names[] = {"float4 bp", "float4 bq", "float bw"};
+	char *mid_format[]    = {"R32"};
+	char *final_format[]  = {"RGBA128"};
+	shader_context_t *mid   = make_image_node_gpu_shader(advanced_blur_node_shader_body(false), input_names, 2, uniform_names, 3, mid_format, 1);
+	shader_context_t *final = make_image_node_gpu_shader(advanced_blur_node_shader_body(true), input_names, 2, uniform_names, 3, final_format, 1);
+	make_image_node_ping_pong_t pp = make_image_node_ping_pong_create(size, GPU_TEXTURE_FORMAT_R32);
+	gpu_texture_t *result          = gpu_create_render_target(size, size, GPU_TEXTURE_FORMAT_RGBA128);
+	if (result != NULL && pp.targets[0] != NULL && pp.targets[1] != NULL) {
+		gpu_texture_t *cur  = captures[0];
+		gpu_texture_t *mask = mask_linked ? captures[1] : captures[0]; // Never read when the mask is not linked
+		for (i32 i = 0; i < n_stages; ++i) {
+			bool last = i == n_stages - 1;
+			f32  u[9] = {(f32)size, stages[i].dx, stages[i].dy, stages[i].radius, (f32)stages[i].stage, stages[i].gaussian ? 1.0f : 0.0f, mask_linked ? 1.0f : 0.0f, p.mask_value, p.wrap != 0 ? 1.0f : 0.0f};
+			gpu_texture_t *inputs[2]  = {cur, mask};
+			gpu_texture_t *targets[1] = {last ? result : make_image_node_ping_pong_dst(&pp)};
+			make_image_node_gpu_pass(last ? final : mid, targets, 1, inputs, 2, u);
+			if (!last) {
+				make_image_node_ping_pong_swap(&pp);
+				cur = make_image_node_ping_pong_src(&pp);
+			}
+		}
 	}
-	make_image_node_plane_free(a, plane_bytes);
-	make_image_node_plane_free(b, plane_bytes);
-	return 0;
+	else if (result != NULL) {
+		gpu_delete_texture(result);
+		result = NULL;
+	}
+	make_image_node_gpu_shader_free(mid);
+	make_image_node_gpu_shader_free(final);
+	make_image_node_ping_pong_free(&pp, NULL);
+	return result;
 }
 
 static image_node_type_t advanced_blur_node_image_type = {
     .type          = "TEX_ADVANCED_BLUR",
     .result_format = GPU_TEXTURE_FORMAT_RGBA128,
+    .result_by_reference = true,
     .params_size   = sizeof(advanced_blur_params_t),
     .size          = advanced_blur_node_size,
     .capture       = advanced_blur_node_capture,
@@ -313,7 +272,7 @@ static image_node_type_t advanced_blur_node_image_type = {
     .capture_format = IMAGE_CAPTURE_R32F,
     .smooth_sample = true,
     .params        = advanced_blur_node_params,
-    .process       = advanced_blur_node_process,
+    .gpu_bake      = advanced_blur_node_gpu_bake,
 };
 
 char *advanced_blur_node_value(ui_node_t *node, ui_node_socket_t *socket) {
