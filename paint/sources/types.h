@@ -1143,6 +1143,13 @@ typedef struct image_node_type {
 	i32 capture_format;
 	// Optional: the format of capture k, for a type whose captures differ (overrides capture_format).
 	i32 (*capture_format_at)(ui_node_t *node, i32 k);
+	// GPU baked node, result by reference: the result texture IS the render target the capture shader draws into (result_format,
+	// RGBA128 or R32 for a float result, RGBA64 or R16 for half floats). Nothing is read back, hashed, processed or uploaded:
+	// process stays NULL, capture_count and capture_size are not used, capture writes the result per pixel (a float4, a single
+	// channel result keeps R). The signature of a bake is the source of the capture shader (every literal of every input and
+	// setting is in it) with the size, the params, the asset version and the baked signatures of the image nodes the shader samples;
+	// an unchanged signature does not render again. See the section GPU baked nodes of specs/image-nodes/IMAGE_NODES.md.
+	bool result_by_reference;
 	// false: the result is read at the nearest texel (ids, labels, anything that must not blend). true: cubic on the mesh
 	// (bilinear in a capture), for smooth results (blurs, edges) that would show texel steps and slope jumps when magnified.
 	bool smooth_sample;
@@ -1150,3 +1157,10 @@ typedef struct image_node_type {
 	// Returns -1 when memory runs out, else 0 or a count of the type's own (Flood Fill: islands).
 	i32 (*process)(u8 *pixels, i32 size, void *params, f32 *result);
 } image_node_type_t;
+
+// A pair of render targets for a GPU pass that reads its previous result (a separable blur, a reduction chain): the pass reads
+// src and writes dst, make_image_node_ping_pong_swap exchanges them. See make_image_node_gpu_pass.
+typedef struct make_image_node_ping_pong {
+	gpu_texture_t *targets[2];
+	i32            src; // Index of the target the next pass reads, the other one is written
+} make_image_node_ping_pong_t;
