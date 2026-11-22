@@ -8,6 +8,16 @@ i32            render_path_raytrace_bake_last_bake_type  = 0;
 i32            render_path_raytrace_bake_last_bake_type2 = 0;
 static bool    render_path_raytrace_bake_env_sampling    = false;
 
+// The targets that hold the running mean of the samples are 32 bit float, 16 bit float drifts. Vulkan keeps 16 bit float: the
+// bake shaders are compiled for a 16 bit storage image (regenerating them with rgba32f needs the Linux or Windows shader tools)
+#if defined(IRON_VULKAN)
+#define BAKE_ACCUM_FORMAT         "RGBA64"
+#define BAKE_ACCUM_TEXTURE_FORMAT GPU_TEXTURE_FORMAT_RGBA64
+#else
+#define BAKE_ACCUM_FORMAT         "RGBA128"
+#define BAKE_ACCUM_TEXTURE_FORMAT GPU_TEXTURE_FORMAT_RGBA128
+#endif
+
 void render_path_raytrace_bake_commands_parse_paint_material(void (*parse_paint_material)(bool)) {
 	parse_paint_material(true);
 }
@@ -60,7 +70,7 @@ bool render_path_raytrace_bake_commands(void (*parse_paint_material)(bool)) {
 			t->name            = "baketex2";
 			t->width           = config_get_texture_res_x();
 			t->height          = config_get_texture_res_y();
-			t->format          = "RGBA128"; // Accumulates the samples, 16 bit float rounds away the small updates
+			t->format          = BAKE_ACCUM_FORMAT;
 			render_path_create_render_target(t);
 		}
 
@@ -340,7 +350,7 @@ static void lightmap_begin(lightmap_job_t *job, mesh_object_t *object) {
 	gpu_texture_init_from_bytes(lightmap_nor, nor, res, res, GPU_TEXTURE_FORMAT_RGBA128, false);
 	free(pos);
 	free(nor);
-	lightmap_target = gpu_create_render_target(res, res, GPU_TEXTURE_FORMAT_RGBA64);
+	lightmap_target = gpu_create_render_target(res, res, BAKE_ACCUM_TEXTURE_FORMAT);
 
 	if (lightmap_base == NULL) {
 		// Albedo of geometry without a material, light only output
@@ -413,11 +423,19 @@ static void lightmap_blur(f32 *px, u8 *m, i32 res) {
 static void lightmap_write(lightmap_job_t *job) {
 	i32       res = job->res;
 	buffer_t *b   = gpu_get_texture_pixels(lightmap_target);
-	u16      *h   = (u16 *)b->buffer;
 	f32      *px  = malloc(sizeof(f32) * 4 * res * res);
+#if defined(IRON_VULKAN)
+	u16 *h = (u16 *)b->buffer;
 	for (i32 i = 0; i < res * res * 4; ++i) {
 		px[i] = render_path_raytrace_half_to_float(h[i]);
 	}
+#else
+	if (b == NULL || (size_t)b->length < sizeof(f32) * 4 * res * res) {
+		free(px);
+		return;
+	}
+	memcpy(px, b->buffer, sizeof(f32) * 4 * res * res);
+#endif
 	u8 *m = lightmap_mask;
 	lightmap_blur(px, m, res);
 	u8 *m2 = malloc((size_t)res * res);
