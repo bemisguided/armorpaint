@@ -344,16 +344,19 @@ float UI_OUTPUT_Y(ui_node_canvas_t *canvas, ui_node_t *node, int pos) {
 	return UI_LINE_H() * 1.62 + UI_OUTPUTS_H(canvas, node, pos);
 }
 
-// Triangle of a section header as the 6 coordinates x0 y0 x1 y1 x2 y2. One isosceles triangle with base 10u and height 7.5u (u = ui_p(1)):
-// open points down (10u wide, 7.5u tall), closed is the same triangle rotated by 90 degrees and points right (7.5u wide, 10u tall).
-// Both share the centre (nx + 15u, ny + 5.5u), so they have the same size and the same area (37.5u^2) and fit inside the row (lineh = 25u,
-// the larger dimension is 10u). The left edge is at least 5u right of the socket dot (which ends at nx + 6u) in both states.
-static void ui_node_section_arrow(bool closed, float u, float nx, float ny, float *p) {
-	float cx = nx + u * 15.0;
-	float cy = ny + u * 5.5;
-	float b  = u * 5.0;  // half base
-	float h  = u * 3.75; // half height
-	if (closed) {
+// Arrows of the node header and of the section headers (u = ui_p(1), the node zoom): one isosceles triangle, base 8u (0.29 line) and height
+// 6u, pointing down (open) or right (closed), the same size and the same centre in both states so the arrow column does not move.
+// The centre x is 10u from the node's left edge for the node and every section; the centre y is the optical centre of the title text, 12.5u
+// below the top of the row.
+#define UI_NODE_ARROW_BASE   8.0
+#define UI_NODE_ARROW_COL_X  10.0
+#define UI_NODE_ARROW_TEXT_Y 12.5
+
+// Corners x0 y0 x1 y1 x2 y2 of the triangle with the bounding box centre (cx, cy): base = size, height = 0.75 size.
+static void ui_arrow_tri_points(float cx, float cy, float size, bool right, float *p) {
+	float b = size * 0.5;
+	float h = size * 0.375;
+	if (right) {
 		p[0] = cx - h; p[1] = cy - b;
 		p[2] = cx + h; p[3] = cy;
 		p[4] = cx - h; p[5] = cy + b;
@@ -365,8 +368,28 @@ static void ui_node_section_arrow(bool closed, float u, float nx, float ny, floa
 	}
 }
 
+// Centre of the arrow of the node header (ny = top of the node) and of a section header (ny as the inputs use it: the row starts lineh / 3 above).
+static float ui_node_arrow_cx(float u, float nx) {
+	return nx + u * UI_NODE_ARROW_COL_X;
+}
+
+static float ui_node_header_arrow_cy(float u, float ny) {
+	return ny + u * UI_NODE_ARROW_TEXT_Y;
+}
+
+static float ui_node_section_arrow_cy(float u, float ny, float lineh) {
+	return ny - lineh / 3.0 + u * UI_NODE_ARROW_TEXT_Y;
+}
+
 float ui_p(float f) {
 	return f * UI_NODES_SCALE();
+}
+
+static void ui_draw_arrow_tri(float cx, float cy, float size, bool right, uint32_t color) {
+	float p[6];
+	ui_arrow_tri_points(cx, cy, size, right, p);
+	draw_set_color(color);
+	draw_filled_triangle(p[0], p[1], p[2], p[3], p[4], p[5]);
 }
 
 ui_node_t *ui_get_node(ui_node_array_t *nodes, int id) {
@@ -704,15 +727,16 @@ static void ui_node_draw_section_header(ui_node_t *node, ui_node_canvas_t *canva
 	float                    w       = UI_NODE_W(node);
 	bool                     closed  = ui_node_section_closed(node, n);
 	float                    top     = ny - lineh / 3.0;
-	if (current->input_enabled && current->input_started && current->input_x > current->_window_x + nx && current->input_x < current->_window_x + nx + w &&
-	    current->input_y > current->_window_y + top && current->input_y < current->_window_y + top + lineh) {
+	bool                     hover   = current->input_enabled && current->input_x > current->_window_x + nx && current->input_x < current->_window_x + nx + w &&
+	                                   current->input_y > current->_window_y + top && current->input_y < current->_window_y + top + lineh;
+	if (hover && current->input_started) {
 		ui_node_section_toggle        = n;
 		current_nodes->_input_started = current->input_started = false;
 	}
+	// The arrow is dim and lights up over the header row, like the arrow of the node header; the title keeps the label colour.
+	ui_draw_arrow_tri(ui_node_arrow_cx(ui_p(1), nx), ui_node_section_arrow_cy(ui_p(1), ny, lineh), ui_p(UI_NODE_ARROW_BASE), closed,
+	                  hover ? current->ops->theme->LABEL_COL : current->ops->theme->HOVER_COL);
 	draw_set_color(current->ops->theme->LABEL_COL);
-	float tri[6];
-	ui_node_section_arrow(closed, ui_p(1), nx, ny, tri);
-	draw_filled_triangle(tri[0], tri[1], tri[2], tri[3], tri[4], tri[5]);
 	draw_string(ui_tr((char *)sec->title), nx + ui_p(28), ny - ui_p(3));
 	if (closed && (sec->kind == UI_NODE_ITEM_INPUT || sec->inputs_count > 0)) {
 		int first = sec->kind == UI_NODE_ITEM_INPUT ? sec->first : sec->inputs_first;
@@ -1102,10 +1126,8 @@ void ui_node_draw(ui_node_t *node, ui_node_canvas_t *canvas) {
 	if (hover && current->input_started) {
 		node->flags ^= UI_NODE_FLAG_COLLAPSED;
 	}
-	draw_set_color(hover ? current->ops->theme->LABEL_COL : current->ops->theme->HOVER_COL);
-	int bx = nx + ui_p(4);
-	int by = ny + ui_p(8);
-	draw_filled_triangle(bx, by, bx + UI_ARROW_SIZE() * 2, by, bx + UI_ARROW_SIZE(), by + UI_ARROW_SIZE());
+	ui_draw_arrow_tri(ui_node_arrow_cx(ui_p(1), nx), ui_node_header_arrow_cy(ui_p(1), ny), ui_p(UI_NODE_ARROW_BASE), (node->flags & UI_NODE_FLAG_COLLAPSED) != 0,
+	                  hover ? current->ops->theme->LABEL_COL : current->ops->theme->HOVER_COL);
 
 	// Eye button
 	hover = current->input_x > wx + nx + w - ui_p(20) && current->input_x < wx + nx + w && current->input_y > wy + ny && current->input_y < wy + ny + ui_p(20);
