@@ -167,8 +167,8 @@ typedef struct ui_stops_house {
 	float             half;
 	float             roof; // Height of the 45 degree roof
 	float             box_h;
-	float             d; // Outline
-	float             g; // Frame
+	float             d;     // Outline
+	float             g;     // Frame
 	float             inset; // Vertical room of the roof outline at the apex
 	ui_stops_colors_t colors;
 } ui_stops_house_t;
@@ -336,10 +336,10 @@ int ui_stops_update(ui_stops_t *s, const ui_stops_ops_t *ops, void *data, const 
 		else if (hit >= 0) {
 			if (ui_stops_is_double_click(iron_time(), s->last_time, s->last_hit, hit) && ui_stops_can_remove(n, ops->min_count)) {
 				ops->remove(data, hit);
-				s->active    = ui_stops_after_remove(s->active, hit, ops->count(data));
-				s->last_hit  = -1;
-				flags       |= UI_STOPS_CHANGED | UI_STOPS_SELECTED;
-				ui->changed  = true;
+				s->active   = ui_stops_after_remove(s->active, hit, ops->count(data));
+				s->last_hit = -1;
+				flags |= UI_STOPS_CHANGED | UI_STOPS_SELECTED;
+				ui->changed = true;
 			}
 			else {
 				if (s->active != hit) {
@@ -361,7 +361,7 @@ int ui_stops_update(ui_stops_t *s, const ui_stops_ops_t *ops, void *data, const 
 				s->moved    = true;
 				s->grab     = 0.0f;
 				s->last_hit = -1;
-				flags      |= UI_STOPS_CHANGED | UI_STOPS_SELECTED;
+				flags |= UI_STOPS_CHANGED | UI_STOPS_SELECTED;
 				ui->changed = true;
 			}
 		}
@@ -377,7 +377,7 @@ int ui_stops_update(ui_stops_t *s, const ui_stops_ops_t *ops, void *data, const 
 			}
 			if (s->moved) {
 				ui->changed = true; // Keeps the drag one undo step
-				flags      |= UI_STOPS_CHANGED;
+				flags |= UI_STOPS_CHANGED;
 			}
 		}
 		else {
