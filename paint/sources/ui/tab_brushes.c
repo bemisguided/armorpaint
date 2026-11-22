@@ -127,9 +127,9 @@ void tab_brushes_draw(i32 *htab) {
 
 		for (i32 row = 0; row < math_floor(math_ceil(g_project->_->brushes->length / (float)num)); ++row) {
 			i32          mult = g_config->show_asset_names ? 2 : 1;
-			f32_array_t *ar   = f32_array_create_from_raw((f32[]){}, 0);
+			f32_array_t *ar   = f32_array_create_from_raw_tmp(NULL, num * mult);
 			for (i32 i = 0; i < num * mult; ++i) {
-				f32_array_push(ar, 1 / (float)num);
+				ar->buffer[i] = 1 / (float)num;
 			}
 			ui_row(ar);
 

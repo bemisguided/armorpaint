@@ -281,7 +281,7 @@ void tab_swatches_draw_edit() {
 	ui_menu_align();
 	ui_menu_label(tr("Display"), NULL);
 	ui_menu_align();
-	string_array_t *display_items = any_array_create_from_raw(
+	string_array_t *display_items = any_array_create_from_raw_tmp(
 	    (void *[]){
 	        tr("2D"),
 	        tr("3D"),
@@ -348,9 +348,9 @@ void tab_swatches_draw(i32 *htab) {
 		f32 uix = 0.0;
 		f32 uiy = 0.0;
 		for (i32 row = 0; row < math_floor(math_ceil(g_project->swatches->length / (float)num)); ++row) {
-			f32_array_t *ar = f32_array_create_from_raw((f32[]){}, 0);
+			f32_array_t *ar = f32_array_create_from_raw_tmp(NULL, num);
 			for (i32 i = 0; i < num; ++i) {
-				f32_array_push(ar, 1 / (float)num);
+				ar->buffer[i] = 1 / (float)num;
 			}
 			ui_row(ar);
 

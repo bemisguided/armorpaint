@@ -84,14 +84,14 @@ void tab_sounds_draw(i32 *htab) {
 
 		ui_begin_sticky();
 
-		f32_array_t *row = string_equals(tab_sounds_search, "") ? f32_array_create_from_raw(
+		f32_array_t *row = string_equals(tab_sounds_search, "") ? f32_array_create_from_raw_tmp(
 		                                                              (f32[]){
 		                                                                  -100,
 		                                                                  -100,
 		                                                                  -200,
 		                                                              },
 		                                                              3)
-		                                                        : f32_array_create_from_raw(
+		                                                        : f32_array_create_from_raw_tmp(
 		                                                              (f32[]){
 		                                                                  -100,
 		                                                                  -100,
@@ -143,9 +143,9 @@ void tab_sounds_draw(i32 *htab) {
 
 		for (i32 row = 0; row < math_floor(math_ceil(filtered->length / (float)num)); ++row) {
 			i32          mult = g_config->show_asset_names ? 2 : 1;
-			f32_array_t *ar   = f32_array_create_from_raw((f32[]){}, 0);
+			f32_array_t *ar   = f32_array_create_from_raw_tmp(NULL, num * mult);
 			for (i32 i = 0; i < num * mult; ++i) {
-				f32_array_push(ar, 1 / (float)num);
+				ar->buffer[i] = 1 / (float)num;
 			}
 			ui_row(ar);
 
