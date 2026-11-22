@@ -1,6 +1,6 @@
 #include "../global.h"
 
-// Normal Converter (Filter menu): converts between a height image and a tangent space normal map, in both directions (the Mode setting):
+// Normal to Height (Filter menu): converts between a height image and a tangent space normal map, in both directions (the Mode setting):
 //   Height to Normal: a height image to a normal map, optionally on top of an incoming normal.
 //   Normal to Height: a normal map back to a height image (integration, see the end of this comment).
 // The Bump node stays as it is (it reads the height in the material shader, per pixel on screen); this node bakes in image space.
@@ -50,7 +50,7 @@
 // i * k):
 //   H = (conj(Dx) Sx + conj(Dy) Sy) / (|Dx|^2 + |Dy|^2 + L (sin^2(wx / 2) + sin^2(wy / 2))^2),  Dx = i sin(wx) (1 + cos(wy)), Dy = i sin(wy) (1 + cos(wx))
 // (Sobel / 4 as a response, so h = ifft(H) / (4 c)). The frequencies where both responses vanish (the DC term and the Nyquist lines wx = pi or
-// wy = pi: only a checker pattern of the height has no Sobel) are set to 0. L (NORMAL_CONVERTER_SMOOTHING, 1e-2) is a smoothness (Laplacian)
+// wy = pi: only a checker pattern of the height has no Sobel) are set to 0. L (NORMAL_TO_HEIGHT_SMOOTHING, 1e-2) is a smoothness (Laplacian)
 // penalty of the least squares: it is negligible for the low and middle frequencies (weight ~ w^4 against w^2) and damps the high ones
 // where the Sobel responses are almost lost, which would turn the noise of an 8 bit or half float normal into large waves (measured: a constant damping
 // instead ate the low frequencies of a smooth bump at 1e-4, and at 1e-8 the half float normals of the node itself gave wave errors of 0.2).
@@ -72,70 +72,70 @@
 // Input socket indices
 // Same order as the Bump node (Strength, Height, Normal; Bump's Distance does nothing in its shader and is left out), like Bump
 enum {
-	NORMAL_CONVERTER_INPUT_STRENGTH = 0,
-	NORMAL_CONVERTER_INPUT_HEIGHT   = 1,
-	NORMAL_CONVERTER_INPUT_NORMAL   = 2,
+	NORMAL_TO_HEIGHT_INPUT_STRENGTH = 0,
+	NORMAL_TO_HEIGHT_INPUT_HEIGHT   = 1,
+	NORMAL_TO_HEIGHT_INPUT_NORMAL   = 2,
 };
 
 // Node button indices (settings)
 enum {
-	NORMAL_CONVERTER_BUTTON_SIZE      = 0, // Button 1 is the state row
-	NORMAL_CONVERTER_BUTTON_MODE      = 2,
-	NORMAL_CONVERTER_BUTTON_NORMALIZE = 3,
-	NORMAL_CONVERTER_BUTTON_INVERT    = 4,
-	NORMAL_CONVERTER_BUTTON_WRAP      = 5,
+	NORMAL_TO_HEIGHT_BUTTON_SIZE      = 0, // Button 1 is the state row
+	NORMAL_TO_HEIGHT_BUTTON_MODE      = 2,
+	NORMAL_TO_HEIGHT_BUTTON_NORMALIZE = 3,
+	NORMAL_TO_HEIGHT_BUTTON_INVERT    = 4,
+	NORMAL_TO_HEIGHT_BUTTON_WRAP      = 5,
 };
 
 // Output socket indices
 enum {
-	NORMAL_CONVERTER_OUTPUT_NORMAL = 0,
-	NORMAL_CONVERTER_OUTPUT_HEIGHT = 1,
+	NORMAL_TO_HEIGHT_OUTPUT_NORMAL = 0,
+	NORMAL_TO_HEIGHT_OUTPUT_HEIGHT = 1,
 };
 
 // Mode setting
 enum {
-	NORMAL_CONVERTER_MODE_HEIGHT_TO_NORMAL = 0,
-	NORMAL_CONVERTER_MODE_NORMAL_TO_HEIGHT = 1,
+	NORMAL_TO_HEIGHT_MODE_HEIGHT_TO_NORMAL = 0,
+	NORMAL_TO_HEIGHT_MODE_NORMAL_TO_HEIGHT = 1,
 };
 
-#define NORMAL_CONVERTER_MIN_NZ 0.05 // Normal to Height: the smallest z of a decoded normal (slope 20)
-#define NORMAL_CONVERTER_SMOOTHING 1e-2 // Normal to Height: weight of the smoothness term of the integration, see the header
+#define NORMAL_TO_HEIGHT_MIN_NZ 0.05 // Normal to Height: the smallest z of a decoded normal (slope 20)
+#define NORMAL_TO_HEIGHT_SMOOTHING 1e-2 // Normal to Height: weight of the smoothness term of the integration, see the header
 
-typedef struct normal_converter_params {
+typedef struct normal_to_height_params {
 	i32 mode;
 	i32 normalize;
 	i32 invert;
 	i32 wrap;
 	f32 strength;
-} normal_converter_params_t;
+} normal_to_height_params_t;
 
 // Which rows of the node are not shown: Height to Normal has no Height output and no Normalize; Normal to Height has no Height input and no Normal output,
 // and a normalised result does not use Strength. A linked socket is never hidden by the caller (ui_nodes_on_item_hidden).
-static bool normal_converter_node_hidden(i32 mode, i32 normalize, ui_node_item_t kind, i32 index) {
-	bool n2h = mode == NORMAL_CONVERTER_MODE_NORMAL_TO_HEIGHT;
+static bool normal_to_height_node_hidden(i32 mode, i32 normalize, ui_node_item_t kind, i32 index) {
+	bool n2h = mode == NORMAL_TO_HEIGHT_MODE_NORMAL_TO_HEIGHT;
 	if (kind == UI_NODE_ITEM_INPUT) {
-		return n2h && (index == NORMAL_CONVERTER_INPUT_HEIGHT || (index == NORMAL_CONVERTER_INPUT_STRENGTH && normalize != 0));
+		return n2h && (index == NORMAL_TO_HEIGHT_INPUT_HEIGHT || (index == NORMAL_TO_HEIGHT_INPUT_STRENGTH && normalize != 0));
 	}
 	if (kind == UI_NODE_ITEM_OUTPUT) {
-		return n2h ? index == NORMAL_CONVERTER_OUTPUT_NORMAL : index == NORMAL_CONVERTER_OUTPUT_HEIGHT;
+		return n2h ? index == NORMAL_TO_HEIGHT_OUTPUT_NORMAL : index == NORMAL_TO_HEIGHT_OUTPUT_HEIGHT;
 	}
-	return !n2h && index == NORMAL_CONVERTER_BUTTON_NORMALIZE;
+	return !n2h && index == NORMAL_TO_HEIGHT_BUTTON_NORMALIZE;
 }
 
-static bool normal_converter_node_item_hidden(ui_node_t *node, ui_node_item_t kind, i32 index) {
-	return normal_converter_node_hidden((i32)make_image_node_button(node, NORMAL_CONVERTER_BUTTON_MODE), make_image_node_button(node, NORMAL_CONVERTER_BUTTON_NORMALIZE) != 0.0, kind, index);
+static bool normal_to_height_node_item_hidden(ui_node_t *node, ui_node_item_t kind, i32 index) {
+	return normal_to_height_node_hidden((i32)make_image_node_button(node, NORMAL_TO_HEIGHT_BUTTON_MODE), make_image_node_button(node, NORMAL_TO_HEIGHT_BUTTON_NORMALIZE) != 0.0, kind, index);
 }
 
 // Width and height of the image: Size 512, 1024, 2048 or 4096
-static i32 normal_converter_node_size(ui_node_t *node) {
-	return make_image_node_size(node, NORMAL_CONVERTER_BUTTON_SIZE);
+static i32 normal_to_height_node_size(ui_node_t *node) {
+	return make_image_node_size(node, NORMAL_TO_HEIGHT_BUTTON_SIZE);
 }
 
 // Captured per pixel: the Height input as grey in R, the Normal input in GBA
-static char *normal_converter_node_capture(ui_node_t *node) {
-	bool  n2h    = (i32)make_image_node_button(node, NORMAL_CONVERTER_BUTTON_MODE) == NORMAL_CONVERTER_MODE_NORMAL_TO_HEIGHT;
-	char *image  = n2h ? "0.0" : parser_material_parse_value_input(node->inputs->buffer[NORMAL_CONVERTER_INPUT_HEIGHT], false); // Normal to Height does not read Height
-	char *normal = parser_material_parse_vector_input(node->inputs->buffer[NORMAL_CONVERTER_INPUT_NORMAL]);
+static char *normal_to_height_node_capture(ui_node_t *node) {
+	bool  n2h    = (i32)make_image_node_button(node, NORMAL_TO_HEIGHT_BUTTON_MODE) == NORMAL_TO_HEIGHT_MODE_NORMAL_TO_HEIGHT;
+	char *image  = n2h ? "0.0" : parser_material_parse_value_input(node->inputs->buffer[NORMAL_TO_HEIGHT_INPUT_HEIGHT], false); // Normal to Height does not read Height
+	char *normal = parser_material_parse_vector_input(node->inputs->buffer[NORMAL_TO_HEIGHT_INPUT_NORMAL]);
 	char *grey   = string_tmp("%s_grey", parser_material_store_var_name(node));
 	char *nor    = string_tmp("%s_nor", parser_material_store_var_name(node));
 	parser_material_write(parser_material_kong, string_tmp("float %s = clamp(%s, 0.0, 1.0);", grey, image));
@@ -143,16 +143,16 @@ static char *normal_converter_node_capture(ui_node_t *node) {
 	return string_tmp("float4(%s, %s.x, %s.y, %s.z)", grey, nor, nor, nor);
 }
 
-static void normal_converter_node_params(ui_node_t *node, void *params) {
-	normal_converter_params_t *p = params;
-	p->mode                      = (i32)make_image_node_button(node, NORMAL_CONVERTER_BUTTON_MODE);
-	p->normalize                 = make_image_node_button(node, NORMAL_CONVERTER_BUTTON_NORMALIZE) != 0.0;
-	p->invert                    = make_image_node_button(node, NORMAL_CONVERTER_BUTTON_INVERT) != 0.0;
-	p->wrap                      = make_image_node_button(node, NORMAL_CONVERTER_BUTTON_WRAP) != 0.0;
-	p->strength                  = make_image_node_input_value(node, NORMAL_CONVERTER_INPUT_STRENGTH);
+static void normal_to_height_node_params(ui_node_t *node, void *params) {
+	normal_to_height_params_t *p = params;
+	p->mode                      = (i32)make_image_node_button(node, NORMAL_TO_HEIGHT_BUTTON_MODE);
+	p->normalize                 = make_image_node_button(node, NORMAL_TO_HEIGHT_BUTTON_NORMALIZE) != 0.0;
+	p->invert                    = make_image_node_button(node, NORMAL_TO_HEIGHT_BUTTON_INVERT) != 0.0;
+	p->wrap                      = make_image_node_button(node, NORMAL_TO_HEIGHT_BUTTON_WRAP) != 0.0;
+	p->strength                  = make_image_node_input_value(node, NORMAL_TO_HEIGHT_INPUT_STRENGTH);
 }
 
-static i32 normal_converter_node_wrap_index(i32 i, i32 size, bool wrap) {
+static i32 normal_to_height_node_wrap_index(i32 i, i32 size, bool wrap) {
 	if (wrap) {
 		return ((i % size) + size) % size;
 	}
@@ -160,7 +160,7 @@ static i32 normal_converter_node_wrap_index(i32 i, i32 size, bool wrap) {
 }
 
 // Detail normal d (unit, tilt from the slope) on the base normal b (unit): Reoriented Normal Mapping
-static void normal_converter_node_rnm(const f32 *b, const f32 *d, f32 *n) {
+static void normal_to_height_node_rnm(const f32 *b, const f32 *d, f32 *n) {
 	f32 tx = b[0], ty = b[1], tz = b[2] + 1.0f;
 	f32 ux = -d[0], uy = -d[1], uz = d[2];
 	f32 k  = (tx * ux + ty * uy + tz * uz) / tz;
@@ -172,25 +172,25 @@ static void normal_converter_node_rnm(const f32 *b, const f32 *d, f32 *n) {
 	n[2]   = l > 0.0f ? rz * l : 1.0f;
 }
 
-typedef struct normal_converter_ctx {
+typedef struct normal_to_height_ctx {
 	f32 *pixels; // Captured RGBA: the height in R, the incoming normal encoded in GBA
 	f32 *result;
 	f32  scale; // Strength / 8 * Size / 1024
 	i32  size;
 	bool wrap;
-} normal_converter_ctx_t;
+} normal_to_height_ctx_t;
 
 // Rows [begin, end) of the normal map
-static void normal_converter_node_rows(void *param, i32 begin, i32 end) {
-	normal_converter_ctx_t *c = param;
+static void normal_to_height_node_rows(void *param, i32 begin, i32 end) {
+	normal_to_height_ctx_t *c = param;
 	f32 *pixels = c->pixels;
 	i32  size   = c->size;
 	for (i32 y = begin; y < end; ++y) {
-		i32 ym = normal_converter_node_wrap_index(y - 1, size, c->wrap);
-		i32 yp = normal_converter_node_wrap_index(y + 1, size, c->wrap);
+		i32 ym = normal_to_height_node_wrap_index(y - 1, size, c->wrap);
+		i32 yp = normal_to_height_node_wrap_index(y + 1, size, c->wrap);
 		for (i32 x = 0; x < size; ++x) {
-			i32 xm = normal_converter_node_wrap_index(x - 1, size, c->wrap);
-			i32 xp = normal_converter_node_wrap_index(x + 1, size, c->wrap);
+			i32 xm = normal_to_height_node_wrap_index(x - 1, size, c->wrap);
+			i32 xp = normal_to_height_node_wrap_index(x + 1, size, c->wrap);
 #define NC_AT(px_, py_) pixels[((size_t)(py_) * size + (px_)) * 4]
 			f32 gx = (NC_AT(xp, ym) + 2.0f * NC_AT(xp, y) + NC_AT(xp, yp)) - (NC_AT(xm, ym) + 2.0f * NC_AT(xm, y) + NC_AT(xm, yp));
 			f32 gy = (NC_AT(xm, yp) + 2.0f * NC_AT(x, yp) + NC_AT(xp, yp)) - (NC_AT(xm, ym) + 2.0f * NC_AT(x, ym) + NC_AT(xp, ym));
@@ -223,7 +223,7 @@ static void normal_converter_node_rows(void *param, i32 begin, i32 end) {
 					b[1]    /= l;
 					b[2]    /= l;
 				}
-				normal_converter_node_rnm(b, d, n);
+				normal_to_height_node_rnm(b, d, n);
 			}
 			o[0] = n[0] * 0.5f + 0.5f;
 			o[1] = n[1] * 0.5f + 0.5f;
@@ -235,7 +235,7 @@ static void normal_converter_node_rows(void *param, i32 begin, i32 end) {
 
 // Normal to Height. In place radix 2 FFT of the interleaved complex line a (n complex floats, n a power of two). tw holds cos and sin of 2 pi j / n
 // for j < n / 2 (computed in double); dir 1 is the forward transform (e^-i), -1 the inverse (unnormalised)
-static void normal_converter_node_fft_line(f32 *a, i32 n, const f32 *tw, i32 dir) {
+static void normal_to_height_node_fft_line(f32 *a, i32 n, const f32 *tw, i32 dir) {
 	for (i32 i = 1, j = 0; i < n; ++i) {
 		i32 bit = n >> 1;
 		for (; j & bit; bit >>= 1) {
@@ -266,23 +266,23 @@ static void normal_converter_node_fft_line(f32 *a, i32 n, const f32 *tw, i32 dir
 	}
 }
 
-typedef struct normal_converter_fft_ctx {
+typedef struct normal_to_height_fft_ctx {
 	f32       *data; // m x m complex floats, row major
 	i32        m;
 	const f32 *tw;
 	i32        dir;
-} normal_converter_fft_ctx_t;
+} normal_to_height_fft_ctx_t;
 
-static void normal_converter_node_fft_rows(void *param, i32 begin, i32 end) {
-	normal_converter_fft_ctx_t *c = param;
+static void normal_to_height_node_fft_rows(void *param, i32 begin, i32 end) {
+	normal_to_height_fft_ctx_t *c = param;
 	for (i32 y = begin; y < end; ++y) {
-		normal_converter_node_fft_line(c->data + (size_t)y * c->m * 2, c->m, c->tw, c->dir);
+		normal_to_height_node_fft_line(c->data + (size_t)y * c->m * 2, c->m, c->tw, c->dir);
 	}
 }
 
 // Column groups of 8 (one cache line of complex floats) are copied to a scratch buffer, transformed and copied back
-static void normal_converter_node_fft_columns(void *param, i32 begin, i32 end) {
-	normal_converter_fft_ctx_t *c = param;
+static void normal_to_height_node_fft_columns(void *param, i32 begin, i32 end) {
+	normal_to_height_fft_ctx_t *c = param;
 	i32  m       = c->m;
 	f32 *scratch = malloc((size_t)8 * m * 2 * sizeof(f32));
 	if (scratch == NULL) {
@@ -297,7 +297,7 @@ static void normal_converter_node_fft_columns(void *param, i32 begin, i32 end) {
 			}
 		}
 		for (i32 k = 0; k < 8; ++k) {
-			normal_converter_node_fft_line(scratch + (size_t)k * m * 2, m, c->tw, c->dir);
+			normal_to_height_node_fft_line(scratch + (size_t)k * m * 2, m, c->tw, c->dir);
 		}
 		for (i32 y = 0; y < m; ++y) {
 			for (i32 k = 0; k < 8; ++k) {
@@ -311,13 +311,13 @@ static void normal_converter_node_fft_columns(void *param, i32 begin, i32 end) {
 }
 
 // 2D FFT of the m x m complex plane in place, m a power of two of at least 8
-static void normal_converter_node_fft2d(f32 *data, i32 m, const f32 *tw, i32 dir) {
-	normal_converter_fft_ctx_t c = {.data = data, .m = m, .tw = tw, .dir = dir};
-	make_image_node_parallel(m, normal_converter_node_fft_rows, &c);
-	make_image_node_parallel(m / 8, normal_converter_node_fft_columns, &c);
+static void normal_to_height_node_fft2d(f32 *data, i32 m, const f32 *tw, i32 dir) {
+	normal_to_height_fft_ctx_t c = {.data = data, .m = m, .tw = tw, .dir = dir};
+	make_image_node_parallel(m, normal_to_height_node_fft_rows, &c);
+	make_image_node_parallel(m / 8, normal_to_height_node_fft_columns, &c);
 }
 
-typedef struct normal_converter_n2h_ctx {
+typedef struct normal_to_height_n2h_ctx {
 	const f32 *pixels; // size x size RGBA, the normal encoded in GBA
 	f32       *plane;  // m x m complex
 	i32        size;
@@ -325,11 +325,11 @@ typedef struct normal_converter_n2h_ctx {
 	bool       mirror;
 	const f32 *sn; // sin and cos of 2 pi k / m
 	const f32 *cs;
-} normal_converter_n2h_ctx_t;
+} normal_to_height_n2h_ctx_t;
 
 // Rows [begin, end) of the image: the slopes sx + i sy of the decoded normals into the plane (and their mirror images)
-static void normal_converter_node_n2h_fill(void *param, i32 begin, i32 end) {
-	normal_converter_n2h_ctx_t *c = param;
+static void normal_to_height_node_n2h_fill(void *param, i32 begin, i32 end) {
+	normal_to_height_n2h_ctx_t *c = param;
 	i32 size = c->size, m = c->m;
 	for (i32 y = begin; y < end; ++y) {
 		for (i32 x = 0; x < size; ++x) {
@@ -341,7 +341,7 @@ static void normal_converter_node_n2h_fill(void *param, i32 begin, i32 end) {
 				nx /= l;
 				ny /= l;
 				nz /= l;
-				nz = nz < (f32)NORMAL_CONVERTER_MIN_NZ ? (f32)NORMAL_CONVERTER_MIN_NZ : nz;
+				nz = nz < (f32)NORMAL_TO_HEIGHT_MIN_NZ ? (f32)NORMAL_TO_HEIGHT_MIN_NZ : nz;
 				sx = -nx / nz;
 				sy = ny / nz;
 			}
@@ -364,8 +364,8 @@ static void normal_converter_node_n2h_fill(void *param, i32 begin, i32 end) {
 // The spectrum of the slopes to the spectrum of the height, for the rows ky = r and m - r of every r in [begin, end) (r in 0 .. m / 2).
 // Z = P + i Q holds the spectra of both real slope planes; P(k) = (Z(k) + conj Z(-k)) / 2, Q(k) = (Z(k) - conj Z(-k)) / 2i. The height spectrum is
 // Hermitian: H(-k) = conj H(k), both are written, so every pair is visited once.
-static void normal_converter_node_n2h_solve(void *param, i32 begin, i32 end) {
-	normal_converter_n2h_ctx_t *c = param;
+static void normal_to_height_node_n2h_solve(void *param, i32 begin, i32 end) {
+	normal_to_height_n2h_ctx_t *c = param;
 	i32 m = c->m;
 	for (i32 r = begin; r < end; ++r) {
 		i32 jy = (m - r) % m;
@@ -391,7 +391,7 @@ static void normal_converter_node_n2h_solve(void *param, i32 begin, i32 end) {
 				// conj(Dx) P + conj(Dy) Q = -i (dx P + dy Q)
 				f32 sr = dx * pr + dy * qr, si = dx * pi_ + dy * qi;
 				f32 lap = 1.0f - 0.5f * (c->cs[kx] + c->cs[r]); // sin^2(wx / 2) + sin^2(wy / 2)
-				f32 g   = 1.0f / (den + (f32)NORMAL_CONVERTER_SMOOTHING * lap * lap);
+				f32 g   = 1.0f / (den + (f32)NORMAL_TO_HEIGHT_SMOOTHING * lap * lap);
 				hr     = si * g;
 				hi     = -sr * g;
 			}
@@ -404,7 +404,7 @@ static void normal_converter_node_n2h_solve(void *param, i32 begin, i32 end) {
 }
 
 // Normal to Height: see the header. bytes is the capture (float RGBA, the normal in GBA), result the size x size RGBA plane
-static i32 normal_converter_node_normal_to_height(u8 *bytes, i32 size, normal_converter_params_t *p, f32 *result) {
+static i32 normal_to_height_node_normal_to_height(u8 *bytes, i32 size, normal_to_height_params_t *p, f32 *result) {
 	f32 strength = p->strength;
 	strength     = !(strength > 0.0f) ? 0.0f : strength > 1000.0f ? 1000.0f : strength; // Also keeps NaN out
 	i32    m     = p->wrap ? size : size * 2;
@@ -428,11 +428,11 @@ static i32 normal_converter_node_normal_to_height(u8 *bytes, i32 size, normal_co
 			tw[2 * j + 1] = sn[j];
 		}
 	}
-	normal_converter_n2h_ctx_t c = {.pixels = (const f32 *)bytes, .plane = plane, .size = size, .m = m, .mirror = !p->wrap, .sn = sn, .cs = cs};
-	make_image_node_parallel(size, normal_converter_node_n2h_fill, &c);
-	normal_converter_node_fft2d(plane, m, tw, 1);
-	make_image_node_parallel(m / 2 + 1, normal_converter_node_n2h_solve, &c);
-	normal_converter_node_fft2d(plane, m, tw, -1);
+	normal_to_height_n2h_ctx_t c = {.pixels = (const f32 *)bytes, .plane = plane, .size = size, .m = m, .mirror = !p->wrap, .sn = sn, .cs = cs};
+	make_image_node_parallel(size, normal_to_height_node_n2h_fill, &c);
+	normal_to_height_node_fft2d(plane, m, tw, 1);
+	make_image_node_parallel(m / 2 + 1, normal_to_height_node_n2h_solve, &c);
+	normal_to_height_node_fft2d(plane, m, tw, -1);
 	// Height units: 1 / (m * m) of the inverse transform, 1 / (4 c) of the Sobel sum, c = Strength / 8 * Size / 1024
 	f32  inv_scale = strength > 0.0f ? 1.0f / ((f32)m * (f32)m) / (4.0f * (strength / 8.0f * (f32)size / 1024.0f)) : 0.0f;
 	f32  lo = 1e30f, hi = -1e30f;
@@ -469,48 +469,48 @@ static i32 normal_converter_node_normal_to_height(u8 *bytes, i32 size, normal_co
 }
 
 // Result of the captured height and normal; returns 0, or -1 when memory runs out
-static i32 normal_converter_node_process(u8 *bytes, i32 size, void *params, f32 *result) {
-	normal_converter_params_t p = *(normal_converter_params_t *)params;
-	if (p.mode == NORMAL_CONVERTER_MODE_NORMAL_TO_HEIGHT) {
-		return normal_converter_node_normal_to_height(bytes, size, &p, result);
+static i32 normal_to_height_node_process(u8 *bytes, i32 size, void *params, f32 *result) {
+	normal_to_height_params_t p = *(normal_to_height_params_t *)params;
+	if (p.mode == NORMAL_TO_HEIGHT_MODE_NORMAL_TO_HEIGHT) {
+		return normal_to_height_node_normal_to_height(bytes, size, &p, result);
 	}
 	f32 strength = p.strength;
 	strength     = !(strength > 0.0f) ? 0.0f : strength > 1000.0f ? 1000.0f : strength; // Also keeps NaN out
 	strength     = p.invert ? -strength : strength;
-	normal_converter_ctx_t c = {.pixels = (f32 *)bytes, .result = result, .scale = strength / 8.0f * (f32)size / 1024.0f, .size = size, .wrap = p.wrap != 0};
-	make_image_node_parallel(size, normal_converter_node_rows, &c);
+	normal_to_height_ctx_t c = {.pixels = (f32 *)bytes, .result = result, .scale = strength / 8.0f * (f32)size / 1024.0f, .size = size, .wrap = p.wrap != 0};
+	make_image_node_parallel(size, normal_to_height_node_rows, &c);
 	return 0;
 }
 
-static image_node_type_t normal_converter_node_image_type = {
-    .type          = "TEX_NORMAL_CONVERTER",
+static image_node_type_t normal_to_height_node_image_type = {
+    .type          = "TEX_NORMAL_TO_HEIGHT",
     .result_format = GPU_TEXTURE_FORMAT_RGBA64, // A normal encoded in 0..1: half floats resolve 0.06 degrees (a height 0.0005), no second plane
-    .params_size   = sizeof(normal_converter_params_t),
-    .size          = normal_converter_node_size,
-    .capture       = normal_converter_node_capture,
+    .params_size   = sizeof(normal_to_height_params_t),
+    .size          = normal_to_height_node_size,
+    .capture       = normal_to_height_node_capture,
     .capture_format = IMAGE_CAPTURE_RGBA32F,
     .smooth_sample = true,
-    .params        = normal_converter_node_params,
-    .process       = normal_converter_node_process,
+    .params        = normal_to_height_node_params,
+    .process       = normal_to_height_node_process,
 };
 
-char *normal_converter_node_vector(ui_node_t *node, ui_node_socket_t *socket) {
+char *normal_to_height_node_vector(ui_node_t *node, ui_node_socket_t *socket) {
 	return string_tmp("%s.rgb", make_image_node_sample(node));
 }
 
-char *normal_converter_node_value(ui_node_t *node, ui_node_socket_t *socket) { // The Height output (R = G = B in Normal to Height)
+char *normal_to_height_node_value(ui_node_t *node, ui_node_socket_t *socket) { // The Height output (R = G = B in Normal to Height)
 	return string_tmp("%s.r", make_image_node_sample(node));
 }
 
-void normal_converter_node_init() {
+void normal_to_height_node_init() {
 	u32 value_color  = 0xffa1a1a1;
 	u32 vector_color = 0xff6363c7;
 
-	ui_node_t *normal_converter_node_def =
+	ui_node_t *normal_to_height_node_def =
 	    ALLOC_INIT(ui_node_t,
 	               {.id     = 0,
-	                .name   = _tr("Normal Converter"),
-	                .type   = "TEX_NORMAL_CONVERTER",
+	                .name   = _tr("Normal to Height"),
+	                .type   = "TEX_NORMAL_TO_HEIGHT",
 	                .x      = 0,
 	                .y      = 0,
 	                .color  = NODES_MATERIAL_IMAGE_COLOR,
@@ -540,10 +540,10 @@ void normal_converter_node_init() {
 	                .width = 0,
 	                .flags = 0});
 
-	any_array_push(nodes_material_filter, normal_converter_node_def);
-	any_map_set(parser_material_node_values, "TEX_NORMAL_CONVERTER", normal_converter_node_value);
-	any_map_set(parser_material_node_vectors, "TEX_NORMAL_CONVERTER", normal_converter_node_vector);
-	any_map_set(ui_nodes_hidden_rules, "TEX_NORMAL_CONVERTER", normal_converter_node_item_hidden);
-	make_image_node_sections(normal_converter_node_def, NULL, 0, 3); // General: Mode, Normalize, Invert, Wrap Edges, Strength, Height and Normal
-	make_image_node_register(&normal_converter_node_image_type);
+	any_array_push(nodes_material_filter, normal_to_height_node_def);
+	any_map_set(parser_material_node_values, "TEX_NORMAL_TO_HEIGHT", normal_to_height_node_value);
+	any_map_set(parser_material_node_vectors, "TEX_NORMAL_TO_HEIGHT", normal_to_height_node_vector);
+	any_map_set(ui_nodes_hidden_rules, "TEX_NORMAL_TO_HEIGHT", normal_to_height_node_item_hidden);
+	make_image_node_sections(normal_to_height_node_def, NULL, 0, 3); // General: Mode, Normalize, Invert, Wrap Edges, Strength, Height and Normal
+	make_image_node_register(&normal_to_height_node_image_type);
 }

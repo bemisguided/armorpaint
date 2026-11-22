@@ -519,7 +519,6 @@ Texture de bruit
 Aucun
 Normale
 Mélange normales
-
 Carte de normales
 Carte de normales 1
 Carte de normales 2

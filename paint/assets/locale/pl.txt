@@ -519,7 +519,6 @@ Tekstura szumu
 Brak
 Normalna
 Mieszanie normalnych
-
 Mapa normalnych
 Mapa normalnych 1
 Mapa normalnych 2
