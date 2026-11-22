@@ -16,7 +16,7 @@ void edit_image_node_button(i32 node_id) {
 	ui_node_canvas_t *canvas = ui_nodes_get_canvas(true);
 	ui_node_t        *node   = ui_get_node(canvas->nodes, node_id);
 
-	string_array_t *models           = any_array_create_from_raw((void *[]){"FLUX 2 klein"}, 1);
+	string_array_t *models           = any_array_create_from_raw_tmp((void *[]){"FLUX 2 klein"}, 1);
 	i32             model            = neural_node_model(node, models);
 	char           *prompt           = neural_node_prompt_area(node);
 	node->buttons->buffer[0]->height = string_split(prompt, "\n")->length * UI_TEXT_AREA_LINE_H() / UI_LINE_H() + 4;

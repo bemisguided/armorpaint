@@ -173,7 +173,7 @@ void nodes_material_color_ramp_button(i32 node_id) {
 	g_ui->_y += UI_LINE_H();
 
 	// Edit controls
-	f32_array_t *row = f32_array_create_from_raw(
+	f32_array_t *row = f32_array_create_from_raw_tmp(
 	    (f32[]){
 	        1 / 4.0,
 	        1 / 4.0,
