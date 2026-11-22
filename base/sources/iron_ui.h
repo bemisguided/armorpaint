@@ -510,6 +510,9 @@ typedef enum ui_node_flag {
 	// A set bit means "toggled away from the default of the section" (closed_by_default), so 0, the value of every node saved before and of every new node,
 	// is the default state of all sections. Presentation only: no undo step, no compile, no format change (flags is saved as is).
 	UI_NODE_FLAG_SECTION_0 = 256,
+	// Marker of the section bits (8 and up): set = they follow the table order of today (image nodes: Texture last), clear = a node saved before
+	// the order was changed (Texture first), remapped once on load by make_image_node_sections_remap. Every node of the new layout carries it.
+	UI_NODE_FLAG_SECTIONS_V2 = 128,
 } ui_node_flag_t;
 
 #define UI_NODE_SECTIONS_MAX 23
@@ -534,7 +537,9 @@ typedef struct ui_node_section {
 	bool            closed_by_default; // State while the flag bit is clear
 	int             inputs_first;      // Mixed section (kind BUTTON only): index of its first input
 	int             inputs_count;      // Mixed section: number of inputs, 0 for a section of one kind
-	bool            after_inputs;      // BUTTON section only: drawn below all the inputs of the node instead of among the buttons above them (a visual order, the index and the flag bit of the section stay)
+	bool            after_inputs;      // BUTTON section only: drawn below all the inputs of the node instead of among the buttons above them (for buttons that head the button list of the node but come last in the table)
+	int             trailing_first;    // INPUT section only: the buttons trailing_first .. trailing_first + trailing_count - 1 are members of this section too, drawn below ALL the inputs of the node (without a header of their own), hidden while the section is closed
+	int             trailing_count;    // Number of trailing buttons, 0 for none
 } ui_node_section_t;
 
 typedef struct ui_node {
@@ -687,6 +692,7 @@ typedef struct ui_stops_ops {
 	bool (*is_locked)(void *data, int i); // Optional (NULL: no stop is locked): a locked stop can be selected but not dragged or deleted
 	int min_count;
 	int max_count;
+	bool flipped; // The handles sit ABOVE the bar (houses with the roof pointing down, their tip on the top edge of the bar, ui_stops_draw_pin_flipped): the press zone is the hit_h tall row above the bar
 } ui_stops_ops_t;
 
 typedef struct ui_stops_colors { // Marker colours, derived from the theme
@@ -712,3 +718,5 @@ int   ui_stops_end(ui_stops_get_pos_t get_pos, void *data, int count, bool right
 void  ui_stops_pin_colors(uint32_t bg_col, uint32_t text_col, ui_stops_colors_t *colors);
 void  ui_stops_draw_pin(float cx, float y, float w, float h, uint32_t fill, bool active);
 void  ui_stops_draw_pin_locked(float cx, float y, float w, float h, uint32_t fill);
+void  ui_stops_draw_pin_flipped(float cx, float y, float w, float h, uint32_t fill, bool active); // y: the tip of the roof, the house extends UP from it
+void  ui_stops_draw_pin_locked_flipped(float cx, float y, float w, float h, uint32_t fill);

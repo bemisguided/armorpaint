@@ -72,7 +72,6 @@ Bits
 Schwarze Maske
 
 
-
 Blender Programm
 Blender Programmpfad nicht gesetzt
 Vermischen
@@ -384,6 +383,9 @@ Textur importieren
 Importieren...
 Mesh wird importiert
 Eingang
+
+
+
 Einkommend
 Aufblasen
 Info: Asset bereits importiert
@@ -392,6 +394,7 @@ Als Skript untersuchen
 Aktualisiere das Material bei Node-Änderung sofort
 Intensität
 Oberfläche
+
 Interpolieren
 Ungültiges Exportverzeichnis
 Ungültiger Skriptpfad
@@ -555,8 +558,6 @@ Orientierung 3D
 Ursprung zur Geometrie
 Orthografisch
 Ausgang
-
-
 Überlagern
 
 
@@ -896,7 +897,6 @@ Wellenprofil
 Wellen Textur
 Wellentyp
 Neuigkeiten
-
 Weiße Maske
 Whiteout
 Breite

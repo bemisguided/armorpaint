@@ -72,7 +72,6 @@ Bitek
 Fekete maszk
 
 
-
 Blender futtatható fájl
 A Blender elérési útja nincs beállítva
 Keverés
@@ -384,6 +383,9 @@ Textúra fájl importálása
 Importálás...
 Háló importálása...
 Bemenet
+
+
+
 Bejövő
 Felfújás
 Infó: Az asset már importálva van
@@ -392,6 +394,7 @@ Vizsgálat szkriptként
 Anyag előnézetének azonnali frissítése csomópont módosításakor
 Intenzitás
 Felület
+
 Interpolálás
 Érvénytelen exportálási könyvtár
 Érvénytelen szkript útvonal
@@ -555,8 +558,6 @@ Rétegek sorrendje
 Origó a geometriához
 Ortografikus
 Kimenet
-
-
 Átfedés (Overlay)
 
 
@@ -896,7 +897,6 @@ Hullám profil
 Hullám textúra
 Hullám típusa
 Újdonságok
-
 Fehér maszk
 Kifehérítés
 Szélesség

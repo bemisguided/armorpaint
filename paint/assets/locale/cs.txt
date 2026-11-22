@@ -72,7 +72,6 @@ Bity
 Černá maska
 
 
-
 Spustitelný soubor Blenderu
 Cesta ke spustitelnému souboru Blenderu není nastavena
 Míchání
@@ -384,6 +383,9 @@ Importovat soubor textury
 Importovat...
 Importování sítě
 Vstup
+
+
+
 Příchozí
 Nafouknout
 Info: Asset již importován
@@ -392,6 +394,7 @@ Prozkoumat jako skript
 Okamžitě aktualizovat náhled materiálu při změně uzlu
 Intenzita
 Rozhraní
+
 Interpolovat
 Neplatný exportní adresář
 Neplatná cesta ke skriptu
@@ -555,8 +558,6 @@ Orientace 3D
 Počátek na geometrii
 Ortografie
 Výstup
-
-
 Překrytí
 
 
@@ -896,7 +897,6 @@ Profil vlny
 Vlnová textura
 Typ vlny
 Co je nového
-
 Bílá maska
 Vy bílení
 Šířka
