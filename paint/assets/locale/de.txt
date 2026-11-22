@@ -17,6 +17,7 @@ A
 Über
 Über...
 Absolutbetrag
+
 Hinzufügen
 Animation hinzufügen
 Farbfeld hinzufügen
@@ -523,6 +524,7 @@ Neues Farbfeld
 Neues Theme
 Neue weiße Maske
 Weiter
+
 Nein
 
 Keine Antwort
@@ -645,6 +647,7 @@ Vorlagen
 Kontrolle für Anpressdruck
 Zurück
 Vorheriger Ordner
+
 Verarbeite...
 Projizieren
 Projekt gespeichert

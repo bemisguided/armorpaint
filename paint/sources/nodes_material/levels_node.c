@@ -489,26 +489,8 @@ static u32 levels_strip_fill(levels_strip_t *st, i32 i) {
 	return i == 0 ? 0xff202020 : i == 1 ? 0xff808080 : 0xffffffff;
 }
 
-static void levels_strip_draw(void *data, i32 i, f32 cx, f32 y, f32 w, f32 h, bool active) {
-	levels_strip_t *st   = data;
-	u32             fill = levels_strip_fill(st, i);
-	bool            top  = !st->range && !st->output_row; // The input row sits on top of the histogram: the house upside down
-	if (levels_strip_is_locked(data, i)) { // Linked: greyed, not draggable
-		if (top) {
-			ui_stops_draw_pin_locked_flipped(cx, y, w, h, fill);
-		}
-		else {
-			ui_stops_draw_pin_locked(cx, y, w, h, fill);
-		}
-		return;
-	}
-	if (top) {
-		ui_stops_draw_pin_flipped(cx, y, w, h, fill, active);
-	}
-	else {
-		ui_stops_draw_pin(cx, y, w, h, fill, active);
-	}
-}
+static u32 levels_strip_fill_cb(void *data, i32 i) {
+	return levels_strip_fill(data, i);}
 
 // Rows of the strip in lines of the node button (Levels): the input handles (the press zone above the histogram), the histogram box, a small gap,
 // the output gradient bar, the output handle row and the space below it. Range uses the same height: box, bar, handle row, the rest is blank.
@@ -619,11 +601,12 @@ static void levels_node_strip_button(i32 node_id) {
 		ui_stops_ops_t ops = {.count     = levels_strip_count,
 		                      .get_pos   = levels_strip_get_pos,
 		                      .set_pos   = levels_strip_set_pos,
-		                      .draw      = levels_strip_draw,
+		                      .fill      = levels_strip_fill_cb,
 		                      .is_locked = levels_strip_is_locked,
 		                      .min_count = 3,
 		                      .max_count = 3};
-		hit |= ui_stops_update(&state->stops, &ops, &strip, g_ui->_x + extent, g_ui->_y + bar_y, track_w, bar_h, marker_h, hit_h);
+		ui_stops_layout_t layout = {.x = g_ui->_x + extent, .y = g_ui->_y + bar_y, .w = track_w, .bar_h = bar_h, .marker_h = marker_h, .hit_h = hit_h};
+		hit |= ui_stops_update(&state->stops, &ops, &strip, &layout);
 	}
 	else {
 		levels_strip_t in_strip  = strip;
@@ -632,7 +615,7 @@ static void levels_node_strip_button(i32 node_id) {
 		ui_stops_ops_t in_ops    = {.count     = levels_strip_count,
 		                            .get_pos   = levels_strip_get_pos,
 		                            .set_pos   = levels_strip_set_pos,
-		                            .draw      = levels_strip_draw,
+		                            .fill      = levels_strip_fill_cb,
 		                            .is_locked = levels_strip_is_locked,
 		                            .min_count = 3,
 		                            .max_count = 3,
@@ -640,13 +623,15 @@ static void levels_node_strip_button(i32 node_id) {
 		ui_stops_ops_t out_ops   = {.count     = levels_strip_count,
 		                            .get_pos   = levels_strip_get_pos,
 		                            .set_pos   = levels_strip_set_pos,
-		                            .draw      = levels_strip_draw,
+		                            .fill      = levels_strip_fill_cb,
 		                            .is_locked = levels_strip_is_locked,
 		                            .min_count = 2,
 		                            .max_count = 2};
 		// The input handles on top of the histogram box (their press zone above it), the output handles below the bar. A press in the box does nothing.
-		hit |= ui_stops_update(&state->stops, &in_ops, &in_strip, g_ui->_x + extent, g_ui->_y + hist_y, track_w, hist_h, marker_h, hit_h);
-		hit |= ui_stops_update(&state->stops_out, &out_ops, &out_strip, g_ui->_x + extent, g_ui->_y + bar_y, track_w, bar_h, marker_h, hit_h);
+		ui_stops_layout_t in_layout  = {.x = g_ui->_x + extent, .y = g_ui->_y + hist_y, .w = track_w, .bar_h = hist_h, .marker_h = marker_h, .hit_h = hit_h};
+		ui_stops_layout_t out_layout = {.x = g_ui->_x + extent, .y = g_ui->_y + bar_y, .w = track_w, .bar_h = bar_h, .marker_h = marker_h, .hit_h = hit_h};
+		hit |= ui_stops_update(&state->stops, &in_ops, &in_strip, &in_layout);
+		hit |= ui_stops_update(&state->stops_out, &out_ops, &out_strip, &out_layout);
 	}
 	if (hit & UI_STOPS_CONSUMED) {
 		nodes->_input_started  = false;
