@@ -225,6 +225,7 @@ Disk
 Displacement
 Tampilan
 Jarak
+
 Distorsi
 Bebas Gangguan
 Bagi
@@ -488,6 +489,7 @@ Min
 Min Maks
 
 Minimum
+
 Cermin
 Campur
 Campur Warna
@@ -773,6 +775,8 @@ Sinus
 Ukuran
 Slot
 Haluskan
+
+
 Oleskan
 Snap
 Snippet

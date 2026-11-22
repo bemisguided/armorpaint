@@ -225,6 +225,7 @@ Dysk
 Przemieszczenie
 Wyświetlanie
 Dystans
+
 Zniekształcenie
 Tryb bez rozpraszaczy
 Dzielenie
@@ -488,6 +489,7 @@ Min
 Min Maks
 
 Minimum
+
 Lustro
 Mieszaj
 Mieszaj kolor
@@ -773,6 +775,8 @@ Sinus
 Rozmiar
 Slot
 Wygładzanie
+
+
 Rozmazanie
 Przyciągaj
 Fragmenty

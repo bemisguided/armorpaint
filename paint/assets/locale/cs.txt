@@ -225,6 +225,7 @@ Disk
 Posunutí
 Zobrazení
 Vzdálenost
+
 Zkreslení
 Bez rušení
 Dělit
@@ -488,6 +489,7 @@ Min
 Min Max
 
 Minimum
+
 Zrcadlit
 Smíchat
 Smíchat barvu
@@ -773,6 +775,8 @@ Sinus
 Velikost
 Slot
 Vyhladit
+
+
 Rozmazat
 Přichytit
 Úryvky

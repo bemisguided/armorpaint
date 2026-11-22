@@ -225,6 +225,7 @@ Disco
 Desplazamiento
 Pantalla
 Distancia
+
 Distorsión
 Sin distracción
 Dividir
@@ -488,6 +489,7 @@ Mín
 Mín Máx
 
 Mínimo
+
 Espejo
 Mezcla
 Mezclar color
@@ -773,6 +775,8 @@ Seno
 Tamaño
 Ranura
 Suavizar
+
+
 Difuminar
 Adherir
 Fragmentos

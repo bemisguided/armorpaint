@@ -225,6 +225,7 @@ Disco
 Deslocamento
 Exibição
 Distância
+
 Distorção
 Livre de Distrações
 Dividir
@@ -488,6 +489,7 @@ Mínimo
 Mínimo Máximo
 
 Mínimo
+
 Espelhar
 Misturar
 Misturar Cor
@@ -773,6 +775,8 @@ Seno
 Tamanho
 Slot
 Suavizar
+
+
 Borrar
 Ajustar
 Trechos

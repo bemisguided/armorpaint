@@ -225,6 +225,7 @@ Lemez
 Elmozdulás (Displacement)
 Megjelenítés
 Távolság
+
 Torzítás
 Zavarmentes mód
 Osztás
@@ -488,6 +489,7 @@ Min
 Min Max
 
 Minimum
+
 Tükrözés
 Keverés
 Szín keverése
@@ -773,6 +775,8 @@ Szinusz
 Méret
 Hely
 Simítás
+
+
 Elkenés
 Illesztés
 Kódrészletek

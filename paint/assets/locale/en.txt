@@ -225,6 +225,7 @@ Disk
 Displacement
 Display
 Distance
+Distance to Edge
 Distortion
 Distract Free
 Divide
@@ -488,6 +489,7 @@ Min
 Min Max
 Min Size
 Minimum
+Minkowski
 Mirror
 Mix
 Mix Color
@@ -773,6 +775,8 @@ Sine
 Size
 Slot
 Smooth
+Smooth F1
+Smoothness
 Smudge
 Snap
 Snippets

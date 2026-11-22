@@ -225,6 +225,7 @@ Festplatte
 Displacement
 Anzeige
 Abstand
+
 Verzerrung
 Interface ein-/ausblenden
 Dividieren
@@ -488,6 +489,7 @@ Min
 Min Max
 
 Minumum
+
 Spiegeln
 Mix
 Farben mischen
@@ -773,6 +775,8 @@ Sinus
 Größe
 Slot
 Glatt
+
+
 Verwischen
 Snap
 Snippets
