@@ -1710,7 +1710,7 @@ void              image_warp_node_init();
 void              distance_node_init();
 void              shape_generator_node_init();
 void              transform_node_init();
-void              normal_converter_node_init();
+void              normal_to_height_node_init();
 void              levels_node_init();
 void              text_texture_node_init();
 void              texture_slot_node_init();
