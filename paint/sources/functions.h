@@ -770,6 +770,8 @@ void                  *script_material_kong_get();
 
 #ifdef ARMORPAINT_TEST_NATIVES // minic_test_natives.c
 void                   script_files_next(char *path);
+void                   script_layer_set_uv_type(i32 type);
+void                   script_flood_fill_new_mesh(char *name);
 void                   script_meta_set_i32(i32 category, i32 index, i32 key, i32 value);
 i32                    script_meta_get_i32(i32 category, i32 index, i32 key, i32 def);
 void                   script_meta_add_tag(i32 category, i32 index, char *tag);

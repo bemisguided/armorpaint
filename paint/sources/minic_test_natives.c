@@ -327,6 +327,20 @@ void script_flood_fill_new_plane() {
 	script_project_new();
 }
 
+// Test only: new project on the named built-in mesh (cube, plane, sphere...)
+void script_flood_fill_new_mesh(char *name) {
+	project_fetch_default_meshes();
+	g_context->project_type = string_array_index_of(project_default_mesh_list, name);
+	script_project_new();
+}
+
+// Test only: UV mapping of the current layer (uv_type_t: 0 UV map, 1 Triplanar, 2 Project)
+void script_layer_set_uv_type(i32 type) {
+	if (g_context != NULL && g_context->layer != NULL) {
+		g_context->layer->uv_type = type;
+	}
+}
+
 // Test only: top view, the plane fills the viewport
 void script_flood_fill_view_top() {
 	viewport_set_view(0, 0, 1, 0, 0, 0);

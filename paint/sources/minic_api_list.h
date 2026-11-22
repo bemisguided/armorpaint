@@ -818,6 +818,8 @@ X2(armpack_map_get_i32, "i(p:any_map_t map,p:char key)", i, p, p)
 // Test natives: only in builds with ARMORPAINT_TEST_NATIVES (minic_test_natives.c)
 #ifdef ARMORPAINT_TEST_NATIVES
 X1(script_files_next, "v(p:char path)", v, p)
+X1(script_layer_set_uv_type, "v(i type)", v, i)
+X1(script_flood_fill_new_mesh, "v(p:char name)", v, p)
 X4(script_meta_set_i32, "v(i category,i index,i key,i value)", v, i, i, i, i)
 X4(script_meta_get_i32, "i(i category,i index,i key,i def)", i, i, i, i, i)
 X3(script_meta_add_tag, "v(i category,i index,p:char tag)", v, i, i, p)
