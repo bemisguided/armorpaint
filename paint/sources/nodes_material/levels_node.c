@@ -423,23 +423,32 @@ static bool levels_strip_is_locked(void *data, i32 i) {
 	return levels_node_linked(st->canvas, st->node->id, levels_strip_socket_of(st, i));
 }
 
-// An input handle never crosses its neighbours: In Low <= In Mid <= In High, a gap apart. A neighbour that is linked has no value here
-// to bump into, the next one that is not linked (or the end of the axis) limits instead.
+// An input handle never crosses its neighbours: In Low <= In Mid <= In High, a gap apart. The limits use the STORED In Mid (the handle
+// is drawn at the value the shader uses, held inside the range: limiting by that would ratchet the end handle inwards). A neighbour that is linked
+// has no value here to bump into, the next one that is not linked (or the end of the axis) limits instead; an In Mid outside the range
+// (set by Auto Levels or a slider) does not limit the ends.
 static void levels_strip_set_input_handle(levels_strip_t *st, i32 i, f32 pos) {
-	ui_node_t *n        = st->node;
-	f32        low      = levels_strip_get_pos(st, 0);
-	f32        mid      = levels_strip_get_pos(st, 1);
-	f32        high     = levels_strip_get_pos(st, 2);
-	f32        gap      = (f32)LEVELS_HANDLE_GAP;
-	bool       lo_free  = !levels_strip_is_locked(st, 0);
-	bool       mid_free = !levels_strip_is_locked(st, 1);
-	bool       hi_free  = !levels_strip_is_locked(st, 2);
+	ui_node_t *n         = st->node;
+	f32        low       = levels_strip_get_pos(st, 0);
+	f32        high      = levels_strip_get_pos(st, 2);
+	f32        mid       = levels_strip_value(st, LEVELS_INPUT_IN_MID, 0.5f);
+	f32        gap       = (f32)LEVELS_HANDLE_GAP;
+	bool       lo_free   = !levels_strip_is_locked(st, 0);
+	bool       mid_free  = !levels_strip_is_locked(st, 1);
+	bool       hi_free   = !levels_strip_is_locked(st, 2);
+	bool       mid_inside = mid_free && mid > low && mid < high;
 	if (i == 0) {
-		f32 top = mid_free ? mid - gap : hi_free ? high - 2.0f * gap : 1.0f;
+		f32 top = hi_free ? high - gap : 1.0f;
+		if (mid_inside && mid - gap < top) {
+			top = mid - gap;
+		}
 		levels_node_set_input(n, LEVELS_INPUT_IN_LOW, levels_node_limit(pos, 0.0f, top));
 	}
 	else if (i == 2) {
-		f32 bottom = mid_free ? mid + gap : lo_free ? low + 2.0f * gap : 0.0f;
+		f32 bottom = lo_free ? low + gap : 0.0f;
+		if (mid_inside && mid + gap > bottom) {
+			bottom = mid + gap;
+		}
 		levels_node_set_input(n, LEVELS_INPUT_IN_HIGH, levels_node_limit(pos, bottom, 1.0f));
 	}
 	else {
