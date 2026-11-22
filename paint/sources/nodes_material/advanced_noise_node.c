@@ -212,27 +212,44 @@ float perlin_image(float u, float v, float scale, float detail, float roughness,
 //     moves the z slice of that warp noise. Detail, Roughness and Lacunarity are not used (hidden): no fractal Voronoi in this version.
 // It uses perlin_wrap, perlin_hash, perlin_base_scale and perlin_signed: the emit function adds the Perlin text first.
 char *str_advanced_noise_voronoi = "\
-float voronoi_gen_dist(float dx, float dy, int metric) { \
+float voronoi_gen_dist(float dx, float dy, int metric, float expo) { \
 	if (metric == 1) { return abs(dx) + abs(dy); } \
 	if (metric == 2) { return max(abs(dx), abs(dy)); } \
+	if (metric == 3) { \
+		float m = max(abs(dx), abs(dy)); \
+		if (m < 0.000001) { return 0.0; } \
+		return m * pow(pow(abs(dx) / m, expo) + pow(abs(dy) / m, expo), 1.0 / expo); \
+	} \
 	return sqrt(dx * dx + dy * dy); \
 } \
-float voronoi_gen_norm_f1(int metric) { \
+float voronoi_gen_knots(float p, float k0, float k1, float k2, float k3, float k4) { \
+	float t = clamp(log(p) * 1.442695, 0.0, 3.999); \
+	float w = t - floor(t); \
+	int k = int(floor(t)); \
+	if (k == 0) { return lerp(k0, k1, w); } \
+	if (k == 1) { return lerp(k1, k2, w); } \
+	if (k == 2) { return lerp(k2, k3, w); } \
+	return lerp(k3, k4, w); \
+} \
+float voronoi_gen_norm_f1(int metric, float expo) { \
 	if (metric == 1) { return 0.8; } \
 	if (metric == 2) { return 1.1; } \
+	if (metric == 3) { return voronoi_gen_knots(expo, 0.8, 1.0, 1.06, 1.09, 1.1); } \
 	return 1.0; \
 } \
-float voronoi_gen_norm_f2(int metric) { \
+float voronoi_gen_norm_f2(int metric, float expo) { \
 	if (metric == 1) { return 0.65; } \
 	if (metric == 2) { return 0.9; } \
+	if (metric == 3) { return voronoi_gen_knots(expo, 0.65, 0.85, 0.88, 0.895, 0.9); } \
 	return 0.85; \
 } \
-float voronoi_gen_norm_edge(int metric) { \
+float voronoi_gen_norm_edge(int metric, float expo) { \
 	if (metric == 1) { return 0.8; } \
 	if (metric == 2) { return 1.1; } \
+	if (metric == 3) { return voronoi_gen_knots(expo, 0.8, 1.0, 1.06, 1.09, 1.1); } \
 	return 1.0; \
 } \
-float3 voronoi_gen_cells(float x, float y, float period, float randomness, int metric, int seed) { \
+float3 voronoi_gen_cells(float x, float y, float period, float randomness, int metric, float expo, int seed) { \
 	float ix = floor(x); \
 	float iy = floor(y); \
 	float f1 = 1000.0; \
@@ -248,7 +265,7 @@ float3 voronoi_gen_cells(float x, float y, float period, float randomness, int m
 			int h = perlin_hash(rx, ry, 0.0, seed); \
 			float px = cx + 0.5 + randomness * (float(h & 1023) / 1023.0 - 0.5); \
 			float py = cy + 0.5 + randomness * (float((h >> 10) & 1023) / 1023.0 - 0.5); \
-			float d = voronoi_gen_dist(px - x, py - y, metric); \
+			float d = voronoi_gen_dist(px - x, py - y, metric, expo); \
 			if (d < f1) { \
 				wx = rx; \
 				wy = ry; \
@@ -261,7 +278,7 @@ float3 voronoi_gen_cells(float x, float y, float period, float randomness, int m
 	return float3(f1, f2, id); \
 } \
 float voronoi_gen_warp() { return 0.25; } \
-float voronoi_gen_factor(float3 p, float scale, float randomness, float distortion, float tileable, float seed, int feature, int metric) { \
+float voronoi_gen_factor(float3 p, float scale, float randomness, float distortion, float tileable, float seed, int feature, int metric, float expo) { \
 	int sd = int(floor(seed)); \
 	float se = perlin_base_scale(scale, tileable); \
 	float period = 0.0; \
@@ -270,15 +287,16 @@ float voronoi_gen_factor(float3 p, float scale, float randomness, float distorti
 	if (distortion != 0.0) { \
 		q = p + distortion * voronoi_gen_warp() / se * float3(perlin_signed(p, se, tileable, sd + 101), perlin_signed(p, se, tileable, sd + 202), perlin_signed(p, se, tileable, sd + 303)); \
 	} \
-	float3 c = voronoi_gen_cells(q.x * se, q.y * se, period, clamp(randomness, 0.0, 1.0), metric, sd); \
+	float ex = clamp(expo, 1.0, 32.0); \
+	float3 c = voronoi_gen_cells(q.x * se, q.y * se, period, clamp(randomness, 0.0, 1.0), metric, ex, sd); \
 	if (feature == 2) { return c.z; } \
-	if (feature == 1) { return 1.0 - clamp((c.y - c.x) * voronoi_gen_norm_edge(metric), 0.0, 1.0); } \
-	if (feature == 3) { return clamp(c.y * voronoi_gen_norm_f2(metric), 0.0, 1.0); } \
-	return clamp(c.x * voronoi_gen_norm_f1(metric), 0.0, 1.0); \
+	if (feature == 1) { return 1.0 - clamp((c.y - c.x) * voronoi_gen_norm_edge(metric, ex), 0.0, 1.0); } \
+	if (feature == 3) { return clamp(c.y * voronoi_gen_norm_f2(metric, ex), 0.0, 1.0); } \
+	return clamp(c.x * voronoi_gen_norm_f1(metric, ex), 0.0, 1.0); \
 } \
-float voronoi_gen_image(float u, float v, float scale, float randomness, float distortion, float tileable, float seed, int feature, int metric) { \
+float voronoi_gen_image(float u, float v, float scale, float randomness, float distortion, float tileable, float seed, int feature, int metric, float expo) { \
 	float z = 0.3 + 0.4 * (seed - floor(seed)); \
-	return voronoi_gen_factor(float3(u, v, z), scale, randomness, distortion, tileable, seed, feature, metric); \
+	return voronoi_gen_factor(float3(u, v, z), scale, randomness, distortion, tileable, seed, feature, metric, expo); \
 } \
 ";
 
@@ -291,6 +309,7 @@ enum {
 	ADVANCED_NOISE_INPUT_DISTORTION,
 	ADVANCED_NOISE_INPUT_SEED,
 	ADVANCED_NOISE_INPUT_RANDOMNESS, // Voronoi
+	ADVANCED_NOISE_INPUT_EXPONENT,   // Voronoi, Metric Minkowski
 };
 
 // Node button indices (settings): Size, the state row, then the General section
@@ -315,6 +334,14 @@ enum {
 	ADVANCED_NOISE_FEATURE_EDGES,
 	ADVANCED_NOISE_FEATURE_CELLS,
 	ADVANCED_NOISE_FEATURE_CRYSTALS,
+};
+
+// The Metric list of the Voronoi mode (the saved index: append)
+enum {
+	ADVANCED_NOISE_METRIC_EUCLIDEAN,
+	ADVANCED_NOISE_METRIC_MANHATTAN,
+	ADVANCED_NOISE_METRIC_CHEBYSHEV,
+	ADVANCED_NOISE_METRIC_MINKOWSKI,
 };
 
 // A mode: its name in the Mode list, the rows it hides (bit n of a mask = input or setting n of the node) and the function
@@ -361,7 +388,7 @@ static char *advanced_noise_perlin_emit(ui_node_t *node) {
 	return string_tmp("perlin_image(tex_coord.x, tex_coord.y, %s, %s, %s, %s, %s, %s, %s)", scale, detail, roughness, lacunarity, distortion, tileable, seed);
 }
 
-// Voronoi shows Scale, Randomness, Distortion, Seed, Tileable, Feature and Metric; Detail, Roughness and Lacunarity are not used.
+// Voronoi shows Scale, Randomness, Distortion, Seed, Tileable, Feature and Metric (Exponent with Minkowski); Detail, Roughness and Lacunarity are not used.
 static char *advanced_noise_voronoi_emit(ui_node_t *node) {
 	node_shader_add_function(parser_material_kong, str_advanced_noise_perlin); // The hash, the wrap and the distortion noise
 	node_shader_add_function(parser_material_kong, str_advanced_noise_voronoi);
@@ -369,14 +396,15 @@ static char *advanced_noise_voronoi_emit(ui_node_t *node) {
 	char *randomness = advanced_noise_node_input(node, ADVANCED_NOISE_INPUT_RANDOMNESS);
 	char *distortion = advanced_noise_node_input(node, ADVANCED_NOISE_INPUT_DISTORTION);
 	char *seed       = advanced_noise_node_input(node, ADVANCED_NOISE_INPUT_SEED);
+	char *exponent   = advanced_noise_node_input(node, ADVANCED_NOISE_INPUT_EXPONENT);
 	char *tileable   = make_image_node_button(node, ADVANCED_NOISE_BUTTON_TILEABLE) > 0.5 ? "1.0" : "0.0";
 	i32   feature    = (i32)make_image_node_button(node, ADVANCED_NOISE_BUTTON_FEATURE);
 	i32   metric     = (i32)make_image_node_button(node, ADVANCED_NOISE_BUTTON_METRIC);
-	return string_tmp("voronoi_gen_image(tex_coord.x, tex_coord.y, %s, %s, %s, %s, %s, %d, %d)", scale, randomness, distortion, tileable, seed, feature, metric);
+	return string_tmp("voronoi_gen_image(tex_coord.x, tex_coord.y, %s, %s, %s, %s, %s, %d, %d, %s)", scale, randomness, distortion, tileable, seed, feature, metric, exponent);
 }
 
 static void advanced_noise_modes_init() {
-	i32 perlin_hides_inputs   = 1 << ADVANCED_NOISE_INPUT_RANDOMNESS;
+	i32 perlin_hides_inputs   = (1 << ADVANCED_NOISE_INPUT_RANDOMNESS) | (1 << ADVANCED_NOISE_INPUT_EXPONENT);
 	i32 perlin_hides_buttons  = (1 << ADVANCED_NOISE_BUTTON_FEATURE) | (1 << ADVANCED_NOISE_BUTTON_METRIC);
 	i32 voronoi_hides_inputs  = (1 << ADVANCED_NOISE_INPUT_DETAIL) | (1 << ADVANCED_NOISE_INPUT_ROUGHNESS) | (1 << ADVANCED_NOISE_INPUT_LACUNARITY);
 	advanced_noise_mode_set(ADVANCED_NOISE_MODE_PERLIN, _tr("Perlin"), perlin_hides_inputs, perlin_hides_buttons, advanced_noise_perlin_emit);
@@ -394,8 +422,17 @@ static bool advanced_noise_node_item_hidden_for_mode(i32 mode, ui_node_item_t ki
 	return ((mask >> index) & 1) != 0;
 }
 
+// The rows of the Voronoi mode that depend on its settings: Exponent is only used by the Minkowski metric.
+static bool advanced_noise_voronoi_item_hidden(i32 metric, ui_node_item_t kind, i32 index) {
+	return kind == UI_NODE_ITEM_INPUT && index == ADVANCED_NOISE_INPUT_EXPONENT && metric != ADVANCED_NOISE_METRIC_MINKOWSKI;
+}
+
 static bool advanced_noise_node_item_hidden(ui_node_t *node, ui_node_item_t kind, i32 index) {
-	return advanced_noise_node_item_hidden_for_mode(advanced_noise_node_mode(node), kind, index);
+	i32 mode = advanced_noise_node_mode(node);
+	if (advanced_noise_node_item_hidden_for_mode(mode, kind, index)) {
+		return true;
+	}
+	return mode == ADVANCED_NOISE_MODE_VORONOI && advanced_noise_voronoi_item_hidden((i32)make_image_node_button(node, ADVANCED_NOISE_BUTTON_METRIC), kind, index);
 }
 
 // Width and height of the image: Size 512, 1024, 2048 or 4096
@@ -445,7 +482,7 @@ void advanced_noise_node_init() {
 		mode_items = i == 0 ? string_tmp("%s", advanced_noise_modes[i].name) : string_tmp("%s\n%s", mode_items, advanced_noise_modes[i].name);
 	}
 	char *feature_items = string_tmp("%s\n%s\n%s\n%s", _tr("Distance"), _tr("Edges"), _tr("Cells"), _tr("Crystals"));
-	char *metric_items  = string_tmp("%s\n%s\n%s", _tr("Euclidean"), _tr("Manhattan"), _tr("Chebyshev"));
+	char *metric_items  = string_tmp("%s\n%s\n%s\n%s", _tr("Euclidean"), _tr("Manhattan"), _tr("Chebyshev"), _tr("Minkowski"));
 
 	ui_node_t *advanced_noise_node_def =
 	    ALLOC_INIT(ui_node_t,
@@ -464,8 +501,9 @@ void advanced_noise_node_init() {
 	                        make_image_node_socket(_tr("Distortion"), "VALUE", NODES_MATERIAL_VALUE_COLOR, f32_array_create_x(0.0), -10.0, 10.0, 100),
 	                        make_image_node_socket(_tr("Seed"), "VALUE", NODES_MATERIAL_VALUE_COLOR, f32_array_create_x(0.0), 0.0, 1000.0, 100),
 	                        make_image_node_socket(_tr("Randomness"), "VALUE", NODES_MATERIAL_VALUE_COLOR, f32_array_create_x(1.0), 0.0, 1.0, 100),
+	                        make_image_node_socket(_tr("Exponent"), "VALUE", NODES_MATERIAL_VALUE_COLOR, f32_array_create_x(2.0), 1.0, 32.0, 100),
 	                    },
-	                    7),
+	                    8),
 	                .outputs = any_array_create_from_raw(
 	                    (void *[]){
 	                        make_image_node_socket(_tr("Image"), "VALUE", NODES_MATERIAL_IMAGE_COLOR, f32_array_create_x(0.0), 0.0, 1.0, 100),

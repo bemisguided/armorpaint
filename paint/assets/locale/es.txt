@@ -452,6 +452,7 @@ Metálico
 Mín
 Mín Máx
 Mínimo
+
 Espejo
 Mezcla
 Mezclar color

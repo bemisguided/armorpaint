@@ -452,6 +452,7 @@ Metric
 Min
 Min Max
 Minimum
+Minkowski
 Mirror
 Mix
 Mix Color

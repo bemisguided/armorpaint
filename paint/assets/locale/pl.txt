@@ -452,6 +452,7 @@ Metaliczność
 Min
 Min Maks
 Minimum
+
 Lustro
 Mieszaj
 Mieszaj kolor

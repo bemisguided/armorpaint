@@ -452,6 +452,7 @@ Metallic
 Min
 Min Max
 Minumum
+
 Spiegeln
 Mix
 Farben mischen

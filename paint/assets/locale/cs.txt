@@ -452,6 +452,7 @@ Kovovost
 Min
 Min Max
 Minimum
+
 Zrcadlit
 Smíchat
 Smíchat barvu

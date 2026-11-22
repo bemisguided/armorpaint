@@ -452,6 +452,7 @@ Logam
 Min
 Min Maks
 Minimum
+
 Cermin
 Campur
 Campur Warna

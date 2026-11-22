@@ -452,6 +452,7 @@ Métallique
 Min
 Min Max
 Minimum
+
 Miroir
 Mélanger
 Mélanger couleur

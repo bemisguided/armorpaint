@@ -452,6 +452,7 @@ Metálico
 Mínimo
 Mínimo Máximo
 Mínimo
+
 Espelhar
 Misturar
 Misturar Cor

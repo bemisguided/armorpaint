@@ -452,6 +452,7 @@ Fémes (Metallic)
 Min
 Min Max
 Minimum
+
 Tükrözés
 Keverés
 Szín keverése
