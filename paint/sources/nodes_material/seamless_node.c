@@ -68,9 +68,9 @@ static char *seamless_node_blend(ui_node_t *node) {
 	char *bw = parser_material_parse_value_input(node->inputs->buffer[SEAMLESS_INPUT_BLEND_WIDTH], false);
 	char *uv = "tex_coord";
 	parser_material_write(parser_material_kong, string_tmp("float2 %s_f = %s - floor(%s);", v, uv, uv));
-	parser_material_write(parser_material_kong, string_tmp("float2 %s_d = min(%s_f, 1.0 - %s_f);", v, v, v));
+	parser_material_write(parser_material_kong, string_tmp("float2 %s_dist = min(%s_f, 1.0 - %s_f);", v, v, v));
 	parser_material_write(parser_material_kong, string_tmp("float %s_bw = max(min(%s, 0.5), 0.0001);", v, bw));
-	parser_material_write(parser_material_kong, string_tmp("float2 %s_t = clamp(%s_d / %s_bw, 0.0, 1.0);", v, v, v));
+	parser_material_write(parser_material_kong, string_tmp("float2 %s_t = clamp(%s_dist / %s_bw, 0.0, 1.0);", v, v, v));
 	parser_material_write(parser_material_kong, string_tmp("float2 %s_w = %s_t * %s_t * (3.0 - 2.0 * %s_t);", v, v, v, v));
 	char *a = make_image_node_sample_input_tap(node, "seam_a", string_tmp("%s_f", v), IMAGE_FILTER_LINEAR);
 	char *b = make_image_node_sample_input_tap(node, "seam_b", string_tmp("%s_f + float2(0.5, 0.0)", v), IMAGE_FILTER_LINEAR);
