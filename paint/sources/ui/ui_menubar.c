@@ -637,7 +637,7 @@ void ui_menubar_draw_category_items() {
 		ui_menu_align();
 		ui_menu_label(tr("Pivot"), any_map_get(g_keymap, "view_pivot_center"));
 		ui_menu_align();
-		string_array_t *pivot_center_items = any_array_create_from_raw(
+		string_array_t *pivot_center_items = any_array_create_from_raw_tmp(
 		    (void *[]){
 		        tr("Cursor"),
 		        tr("Center"),
@@ -649,7 +649,7 @@ void ui_menubar_draw_category_items() {
 		ui_menu_align();
 		ui_menu_label(tr("Mode"), NULL);
 		ui_menu_align();
-		string_array_t *camera_controls_items = any_array_create_from_raw(
+		string_array_t *camera_controls_items = any_array_create_from_raw_tmp(
 		    (void *[]){
 		        tr("Orbit"),
 		        tr("Rotate"),
@@ -677,7 +677,7 @@ void ui_menubar_draw_category_items() {
 		ui_menu_align();
 		ui_menu_label(tr("Type"), any_map_get(g_keymap, "view_camera_type"));
 		ui_menu_align();
-		string_array_t *camera_type_items = any_array_create_from_raw(
+		string_array_t *camera_type_items = any_array_create_from_raw_tmp(
 		    (void *[]){
 		        tr("Perspective"),
 		        tr("Orthographic"),
@@ -817,7 +817,7 @@ void ui_menubar_draw_tools() {
 	ui_menu_align();
 	ui_menu_label(tr("Tools"), NULL);
 	bool            tools_changed = false;
-	string_array_t *tools_items   = any_array_create_from_raw(
+	string_array_t *tools_items   = any_array_create_from_raw_tmp(
 	    (void *[]){
 	        tr("Paint"),
 	        tr("Sculpt"),

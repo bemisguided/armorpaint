@@ -46,7 +46,7 @@ void text_to_image_node_run(ui_node_t *node, void (*callback)(ui_node_t *)) {
 
 void text_to_image_node_button(i32 node_id) {
 	ui_node_t      *node   = ui_get_node(ui_nodes_get_canvas(true)->nodes, node_id);
-	string_array_t *models = any_array_create_from_raw(
+	string_array_t *models = any_array_create_from_raw_tmp(
 	    (void *[]){
 	        "FLUX 2 klein",
 	    },

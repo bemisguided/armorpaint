@@ -1099,7 +1099,7 @@ void tab_layers_draw_layer_context_menu_draw() {
 		}
 
 		ui_menu_align();
-		string_array_t *uv_type_items = any_array_create_from_raw(
+		string_array_t *uv_type_items = any_array_create_from_raw_tmp(
 		    (void *[]){
 		        tr("UV Map"),
 		        tr("Triplanar"),
@@ -1462,7 +1462,7 @@ static void tab_layers_scroll_to_layer(slot_layer_t *l) {
 
 void tab_layers_draw_edit() {
 	ui_menu_align();
-	string_array_t *ar = any_array_create_from_raw(
+	string_array_t *ar = any_array_create_from_raw_tmp(
 	    (void *[]){
 	        "2048",
 	        "4096",
@@ -1519,7 +1519,7 @@ void tab_layers_draw_edit() {
 	ui_menu_align();
 	ui_menu_label(tr("Bits"), NULL);
 	ui_menu_align();
-	string_array_t *bits_items = any_array_create_from_raw(
+	string_array_t *bits_items = any_array_create_from_raw_tmp(
 	    (void *[]){
 	        "8",
 	        "16",

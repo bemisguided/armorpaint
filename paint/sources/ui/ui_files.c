@@ -305,9 +305,9 @@ char *ui_files_file_browser(char **path, bool drag_files, char *search, bool ref
 	g_ui->_y += 4; // Don't cut off the border around selected materials
 	// Directory contents
 	for (i32 row = 0; row < math_floor(math_ceil(ui_files_files->length / (float)num)); ++row) {
-		f32_array_t *ar = f32_array_create_from_raw((f32[]){}, 0);
+		f32_array_t *ar = f32_array_create_from_raw_tmp(NULL, num * 2);
 		for (i32 i = 0; i < num * 2; ++i) {
-			f32_array_push(ar, 1 / (float)num);
+			ar->buffer[i] = 1 / (float)num;
 		}
 		ui_row(ar);
 		if (row > 0) {

@@ -114,9 +114,9 @@ void box_projects_cloud_tab() {
 			}
 			ui_text(string("%s: %d / %d", tr("Cloud projects"), used, BOX_PROJECTS_CLOUD_SLOTS), UI_ALIGN_LEFT, 0x00000000);
 
-			f32_array_t *ar = f32_array_create_from_raw((f32[]){}, 0);
+			f32_array_t *ar = f32_array_create_from_raw_tmp(NULL, BOX_PROJECTS_CLOUD_SLOTS);
 			for (i32 i = 0; i < BOX_PROJECTS_CLOUD_SLOTS; ++i) {
-				f32_array_push(ar, 1 / (float)BOX_PROJECTS_CLOUD_SLOTS);
+				ar->buffer[i] = 1 / (float)BOX_PROJECTS_CLOUD_SLOTS;
 			}
 
 			// Icons
@@ -279,9 +279,9 @@ void box_projects_tab() {
 
 		for (i32 row = 0; row < math_ceil(recent_projects->length / (float)num); ++row) {
 			i32          mult = show_asset_names ? 2 : 1;
-			f32_array_t *ar   = f32_array_create_from_raw((f32[]){}, 0);
+			f32_array_t *ar   = f32_array_create_from_raw_tmp(NULL, num * mult);
 			for (i32 i = 0; i < num * mult; ++i) {
-				f32_array_push(ar, 1 / (float)num);
+				ar->buffer[i] = 1 / (float)num;
 			}
 			ui_row(ar);
 
