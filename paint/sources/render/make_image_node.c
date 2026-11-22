@@ -210,11 +210,8 @@ static void make_image_node_clear_pending(make_image_node_state_t *s) {
 
 static void make_image_node_free_state(make_image_node_state_t *s) {
 	make_image_node_clear_pending(s);
-<<<<<<< HEAD
 	free(s->summary);
-=======
 	free(s->direct_id);
->>>>>>> fork/work/ptc
 	if (s->upstream != NULL) {
 		make_image_node_clear_upstream(s);
 		array_free(s->upstream);
