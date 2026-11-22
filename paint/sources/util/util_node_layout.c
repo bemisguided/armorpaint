@@ -48,6 +48,7 @@ static util_node_layout_item_alias_t util_node_layout_item_aliases[] = {
     {"LEVELS", "Out Black", "Out Low"},
     {"LEVELS", "Out White", "Out High"},
     {"TEX_TILE_UV", "Size", "Capture Size"}, // The baked Tile UV (Size, state row, Filter) became a pass-through node (Capture Size, Filter): same type, the state row is dropped
+    {"TEX_SEAMLESS", "Size", "Capture Size"}, // The baked Seamless (Size, state row) became a pass-through node (Capture Size): same type, the state row is dropped
     {"TEX_IMAGE_WARP", "Size", "Capture Size"}, // The baked Warp (Size, state row, Direction, Wrap Edges) became a pass-through node (Capture Size, Direction, Wrap Edges): same type, the state row is dropped
     {NULL, NULL, NULL},
 };
@@ -422,6 +423,7 @@ i32 util_node_layout_resolve(ui_node_canvas_t *canvas, ui_node_t *(*lookup)(char
 		}
 		util_node_layout_remap_t *r = &remaps[changed++];
 		r->node                      = node;
+		node->color                  = def->color; // The header follows the definition too (a node that became a pass-through node loses its orange header), like its sockets
 		r->id                        = node->id;
 		r->in_count                  = node->inputs->length;
 		r->out_count                 = node->outputs->length;
