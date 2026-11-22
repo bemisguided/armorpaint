@@ -827,6 +827,8 @@ void                   script_show_node_editor(bool only, f32 zoom, f32 pan_x, f
 void                   script_show_viewport();
 i32                    script_node_item_hidden(ui_node_t *node, i32 kind, i32 index);
 f32                    script_node_rows(ui_node_t *node);
+bool                   script_view2d_shown();
+void                   script_view2d_hide();
 f32                    script_node_socket_row(ui_node_t *node, i32 is_input, i32 index);
 i32                    script_node_section_count(ui_node_t *node);
 i32                    script_node_section_closed(ui_node_t *node, i32 section);

@@ -560,6 +560,18 @@ f32 script_node_rows(ui_node_t *node) {
 	return node == NULL || canvas == NULL ? 0.0 : UI_NODE_H(canvas, node) / UI_LINE_H();
 }
 
+// Whether the 2D view is showing (a double click on a selected node opens it)
+bool script_view2d_shown() {
+	return ui_view2d_show;
+}
+
+// Closes the 2D view when it is showing (test builds, to start a case from a known state)
+void script_view2d_hide() {
+	if (ui_view2d_show) {
+		ui_base_show_2d_view(ui_view2d_type); // The same type toggles it off
+	}
+}
+
 // Distance of the link end of input (output when is_input is false) from the top of the node
 f32 script_node_socket_row(ui_node_t *node, i32 is_input, i32 index) {
 	ui_node_canvas_t *canvas = script_material_canvas();
