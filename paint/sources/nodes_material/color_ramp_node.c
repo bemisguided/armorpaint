@@ -237,6 +237,12 @@ static f32 color_ramp_stops_add_pos(color_ramp_stops_t *ramp, i32 active) {
 	return middle < 0.0f ? 0.0f : (middle > 1.0f ? 1.0f : middle);
 }
 
+// Two quick releases inside the selected node open its 2D view (ui_nodes.c); a handle press or a click on a button of this node must not count.
+static void color_ramp_node_clear_double_click(ui_nodes_t *nodes) {
+	nodes->_input_started  = false;
+	g_context->select_time = 0;
+}
+
 void nodes_material_color_ramp_button(i32 node_id) {
 	ui_nodes_t              *nodes  = ui_nodes_get_nodes();
 	ui_node_t               *node   = ui_get_node(ui_nodes_get_canvas(true)->nodes, node_id);
@@ -293,8 +299,7 @@ void nodes_material_color_ramp_button(i32 node_id) {
 	                             .hit_h    = hit_h};
 	i32                hit    = ui_stops_update(&state->stops, &ops, &ramp, &layout);
 	if (hit & UI_STOPS_CONSUMED) {
-		nodes->_input_started  = false;
-		g_context->select_time = 0; // Two quick presses on handles must not open the 2D view (ui_nodes.c: double click on the selected node)
+		color_ramp_node_clear_double_click(nodes);
 	}
 	g_ui->_y += UI_LINE_H() + marker_h + gap_h;
 
@@ -310,6 +315,9 @@ void nodes_material_color_ramp_button(i32 node_id) {
 	bool enabled = g_ui->enabled;
 	g_ui->enabled = enabled && ui_stops_can_add(color_ramp_stops_count(&ramp), COLOR_RAMP_MAX_STOPS);
 	bool add_stop = ui_button("+", UI_ALIGN_CENTER, "");
+	if (add_stop) {
+		color_ramp_node_clear_double_click(nodes);
+	}
 	if (g_ui->is_hovered) {
 		ui_tooltip(tr("Add stop"));
 	}
@@ -322,6 +330,9 @@ void nodes_material_color_ramp_button(i32 node_id) {
 	}
 	g_ui->enabled = enabled && ui_stops_can_remove(color_ramp_stops_count(&ramp), COLOR_RAMP_MIN_STOPS);
 	bool delete_stop = ui_button("-", UI_ALIGN_CENTER, "");
+	if (delete_stop) {
+		color_ramp_node_clear_double_click(nodes);
+	}
 	if (g_ui->is_hovered) {
 		ui_tooltip(tr("Delete active stop"));
 	}
@@ -386,17 +397,26 @@ void nodes_material_color_ramp_button(i32 node_id) {
 	i32  rank    = color_ramp_stops_rank(&ramp, i);
 	g_ui->enabled = enabled && rank > 0;
 	bool previous = ui_button("<", UI_ALIGN_CENTER, "");
+	if (previous) {
+		color_ramp_node_clear_double_click(nodes);
+	}
 	if (g_ui->is_hovered) {
 		ui_tooltip(tr("Previous stop"));
 	}
 	g_ui->enabled = enabled && count > 1;
 	state->index[0] = (f32)(rank + 1);
 	f32 number      = ui_slider(&state->index[0], tr("Stop"), 1, count > 1 ? (f32)count : 2.0f, false, 1, true, UI_ALIGN_LEFT, true);
+	if ((i32)(number + 0.5f) - 1 != rank || (g_ui->is_hovered && g_ui->input_started)) {
+		color_ramp_node_clear_double_click(nodes);
+	}
 	if (g_ui->is_hovered) {
 		ui_tooltip(tr("Active stop"));
 	}
 	g_ui->enabled = enabled && rank < count - 1;
 	bool next = ui_button(">", UI_ALIGN_CENTER, "");
+	if (next) {
+		color_ramp_node_clear_double_click(nodes);
+	}
 	if (g_ui->is_hovered) {
 		ui_tooltip(tr("Next stop"));
 	}
