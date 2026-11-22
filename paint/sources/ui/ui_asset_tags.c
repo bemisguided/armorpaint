@@ -158,7 +158,6 @@ bool ui_asset_tags_filter(i32 category) {
 		ui_asset_tags_select(category, idx > 0 ? texts->buffer[idx] : NULL);
 		asset_selection_clear(); // Items the filter hides must not stay selected
 	}
-	array_delete(texts);
 	return true;
 }
 
