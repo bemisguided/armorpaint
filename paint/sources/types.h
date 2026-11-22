@@ -1163,6 +1163,18 @@ typedef struct image_node_type {
 	// Turns the captured pixels (the captures one after the other, see capture_format) into size * size * 4 floats (RGBA).
 	// Returns -1 when memory runs out, else 0 or a count of the type's own (Flood Fill: islands).
 	i32 (*process)(u8 *pixels, i32 size, void *params, f32 *result);
+	// Pass-through with capture (a grey node, NODES_MATERIAL_PASS_THROUGH_COLOR): the node bakes nothing. Its image input (input
+	// image_input) is rendered in image space into a render target of the node (capture_format RGBA32F, the size of size(node), the
+	// Capture Size setting) that is kept as a texture and bound in the material shader; the node functions (*_node_value, *_node_vector)
+	// write the shader that samples it (make_image_node_sample_input_at). No readback, no hash of pixels, no params, no process, no
+	// result_format, no state row and no Regenerate. The capture is rendered again only when the text of the capture shader changes
+	// (the graph above the image input, not a parameter of the node: a slider drag never recaptures), the image assets, the capture
+	// size or an image node it samples change. An image input linked straight to the Image output (output 0, RGBA) of a baked image node
+	// is not captured at all: its result texture is bound instead (no copy, its own resolution). Needs size and capture; a type with
+	// this flag must not set params, process, capture_count, capture_size, capture_format_at or smooth_sample.
+	bool pass_through_capture;
+	// Pass-through with capture: index of the input socket that is captured (0 when left out)
+	i32 image_input;
 } image_node_type_t;
 
 // A pair of render targets for a GPU pass that reads its previous result (a separable blur, a reduction chain): the pass reads
