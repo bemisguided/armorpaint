@@ -1169,6 +1169,7 @@ char                     *make_image_node_sample(ui_node_t *node);
 char                     *make_image_node_sample_second(ui_node_t *node);
 char                     *make_image_node_sample_at(ui_node_t *node, char *uv, i32 filter);
 char                     *make_image_node_sample_input_at(ui_node_t *node, char *uv, i32 filter);
+char                     *make_image_node_fetch_input(ui_node_t *node, i32 plane, char *var, char *uv, i32 filter, bool wrap);
 f64                       make_image_node_pass_through_info(ui_node_t *node, i32 which);
 ui_node_button_t         *make_image_node_capture_size_setting();
 void                      make_image_node_sections_capture(ui_node_t *def, ui_node_section_t *own, i32 own_count, i32 n_general_inputs);
