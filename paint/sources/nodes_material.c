@@ -45,7 +45,7 @@ void nodes_material_init() {
 	// Pattern nodes, keep alphabetical by English name (the menu lists them in this order)
 	flood_fill_node_init();
 	gradient_generator_node_init();
-	noise_generator_node_init();
+	advanced_noise_node_init();
 	shape_generator_node_init();
 	tile_generator_node_init();
 	tile_uv_node_init();

@@ -512,7 +512,7 @@ static ui_node_button_t *make_image_node_button_copy(ui_node_button_t *d) {
 // Completes a node saved by an older build with the inputs, outputs and settings its definition has now. A saved node keeps the length it
 // was created with, the code indexes by the enums of the definition. The fork only ever appends items at the end of a definition, so the
 // missing items are the tail of the definition, appended with its defaults. Links address inputs by index, so they stay valid.
-// A saved node with MORE items than its definition (a node type that was rebuilt with fewer, e.g. Noise Generator, a shader node
+// A saved node with MORE items than its definition (a node type that was rebuilt with fewer, e.g. Advanced Noise, a shader node
 // with a Vector input and two outputs before it became an image node) has a layout the code cannot read: it is reset to the
 // definition (every item default, new socket ids) and the links of the node are removed. Nothing else of the node is kept.
 // canvas is the canvas the node is in (new sockets get free ids, the links of a reset node are removed from it). Called when the node is

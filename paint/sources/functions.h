@@ -1745,7 +1745,7 @@ void              script_node_button(i32 node_id);
 void              combine_color_node_init();
 void              combine_xyz_node_init();
 void              gradient_generator_node_init();
-void              noise_generator_node_init();
+void              advanced_noise_node_init();
 void              noise_texture_node_init();
 void              brightness_contrast_node_init();
 void              color_mask_node_init();
