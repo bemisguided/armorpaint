@@ -153,7 +153,7 @@ void nodes_material_sync_group_sockets(ui_node_canvas_t *canvas, char *group_nam
 			}
 			i32 num_sockets = sockets->length < old_sockets->length ? sockets->length : old_sockets->length;
 			for (i32 i = 0; i < num_sockets; ++i) {
-				if (sockets->buffer[i]->type == old_sockets->buffer[i]->type) {
+				if (string_equals(sockets->buffer[i]->type, old_sockets->buffer[i]->type)) {
 					sockets->buffer[i]->default_value = old_sockets->buffer[i]->default_value;
 				}
 			}
