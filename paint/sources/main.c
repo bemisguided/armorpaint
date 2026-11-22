@@ -84,7 +84,7 @@
 #include "nodes_material/gradient_generator_node.c"
 #include "nodes_material/advanced_noise_node.c"
 #include "nodes_material/noise_texture_node.c"
-#include "nodes_material/normal_converter_node.c"
+#include "nodes_material/normal_to_height_node.c"
 #include "nodes_material/normal_map_node.c"
 #include "nodes_material/normal_node.c"
 #include "nodes_material/object_info_node.c"

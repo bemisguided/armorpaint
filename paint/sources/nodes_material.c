@@ -54,7 +54,7 @@ void nodes_material_init() {
 	distance_node_init();
 	edge_detect_node_init();
 	levels_node_init();
-	normal_converter_node_init();
+	normal_to_height_node_init();
 	seamless_node_init();
 	transform_node_init();
 	image_warp_node_init();
