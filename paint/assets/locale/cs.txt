@@ -206,6 +206,7 @@ Disk
 Posunutí
 Zobrazení
 Vzdálenost
+
 Zkreslení
 Bez rušení
 Dělit

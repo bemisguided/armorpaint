@@ -206,6 +206,7 @@ Disco
 Desplazamiento
 Pantalla
 Distancia
+
 Distorsión
 Sin distracción
 Dividir

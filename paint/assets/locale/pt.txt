@@ -206,6 +206,7 @@ Disco
 Deslocamento
 Exibição
 Distância
+
 Distorção
 Livre de Distrações
 Dividir

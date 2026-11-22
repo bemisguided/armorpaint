@@ -298,6 +298,44 @@ float voronoi_gen_smooth(float x, float y, float period, float randomness, int m
 	} \
 	return sd; \
 } \
+float voronoi_gen_norm_border() { return 1.8; } \
+float voronoi_gen_edge(float x, float y, float period, float randomness, int seed) { \
+	float ix = floor(x); \
+	float iy = floor(y); \
+	float cvx = 0.0; \
+	float cvy = 0.0; \
+	float md = 1000.0; \
+	for (int jj = 0; jj < 5; jj += 1) { \
+		for (int ii = 0; ii < 5; ii += 1) { \
+			float cx = ix + float(ii) - 2.0; \
+			float cy = iy + float(jj) - 2.0; \
+			int h = perlin_hash(perlin_wrap(cx, period), perlin_wrap(cy, period), 0.0, seed); \
+			float vx = cx + 0.5 + randomness * (float(h & 1023) / 1023.0 - 0.5) - x; \
+			float vy = cy + 0.5 + randomness * (float((h >> 10) & 1023) / 1023.0 - 0.5) - y; \
+			float d = vx * vx + vy * vy; \
+			if (d < md) { \
+				md = d; \
+				cvx = vx; \
+				cvy = vy; \
+			} \
+		} \
+	} \
+	float me = 1000.0; \
+	for (int kk = 0; kk < 5; kk += 1) { \
+		for (int ll = 0; ll < 5; ll += 1) { \
+			float cx = ix + float(ll) - 2.0; \
+			float cy = iy + float(kk) - 2.0; \
+			int h = perlin_hash(perlin_wrap(cx, period), perlin_wrap(cy, period), 0.0, seed); \
+			float vx = cx + 0.5 + randomness * (float(h & 1023) / 1023.0 - 0.5) - x; \
+			float vy = cy + 0.5 + randomness * (float((h >> 10) & 1023) / 1023.0 - 0.5) - y; \
+			float ex = vx - cvx; \
+			float ey = vy - cvy; \
+			float e2 = ex * ex + ey * ey; \
+			if (e2 > 0.0001) { me = min(me, ((cvx + vx) * ex + (cvy + vy) * ey) * 0.5 / sqrt(e2)); } \
+		} \
+	} \
+	return me; \
+} \
 float voronoi_gen_warp() { return 0.25; } \
 float voronoi_gen_factor(float3 p, float scale, float randomness, float distortion, float tileable, float seed, int feature, int metric, float expo, float smoothness) { \
 	int sd = int(floor(seed)); \
@@ -309,6 +347,7 @@ float voronoi_gen_factor(float3 p, float scale, float randomness, float distorti
 		q = p + distortion * voronoi_gen_warp() / se * float3(perlin_signed(p, se, tileable, sd + 101), perlin_signed(p, se, tileable, sd + 202), perlin_signed(p, se, tileable, sd + 303)); \
 	} \
 	float ex = clamp(expo, 1.0, 32.0); \
+	if (feature == 5) { return clamp(voronoi_gen_edge(q.x * se, q.y * se, period, clamp(randomness, 0.0, 1.0), sd) * voronoi_gen_norm_border(), 0.0, 1.0); } \
 	if (feature == 4) { return clamp(voronoi_gen_smooth(q.x * se, q.y * se, period, clamp(randomness, 0.0, 1.0), metric, ex, smoothness, sd) * voronoi_gen_norm_f1(metric, ex), 0.0, 1.0); } \
 	float3 c = voronoi_gen_cells(q.x * se, q.y * se, period, clamp(randomness, 0.0, 1.0), metric, ex, sd); \
 	if (feature == 2) { return c.z; } \
@@ -358,6 +397,7 @@ enum {
 	ADVANCED_NOISE_FEATURE_CELLS,
 	ADVANCED_NOISE_FEATURE_CRYSTALS,
 	ADVANCED_NOISE_FEATURE_SMOOTH_F1,
+	ADVANCED_NOISE_FEATURE_DISTANCE_TO_EDGE,
 };
 
 // The Metric list of the Voronoi mode (the saved index: append)
@@ -447,13 +487,18 @@ static bool advanced_noise_node_item_hidden_for_mode(i32 mode, ui_node_item_t ki
 	return ((mask >> index) & 1) != 0;
 }
 
-// The rows of the Voronoi mode that depend on its settings: Exponent is only used by the Minkowski metric, Smoothness by Smooth F1.
+// The rows of the Voronoi mode that depend on its settings: Exponent is only used by the Minkowski metric, Smoothness by Smooth F1,
+// Distance to Edge is Euclidean only (Blender's definition: the perpendicular bisectors of the points), so it has no Metric and no Exponent.
 static bool advanced_noise_voronoi_item_hidden(i32 feature, i32 metric, ui_node_item_t kind, i32 index) {
+	bool edge = feature == ADVANCED_NOISE_FEATURE_DISTANCE_TO_EDGE;
+	if (kind == UI_NODE_ITEM_BUTTON) {
+		return index == ADVANCED_NOISE_BUTTON_METRIC && edge;
+	}
 	if (kind != UI_NODE_ITEM_INPUT) {
 		return false;
 	}
 	if (index == ADVANCED_NOISE_INPUT_EXPONENT) {
-		return metric != ADVANCED_NOISE_METRIC_MINKOWSKI;
+		return metric != ADVANCED_NOISE_METRIC_MINKOWSKI || edge;
 	}
 	return index == ADVANCED_NOISE_INPUT_SMOOTHNESS && feature != ADVANCED_NOISE_FEATURE_SMOOTH_F1;
 }
@@ -512,7 +557,7 @@ void advanced_noise_node_init() {
 	for (i32 i = 0; i < ADVANCED_NOISE_MODE_COUNT; ++i) {
 		mode_items = i == 0 ? string_tmp("%s", advanced_noise_modes[i].name) : string_tmp("%s\n%s", mode_items, advanced_noise_modes[i].name);
 	}
-	char *feature_items = string_tmp("%s\n%s\n%s\n%s\n%s", _tr("Distance"), _tr("Edges"), _tr("Cells"), _tr("Crystals"), _tr("Smooth F1"));
+	char *feature_items = string_tmp("%s\n%s\n%s\n%s\n%s\n%s", _tr("Distance"), _tr("Edges"), _tr("Cells"), _tr("Crystals"), _tr("Smooth F1"), _tr("Distance to Edge"));
 	char *metric_items  = string_tmp("%s\n%s\n%s\n%s", _tr("Euclidean"), _tr("Manhattan"), _tr("Chebyshev"), _tr("Minkowski"));
 
 	ui_node_t *advanced_noise_node_def =

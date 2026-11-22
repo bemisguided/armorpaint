@@ -206,6 +206,7 @@ Disk
 Displacement
 Display
 Distance
+Distance to Edge
 Distortion
 Distract Free
 Divide

@@ -206,6 +206,7 @@ Lemez
 Elmozdulás (Displacement)
 Megjelenítés
 Távolság
+
 Torzítás
 Zavarmentes mód
 Osztás

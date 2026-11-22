@@ -206,6 +206,7 @@ Sur le disque
 Déplacement
 Affichage
 Distance
+
 Distorsion
 Mode sans distraction
 Division

@@ -206,6 +206,7 @@ Dysk
 Przemieszczenie
 Wyświetlanie
 Dystans
+
 Zniekształcenie
 Tryb bez rozpraszaczy
 Dzielenie
