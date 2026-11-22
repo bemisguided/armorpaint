@@ -613,6 +613,7 @@ extern void (*ui_nodes_on_paste)(ui_node_canvas_t *, ui_node_t **, int); // Node
 
 void  ui_nodes_dot_edit_label(ui_node_t *node);
 float UI_DOT_SIZE();
+float UI_DOT_STEM(); // Icon centre to socket centre of a dot node, equal for Sender and Receiver
 void  ui_node_dot_center(ui_node_t *node, float *x, float *y); // Window space
 void  ui_node_draw_order(ui_node_t **nodes, int length, int *order); // Dot nodes first, then the regular nodes
 ui_node_t *ui_node_at_input(ui_node_canvas_t *canvas); // Node under the mouse, regular nodes before dot nodes

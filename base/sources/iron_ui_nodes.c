@@ -109,6 +109,12 @@ float UI_DOT_SIZE() {
 	return UI_LINE_H() * 0.7;
 }
 
+// Dot nodes: the icon (solid circle for a Sender, cup for a Receiver) has a short stem and a standard socket at its end. This is the distance
+// from the icon centre to the socket centre, the same for both: the selection ring radius (half the icon plus 6) plus the socket radius (6) plus a gap (2).
+float UI_DOT_STEM() {
+	return UI_DOT_SIZE() / 2.0 + 14.0 * UI_NODES_SCALE();
+}
+
 float UI_BUTTONS_H(ui_node_t *node) {
 	if (node->flags & (UI_NODE_FLAG_COLLAPSED | UI_NODE_FLAG_DOT))
 		return 0.0;
@@ -175,7 +181,7 @@ float UI_NODE_H(ui_node_canvas_t *canvas, ui_node_t *node) {
 
 float UI_NODE_W(ui_node_t *node) {
 	if (node->flags & UI_NODE_FLAG_DOT)
-		return UI_DOT_SIZE();
+		return UI_DOT_SIZE() / 2.0 + UI_DOT_STEM(); // Half the icon, the stem to the socket (an input sits on the left edge, an output on the right edge)
 	return (node->width != 0 ? node->width : 140.0) * UI_NODES_SCALE();
 }
 
@@ -927,7 +933,8 @@ static float ui_dot_ring_radius() {
 }
 
 void ui_node_dot_center(ui_node_t *node, float *x, float *y) {
-	*x = UI_NODE_X(node) + UI_NODE_W(node) / 2.0;
+	// A Receiver (output) has the icon at the left end and the socket on the right edge, a Sender (input) the socket on the left edge and the icon at the right end
+	*x = node->outputs->length > 0 ? UI_NODE_X(node) + UI_DOT_SIZE() / 2.0 : UI_NODE_X(node) + UI_NODE_W(node) - UI_DOT_SIZE() / 2.0;
 	*y = UI_NODE_Y(node) + UI_NODE_H(NULL, node) / 2.0;
 }
 
@@ -1025,7 +1032,7 @@ static void ui_node_draw_dot(ui_node_canvas_t *canvas, ui_node_t *node, bool ove
 	float cx;
 	float cy;
 	ui_node_dot_center(node, &cx, &cy);
-	float r        = UI_NODE_W(node) / 2.0;
+	float r        = UI_DOT_SIZE() / 2.0;
 	bool  receiver = node->outputs->length > 0;
 	bool  editing  = ui_dot_edit_id == node->id;
 	bool  selected = ui_is_selected(node);
@@ -1050,6 +1057,12 @@ static void ui_node_draw_dot(ui_node_canvas_t *canvas, ui_node_t *node, bool ove
 		float bx2 = lx + lw > cx + rr ? lx + lw : cx + rr;
 		float by = ly < cy - rr ? ly : cy - rr;
 		float by2 = ly + lh > cy + rr ? ly + lh : cy + rr;
+		if (UI_NODE_X(node) < bx) {
+			bx = UI_NODE_X(node);
+		}
+		if (UI_NODE_X(node) + UI_NODE_W(node) > bx2) {
+			bx2 = UI_NODE_X(node) + UI_NODE_W(node);
+		}
 		if (ui_regular_node_in_rect(canvas, bx, by, bx2 - bx, by2 - by)) {
 			return; // Covered by a regular node: stays behind it, under the lines too
 		}
@@ -1076,6 +1089,18 @@ static void ui_node_draw_dot(ui_node_canvas_t *canvas, ui_node_t *node, bool ove
 				ui_dot_click_id   = node->id;
 				ui_dot_click_time = now;
 			}
+		}
+	}
+
+	// Stem and socket: a standard socket at the end of the stem (the link end, the drag handle of a Receiver, the snap target of a Sender)
+	{
+		float sx = receiver ? UI_NODE_X(node) + UI_NODE_W(node) : UI_NODE_X(node);
+		float sy = cy;
+		draw_set_color(color);
+		draw_line_aa(receiver ? cx + r - ui_p(1.6) : cx, cy, sx, sy, ui_p(2.5));
+		if (soc != NULL) {
+			draw_set_color(soc->color);
+			draw_scaled_image(&ui_socket_image, sx - ui_p(6), sy - ui_p(6), ui_p(12), ui_p(12));
 		}
 	}
 
