@@ -307,6 +307,7 @@ Fuzziness
 G
 Gabor Texture
 Gamma
+Gap
 General
 Generated
 Geometry
@@ -345,6 +346,7 @@ Hue/Saturation/Value
 Hyperbolic Cosine
 Hyperbolic Sine
 Hyperbolic Tangent
+ID
 Image
 Image Texture
 Image node bake: out of memory
@@ -486,6 +488,7 @@ Node Previews
 Nodes
 Noise Grain
 Noise Texture
+Non Square Expansion
 None
 Normal
 Normal Blend
@@ -835,6 +838,8 @@ Warp
 Wave Profile
 Wave Texture
 Wave Type
+Weave
+Weave Generator
 What's New
 White Mask
 Whiteout
@@ -843,6 +848,7 @@ Window
 Wireframe
 Workspace
 World
+Wrap Edges
 Wrap Mouse
 Wrap mouse around view boundaries during camera control
 X

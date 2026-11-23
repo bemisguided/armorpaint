@@ -308,6 +308,7 @@ G
 Gabor textúra
 Gamma
 
+
 Generált
 Geometria
 Geometria az origóba
@@ -345,6 +346,7 @@ Hogyan használd
 Hiperbolikus koszinusz
 Hiperbolikus szinusz
 Hiperbolikus tangens
+
 
 Kép textúra
 
@@ -486,6 +488,7 @@ Csomópont előnézetek
 Csomópontok
 Zaj szemcse
 Zaj textúra
+
 Nincs
 Normál
 Normál keverés
@@ -835,6 +838,8 @@ Görbítés (Warp)
 Hullám profil
 Hullám textúra
 Hullám típusa
+
+
 Újdonságok
 Fehér maszk
 Kifehérítés
@@ -843,6 +848,7 @@ Ablak
 Drótváz
 Munkaterület
 Világ
+
 Egér átfordítása
 Kamera mozgatása közben az egér átfordul a képernyő szélein
 X

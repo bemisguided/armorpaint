@@ -308,6 +308,7 @@ G
 Tekstur Gabor
 Gamma
 
+
 Dihasilkan
 Geometri
 Geometri ke Asal
@@ -345,6 +346,7 @@ Rona/Saturasi/Nilai
 Kosinus Hiperbolik
 Sinus Hiperbolik
 Tangen Hiperbolik
+
 
 Tekstur Gambar
 
@@ -486,6 +488,7 @@ Pratinjau Node
 Node
 Butiran Noise
 Tekstur Noise
+
 Tidak Ada
 Normal
 Campur Normal
@@ -835,6 +838,8 @@ Warp
 Profil Gelombang
 Tekstur Gelombang
 Jenis Gelombang
+
+
 Apa yang Baru
 Masker Putih
 Putih Total
@@ -843,6 +848,7 @@ Jendela
 Wireframe
 Ruang Kerja
 Dunia
+
 Bungkus Mouse
 Bungkus mouse di sekitar batas tampilan saat mengontrol kamera
 X

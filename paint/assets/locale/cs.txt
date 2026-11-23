@@ -308,6 +308,7 @@ G
 Gaborova textura
 Gama
 
+
 Generováno
 Geometrie
 Geometrie do počátku
@@ -345,6 +346,7 @@ Odstín/Sytost/Hodnota
 Hyperbolický kosinus
 Hyperbolický sinus
 Hyperbolický tangens
+
 
 Textura obrázku
 
@@ -486,6 +488,7 @@ Náhledy uzlů
 Uzly
 Šum zrna
 Šumová textura
+
 Žádný
 Normála
 Míchání normál
@@ -835,6 +838,8 @@ Deformovat
 Profil vlny
 Vlnová textura
 Typ vlny
+
+
 Co je nového
 Bílá maska
 Vy bílení
@@ -843,6 +848,7 @@ Okno
 Drátěný model
 Pracovní prostor
 Svět
+
 Obtáčet myš
 Obtáčet myš kolem hranic pohledu při ovládání kamery
 X

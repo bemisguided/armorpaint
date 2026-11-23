@@ -308,6 +308,7 @@ G
 Textura Gabor
 Gama
 
+
 Gerada
 Geometria
 Geometria para Origem
@@ -345,6 +346,7 @@ Matiz/Saturação/Valor
 Cosseno Hiperbólico
 Seno Hiperbólico
 Tangente Hiperbólica
+
 
 Textura de Imagem
 
@@ -486,6 +488,7 @@ Pré-visualizações de Nós
 Nós
 Grão de Ruído
 Textura de Ruído
+
 Nenhum
 Normal
 Mistura de Normal
@@ -835,6 +838,8 @@ Distorcer
 Perfil da Onda
 Textura de Ondas
 Tipo de Onda
+
+
 O que há de Novo
 Máscara Branca
 Branqueamento
@@ -843,6 +848,7 @@ Janela
 Aramado
 Área de Trabalho
 Mundo
+
 Envolver Mouse
 Envolver mouse nas bordas da visualização durante controle da câmera
 X

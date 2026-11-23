@@ -308,6 +308,7 @@ G
 Tekstura Gabora
 Gamma
 
+
 Wygenerowane
 Geometria
 Geometria do początku układu
@@ -345,6 +346,7 @@ Odcień/Nasycenie/Wartość
 Cosinus hiperboliczny
 Sinus hiperboliczny
 Tangens hiperboliczny
+
 
 Tekstura obrazu
 
@@ -486,6 +488,7 @@ Podglądy węzłów
 Węzły
 Ziarnistość szumu
 Tekstura szumu
+
 Brak
 Normalna
 Mieszanie normalnych
@@ -835,6 +838,8 @@ Zniekształć
 Profil fali
 Tekstura fali
 Typ fali
+
+
 Co nowego
 Biała maska
 Bielenie
@@ -843,6 +848,7 @@ Okno
 Siatka
 Przestrzeń robocza
 Świat
+
 Zawijaj mysz
 Zawijaj mysz wokół granic widoku podczas sterowania kamerą
 X
