@@ -309,6 +309,7 @@ Gaborova textura
 Gama
 
 
+
 Generováno
 Geometrie
 Geometrie do počátku
@@ -488,7 +489,6 @@ Náhledy uzlů
 Uzly
 Šum zrna
 Šumová textura
-
 Žádný
 Normála
 Míchání normál

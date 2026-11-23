@@ -309,6 +309,7 @@ Textura Gabor
 Gama
 
 
+
 Generado
 Geometría
 Geometria al origen
@@ -488,7 +489,6 @@ Vistas previas de nodos
 Nodos
 Grano de ruido
 Ruido
-
 Ninguno
 Normal
 Mezcla de normales

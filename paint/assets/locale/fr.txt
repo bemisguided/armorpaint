@@ -309,6 +309,7 @@ Texture Gabor
 Gamma
 
 
+
 Générées
 Géométrie
 Géométrie vers origine
@@ -488,7 +489,6 @@ Aperçus de nœuds
 Nœuds
 Grain du bruit
 Texture de bruit
-
 Aucun
 Normale
 Mélange normales

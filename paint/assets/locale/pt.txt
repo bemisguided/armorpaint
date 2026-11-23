@@ -309,6 +309,7 @@ Textura Gabor
 Gama
 
 
+
 Gerada
 Geometria
 Geometria para Origem
@@ -488,7 +489,6 @@ Pré-visualizações de Nós
 Nós
 Grão de Ruído
 Textura de Ruído
-
 Nenhum
 Normal
 Mistura de Normal

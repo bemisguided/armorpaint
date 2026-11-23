@@ -309,6 +309,7 @@ Tekstur Gabor
 Gamma
 
 
+
 Dihasilkan
 Geometri
 Geometri ke Asal
@@ -488,7 +489,6 @@ Pratinjau Node
 Node
 Butiran Noise
 Tekstur Noise
-
 Tidak Ada
 Normal
 Campur Normal

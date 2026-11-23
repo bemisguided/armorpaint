@@ -307,7 +307,8 @@ Fuzziness
 G
 Gabor Texture
 Gamma
-Gap
+Gap X
+Gap Y
 General
 Generated
 Geometry
@@ -488,7 +489,6 @@ Node Previews
 Nodes
 Noise Grain
 Noise Texture
-Non Square Expansion
 None
 Normal
 Normal Blend

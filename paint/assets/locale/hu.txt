@@ -309,6 +309,7 @@ Gabor textúra
 Gamma
 
 
+
 Generált
 Geometria
 Geometria az origóba
@@ -488,7 +489,6 @@ Csomópont előnézetek
 Csomópontok
 Zaj szemcse
 Zaj textúra
-
 Nincs
 Normál
 Normál keverés
