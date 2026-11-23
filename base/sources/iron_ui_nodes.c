@@ -1208,8 +1208,8 @@ void ui_node_canvas(ui_nodes_t *nodes, ui_node_canvas_t *canvas) {
 				top    = bottom;
 				bottom = t;
 			}
-			ui_node_t *nodes[32];
-			int        nodes_count = 0;
+			ui_node_t **nodes       = malloc(sizeof(ui_node_t *) * (canvas->nodes->length + 1)); // Any number of nodes can be in the box
+			int         nodes_count = 0;
 			for (int j = 0; j < canvas->nodes->length; ++j) {
 				ui_node_t *n = canvas->nodes->buffer[j];
 				if (UI_NODE_X(n) + UI_NODE_W(n) > left && UI_NODE_X(n) < right && UI_NODE_Y(n) + UI_NODE_H(canvas, n) > top && UI_NODE_Y(n) < bottom) {
@@ -1228,6 +1228,7 @@ void ui_node_canvas(ui_nodes_t *nodes, ui_node_canvas_t *canvas) {
 					add_to_selection(nodes[j]);
 				}
 			}
+			free(nodes);
 		}
 	}
 
@@ -1242,8 +1243,8 @@ void ui_node_canvas(ui_nodes_t *nodes, ui_node_canvas_t *canvas) {
 	// Node copy & paste
 	bool cut_selected = false;
 	if (ui_is_copy && !current->is_typing) {
-		ui_node_t *copy_nodes[32];
-		int        copy_nodes_count = 0;
+		ui_node_t **copy_nodes       = malloc(sizeof(ui_node_t *) * (current_nodes->nodes_selected_id->length + 1)); // Any number of nodes can be selected
+		int         copy_nodes_count = 0;
 		for (int i = 0; i < current_nodes->nodes_selected_id->length; ++i) {
 			int        id = current_nodes->nodes_selected_id->buffer[i];
 			ui_node_t *n  = ui_get_node(canvas->nodes, id);
@@ -1253,8 +1254,8 @@ void ui_node_canvas(ui_nodes_t *nodes, ui_node_canvas_t *canvas) {
 			copy_nodes[copy_nodes_count] = n;
 			copy_nodes_count++;
 		}
-		ui_node_link_t *copy_links[64];
-		int             copy_links_count = 0;
+		ui_node_link_t **copy_links       = malloc(sizeof(ui_node_link_t *) * (canvas->links->length + 1));
+		int              copy_links_count = 0;
 		for (int i = 0; i < canvas->links->length; ++i) {
 			ui_node_link_t *l    = canvas->links->buffer[i];
 			ui_node_t      *from = NULL;
@@ -1287,6 +1288,8 @@ void ui_node_canvas(ui_nodes_t *nodes, ui_node_canvas_t *canvas) {
 			ui_clipboard                 = ui_node_canvas_to_json(&copy_canvas);
 			iron_copy_to_clipboard(ui_clipboard);
 		}
+		free(copy_nodes);
+		free(copy_links);
 		cut_selected = ui_is_cut;
 		ui_is_copy   = false;
 		ui_is_cut    = false;
