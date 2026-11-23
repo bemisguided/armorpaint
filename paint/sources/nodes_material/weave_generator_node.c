@@ -5,48 +5,50 @@
 // pixel in the material shader: no baked result, no Size, no state row, no Texture section, resolution independent, every number input linkable per
 // pixel. Fork only (never proposed upstream). Spec: armorpaint-admin specs/image-nodes/WEAVE_GENERATOR_PROPOSAL.md (decisions of 2026-11-23).
 //
-// Outputs (all grey VALUE): Height (0 = gap, 1 = top of a thread), Mask (1 on a thread, 0 in a gap) and ID (one value per thread, 0..1, a hash of the
-// block and thread index, constant over the whole strip of the thread including its half gaps, so it can drive a Color Ramp or a Tile UV).
-// Inputs (Parameters): Tile X, Tile Y (blocks per axis, rounded per pixel, 1..20), Shape (0 flat ribbon .. 1 round thread), Weave (parallel threads
-// per block, rounded per pixel, 1..10), Gap (0..1, the share of a thread strip left empty), then the Vector coordinate input LAST. Settings
-// (General): Non Square Expansion (off) and Wrap Edges (on). The coordinate comes from make_image_node_coord (the rule of all coordinate generators).
+// Outputs (all grey VALUE): Height (0 = black corner squares, the grey of the thread underneath in a gap line, up to 1 on a ribbon), Mask (1 on a ribbon, 0 in a gap) and ID (one
+// value per ribbon, 0..1, a hash of the ribbon's start cell and orientation, constant over the whole ribbon and its gaps, so it can drive a Color Ramp or a Tile UV).
+// Inputs (Parameters): Tile X, Tile Y (blocks per axis, rounded per pixel, 1..20), Shape (0 flat ribbon .. 1 round ribbon), Weave (ribbons per block across, = the cells of a block
+// per axis, rounded per pixel, 1..10), Gap (0..1, the thickness of a gap line in cells), then the Vector coordinate input LAST. Settings (General): Non Square Expansion (off) and
+// Wrap Edges (on). The coordinate comes from make_image_node_coord (the rule of all coordinate generators).
 //
-// The geometry in short (the exact formulas are in the shader text, ALL of them in that one place, the tuning constants at its top):
-//   blocks in a checker, horizontal threads in even blocks (bx + by even) and vertical threads in odd ones; Weave threads side by side per block;
-//   Gap cuts a gap of Gap * strip width between threads (across) and a gap of Gap * thread width at both ends of a thread (along);
-//   across a thread the height is a flat ribbon (Shape 0) .. a half cosine round thread (Shape 1); along a thread it is an asymmetric ramp from a
-//   dark "under" level to 1 ("over", a sharp edge), whose length grows with Shape; the under end alternates with the checker;
-//   Non Square Expansion makes the along features (end gap, ramp) keep their proportion to the thread width when Tile X != Tile Y.
+// The structure (read off the reference picture, spec section 8; ALL formulas are in the shader text, the tuning constants at its top): the lattice has Tile X * Weave by
+// Tile Y * Weave cells; a ribbon is Weave cells long and ONE cell wide; the ribbons form a diagonal basket: the cell (cx, cy) is horizontal when (cx - cy) mod 2 Weave is 0 or
+// above Weave and vertical otherwise (Weave 1: the plain weave checker; the reference frame is Tile 2 x 2, Weave 2). Gap lines (a Gap thick band centred on a cell edge, the grey of
+// the thread underneath) run only along the edges between two different ribbons; where gap lines meet there is a black square. Both ends of a ribbon are shaded where it dives
+// under its neighbours: the under end deeper and longer, the over end lightly; the under end alternates with the ribbon number. Across a ribbon Shape goes from flat to round and
+// lengthens the end shades. Non Square Expansion gives both gap bands the same physical thickness and keeps the end shades in proportion to the ribbon width when Tile X != Tile Y.
 //
-// Anti-aliasing (decision D9): the pixel is the screen space uv derivative as in the Shape Generator. The gap edges are filtered by the area the gap
-// covers in one pixel, and when a thread is thinner than a pixel the pattern fades to its mean value (closed form per output).
-// Tiling: Tile X and Tile Y are whole numbers, so the unit square repeats exactly (Wrap Edges on); the over/under checker is consistent across the
-// repeat only when Tile X and Tile Y are even (an odd count cannot be two coloured around a repeat: one row or column of the repeat joins two
-// blocks of the same direction).
+// Anti-aliasing (decision D9): the pixel is the screen space uv derivative as in the Shape Generator. The gap bands are filtered by the area they cover in one pixel, and when the
+// cells are smaller than a pixel the pattern fades to its mean value (closed form per output).
+// Tiling: Tile X and Tile Y are whole numbers, so the unit square repeats exactly (Wrap Edges on); the weave itself closes around the repeat only when Tile X and Tile Y are even (its
+// period is 2 Weave cells; an odd count leaves one flipped row or column in a tiled copy).
 
 // The shader (kong). Written in the common subset of kong and C (plain float functions, no ints, no ternary) so that the host test compiles this very
 // text. Units: u and v are the (wrapped) texture coordinate, px is the uv size of one pixel.
 // weave_eval(which, ...): which 0 = Height, 1 = Mask, 2 = ID.
 char *str_weave_generator = "\
-float weave_under_level() { return 0.35; } \
-float weave_ramp_widths(float shape) { return 0.15 + 0.6 * shape; } \
+float weave_gap_level() { return 0.5; } \
+float weave_under_depth() { return 0.35; } \
+float weave_over_depth() { return 0.12; } \
+float weave_under_len(float shape) { return 0.2 + 0.5 * shape; } \
+float weave_over_len(float shape) { return 0.1 + 0.25 * shape; } \
 float weave_sharpness(float shape) { float q = 1.0 - shape; return 1.0 + 24.0 * q * q; } \
 float weave_fin(float v, float fb) { \
 	if (v != v) { return fb; } \
 	return v; \
 } \
 float weave_count(float v, float lo, float hi) { return clamp(floor(weave_fin(v, lo) + 0.5), lo, hi); } \
+float weave_mod(float a, float m) { return a - m * floor(a / m); } \
 float weave_smooth(float t) { \
 	float c = clamp(t, 0.0, 1.0); \
 	return c * c * (3.0 - 2.0 * c); \
 } \
 float weave_across(float t, float k) { return clamp(k * sin(3.141592653589793 * clamp(t, 0.0, 1.0)), 0.0, 1.0); } \
-float weave_gap_overlap(float dd, float gw) { \
+float weave_overlap(float dd, float gw) { \
 	float lo = max(dd - 0.5, 0.0 - 0.5 * gw); \
 	float hi = min(dd + 0.5, 0.5 * gw); \
 	return clamp(hi - lo, 0.0, 1.0); \
 } \
-float weave_gap_cover(float dd, float gw, float span) { return clamp(1.0 - weave_gap_overlap(dd, gw) - weave_gap_overlap(span - dd, gw), 0.0, 1.0); } \
 float weave_hash(float x, float y, float z) { \
 	float a = x * 0.1031 - floor(x * 0.1031); \
 	float b = y * 0.1030 - floor(y * 0.1030); \
@@ -62,69 +64,79 @@ float weave_mean_across(float k) { \
 	float x0 = asin(min(1.0, 1.0 / k)) / 3.141592653589793; \
 	return 1.0 - 2.0 * x0 + 2.0 * k * (1.0 - cos(3.141592653589793 * x0)) / 3.141592653589793; \
 } \
-float weave_thread_len(float w, float aspect, float nse) { \
-	if (nse > 0.5) { return w * aspect; } \
-	return w; \
+float weave_end_mean(float len, float lt) { \
+	float x = min(lt / max(len, 0.0001), 1.0); \
+	return len * (x - x * x * x + 0.5 * x * x * x * x) / max(lt, 0.0001); \
 } \
-float weave_mean_height(float w, float aspect, float nse, float g, float s) { \
-	float tl = weave_thread_len(w, aspect, nse); \
-	float ge = min(g / tl, 1.0); \
-	float lr = clamp(weave_ramp_widths(s) / tl, 0.0001, 1.0); \
-	float under = weave_under_level(); \
-	return (1.0 - ge) * weave_mean_across(weave_sharpness(s)) * (under + (1.0 - under) * (1.0 - 0.5 * lr)); \
+float weave_mean_height(float n, float gta, float gtc, float ex, float s) { \
+	float lt = max(n - gta, 0.0); \
+	float along = 1.0 - weave_under_depth() * weave_end_mean(weave_under_len(s) * ex, lt) - weave_over_depth() * weave_end_mean(weave_over_len(s) * ex, lt); \
+	return lt * (1.0 - gtc) / n * weave_mean_across(weave_sharpness(s)) * along; \
 } \
 float weave_eval(float which, float u, float v, float tx_in, float ty_in, float shape_in, float weave_in, float gap_in, float nse, float px_in) { \
 	float tx = weave_count(tx_in, 1.0, 20.0); \
 	float ty = weave_count(ty_in, 1.0, 20.0); \
-	float w = weave_count(weave_in, 1.0, 10.0); \
+	float n = weave_count(weave_in, 1.0, 10.0); \
 	float s = clamp(weave_fin(shape_in, 0.5), 0.0, 1.0); \
 	float g = clamp(weave_fin(gap_in, 0.1), 0.0, 1.0); \
 	float pix = clamp(weave_fin(px_in, 0.0009765625), 0.0000152587890625, 1.0); \
-	float x = clamp(weave_fin(u, 0.0), -1000000.0, 1000000.0) * tx; \
-	float y = clamp(weave_fin(v, 0.0), -1000000.0, 1000000.0) * ty; \
-	float bx = floor(x); \
-	float by = floor(y); \
-	float parity = (bx + by) - 2.0 * floor((bx + by) * 0.5); \
-	float a = x - bx; \
-	float c = y - by; \
-	float ua = 1.0 / tx; \
-	float uc = 1.0 / ty; \
-	float aspect = ty / tx; \
-	if (parity > 0.5) { \
-		a = y - by; \
-		c = x - bx; \
-		ua = 1.0 / ty; \
-		uc = 1.0 / tx; \
-		aspect = tx / ty; \
-	} \
-	float cw = c * w; \
-	float ti = floor(cw); \
-	float t = cw - ti; \
-	float su = uc / w; \
-	float detail = clamp(1.0 / (w * max(tx, ty) * pix) - 1.0, 0.0, 1.0); \
-	if (which > 1.5) { return 0.5 + (weave_hash(bx, by, ti) - 0.5) * detail; } \
-	float thread_len = weave_thread_len(w, aspect, nse); \
-	float ge = min(g / thread_len, 1.0); \
-	float dd = min(t, 1.0 - t) * su / pix; \
-	float cover = weave_gap_cover(dd, g * su / pix, su / pix); \
-	float da = min(a, 1.0 - a) * ua / pix; \
-	cover = cover * weave_gap_cover(da, ge * ua / pix, ua / pix); \
+	float x = clamp(weave_fin(u, 0.0), -1000000.0, 1000000.0) * tx * n; \
+	float y = clamp(weave_fin(v, 0.0), -1000000.0, 1000000.0) * ty * n; \
+	float cx = floor(x); \
+	float cy = floor(y); \
+	float fx = x - cx; \
+	float fy = y - cy; \
+	float cw = 1.0 / (tx * n); \
+	float ch = 1.0 / (ty * n); \
+	float d = weave_mod(cx - cy, 2.0 * n); \
+	float horiz = 1.0; \
+	float k = n - 1.0; \
+	if (d > n + 0.5) { k = d - n - 1.0; } \
+	if (d > 0.5 && d < n + 0.5) { horiz = 0.0; k = n - d; } \
+	float detail = clamp(1.0 / (n * max(tx, ty) * pix) - 1.0, 0.0, 1.0); \
+	float sx = cx - k * horiz; \
+	float sy = cy - k * (1.0 - horiz); \
+	if (which > 1.5) { return 0.5 + (weave_hash(sx, sy, 1.0 - horiz) - 0.5) * detail; } \
+	float gx = g; \
+	float gy = g; \
+	if (nse > 0.5) { gx = g * min(1.0, ch / cw); gy = g * min(1.0, cw / ch); } \
+	float act_l = 1.0; \
+	float act_r = 1.0; \
+	float act_t = 1.0; \
+	float act_b = 1.0; \
+	if (horiz > 0.5) { act_l = 1.0 - min(k, 1.0); act_r = 1.0 - min(n - 1.0 - k, 1.0); } \
+	if (horiz < 0.5) { act_t = 1.0 - min(k, 1.0); act_b = 1.0 - min(n - 1.0 - k, 1.0); } \
+	float ox_l = weave_overlap(fx * cw / pix, gx * cw / pix); \
+	float ox_r = weave_overlap((1.0 - fx) * cw / pix, gx * cw / pix); \
+	float oy_t = weave_overlap(fy * ch / pix, gy * ch / pix); \
+	float oy_b = weave_overlap((1.0 - fy) * ch / pix, gy * ch / pix); \
+	float cover = clamp(1.0 - act_l * ox_l - act_r * ox_r, 0.0, 1.0) * clamp(1.0 - act_t * oy_t - act_b * oy_b, 0.0, 1.0); \
+	float black = min((ox_l + ox_r) * (oy_t + oy_b), 1.0 - cover); \
+	float grey = 1.0 - cover - black; \
+	float tm = 0.5 * ((n - gx) * (1.0 - gy) + (1.0 - gx) * (n - gy)) / n; \
+	float mean = tm; \
 	float value = cover; \
-	float ah = ty / tx; \
-	float av = tx / ty; \
-	float ge_h = min(g / weave_thread_len(w, ah, nse), 1.0); \
-	float ge_v = min(g / weave_thread_len(w, av, nse), 1.0); \
-	float mean = (1.0 - g) * (1.0 - 0.5 * (ge_h + ge_v)); \
 	if (which < 0.5) { \
-		float k = weave_sharpness(s); \
-		float lr = clamp(weave_ramp_widths(s) / thread_len, 0.0001, 1.0); \
-		float under = weave_under_level(); \
-		float tp = clamp((t - 0.5 * g) / max(1.0 - g, 0.0001), 0.0, 1.0); \
-		float ap = clamp((a - 0.5 * ge) / max(1.0 - ge, 0.0001), 0.0, 1.0); \
-		if (parity > 0.5) { ap = 1.0 - ap; } \
-		float ramp = under + (1.0 - under) * weave_smooth(ap / lr); \
-		value = cover * weave_across(tp, k) * ramp; \
-		mean = (1.0 - g) * 0.5 * (weave_mean_height(w, ah, nse, g, s) + weave_mean_height(w, av, nse, g, s)); \
+		float fa = fx; \
+		float fc = fy; \
+		float gta = gx; \
+		float gtc = gy; \
+		float exh = 1.0; \
+		float exv = 1.0; \
+		if (nse > 0.5) { exh = ch / cw; exv = cw / ch; } \
+		float ex = exh; \
+		float idx = cy; \
+		if (horiz < 0.5) { fa = fy; fc = fx; gta = gy; gtc = gx; ex = exv; idx = cx; } \
+		float lt = max(n - gta, 0.0001); \
+		float tp = clamp((fc - 0.5 * gtc) / max(1.0 - gtc, 0.0001), 0.0, 1.0); \
+		float ap = clamp((k + fa - 0.5 * gta) / lt, 0.0, 1.0); \
+		float odd = weave_mod(idx, 2.0); \
+		float du = ap * lt; \
+		float dov = (1.0 - ap) * lt; \
+		if (odd > 0.5) { du = dov; dov = ap * lt; } \
+		float along = 1.0 - weave_under_depth() * (1.0 - weave_smooth(du / (weave_under_len(s) * ex))) - weave_over_depth() * (1.0 - weave_smooth(dov / (weave_over_len(s) * ex))); \
+		value = cover * weave_across(tp, weave_sharpness(s)) * along + grey * weave_gap_level(); \
+		mean = 0.5 * (weave_mean_height(n, gx, gy, exh, s) + weave_mean_height(n, gy, gx, exv, s)) + (1.0 - tm - gx * gy) * weave_gap_level(); \
 	} \
 	return mean + (value - mean) * detail; \
 } \
