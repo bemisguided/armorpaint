@@ -12,8 +12,7 @@
 //
 // The structure (measured on real Substance Designer outputs, spec section 8; ALL formulas are in the shader text, the tuning constants at its top): the lattice has 2 Tile Weave cells per
 // axis; a ribbon is Weave cells long and ONE cell wide; the ribbons form a diagonal basket: the cell (cx, cy) is horizontal when (cx - cy) mod 2 Weave is 0 or above Weave and vertical
-// otherwise (Weave 1: the plain weave checker). Two parallel neighbouring ribbons are separated by a grey gap line (Gap X, Gap Y: the thickness of a vertical, a horizontal line in cells,
-// at most half a cell); where a ribbon END meets the side of a perpendicular one, the ending ribbon dives UNDER: it continues beneath the band and is shaded by a drop shadow
+// otherwise (Weave 1: the plain weave checker). Two parallel neighbouring ribbons are separated by a grey gap line (Gap X, Gap Y: the thickness of a vertical, a horizontal line in cells, 0..1); where a ribbon END meets the side of a perpendicular one, the ending ribbon dives UNDER: it continues beneath the band and is shaded by a drop shadow
 // (depth 0.5 at the edge, falling with the square of the distance, length 0.5 Shape Weave cells), the other ribbon is cut sharply at half a gap from the cell edge; a black square sits on every
 // lattice vertex. Both ends of every ribbon are shaded alike.
 //
@@ -105,8 +104,8 @@ float weave_eval(float which, float u, float v, float tx_in, float ty_in, float 
 	float cw = 0.5 / (tx * n); \
 	float ch = 0.5 / (ty * n); \
 	float detail = clamp(min(cw, ch) / pix - 2.0, 0.0, 1.0); \
-	float gx = min(clamp(weave_fin(gx_in, 0.1), 0.0, 1.0), 0.5); \
-	float gy = min(clamp(weave_fin(gy_in, 0.1), 0.0, 1.0), 0.5); \
+	float gx = clamp(weave_fin(gx_in, 0.1), 0.0, 1.0); \
+	float gy = clamp(weave_fin(gy_in, 0.1), 0.0, 1.0); \
 	float hx = 0.5 * pix / cw; \
 	float hy = 0.5 * pix / ch; \
 	float sxn = 1.0; \
@@ -117,7 +116,21 @@ float weave_eval(float which, float u, float v, float tx_in, float ty_in, float 
 	float c1 = weave_part(0.0, cx + sxn, cy, fx - sxn, fy, hx, hy, n, gx, gy, s); \
 	float c2 = weave_part(0.0, cx, cy + syn, fx, fy - syn, hx, hy, n, gx, gy, s); \
 	float c3 = weave_part(0.0, cx + sxn, cy + syn, fx - sxn, fy - syn, hx, hy, n, gx, gy, s); \
-	float cover = min(c0 + c1 + c2 + c3, 1.0); \
+	float wide = 0.0; \
+	if (gx > 0.5 || gy > 0.5) { wide = 1.0; } \
+	float c4 = 0.0; \
+	float c5 = 0.0; \
+	float c6 = 0.0; \
+	float c7 = 0.0; \
+	float c8 = 0.0; \
+	if (wide > 0.5) { \
+		c4 = weave_part(0.0, cx - sxn, cy, fx + sxn, fy, hx, hy, n, gx, gy, s); \
+		c5 = weave_part(0.0, cx, cy - syn, fx, fy + syn, hx, hy, n, gx, gy, s); \
+		c6 = weave_part(0.0, cx + sxn, cy - syn, fx - sxn, fy + syn, hx, hy, n, gx, gy, s); \
+		c7 = weave_part(0.0, cx - sxn, cy + syn, fx + sxn, fy - syn, hx, hy, n, gx, gy, s); \
+		c8 = weave_part(0.0, cx - sxn, cy - syn, fx + sxn, fy + syn, hx, hy, n, gx, gy, s); \
+	} \
+	float cover = min(c0 + c1 + c2 + c3 + c4 + c5 + c6 + c7 + c8, 1.0); \
 	float tm = 0.5 * ((n + gx) * (1.0 - gy) + (n + gy) * (1.0 - gx)) / n; \
 	if (which > 1.5) { \
 		float best = c0; \
@@ -125,6 +138,11 @@ float weave_eval(float which, float u, float v, float tx_in, float ty_in, float 
 		if (c1 > best) { best = c1; id = weave_id(cx + sxn, cy, n); } \
 		if (c2 > best) { best = c2; id = weave_id(cx, cy + syn, n); } \
 		if (c3 > best) { best = c3; id = weave_id(cx + sxn, cy + syn, n); } \
+		if (c4 > best) { best = c4; id = weave_id(cx - sxn, cy, n); } \
+		if (c5 > best) { best = c5; id = weave_id(cx, cy - syn, n); } \
+		if (c6 > best) { best = c6; id = weave_id(cx + sxn, cy - syn, n); } \
+		if (c7 > best) { best = c7; id = weave_id(cx - sxn, cy + syn, n); } \
+		if (c8 > best) { best = c8; id = weave_id(cx - sxn, cy - syn, n); } \
 		return 0.5 + (id - 0.5) * detail; \
 	} \
 	if (which > 0.5) { return tm + (cover - tm) * detail; } \
@@ -135,6 +153,13 @@ float weave_eval(float which, float u, float v, float tx_in, float ty_in, float 
 	hv = hv + weave_part(1.0, cx + sxn, cy, fx - sxn, fy, hx, hy, n, gx, gy, s); \
 	hv = hv + weave_part(1.0, cx, cy + syn, fx, fy - syn, hx, hy, n, gx, gy, s); \
 	hv = hv + weave_part(1.0, cx + sxn, cy + syn, fx - sxn, fy - syn, hx, hy, n, gx, gy, s); \
+	if (wide > 0.5) { \
+		hv = hv + weave_part(1.0, cx - sxn, cy, fx + sxn, fy, hx, hy, n, gx, gy, s); \
+		hv = hv + weave_part(1.0, cx, cy - syn, fx, fy + syn, hx, hy, n, gx, gy, s); \
+		hv = hv + weave_part(1.0, cx + sxn, cy - syn, fx - sxn, fy + syn, hx, hy, n, gx, gy, s); \
+		hv = hv + weave_part(1.0, cx - sxn, cy + syn, fx + sxn, fy - syn, hx, hy, n, gx, gy, s); \
+		hv = hv + weave_part(1.0, cx - sxn, cy - syn, fx + sxn, fy + syn, hx, hy, n, gx, gy, s); \
+	} \
 	float value = hv + (1.0 - cover - black) * weave_gap_level(); \
 	float cov_h = (n + gx) * (1.0 - gy) / n; \
 	float cov_v = (n + gy) * (1.0 - gx) / n; \
