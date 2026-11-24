@@ -300,6 +300,8 @@ float UI_INPUTS_H(ui_node_canvas_t *canvas, ui_node_t *node, int length) {
 float UI_NODE_H(ui_node_canvas_t *canvas, ui_node_t *node) {
 	if (node->flags & UI_NODE_FLAG_DOT)
 		return UI_DOT_SIZE();
+	if (ui_node_is_frame(node))
+		return ui_frame_get_height(node) * UI_NODES_SCALE();
 	if (node->flags & UI_NODE_FLAG_COLLAPSED)
 		return UI_LINE_H() * 1.2;
 	return UI_LINE_H() * 1.2 + UI_INPUTS_H(canvas, node, -1) + UI_OUTPUTS_H(canvas, node, -1) + UI_BUTTONS_H(node) + ui_node_buttons_h(node, -1, true);
@@ -590,6 +592,7 @@ void ui_remove_node(ui_node_t *n, ui_node_canvas_t *canvas) {
 			i++;
 		}
 	}
+	ui_frame_leave(canvas, n->id); // The frames it was in shrink
 	ui_remove_node_at(canvas, ui_get_node_index(canvas->nodes->buffer, canvas->nodes->length, n->id));
 	if (ui_nodes_on_node_remove != NULL) {
 		(*ui_nodes_on_node_remove)(n);
@@ -1057,6 +1060,35 @@ void ui_node_draw_body(ui_node_t *node, ui_node_canvas_t *canvas, float nx, floa
 	ny = ui_node_draw_buttons(node, canvas, nx, ny, true);
 }
 
+// A press or release on the header of a node (or a frame): select it and start dragging the selection
+static void ui_node_header_click(ui_node_t *node) {
+	ui_t *current = ui_get_current();
+	if (current->input_started) {
+		if (current->is_shift_down || current->is_ctrl_down) {
+			// Add to selection or deselect
+			if (ui_is_selected(node)) {
+				remove_from_selection(node);
+			}
+			else {
+				add_to_selection(node);
+			}
+		}
+		else if (current_nodes->nodes_selected_id->length <= 1) {
+			// Selecting single node, otherwise wait for input release
+			current_nodes->nodes_selected_id->length = 0;
+			i32_array_push(current_nodes->nodes_selected_id, node->id);
+		}
+		current_nodes->move_on_top = node; // Place selected node on top
+		current_nodes->nodes_drag  = true;
+		current_nodes->dragged     = false;
+	}
+	else if (current->input_released && !current->is_shift_down && !current->is_ctrl_down && !current_nodes->dragged) {
+		// No drag performed, select single node
+		current_nodes->nodes_selected_id->length = 0;
+		i32_array_push(current_nodes->nodes_selected_id, node->id);
+	}
+}
+
 void ui_node_draw(ui_node_t *node, ui_node_canvas_t *canvas) {
 	ui_t *current = ui_get_current();
 	float wx      = current->_window_x;
@@ -1075,10 +1107,13 @@ void ui_node_draw(ui_node_t *node, ui_node_canvas_t *canvas) {
 	current_nodes->_input_started = current->input_started;
 	if (current->input_started) {
 		for (int i = ui_get_node_index(canvas->nodes->buffer, canvas->nodes->length, node->id) + 1; i < canvas->nodes->length; ++i) {
-			ui_node_t *n    = canvas->nodes->buffer[i];
-			float      ix   = current->input_x - current->_window_x;
-			float      iy   = current->input_y - current->_window_y;
-			float      half = lineh / 2.0;
+			ui_node_t *n = canvas->nodes->buffer[i];
+			if (ui_node_is_frame(n)) {
+				continue; // A frame is a background
+			}
+			float ix   = current->input_x - current->_window_x;
+			float iy   = current->input_y - current->_window_y;
+			float half = lineh / 2.0;
 			if (UI_NODE_X(n) - half < ix && UI_NODE_X(n) + UI_NODE_W(n) + half > ix && UI_NODE_Y(n) - half < iy &&
 			    UI_NODE_Y(n) + UI_NODE_H(canvas, n) + half > iy) {
 				current->input_started = false;
@@ -1212,12 +1247,12 @@ static bool ui_dot_hit(ui_node_t *node) {
 }
 
 // The node under the mouse for a click handler outside the editor pass: regular nodes first (canvas order, the node rect), then the dot nodes by
-// their ring. A dot node a regular node covers is never returned.
+// their ring, then the frames by header and edge. A dot node a regular node covers is never returned.
 ui_node_t *ui_node_at_input(ui_node_canvas_t *canvas) {
 	ui_t *current = ui_get_current();
 	for (int i = 0; i < canvas->nodes->length; ++i) {
 		ui_node_t *node = canvas->nodes->buffer[i];
-		if (!(node->flags & UI_NODE_FLAG_DOT) &&
+		if (!(node->flags & UI_NODE_FLAG_DOT) && !ui_node_is_frame(node) &&
 		    ui_input_in_rect(current->_window_x + UI_NODE_X(node), current->_window_y + UI_NODE_Y(node), UI_NODE_W(node), UI_NODE_H(canvas, node))) {
 			return node;
 		}
@@ -1225,6 +1260,16 @@ ui_node_t *ui_node_at_input(ui_node_canvas_t *canvas) {
 	for (int i = 0; i < canvas->nodes->length; ++i) {
 		ui_node_t *node = canvas->nodes->buffer[i];
 		if ((node->flags & UI_NODE_FLAG_DOT) && ui_dot_hit(node)) {
+			return node;
+		}
+	}
+	// A frame (a background box) last: only its header and edge hit, the body is click through
+	float px = current->input_x - current->_window_x;
+	float py = current->input_y - current->_window_y;
+	for (int i = canvas->nodes->length - 1; i >= 0; --i) {
+		ui_node_t *node = canvas->nodes->buffer[i];
+		if (ui_node_is_frame(node) && ui_frame_hit(UI_NODE_X(node), UI_NODE_Y(node), UI_NODE_W(node), UI_NODE_H(canvas, node), px, py, ui_p(UI_FRAME_HEADER),
+		                                           ui_p(8)) != UI_FRAME_HIT_NONE) {
 			return node;
 		}
 	}
@@ -1433,6 +1478,270 @@ bool ui_is_node_type_excluded(char *type) {
 	return false;
 }
 
+// Node frames: drawing and interaction (the data and the pure rules are in iron_ui_frames.c)
+
+static int    ui_frame_edit_id    = -1; // Frame whose label is being edited
+static bool   ui_frame_edit_start = false;
+static int    ui_frame_click_id   = -1; // Last header press, for the double click
+static double ui_frame_click_time = 0.0;
+
+static float ui_frame_node_h(ui_node_canvas_t *canvas, ui_node_t *node) {
+	return UI_NODE_H(canvas, node) / UI_NODES_SCALE();
+}
+
+// A node on top of a frame takes the press before the frame behind it
+static bool ui_frame_covered(ui_node_canvas_t *canvas, float px, float py) {
+	float half = UI_LINE_H() / 2.0;
+	for (int i = 0; i < canvas->nodes->length; ++i) {
+		ui_node_t *n = canvas->nodes->buffer[i];
+		if (!ui_node_is_frame(n) && UI_NODE_X(n) - half < px && UI_NODE_X(n) + UI_NODE_W(n) + half > px && UI_NODE_Y(n) - half < py &&
+		    UI_NODE_Y(n) + UI_NODE_H(canvas, n) + half > py) {
+			return true;
+		}
+	}
+	return false;
+}
+
+static void ui_frame_swatch_rect(ui_node_t *f, float *x, float *y, float *s) {
+	*s = ui_p(14);
+	*x = UI_NODE_X(f) + UI_NODE_W(f) - *s - ui_p(10);
+	*y = UI_NODE_Y(f) + (ui_p(UI_FRAME_HEADER) - *s) / 2.0;
+}
+
+static void ui_frame_color_popup(ui_t *ui, void *data, void *data2) {
+	ui_node_t *f = (ui_node_t *)data;
+	float      s = 22.0 * UI_SCALE();
+	float      g = 6.0 * UI_SCALE();
+	for (int i = 0; i < UI_FRAME_PALETTE_COUNT; ++i) {
+		float x     = ui->_x + g + i * (s + g);
+		float y     = ui->_y + g;
+		bool  hover = ui_input_in_rect(x, y, s, s);
+		draw_set_color(ui_frame_palette[i]);
+		ui_fill_round_rect(x, y, s, s, 4.0 * UI_SCALE());
+		if (f->color == ui_frame_palette[i] || hover) {
+			draw_set_color(f->color == ui_frame_palette[i] ? ui->ops->theme->HIGHLIGHT_COL : ui->ops->theme->LABEL_COL);
+			ui_stroke_round_rect(x - 2, y - 2, s + 4, s + 4, 6.0 * UI_SCALE(), 2);
+		}
+		if (hover && ui->input_released) {
+			f->color          = ui_frame_palette[i];
+			ui->changed       = true;
+			ui_popup_commands = NULL;
+		}
+	}
+}
+
+static void ui_frame_open_color_popup(ui_node_t *f) {
+	ui_t *current = ui_get_current();
+	float sx, sy, ss;
+	ui_frame_swatch_rect(f, &sx, &sy, &ss);
+	float sc = current_nodes->scale_factor;
+	int   w  = (int)((UI_FRAME_PALETTE_COUNT * 22.0 + (UI_FRAME_PALETTE_COUNT + 1) * 6.0) * sc);
+	ui_popup((int)(sx + current->_window_x), (int)(sy + ss + current->_window_y + 4), w, (int)(22.0 + 12.0), &ui_frame_color_popup, f, NULL);
+	ui_popup_handle_node_id        = f->id;
+	ui_popup_handle_node_socket_id = -1;
+	current_nodes->_input_started = current->input_started = false; // The popup takes this press
+}
+
+// Press on the header or an edge of a frame: select and drag it, double click edits the label, the swatch opens the colors
+static void ui_frame_interact(ui_node_t *f, ui_node_canvas_t *canvas, bool *taken) {
+	ui_t *current = ui_get_current();
+	if (*taken || !current->input_enabled || node_resize != NULL || ui_frame_edit_id == f->id) {
+		return;
+	}
+	float          px  = current->input_x - current->_window_x;
+	float          py  = current->input_y - current->_window_y;
+	ui_frame_hit_t hit = ui_frame_hit(UI_NODE_X(f), UI_NODE_Y(f), UI_NODE_W(f), UI_NODE_H(canvas, f), px, py, ui_p(UI_FRAME_HEADER), ui_p(8));
+	if (hit == UI_FRAME_HIT_NONE || ui_frame_covered(canvas, px, py)) {
+		return;
+	}
+	*taken = true;
+	if (hit == UI_FRAME_HIT_HEADER && current->input_started) {
+		float sx, sy, ss;
+		ui_frame_swatch_rect(f, &sx, &sy, &ss);
+		if (ui_input_in_rect(current->_window_x + sx, current->_window_y + sy, ss, ss)) {
+			ui_frame_open_color_popup(f);
+			return;
+		}
+		double t = iron_time();
+		if (ui_frame_click_id == f->id && t - ui_frame_click_time < 0.35) {
+			ui_frame_click_id         = -1;
+			ui_frame_edit_id          = f->id;
+			ui_frame_edit_start       = true;
+			current_nodes->nodes_drag = false;
+			return;
+		}
+		ui_frame_click_id   = f->id;
+		ui_frame_click_time = t;
+	}
+	ui_node_header_click(f);
+}
+
+// The frame box, behind the links and the nodes
+static void ui_frame_draw(ui_node_t *f, ui_node_canvas_t *canvas, bool drop_target) {
+	ui_t *current = ui_get_current();
+	float x = UI_NODE_X(f), y = UI_NODE_Y(f), w = UI_NODE_W(f), h = UI_NODE_H(canvas, f);
+	if ((x > current->_window_w || x + w < 0 || y > current->_window_h || y + h < 0) && !ui_is_selected(f)) {
+		return;
+	}
+	float    r   = current->filled_round_corner_image.width * 2.0; // Twice the corner radius of a node
+	uint32_t rgb = f->color & 0x00ffffff;
+	draw_set_color(((drop_target ? 0x70 : 0x40) << 24) | rgb);
+	ui_fill_round_rect(x, y, w, h, r);
+	draw_set_color(0xb0000000 | rgb);
+	ui_stroke_round_rect(x, y, w, h, r, ui_p(1));
+	if (drop_target) {
+		draw_set_color(current->ops->theme->HIGHLIGHT_COL);
+		ui_stroke_round_rect(x, y, w, h, r, 2);
+	}
+	if (ui_is_selected(f)) {
+		draw_set_color(current->ops->theme->HIGHLIGHT_COL);
+		ui_stroke_round_rect(x - 3, y - 3, w + 6, h + 6, r + 3, 2);
+	}
+	draw_set_color(0xffffffff);
+}
+
+// Label and color swatch, above the nodes so an enlarged label stays readable where it overlaps them
+static void ui_frame_draw_header(ui_node_t *f, ui_node_canvas_t *canvas) {
+	ui_t *current = ui_get_current();
+	float x = UI_NODE_X(f), y = UI_NODE_Y(f), w = UI_NODE_W(f), h = UI_NODE_H(canvas, f);
+	if ((x > current->_window_w || x + w < 0 || y > current->_window_h || y + h < 0) && !ui_is_selected(f)) {
+		return;
+	}
+	uint32_t rgb   = f->color & 0x00ffffff;
+	float    scale = UI_NODES_SCALE();
+	float    pad   = ui_p(UI_FRAME_LABEL_PAD);
+	float    sx, sy, ss;
+	ui_frame_swatch_rect(f, &sx, &sy, &ss);
+
+	// Swatch
+	draw_set_color(f->color);
+	ui_fill_round_rect(sx, sy, ss, ss, ui_p(3));
+	draw_set_color(current->ops->theme->LABEL_COL);
+	ui_stroke_round_rect(sx, sy, ss, ss, ui_p(3), 1);
+
+	float room = w - pad * 2.0 - ss - ui_p(10);
+	if (ui_frame_edit_id == f->id) {
+		float ui_x   = current->_x;
+		float ui_y   = current->_y;
+		float ui_w   = current->_w;
+		current->_x  = x + pad / 2.0;
+		current->_y  = y + ui_p(3);
+		current->_w  = room + pad / 2.0;
+		ui_id_t id   = ((ui_id_t)f->id << 16) + 0x7ff0;
+		char   *text = f->name;
+		ui_set_next_id(id);
+		ui_id_t tid = ui_widget_id(&text, UI_ID_TEXT);
+		if (ui_frame_edit_start) {
+			ui_frame_edit_start = false;
+			ui_set_next_id(id);
+			ui_start_text_edit(&text, UI_ALIGN_LEFT);
+		}
+		ui_set_next_id(id);
+		char *edited = ui_text_input(&text, "", UI_ALIGN_LEFT, true, false);
+		if (strcmp(edited, f->name) != 0) {
+			f->name          = edited;
+			current->changed = true;
+		}
+		if (current->text_selected_id != tid) {
+			ui_frame_edit_id = -1;
+		}
+		draw_set_font(current->ops->font, current->font_size);
+		current->_x = ui_x;
+		current->_y = ui_y;
+		current->_w = ui_w;
+		return;
+	}
+
+	// Label, the size follows the zoom in stops
+	char *text = ui_tr(f->name);
+	float base = current->ops->theme->FONT_SIZE;
+	int   bpx  = (int)(base * scale + 0.5);
+	float tw   = draw_string_width(current->ops->font, bpx, text) / scale;
+	float size = ui_frame_label_size(base, current_nodes->zoom, f->width, ui_frame_get_height(f), tw);
+	int   px   = (int)(size * scale + 0.5);
+	if (px < 1) {
+		px = 1;
+	}
+	draw_set_font(current->ops->font, px);
+	char label[260];
+	snprintf(label, sizeof(label), "%.255s", text);
+	bool cut = false;
+	if (draw_string_width(current->ops->font, px, label) > room) {
+		cut     = true;
+		int len = (int)strlen(label);
+		while (len > 0) {
+			len--;
+			while (len > 0 && ((unsigned char)label[len] & 0xc0) == 0x80) {
+				len--; // Not inside a UTF-8 sequence
+			}
+			char cutted[260];
+			snprintf(cutted, sizeof(cutted), "%.*s...", len, text);
+			snprintf(label, sizeof(label), "%s", cutted);
+			if (draw_string_width(current->ops->font, px, label) <= room) {
+				break;
+			}
+		}
+	}
+	float lw = draw_string_width(current->ops->font, px, label);
+	float ly = y + ui_p(UI_FRAME_LABEL_PAD) * 0.6;
+	if (size > base * 1.01) {
+		draw_set_color(0x70000000 | rgb); // Backing plate
+		ui_fill_round_rect(x + pad * 0.5, ly - ui_p(2), lw + pad, px * 1.35, ui_p(4));
+	}
+	draw_set_color(current->ops->theme->TEXT_COL);
+	draw_string(label, x + pad, ly);
+	draw_set_font(current->ops->font, current->font_size);
+	draw_set_color(0xffffffff);
+	if (cut && current->input_enabled && ui_input_in_rect(current->_window_x + x, current->_window_y + y, w, ui_p(UI_FRAME_HEADER))) {
+		float _y    = current->_y;
+		current->_y = y;
+		ui_tooltip(text); // The full name of a truncated label
+		current->_y = _y;
+	}
+}
+
+static bool ui_frame_selection_has_frame(ui_node_canvas_t *canvas) {
+	for (int i = 0; i < current_nodes->nodes_selected_id->length; ++i) {
+		if (ui_node_is_frame(ui_get_node(canvas->nodes, current_nodes->nodes_selected_id->buffer[i]))) {
+			return true;
+		}
+	}
+	return false;
+}
+
+// A point of the window in canvas coordinates
+static void ui_frame_to_canvas(float wx, float wy, float *x, float *y) {
+	*x = (wx - UI_NODES_PAN_X()) / UI_NODES_SCALE();
+	*y = (wy - UI_NODES_PAN_Y()) / UI_NODES_SCALE();
+}
+
+ui_node_t *ui_node_pick(ui_node_canvas_t *canvas, float px, float py) {
+	for (int i = 0; i < canvas->nodes->length; ++i) {
+		ui_node_t *node = canvas->nodes->buffer[i];
+		if (!ui_node_is_frame(node) && px > UI_NODE_X(node) && px < UI_NODE_X(node) + UI_NODE_W(node) && py > UI_NODE_Y(node) &&
+		    py < UI_NODE_Y(node) + UI_NODE_H(canvas, node)) {
+			return node;
+		}
+	}
+	for (int i = canvas->nodes->length - 1; i >= 0; --i) {
+		ui_node_t *node = canvas->nodes->buffer[i];
+		if (ui_node_is_frame(node) && ui_frame_hit(UI_NODE_X(node), UI_NODE_Y(node), UI_NODE_W(node), UI_NODE_H(canvas, node), px, py, ui_p(UI_FRAME_HEADER),
+		                                           ui_p(8)) != UI_FRAME_HIT_NONE) {
+			return node;
+		}
+	}
+	return NULL;
+}
+
+// Box select: a node is picked when the box touches it, a frame (a box in the background) only when the box holds it whole
+static bool ui_node_in_box(ui_node_canvas_t *canvas, ui_node_t *n, float left, float top, float right, float bottom) {
+	float x = UI_NODE_X(n), y = UI_NODE_Y(n), w = UI_NODE_W(n), h = UI_NODE_H(canvas, n);
+	if (ui_node_is_frame(n)) {
+		return x >= left && x + w <= right && y >= top && y + h <= bottom;
+	}
+	return x + w > left && x < right && y + h > top && y < bottom;
+}
+
 void ui_node_canvas(ui_nodes_t *nodes, ui_node_canvas_t *canvas) {
 	current_nodes = nodes;
 	ui_t *current = ui_get_current();
@@ -1487,6 +1796,60 @@ void ui_node_canvas(ui_nodes_t *nodes, ui_node_canvas_t *canvas) {
 	ui_set_scale(UI_NODES_SCALE()); // Apply zoomed scale
 	current->elements_baked = true;
 	draw_set_font(current->ops->font, current->font_size);
+
+	// Dragged nodes move with the members of the frames dragged with them, then the frames fit their members and are drawn behind everything
+	int  drag_set[UI_FRAME_MAX_MEMBERS];
+	int  frame_order[UI_FRAME_MAX_MEMBERS];
+	int  drag_n        = 0;
+	bool group_drag    = false;
+	bool drop_check    = current_nodes->nodes_drag && current_nodes->dragged && current->input_released && current->input_enabled;
+	bool dragging_link = current_nodes->link_drag_id != -1;
+	if (current_nodes->nodes_drag) {
+		group_drag = ui_frame_selection_has_frame(canvas);
+		if (group_drag) {
+			drag_n =
+			    ui_frame_drag_set(canvas, current_nodes->nodes_selected_id->buffer, current_nodes->nodes_selected_id->length, drag_set, UI_FRAME_MAX_MEMBERS);
+		}
+		if (!current->input_down_r && (current->input_dx != 0 || current->input_dy != 0)) {
+			if (group_drag) {
+				for (int i = 0; i < drag_n; ++i) {
+					ui_node_t *n = ui_get_node(canvas->nodes, drag_set[i]);
+					if (n != NULL) {
+						current_nodes->dragged = true;
+						n->x += current->input_dx / UI_NODES_SCALE();
+						n->y += current->input_dy / UI_NODES_SCALE();
+					}
+				}
+			}
+			else {
+				// No frame in the selection: the selected nodes move, as upstream, without a size limit
+				for (int i = 0; i < canvas->nodes->length; ++i) {
+					ui_node_t *n = canvas->nodes->buffer[i];
+					if (ui_is_selected(n)) {
+						current_nodes->dragged = true;
+						n->x += current->input_dx / UI_NODES_SCALE();
+						n->y += current->input_dy / UI_NODES_SCALE();
+					}
+				}
+			}
+		}
+	}
+	ui_frame_fit(canvas, ui_frame_node_h);
+	ui_node_t *frame_drop = NULL; // Frame under the dragged selection
+	if (current_nodes->nodes_drag && current_nodes->dragged && !dragging_link) {
+		float cx, cy;
+		ui_frame_to_canvas(current->input_x - wx, current->input_y - wy, &cx, &cy);
+		frame_drop = ui_frame_drop_target(canvas, cx, cy, current_nodes->nodes_selected_id->buffer, current_nodes->nodes_selected_id->length);
+	}
+	int  frames      = ui_frame_draw_order(canvas, frame_order, UI_FRAME_MAX_MEMBERS);
+	bool frame_taken = false;
+	for (int i = frames - 1; i >= 0; --i) {
+		ui_frame_interact(canvas->nodes->buffer[frame_order[i]], canvas, &frame_taken);
+	}
+	for (int i = 0; i < frames; ++i) {
+		ui_node_t *f = canvas->nodes->buffer[frame_order[i]];
+		ui_frame_draw(f, canvas, f == frame_drop);
+	}
 
 	for (int i = 0; i < canvas->links->length; ++i) {
 		ui_node_link_t *link   = canvas->links->buffer[i];
@@ -1596,6 +1959,12 @@ void ui_node_canvas(ui_nodes_t *nodes, ui_node_canvas_t *canvas) {
 	for (int oi = 0; oi < canvas->nodes->length; ++oi) {
 		int        i    = draw_order[oi];
 		ui_node_t *node = canvas->nodes->buffer[i];
+		if (ui_node_is_frame(node)) {
+			if (current->input_released && !dragging_link) {
+				current_nodes->nodes_drag = false;
+			}
+			continue; // Frames are drawn and handled above
+		}
 
 		// Cull
 		float preview_h = (node->flags & UI_NODE_FLAG_PREVIEW) ? UI_NODE_W(node) : 0.0;
@@ -1622,30 +1991,7 @@ void ui_node_canvas(ui_nodes_t *nodes, ui_node_canvas_t *canvas) {
 		// Drag node
 		bool grab = is_dot ? (ui_dot_hit(node) && !ui_mouse_over_regular_node(canvas)) : ui_input_in_rect(wx + UI_NODE_X(node) - UI_LINE_H() / 2.0, wy + UI_NODE_Y(node), UI_NODE_W(node) + UI_LINE_H(), UI_LINE_H());
 		if (current->input_enabled && node_resize == NULL && grab) {
-			if (current->input_started) {
-				if (current->is_shift_down || current->is_ctrl_down) {
-					// Add to selection or deselect
-					if (ui_is_selected(node)) {
-						remove_from_selection(node);
-					}
-					else {
-						add_to_selection(node);
-					}
-				}
-				else if (current_nodes->nodes_selected_id->length <= 1) {
-					// Selecting single node, otherwise wait for input release
-					current_nodes->nodes_selected_id->length = 0;
-					i32_array_push(current_nodes->nodes_selected_id, node->id);
-				}
-				current_nodes->move_on_top = node; // Place selected node on top
-				current_nodes->nodes_drag  = true;
-				current_nodes->dragged     = false;
-			}
-			else if (current->input_released && !current->is_shift_down && !current->is_ctrl_down && !current_nodes->dragged) {
-				// No drag performed, select single node
-				current_nodes->nodes_selected_id->length = 0;
-				i32_array_push(current_nodes->nodes_selected_id, node->id);
-			}
+			ui_node_header_click(node);
 		}
 
 		if (current->input_started && !(node->flags & UI_NODE_FLAG_COLLAPSED) && !(is_dot && grab) && !(is_dot && ui_mouse_over_regular_node(canvas)) &&
@@ -1752,17 +2098,7 @@ void ui_node_canvas(ui_nodes_t *nodes, ui_node_canvas_t *canvas) {
 			current_nodes->nodes_drag                               = false;
 		}
 
-		if (current_nodes->nodes_drag && ui_is_selected(node) && !current->input_down_r) {
-			if (current->input_dx != 0 || current->input_dy != 0) {
-				current_nodes->dragged = true;
-				node->x += current->input_dx / UI_NODES_SCALE();
-				node->y += current->input_dy / UI_NODES_SCALE();
-				// Absolute
-				// node->x = (current->input_x - current->_window_x - UI_NODES_PAN_X()) / UI_NODES_SCALE();
-				// node->y = (current->input_y - current->_window_y - UI_NODES_PAN_Y()) / UI_NODES_SCALE();
-			}
-		}
-		if (ui_nodes_grid_snap && current->input_released && ui_is_selected(node)) {
+		if (ui_nodes_grid_snap && current->input_released && ui_is_selected(node) && !group_drag) {
 			node->x = ui_nodes_snap(node->x) / UI_NODES_SCALE();
 			node->y = ui_nodes_snap(node->y) / UI_NODES_SCALE();
 		}
@@ -1785,6 +2121,37 @@ void ui_node_canvas(ui_nodes_t *nodes, ui_node_canvas_t *canvas) {
 			ui_node_draw_dot(canvas, node, true);
 		}
 	}
+
+	// Frame labels above the nodes
+	for (int i = 0; i < frames; ++i) {
+		ui_frame_draw_header(canvas->nodes->buffer[frame_order[i]], canvas);
+	}
+
+	if (current->input_released && ui_nodes_grid_snap && group_drag && current_nodes->dragged) {
+		// A dragged frame snaps as a whole, the members keep their places in it
+		for (int i = 0; i < current_nodes->nodes_selected_id->length; ++i) {
+			ui_node_t *f = ui_get_node(canvas->nodes, current_nodes->nodes_selected_id->buffer[i]);
+			if (ui_node_is_frame(f)) {
+				float dx = ui_nodes_snap(f->x) / UI_NODES_SCALE() - f->x;
+				float dy = ui_nodes_snap(f->y) / UI_NODES_SCALE() - f->y;
+				for (int j = 0; j < drag_n; ++j) {
+					ui_node_t *n = ui_get_node(canvas->nodes, drag_set[j]);
+					if (n != NULL) {
+						n->x += dx;
+						n->y += dy;
+					}
+				}
+				break;
+			}
+		}
+	}
+
+	// Drop the dragged selection on a frame to add it
+	if (drop_check && frame_drop != NULL) {
+		ui_frame_join(canvas, frame_drop, current_nodes->nodes_selected_id->buffer, current_nodes->nodes_selected_id->length);
+		current->changed = true;
+	}
+	ui_frame_fit(canvas, ui_frame_node_h);
 
 	if (ui_nodes_on_canvas_released != NULL && current->input_enabled && (current->input_released || current->input_released_r) && !ui_nodes_socket_released) {
 		ui_nodes_on_canvas_released();
@@ -1848,8 +2215,9 @@ void ui_node_canvas(ui_nodes_t *nodes, ui_node_canvas_t *canvas) {
 			ui_node_t **nodes       = malloc(sizeof(ui_node_t *) * (canvas->nodes->length + 1));
 			int         nodes_count = 0;
 			for (int j = 0; j < canvas->nodes->length; ++j) {
-				ui_node_t *n = canvas->nodes->buffer[j];
-				if (UI_NODE_X(n) + UI_NODE_W(n) > left && UI_NODE_X(n) < right && UI_NODE_Y(n) + UI_NODE_H(canvas, n) > top && UI_NODE_Y(n) < bottom) {
+				ui_node_t *n      = canvas->nodes->buffer[j];
+				bool       inside = ui_node_in_box(canvas, n, left, top, right, bottom);
+				if (inside) {
 					nodes[nodes_count] = n;
 					nodes_count++;
 				}
@@ -1957,15 +2325,17 @@ void ui_node_canvas(ui_nodes_t *nodes, ui_node_canvas_t *canvas) {
 				l->id = ui_next_link_id(canvas->links);
 				any_array_push(canvas->links, l);
 			}
-			int offset_x = (int)(((int)(current->input_x / UI_SCALE()) * UI_NODES_SCALE() - wx - UI_NODES_PAN_X()) / UI_NODES_SCALE()) -
-			               paste_canvas->nodes->buffer[paste_canvas->nodes->length - 1]->x;
-			int offset_y = (int)(((int)(current->input_y / UI_SCALE()) * UI_NODES_SCALE() - wy - UI_NODES_PAN_Y()) / UI_NODES_SCALE()) -
-			               paste_canvas->nodes->buffer[paste_canvas->nodes->length - 1]->y;
+			int  offset_x      = (int)(((int)(current->input_x / UI_SCALE()) * UI_NODES_SCALE() - wx - UI_NODES_PAN_X()) / UI_NODES_SCALE()) -
+			                     paste_canvas->nodes->buffer[paste_canvas->nodes->length - 1]->x;
+			int  offset_y      = (int)(((int)(current->input_y / UI_SCALE()) * UI_NODES_SCALE() - wy - UI_NODES_PAN_Y()) / UI_NODES_SCALE()) -
+			                     paste_canvas->nodes->buffer[paste_canvas->nodes->length - 1]->y;
+			int *paste_old_ids = malloc(sizeof(int) * (paste_canvas->nodes->length + 1));
 			for (int i = 0; i < paste_canvas->nodes->length; ++i) {
 				ui_node_t *n = paste_canvas->nodes->buffer[i];
 				// Assign unique node id
-				int old_id = n->id;
-				n->id      = ui_next_node_id(canvas->nodes);
+				int old_id       = n->id;
+				paste_old_ids[i] = old_id;
+				n->id            = ui_next_node_id(canvas->nodes);
 
 				for (int j = 0; j < n->inputs->length; ++j) {
 					ui_node_socket_t *soc = n->inputs->buffer[j];
@@ -1991,7 +2361,20 @@ void ui_node_canvas(ui_nodes_t *nodes, ui_node_canvas_t *canvas) {
 			if (ui_nodes_on_paste != NULL) {
 				ui_nodes_on_paste(canvas, paste_canvas->nodes->buffer, paste_canvas->nodes->length);
 			}
+			// A pasted frame keeps the members that were pasted with it
+			int *new_ids = malloc(sizeof(int) * (paste_canvas->nodes->length + 1));
+			for (int i = 0; i < paste_canvas->nodes->length; ++i) {
+				new_ids[i] = paste_canvas->nodes->buffer[i]->id;
+			}
+			for (int i = 0; i < paste_canvas->nodes->length; ++i) {
+				if (ui_node_is_frame(paste_canvas->nodes->buffer[i])) {
+					ui_frame_remap_members(paste_canvas->nodes->buffer[i], paste_old_ids, new_ids, paste_canvas->nodes->length);
+				}
+			}
+			free(new_ids);
+			free(paste_old_ids);
 			current_nodes->nodes_drag                = true;
+			current_nodes->dragged                   = true; // Dropping the pasted nodes on a frame adds them
 			current_nodes->nodes_selected_id->length = 0;
 			for (int i = 0; i < paste_canvas->nodes->length; ++i) {
 				i32_array_push(current_nodes->nodes_selected_id, paste_canvas->nodes->buffer[i]->id);
@@ -2374,6 +2757,45 @@ char *ui_node_canvas_to_json(ui_node_canvas_t *canvas) {
 	json_encode_end_array();
 
 	return json_encode_end();
+}
+
+ui_node_t *ui_frame_create(ui_node_canvas_t *canvas, float x, float y) {
+	ui_node_t *f = ui_frame_new(ui_next_node_id(canvas->nodes), x, y);
+	any_array_push((any_array_t *)canvas->nodes, f);
+	return f;
+}
+
+ui_node_t *ui_frame_create_selected(ui_nodes_t *nodes, ui_node_canvas_t *canvas) {
+	int ids[UI_FRAME_MAX_MEMBERS];
+	int count = 0;
+	for (int i = 0; i < nodes->nodes_selected_id->length && count < UI_FRAME_MAX_MEMBERS; ++i) {
+		if (ui_get_node(canvas->nodes, nodes->nodes_selected_id->buffer[i]) != NULL) {
+			ids[count++] = nodes->nodes_selected_id->buffer[i];
+		}
+	}
+	if (count == 0) {
+		return NULL;
+	}
+	ui_node_t *f = ui_frame_create(canvas, 0, 0);
+	ui_frame_join(canvas, f, ids, count);
+	nodes->nodes_selected_id->length = 0;
+	i32_array_push(nodes->nodes_selected_id, f->id);
+	return f;
+}
+
+void ui_frame_remove_selected(ui_nodes_t *nodes, ui_node_canvas_t *canvas) {
+	for (int i = 0; i < nodes->nodes_selected_id->length; ++i) {
+		ui_frame_leave(canvas, nodes->nodes_selected_id->buffer[i]);
+	}
+}
+
+bool ui_frame_selection_has_member(ui_nodes_t *nodes, ui_node_canvas_t *canvas) {
+	for (int i = 0; i < nodes->nodes_selected_id->length; ++i) {
+		if (ui_frame_of(canvas, nodes->nodes_selected_id->buffer[i]) != NULL) {
+			return true;
+		}
+	}
+	return false;
 }
 
 ////

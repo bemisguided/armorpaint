@@ -394,6 +394,34 @@ void ui_viewnodes_on_socket_released_group_menu(void *_) {
 	ui_menu_draw(&ui_viewnodes_on_socket_released_group_menu_draw, -1, -1);
 }
 
+static i32 _ui_nodes_context_x = 0; // Where the context menu was opened, in node canvas coordinates
+static i32 _ui_nodes_context_y = 0;
+
+static void ui_nodes_add_frame(void *_) {
+	ui_nodes_push_undo(NULL);
+	ui_node_canvas_t *canvas = ui_nodes_get_canvas(true);
+	ui_nodes_t       *nodes  = ui_nodes_get_nodes();
+	ui_node_t        *frame  = ui_frame_create(canvas, _ui_nodes_context_x, _ui_nodes_context_y);
+	nodes->nodes_selected_id = i32_array_create_from_raw((i32[]){frame->id}, 1);
+	ui_nodes_hwnd->redraws   = 2;
+}
+
+static void ui_nodes_frame_selected(void *_) {
+	ui_nodes_t *nodes = ui_nodes_get_nodes();
+	if (nodes->nodes_selected_id->length == 0) {
+		return;
+	}
+	ui_nodes_push_undo(NULL);
+	ui_frame_create_selected(nodes, ui_nodes_get_canvas(true));
+	ui_nodes_hwnd->redraws = 2;
+}
+
+static void ui_nodes_remove_from_frame(void *_) {
+	ui_nodes_push_undo(NULL);
+	ui_frame_remove_selected(ui_nodes_get_nodes(), ui_nodes_get_canvas(true));
+	ui_nodes_hwnd->redraws = 2;
+}
+
 void ui_viewnodes_on_canvas_context_menu() {
 	ui_node_t *selected = _ui_nodes_on_canvas_released_selected;
 	g_ui->_y += 1;
@@ -434,6 +462,22 @@ void ui_viewnodes_on_canvas_context_menu() {
 			make_image_node_regenerate();
 		}
 	}
+	g_ui->enabled = true;
+	ui_menu_separator();
+	if (ui_menu_button(tr("Frame"), "", ICON_NONE)) {
+		sys_notify_on_next_frame(&ui_nodes_add_frame, NULL);
+	}
+	ui_nodes_t *context_nodes = ui_nodes_get_nodes();
+	g_ui->enabled             = context_nodes->nodes_selected_id->length > 0;
+	if (ui_menu_button(tr("Frame Selected"), any_map_get(g_keymap, "node_frame_selected"), ICON_NONE)) {
+		sys_notify_on_next_frame(&ui_nodes_frame_selected, NULL);
+	}
+	g_ui->enabled = ui_frame_selection_has_member(context_nodes, ui_nodes_get_canvas(true));
+	if (ui_menu_button(tr("Remove from Frame"), "", ICON_NONE)) {
+		sys_notify_on_next_frame(&ui_nodes_remove_from_frame, NULL);
+	}
+	g_ui->enabled = !is_protected && !ui_node_is_frame(selected); // A frame has no output
+	ui_menu_separator();
 	if (ui_nodes_canvas_type != CANVAS_TYPE_MESH && ui_menu_button(tr("Capture Output"), "", ICON_PHOTO)) {
 		sys_notify_on_next_frame(&ui_viewnodes_on_canvas_capture_output, NULL);
 	}
@@ -468,6 +512,8 @@ void ui_viewnodes_on_canvas_released() {
 		// Node context menu
 		if (!ui_nodes_socket_released) {
 			_ui_nodes_on_canvas_released_selected = selected;
+			_ui_nodes_context_x                   = ui_nodes_get_node_x();
+			_ui_nodes_context_y                   = ui_nodes_get_node_y();
 			ui_menu_draw(&ui_viewnodes_on_canvas_context_menu, -1, -1);
 		}
 	}
@@ -476,7 +522,7 @@ void ui_viewnodes_on_canvas_released() {
 		ui_nodes_t       *nodes  = ui_nodes_get_nodes();
 		ui_node_canvas_t *canvas = ui_nodes_get_canvas(true);
 		ui_node_t *node = ui_node_at_input(canvas);
-		if (node != NULL && nodes->nodes_selected_id->length > 0 && node->id == nodes->nodes_selected_id->buffer[0]) {
+		if (node != NULL && !ui_node_is_frame(node) && nodes->nodes_selected_id->length > 0 && node->id == nodes->nodes_selected_id->buffer[0]) { // A frame has no 2D view
 			ui_view2d_hwnd->redraws = 2;
 			if (sys_time() - g_context->select_time < 0.2 && ui_nodes_canvas_type != CANVAS_TYPE_MESH)
 				ui_base_show_2d_view(VIEW_2D_TYPE_NODE);
@@ -907,6 +953,10 @@ void ui_nodes_update(void *_) {
 				ui_nodes_node_search_spawn = NULL;
 			}
 
+			if (keymap_shortcut(any_map_get(g_keymap, "node_frame_selected"), SHORTCUT_TYPE_STARTED)) {
+				ui_nodes_frame_selected(NULL);
+			}
+
 			if (keymap_shortcut(any_map_get(g_keymap, "view_reset"), SHORTCUT_TYPE_STARTED)) {
 				nodes->pan_x = 0.0;
 				nodes->pan_y = 0.0;
@@ -1064,7 +1114,7 @@ void ui_nodes_update(void *_) {
 			i32 i = 0;
 			while (i++ < c->nodes->length) {
 				ui_node_t *canvas_node = c->nodes->buffer[i - 1];
-				if (string_array_index_of(ui_nodes_exclude_remove, canvas_node->type) >= 0) {
+				if (string_array_index_of(ui_nodes_exclude_remove, canvas_node->type) >= 0 || ui_node_is_frame(canvas_node)) {
 					continue;
 				}
 				bool found = false;
@@ -1182,6 +1232,7 @@ void ui_nodes_update(void *_) {
 				    },
 				    1);
 				nodes->nodes_drag = true;
+				nodes->dragged    = true; // A frame under the node takes it when it is placed
 			}
 			// Next column
 			if (g_ui->_y - ui_nodes_wy + UI_ELEMENT_H() / 2.0 > ui_nodes_wh) {

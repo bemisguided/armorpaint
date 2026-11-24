@@ -329,6 +329,7 @@ Fração
 Quadro
 Contagem de Quadros
 Taxa de Quadros
+
 Taxa de Quadros
 Quadros
 Frequência
@@ -679,6 +680,7 @@ Reimportar Malha
 Reimportar Texturas
 Deslocamento Relativo
 Remover
+
 Renomear Camada
 Renderizador
 Reorientado

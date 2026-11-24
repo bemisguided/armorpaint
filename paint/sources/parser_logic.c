@@ -188,6 +188,9 @@ ui_node_t_array_t *parser_logic_get_root_nodes(ui_node_canvas_t *node_group) {
 	ui_node_t_array_t *roots = any_array_create_from_raw((void *[]){}, 0);
 	for (i32 i = 0; i < node_group->nodes->length; ++i) {
 		ui_node_t *node   = node_group->nodes->buffer[i];
+		if (ui_node_is_frame(node)) {
+			continue; // A frame only groups nodes in the editor
+		}
 		bool       linked = false;
 		for (i32 i = 0; i < node->outputs->length; ++i) {
 			ui_node_socket_t       *out = node->outputs->buffer[i];

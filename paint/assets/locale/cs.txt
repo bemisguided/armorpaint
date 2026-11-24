@@ -329,6 +329,7 @@ Zlomek
 Snímek
 Počet snímků
 Snímková frekvence
+
 Snímková frekvence
 Snímky
 Frekvence
@@ -679,6 +680,7 @@ Znovu importovat síť
 Znovu importovat textury
 Relativní posun
 Odstranit
+
 Přejmenovat vrstvu
 Renderovací engine
 Přeorientováno
