@@ -626,6 +626,11 @@ void                  ui_frame_fit(ui_node_canvas_t *c, ui_frame_node_h_t node_h
 ui_frame_hit_t        ui_frame_hit(float x, float y, float w, float h, float px, float py, float header_h, float edge);
 int                   ui_frame_draw_order(ui_node_canvas_t *c, int *order, int max);
 float                 ui_frame_label_size(float base, float zoom, float frame_w, float frame_h, float text_w);
+ui_node_t            *ui_frame_create_selected(ui_nodes_t *nodes, ui_node_canvas_t *canvas); // Frame Selected, NULL when nothing is selected
+ui_node_t            *ui_frame_create(ui_node_canvas_t *canvas, float x, float y);           // An empty frame, canvas position
+void                  ui_frame_remove_selected(ui_nodes_t *nodes, ui_node_canvas_t *canvas); // Remove from Frame
+bool                  ui_frame_selection_has_member(ui_nodes_t *nodes, ui_node_canvas_t *canvas);
+ui_node_t            *ui_node_pick(ui_node_canvas_t *canvas, float px, float py); // Node or frame header/edge at a window point, NULL if none
 
 float                  UI_NODES_SCALE();
 float                  UI_NODES_PAN_X();
