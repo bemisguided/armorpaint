@@ -388,6 +388,8 @@ void  ui_end_frame();
 void  ui_fade_color(float alpha);
 void  ui_draw_string(char *text, float x_offset, float y_offset, int align, bool truncation);
 void  ui_draw_shadow(float x, float y, float w, float h);
+void  ui_fill_round_rect(float x, float y, float w, float h, float r);
+void  ui_stroke_round_rect(float x, float y, float w, float h, float r, float s);
 void  ui_draw_rect(bool fill, bool shadows, float x, float y, float w, float h);
 void  ui_draw_round_bottom(float x, float y, float w);
 void  ui_start_text_edit(char **value, int align);

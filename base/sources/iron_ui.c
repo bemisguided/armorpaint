@@ -359,6 +359,57 @@ void ui_rect_round(float x, float y, float w, float h, uint32_t color, float str
 	draw_set_color(0xffffffff);
 }
 
+// Rounded box with a corner radius r in pixels, in the current draw color. The fill does not overlap itself, so a translucent color stays even
+void ui_fill_round_rect(float x, float y, float w, float h, float r) {
+	int ix = (int)x, iy = (int)y, iw = (int)w, ih = (int)h;
+	int ir = (int)(r + 0.5);
+	if (ir > iw / 2) {
+		ir = iw / 2;
+	}
+	if (ir > ih / 2) {
+		ir = ih / 2;
+	}
+	if (ir < 1) {
+		draw_filled_rect(ix, iy, iw, ih);
+		return;
+	}
+	gpu_texture_t *corner = ui_get_round_corner(ir, ir);
+	draw_scaled_image(corner, ix, iy, ir, ir);
+	draw_scaled_image(corner, ix, iy + ih, ir, -ir);
+	draw_scaled_image(corner, ix + iw, iy, -ir, ir);
+	draw_scaled_image(corner, ix + iw, iy + ih, -ir, -ir);
+	draw_filled_rect(ix + ir, iy, iw - ir * 2, ir);
+	draw_filled_rect(ix, iy + ir, iw, ih - ir * 2);
+	draw_filled_rect(ix + ir, iy + ih - ir, iw - ir * 2, ir);
+}
+
+// Outline of a rounded box, s pixels thick, drawn inside the box
+void ui_stroke_round_rect(float x, float y, float w, float h, float r, float s) {
+	int ix = (int)x, iy = (int)y, iw = (int)w, ih = (int)h;
+	int ir = (int)(r + 0.5);
+	int is = (int)(s + 0.5);
+	if (is < 1) {
+		is = 1;
+	}
+	if (ir > iw / 2) {
+		ir = iw / 2;
+	}
+	if (ir > ih / 2) {
+		ir = ih / 2;
+	}
+	if (ir > 0) {
+		gpu_texture_t *corner = ui_get_round_corner(ir, is);
+		draw_scaled_image(corner, ix, iy, ir, ir);
+		draw_scaled_image(corner, ix, iy + ih, ir, -ir);
+		draw_scaled_image(corner, ix + iw, iy, -ir, ir);
+		draw_scaled_image(corner, ix + iw, iy + ih, -ir, -ir);
+	}
+	draw_filled_rect(ix + ir, iy, iw - ir * 2, is);
+	draw_filled_rect(ix + ir, iy + ih - is, iw - ir * 2, is);
+	draw_filled_rect(ix, iy + ir, is, ih - ir * 2);
+	draw_filled_rect(ix + iw - is, iy + ir, is, ih - ir * 2);
+}
+
 void ui_draw_shadow(float x, float y, float w, float h) {
 	gpu_texture_t *img = &current->shadow_image;
 	int            t   = img->width;
