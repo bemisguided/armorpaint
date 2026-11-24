@@ -49,6 +49,7 @@ void nodes_material_init() {
 	shape_generator_node_init();
 	tile_generator_node_init();
 	tile_uv_node_init();
+	weave_generator_node_init();
 	// Filter nodes, keep alphabetical by English name (the menu lists them in this order)
 	advanced_blur_node_init();
 	distance_node_init();

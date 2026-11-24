@@ -342,6 +342,8 @@ G
 Textura Gabor
 Gama
 
+
+
 Gerada
 Geometria
 Geometria para Origem
@@ -922,6 +924,8 @@ Distorcer
 Perfil da Onda
 Textura de Ondas
 Tipo de Onda
+
+
 O que há de Novo
 Máscara Branca
 Branqueamento

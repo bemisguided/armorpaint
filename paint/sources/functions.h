@@ -1752,6 +1752,7 @@ void              transform_node_init();
 void              normal_to_height_node_init();
 void              height_to_normal_node_init();
 void              levels_node_init();
+void              weave_generator_node_init();
 void              text_texture_node_init();
 void              texture_slot_node_init();
 char             *texture_slot_node_vector(ui_node_t *node, ui_node_socket_t *socket);

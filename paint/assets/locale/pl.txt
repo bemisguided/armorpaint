@@ -342,6 +342,8 @@ G
 Tekstura Gabora
 Gamma
 
+
+
 Wygenerowane
 Geometria
 Geometria do początku układu
@@ -922,6 +924,8 @@ Zniekształć
 Profil fali
 Tekstura fali
 Typ fali
+
+
 Co nowego
 Biała maska
 Bielenie

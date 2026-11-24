@@ -112,6 +112,7 @@
 #include "nodes_material/seamless_node.c"
 #include "nodes_material/tile_uv_node.c"
 #include "nodes_material/transform_node.c"
+#include "nodes_material/weave_generator_node.c"
 #include "nodes_material/uv_map_node.c"
 #include "nodes_material/value_node.c"
 #include "nodes_material/vector_curves_node.c"

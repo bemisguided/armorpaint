@@ -342,6 +342,8 @@ G
 Tekstur Gabor
 Gamma
 
+
+
 Dihasilkan
 Geometri
 Geometri ke Asal
@@ -922,6 +924,8 @@ Warp
 Profil Gelombang
 Tekstur Gelombang
 Jenis Gelombang
+
+
 Apa yang Baru
 Masker Putih
 Putih Total

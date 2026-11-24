@@ -342,6 +342,8 @@ G
 Gaborova textura
 Gama
 
+
+
 Generováno
 Geometrie
 Geometrie do počátku
@@ -922,6 +924,8 @@ Deformovat
 Profil vlny
 Vlnová textura
 Typ vlny
+
+
 Co je nového
 Bílá maska
 Vy bílení

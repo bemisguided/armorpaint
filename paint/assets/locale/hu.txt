@@ -342,6 +342,8 @@ G
 Gabor textúra
 Gamma
 
+
+
 Generált
 Geometria
 Geometria az origóba
@@ -922,6 +924,8 @@ Görbítés (Warp)
 Hullám profil
 Hullám textúra
 Hullám típusa
+
+
 Újdonságok
 Fehér maszk
 Kifehérítés

@@ -342,6 +342,8 @@ V
 Textura Gabor
 Gama
 
+
+
 Generado
 Geometría
 Geometria al origen
@@ -922,6 +924,8 @@ Deformación
 Perfil de onda
 Onda
 Tipo de onda
+
+
 Que hay de nuevo
 Mascara blanca
 Blanqueado

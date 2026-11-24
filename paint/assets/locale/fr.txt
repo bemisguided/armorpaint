@@ -342,6 +342,8 @@ V
 Texture Gabor
 Gamma
 
+
+
 Générées
 Géométrie
 Géométrie vers origine
@@ -922,6 +924,8 @@ Déformer
 Profil d'onde
 Texture d'onde
 Type d'onde
+
+
 Quoi de neuf ?
 Masque blanc
 Voile blanc
