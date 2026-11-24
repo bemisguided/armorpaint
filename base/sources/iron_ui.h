@@ -582,6 +582,51 @@ void ui_nodes_popup_render(ui_node_canvas_t *canvas);
 
 void ui_remove_node(ui_node_t *n, ui_node_canvas_t *canvas);
 
+// Node frames (iron_ui_frames.c), sizes are in canvas units
+#define UI_FRAME_TYPE "FRAME"
+#define UI_FRAME_MAX_MEMBERS 1024
+#define UI_FRAME_MAX_SIZE 1.0e6f // Larger or non finite sizes from a file are taken as missing
+#define UI_FRAME_PALETTE_COUNT 7
+#define UI_FRAME_DEFAULT_COLOR 2 // Grey
+#define UI_FRAME_DEFAULT_W 360.0f
+#define UI_FRAME_DEFAULT_H 240.0f
+#define UI_FRAME_MARGIN 24.0f
+#define UI_FRAME_HEADER 34.0f
+#define UI_FRAME_LABEL_PAD 10.0f
+#define UI_FRAME_LABEL_STOP 1.25f      // Ratio of the label size stops
+#define UI_FRAME_LABEL_MIN_SCREEN 1.0f // Smallest label on screen, times the base size
+#define UI_FRAME_LABEL_MAX_H 0.25f     // Share of the frame height
+#define UI_FRAME_LABEL_MIN_STOP (-6)
+
+typedef enum {
+	UI_FRAME_HIT_NONE,
+	UI_FRAME_HIT_HEADER,
+	UI_FRAME_HIT_EDGE
+} ui_frame_hit_t;
+
+typedef float (*ui_frame_node_h_t)(ui_node_canvas_t *, ui_node_t *);
+
+extern const uint32_t ui_frame_palette[UI_FRAME_PALETTE_COUNT];
+bool                  ui_node_is_frame(ui_node_t *n);
+ui_node_t            *ui_frame_new(int id, float x, float y);
+int                   ui_frame_get_members(ui_node_t *f, int *ids, int max);
+float                 ui_frame_get_height(ui_node_t *f);
+void                  ui_frame_set_data(ui_node_t *f, const int *ids, int count, float height);
+bool                  ui_frame_has_member(ui_node_t *f, int id);
+void                  ui_frame_add_member(ui_node_t *f, int id);
+void                  ui_frame_remove_member(ui_node_t *f, int id);
+void                  ui_frame_remap_members(ui_node_t *f, const int *old_ids, const int *new_ids, int count);
+ui_node_t            *ui_frame_of(ui_node_canvas_t *c, int id);
+bool                  ui_frame_contains(ui_node_canvas_t *c, int outer_id, int inner_id);
+void                  ui_frame_leave(ui_node_canvas_t *c, int id);
+void                  ui_frame_join(ui_node_canvas_t *c, ui_node_t *frame, const int *ids, int count);
+int                   ui_frame_drag_set(ui_node_canvas_t *c, const int *selected, int count, int *out, int max);
+ui_node_t            *ui_frame_drop_target(ui_node_canvas_t *c, float x, float y, const int *drag_ids, int count);
+void                  ui_frame_fit(ui_node_canvas_t *c, ui_frame_node_h_t node_h);
+ui_frame_hit_t        ui_frame_hit(float x, float y, float w, float h, float px, float py, float header_h, float edge);
+int                   ui_frame_draw_order(ui_node_canvas_t *c, int *order, int max);
+float                 ui_frame_label_size(float base, float zoom, float frame_w, float frame_h, float text_w);
+
 float                  UI_NODES_SCALE();
 float                  UI_NODES_PAN_X();
 float                  UI_NODES_PAN_Y();
