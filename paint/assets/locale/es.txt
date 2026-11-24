@@ -293,6 +293,7 @@ Fracción
 Fotograma
 Número de fotogramas
 Tasa de fotogramas
+
 Tasa de fotogramas
 Fotogramas
 Frecuencia
@@ -592,6 +593,7 @@ Reimportar malla
 Reimportar texturas
 Desplazamiento relativo
 Eliminar
+
 Renombrar capa
 Renderizar
 Reorientado

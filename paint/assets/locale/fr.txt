@@ -293,6 +293,7 @@ Fraction
 Image
 Nombre d'images
 Fréquence d'images
+
 Fréquence d'images
 Images
 Fréquence
@@ -592,6 +593,7 @@ Ré-importer le maillage
 Ré-importer les textures
 Décalage relatif
 Supprimer
+
 Renommer le calque
 Rendu
 Réorienté

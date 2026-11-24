@@ -293,6 +293,7 @@ Fraction
 Frame
 Frame Count
 Frame Rate
+Frame Selected
 Framerate
 Frames
 Frequency
@@ -592,6 +593,7 @@ Reimport Mesh
 Reimport Textures
 Relative Offset
 Remove
+Remove from Frame
 Rename Layer
 Renderer
 Reoriented

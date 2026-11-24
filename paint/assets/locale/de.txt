@@ -293,6 +293,7 @@ Nachkommastellen
 Bild
 Bildanzahl
 Bildrate
+
 Bildrate
 Bilder
 Frequenz
@@ -592,6 +593,7 @@ Mesh neu importieren
 Texturen neu importieren
 Relativer Offset
 Entfernen
+
 Ebene umbenennen
 Renderer
 Umorientiert

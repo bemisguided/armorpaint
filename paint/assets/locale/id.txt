@@ -293,6 +293,7 @@ Pecahan
 Bingkai
 Jumlah Bingkai
 Laju Bingkai
+
 Laju Bingkai
 Bingkai
 Frekuensi
@@ -592,6 +593,7 @@ Impor Ulang Mesh
 Impor Ulang Tekstur
 Offset Relatif
 Hapus
+
 Ganti Nama Lapisan
 Renderer
 Diorientasi Ulang

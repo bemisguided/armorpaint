@@ -293,6 +293,7 @@ Tört
 Képkocka
 Képkockák száma
 Képkockasebesség
+
 Képkockasebesség
 Képkockák
 Frekvencia
@@ -592,6 +593,7 @@ Háló újraimportálása
 Textúrák újraimportálása
 Relatív eltolás
 Eltávolítás
+
 Réteg átnevezése
 Renderelő
 Áttájolt

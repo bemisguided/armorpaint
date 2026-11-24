@@ -293,6 +293,7 @@ Ułamek
 Klatka
 Liczba klatek
 Liczba klatek na sekundę
+
 Liczba klatek na sekundę
 Klatki
 Częstotliwość
@@ -592,6 +593,7 @@ Zaimportuj model ponownie
 Zaimportuj tekstury ponownie
 Przesunięcie względne
 Usuń
+
 Zmień nazwę warstwy
 Renderer
 Przeorientowany
