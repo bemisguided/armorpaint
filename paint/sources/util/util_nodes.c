@@ -412,7 +412,7 @@ void ui_nodes_make_node_preview(ui_node_t *node) {
 	g_context->node_preview_name = string_copy(node->name);
 
 	if (string_equals(node->type, "LAYER") || string_equals(node->type, "LAYER_MASK") || string_equals(node->type, "MATERIAL") ||
-	    string_equals(node->type, "OUTPUT_MATERIAL_PBR")) {
+	    string_equals(node->type, "OUTPUT_MATERIAL_PBR") || ui_node_is_frame(node)) {
 		return;
 	}
 
