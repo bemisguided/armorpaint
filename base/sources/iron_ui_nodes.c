@@ -719,6 +719,35 @@ void ui_node_draw_body(ui_node_t *node, ui_node_canvas_t *canvas, float nx, floa
 	}
 }
 
+// A press or release on the header of a node: select it and start dragging the selection
+static void ui_node_header_click(ui_node_t *node) {
+	ui_t *current = ui_get_current();
+	if (current->input_started) {
+		if (current->is_shift_down || current->is_ctrl_down) {
+			// Add to selection or deselect
+			if (ui_is_selected(node)) {
+				remove_from_selection(node);
+			}
+			else {
+				add_to_selection(node);
+			}
+		}
+		else if (current_nodes->nodes_selected_id->length <= 1) {
+			// Selecting single node, otherwise wait for input release
+			current_nodes->nodes_selected_id->length = 0;
+			i32_array_push(current_nodes->nodes_selected_id, node->id);
+		}
+		current_nodes->move_on_top = node; // Place selected node on top
+		current_nodes->nodes_drag  = true;
+		current_nodes->dragged     = false;
+	}
+	else if (current->input_released && !current->is_shift_down && !current->is_ctrl_down && !current_nodes->dragged) {
+		// No drag performed, select single node
+		current_nodes->nodes_selected_id->length = 0;
+		i32_array_push(current_nodes->nodes_selected_id, node->id);
+	}
+}
+
 void ui_node_draw(ui_node_t *node, ui_node_canvas_t *canvas) {
 	ui_t *current = ui_get_current();
 	float wx      = current->_window_x;
@@ -1007,30 +1036,7 @@ void ui_node_canvas(ui_nodes_t *nodes, ui_node_canvas_t *canvas) {
 		// Drag node
 		if (current->input_enabled && node_resize == NULL &&
 		    ui_input_in_rect(wx + UI_NODE_X(node) - UI_LINE_H() / 2.0, wy + UI_NODE_Y(node), UI_NODE_W(node) + UI_LINE_H(), UI_LINE_H())) {
-			if (current->input_started) {
-				if (current->is_shift_down || current->is_ctrl_down) {
-					// Add to selection or deselect
-					if (ui_is_selected(node)) {
-						remove_from_selection(node);
-					}
-					else {
-						add_to_selection(node);
-					}
-				}
-				else if (current_nodes->nodes_selected_id->length <= 1) {
-					// Selecting single node, otherwise wait for input release
-					current_nodes->nodes_selected_id->length = 0;
-					i32_array_push(current_nodes->nodes_selected_id, node->id);
-				}
-				current_nodes->move_on_top = node; // Place selected node on top
-				current_nodes->nodes_drag  = true;
-				current_nodes->dragged     = false;
-			}
-			else if (current->input_released && !current->is_shift_down && !current->is_ctrl_down && !current_nodes->dragged) {
-				// No drag performed, select single node
-				current_nodes->nodes_selected_id->length = 0;
-				i32_array_push(current_nodes->nodes_selected_id, node->id);
-			}
+			ui_node_header_click(node);
 		}
 
 		if (current->input_started && !(node->flags & UI_NODE_FLAG_COLLAPSED) &&
