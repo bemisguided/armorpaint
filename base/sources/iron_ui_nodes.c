@@ -1266,6 +1266,12 @@ void ui_node_canvas(ui_nodes_t *nodes, ui_node_canvas_t *canvas) {
 		ui_frame_to_canvas(current->input_x - wx, current->input_y - wy, &cx, &cy);
 		frame_drop = ui_frame_drop_target(canvas, cx, cy, current_nodes->nodes_selected_id->buffer, current_nodes->nodes_selected_id->length);
 	}
+	if (drop_check && frame_drop != NULL) {
+		// Drop the dragged selection on a frame to add it: the frame takes it in before it is drawn, so it fits the node at once
+		ui_frame_join(canvas, frame_drop, current_nodes->nodes_selected_id->buffer, current_nodes->nodes_selected_id->length);
+		current->changed = true;
+		ui_frame_fit(canvas, ui_frame_node_h);
+	}
 	int  frames      = ui_frame_draw_order(canvas, frame_order, UI_FRAME_MAX_MEMBERS);
 	bool frame_taken = false;
 	for (int i = frames - 1; i >= 0; --i) {
@@ -1526,11 +1532,6 @@ void ui_node_canvas(ui_nodes_t *nodes, ui_node_canvas_t *canvas) {
 		}
 	}
 
-	// Drop the dragged selection on a frame to add it
-	if (drop_check && frame_drop != NULL) {
-		ui_frame_join(canvas, frame_drop, current_nodes->nodes_selected_id->buffer, current_nodes->nodes_selected_id->length);
-		current->changed = true;
-	}
 	ui_frame_fit(canvas, ui_frame_node_h);
 
 	if (ui_nodes_on_canvas_released != NULL && current->input_enabled && (current->input_released || current->input_released_r) && !ui_nodes_socket_released) {
