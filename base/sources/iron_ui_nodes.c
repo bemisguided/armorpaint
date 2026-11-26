@@ -887,6 +887,17 @@ static int    ui_frame_edit_id    = -1; // Frame whose label is being edited
 static bool   ui_frame_edit_start = false;
 static int    ui_frame_click_id   = -1; // Last header press, for the double click
 static double ui_frame_click_time = 0.0;
+static ui_node_canvas_t *ui_frame_canvas = NULL; // Canvas of the last frame pass
+
+// A label edit or a double click does not carry over to another canvas (the frame ids repeat there)
+static void ui_frame_canvas_switched(ui_node_canvas_t *canvas) {
+	if (canvas != ui_frame_canvas) {
+		ui_frame_canvas     = canvas;
+		ui_frame_edit_id    = -1;
+		ui_frame_edit_start = false;
+		ui_frame_click_id   = -1;
+	}
+}
 
 static float ui_frame_node_h(ui_node_canvas_t *canvas, ui_node_t *node) {
 	return UI_NODE_H(canvas, node) / UI_NODES_SCALE();
@@ -1247,6 +1258,7 @@ void ui_node_canvas(ui_nodes_t *nodes, ui_node_canvas_t *canvas) {
 			}
 		}
 	}
+	ui_frame_canvas_switched(canvas);
 	ui_frame_fit(canvas, ui_frame_node_h);
 	ui_node_t *frame_drop = NULL; // Frame under the dragged selection
 	if (current_nodes->nodes_drag && current_nodes->dragged && !dragging_link) {
