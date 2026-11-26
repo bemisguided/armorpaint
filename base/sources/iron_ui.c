@@ -359,6 +359,51 @@ void ui_rect_round(float x, float y, float w, float h, uint32_t color, float str
 	draw_set_color(0xffffffff);
 }
 
+// The corner images are drawn by the image pipeline, which scales the color by alpha twice (a translucent color comes out too dark). A translucent
+// corner is therefore built from rects instead: the four corners of a ring between the radii ro and ri (ri 0 is a disc), one rect per run of
+// covered pixels and one rect per partly covered pixel
+static void ui_draw_corner_rects(int x, int y, int w, int h, int ro, int ri) {
+	uint32_t color = draw_get_color();
+	uint32_t rgb   = color & 0x00ffffff;
+	float    alpha = (float)(color >> 24);
+	for (int py = 0; py < ro; ++py) {
+		int run = -1;
+		for (int px = 0; px <= ro; ++px) {
+			float a = 0.0f;
+			if (px < ro) {
+				float dx = ro - (px + 0.5f);
+				float dy = ro - (py + 0.5f);
+				float d  = sqrtf(dx * dx + dy * dy);
+				a        = fmin(fmax(ro - d + 0.5, 0.0), 1.0);
+				if (ri > 0) {
+					a -= fmin(fmax(ri - d + 0.5, 0.0), 1.0);
+				}
+			}
+			bool full = a >= 0.99f;
+			if (full && run < 0) {
+				run = px;
+			}
+			if (!full && run >= 0) {
+				int n = px - run;
+				draw_set_color(color);
+				draw_filled_rect(x + run, y + py, n, 1);
+				draw_filled_rect(x + w - run - n, y + py, n, 1);
+				draw_filled_rect(x + run, y + h - py - 1, n, 1);
+				draw_filled_rect(x + w - run - n, y + h - py - 1, n, 1);
+				run = -1;
+			}
+			if (!full && a > 0.004f) {
+				draw_set_color(((uint32_t)(alpha * a + 0.5f) << 24) | rgb);
+				draw_filled_rect(x + px, y + py, 1, 1);
+				draw_filled_rect(x + w - px - 1, y + py, 1, 1);
+				draw_filled_rect(x + px, y + h - py - 1, 1, 1);
+				draw_filled_rect(x + w - px - 1, y + h - py - 1, 1, 1);
+			}
+		}
+	}
+	draw_set_color(color);
+}
+
 // Rounded box with a corner radius r in pixels, in the current draw color. The fill does not overlap itself, so a translucent color stays even
 void ui_fill_round_rect(float x, float y, float w, float h, float r) {
 	int ix = (int)x, iy = (int)y, iw = (int)w, ih = (int)h;
@@ -373,11 +418,16 @@ void ui_fill_round_rect(float x, float y, float w, float h, float r) {
 		draw_filled_rect(ix, iy, iw, ih);
 		return;
 	}
-	gpu_texture_t *corner = ui_get_round_corner(ir, ir);
-	draw_scaled_image(corner, ix, iy, ir, ir);
-	draw_scaled_image(corner, ix, iy + ih, ir, -ir);
-	draw_scaled_image(corner, ix + iw, iy, -ir, ir);
-	draw_scaled_image(corner, ix + iw, iy + ih, -ir, -ir);
+	if ((draw_get_color() >> 24) == 255) {
+		gpu_texture_t *corner = ui_get_round_corner(ir, ir);
+		draw_scaled_image(corner, ix, iy, ir, ir);
+		draw_scaled_image(corner, ix, iy + ih, ir, -ir);
+		draw_scaled_image(corner, ix + iw, iy, -ir, ir);
+		draw_scaled_image(corner, ix + iw, iy + ih, -ir, -ir);
+	}
+	else {
+		ui_draw_corner_rects(ix, iy, iw, ih, ir, 0);
+	}
 	draw_filled_rect(ix + ir, iy, iw - ir * 2, ir);
 	draw_filled_rect(ix, iy + ir, iw, ih - ir * 2);
 	draw_filled_rect(ix + ir, iy + ih - ir, iw - ir * 2, ir);
@@ -398,11 +448,16 @@ void ui_stroke_round_rect(float x, float y, float w, float h, float r, float s) 
 		ir = ih / 2;
 	}
 	if (ir > 0) {
-		gpu_texture_t *corner = ui_get_round_corner(ir, is);
-		draw_scaled_image(corner, ix, iy, ir, ir);
-		draw_scaled_image(corner, ix, iy + ih, ir, -ir);
-		draw_scaled_image(corner, ix + iw, iy, -ir, ir);
-		draw_scaled_image(corner, ix + iw, iy + ih, -ir, -ir);
+		if ((draw_get_color() >> 24) == 255) {
+			gpu_texture_t *corner = ui_get_round_corner(ir, is);
+			draw_scaled_image(corner, ix, iy, ir, ir);
+			draw_scaled_image(corner, ix, iy + ih, ir, -ir);
+			draw_scaled_image(corner, ix + iw, iy, -ir, ir);
+			draw_scaled_image(corner, ix + iw, iy + ih, -ir, -ir);
+		}
+		else {
+			ui_draw_corner_rects(ix, iy, iw, ih, ir, ir - is);
+		}
 	}
 	draw_filled_rect(ix + ir, iy, iw - ir * 2, is);
 	draw_filled_rect(ix + ir, iy + ih - is, iw - ir * 2, is);
