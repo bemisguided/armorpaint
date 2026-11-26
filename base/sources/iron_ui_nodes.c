@@ -1311,11 +1311,11 @@ void ui_node_draw_order(ui_node_t **nodes, int length, int *order) {
 	}
 }
 
-// A regular node covers the window space rect (a dot node is behind every regular node)
+// A regular node covers the window space rect (a dot node is behind every regular node, but in front of a frame: a frame is a background box)
 static bool ui_regular_node_in_rect(ui_node_canvas_t *canvas, float x, float y, float w, float h) {
 	for (int i = 0; i < canvas->nodes->length; ++i) {
 		ui_node_t *n = canvas->nodes->buffer[i];
-		if (n->flags & UI_NODE_FLAG_DOT) {
+		if ((n->flags & UI_NODE_FLAG_DOT) || ui_node_is_frame(n)) {
 			continue;
 		}
 		if (UI_NODE_X(n) < x + w && UI_NODE_X(n) + UI_NODE_W(n) > x && UI_NODE_Y(n) < y + h && UI_NODE_Y(n) + UI_NODE_H(canvas, n) > y) {
