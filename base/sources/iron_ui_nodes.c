@@ -903,6 +903,18 @@ static float ui_frame_node_h(ui_node_canvas_t *canvas, ui_node_t *node) {
 	return UI_NODE_H(canvas, node) / UI_NODES_SCALE();
 }
 
+// What a node draws above its top edge (its preview image), canvas units: the frame has to hold it
+static float ui_frame_node_top(ui_node_canvas_t *canvas, ui_node_t *node) {
+	if (!(node->flags & UI_NODE_FLAG_PREVIEW) || ui_nodes_preview_texture == NULL) {
+		return 0.0;
+	}
+	gpu_texture_t *image = ui_nodes_preview_texture(node);
+	if (image == NULL || image->width <= 0) {
+		return 0.0;
+	}
+	return (node->width != 0 ? node->width : 140.0) * (image->height / (float)image->width);
+}
+
 // A node on top of a frame takes the press before the frame behind it
 static bool ui_frame_covered(ui_node_canvas_t *canvas, float px, float py) {
 	float half = UI_LINE_H() / 2.0;
@@ -1259,7 +1271,7 @@ void ui_node_canvas(ui_nodes_t *nodes, ui_node_canvas_t *canvas) {
 		}
 	}
 	ui_frame_canvas_switched(canvas);
-	ui_frame_fit(canvas, ui_frame_node_h);
+	ui_frame_fit(canvas, ui_frame_node_h, ui_frame_node_top);
 	ui_node_t *frame_drop = NULL; // Frame under the dragged selection
 	if (current_nodes->nodes_drag && current_nodes->dragged && !dragging_link) {
 		float cx, cy;
@@ -1270,7 +1282,7 @@ void ui_node_canvas(ui_nodes_t *nodes, ui_node_canvas_t *canvas) {
 		// Drop the dragged selection on a frame to add it: the frame takes it in before it is drawn, so it fits the node at once
 		ui_frame_join(canvas, frame_drop, current_nodes->nodes_selected_id->buffer, current_nodes->nodes_selected_id->length);
 		current->changed = true;
-		ui_frame_fit(canvas, ui_frame_node_h);
+		ui_frame_fit(canvas, ui_frame_node_h, ui_frame_node_top);
 	}
 	int  frames      = ui_frame_draw_order(canvas, frame_order, UI_FRAME_MAX_MEMBERS);
 	bool frame_taken = false;
@@ -1532,7 +1544,7 @@ void ui_node_canvas(ui_nodes_t *nodes, ui_node_canvas_t *canvas) {
 		}
 	}
 
-	ui_frame_fit(canvas, ui_frame_node_h);
+	ui_frame_fit(canvas, ui_frame_node_h, ui_frame_node_top);
 
 	if (ui_nodes_on_canvas_released != NULL && current->input_enabled && (current->input_released || current->input_released_r) && !ui_nodes_socket_released) {
 		ui_nodes_on_canvas_released();
