@@ -413,12 +413,6 @@ static void ui_nodes_remove_from_frame(void *_) {
 void ui_viewnodes_on_canvas_context_menu() {
 	ui_node_t *selected = _ui_nodes_on_canvas_released_selected;
 	g_ui->_y += 1;
-	if (selected == NULL) { // Empty canvas: only the frame
-		if (ui_menu_button(tr("Add Frame"), any_map_get(g_keymap, "node_add_frame"), ICON_NONE)) {
-			sys_notify_on_next_frame(&ui_nodes_add_frame, NULL);
-		}
-		return;
-	}
 	bool is_protected = selected == NULL || string_equals(selected->type, "OUTPUT_MATERIAL_PBR") || string_equals(selected->type, "GROUP_INPUT") ||
 	                    string_equals(selected->type, "GROUP_OUTPUT") || string_equals(selected->type, "brush_output_node") ||
 	                    string_equals(selected->type, "MESH_OUTPUT");
@@ -450,17 +444,7 @@ void ui_viewnodes_on_canvas_context_menu() {
 			ui_dock_redraw(TAB_AREA_STATUS);
 		}
 	}
-	g_ui->enabled = true;
-	ui_menu_separator();
-	if (ui_menu_button(tr("Add Frame"), any_map_get(g_keymap, "node_add_frame"), ICON_NONE)) {
-		sys_notify_on_next_frame(&ui_nodes_add_frame, NULL);
-	}
-	if (ui_frame_of(ui_nodes_get_canvas(true), selected->id) != NULL && ui_menu_button(tr("Remove from Frame"), "", ICON_NONE)) {
-		_ui_nodes_context_node_id = selected->id;
-		sys_notify_on_next_frame(&ui_nodes_remove_from_frame, NULL);
-	}
 	g_ui->enabled = !is_protected && !ui_node_is_frame(selected); // A frame has no output
-	ui_menu_separator();
 	if (ui_nodes_canvas_type != CANVAS_TYPE_MESH && ui_menu_button(tr("Capture Output"), "", ICON_PHOTO)) {
 		sys_notify_on_next_frame(&ui_viewnodes_on_canvas_capture_output, NULL);
 	}
@@ -471,6 +455,14 @@ void ui_viewnodes_on_canvas_context_menu() {
 		}
 	}
 	g_ui->enabled = true;
+	ui_menu_separator();
+	if (ui_menu_button(tr("Add Frame"), any_map_get(g_keymap, "node_add_frame"), ICON_NONE)) {
+		sys_notify_on_next_frame(&ui_nodes_add_frame, NULL);
+	}
+	if (selected != NULL && ui_frame_of(ui_nodes_get_canvas(true), selected->id) != NULL && ui_menu_button(tr("Remove from Frame"), "", ICON_NONE)) {
+		_ui_nodes_context_node_id = selected->id;
+		sys_notify_on_next_frame(&ui_nodes_remove_from_frame, NULL);
+	}
 }
 
 void ui_viewnodes_on_canvas_released() {
