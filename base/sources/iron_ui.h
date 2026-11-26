@@ -659,7 +659,6 @@ void                  ui_frame_add_member(ui_node_t *f, int id);
 void                  ui_frame_remove_member(ui_node_t *f, int id);
 void                  ui_frame_remap_members(ui_node_t *f, const int *old_ids, const int *new_ids, int count);
 ui_node_t            *ui_frame_of(ui_node_canvas_t *c, int id);
-bool                  ui_frame_contains(ui_node_canvas_t *c, int outer_id, int inner_id);
 void                  ui_frame_leave(ui_node_canvas_t *c, int id);
 void                  ui_frame_join(ui_node_canvas_t *c, ui_node_t *frame, const int *ids, int count);
 int                   ui_frame_drag_set(ui_node_canvas_t *c, const int *selected, int count, int *out, int max);

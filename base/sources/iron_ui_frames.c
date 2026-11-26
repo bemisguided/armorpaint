@@ -4,6 +4,7 @@
 // the node colour, x, y and width are the frame rectangle. The height and the member node ids live in the data of one hidden button of the frame, as
 // the text "<height> <id> <id> ..." (a project saved by a build without frames shows an empty node and keeps the data).
 // The rectangle is derived from the members (ui_frame_fit), so x, y and width are always equal to the computed values.
+// Frames do not nest: a frame is never a member of a frame (a file that says so is ignored and healed), a node is a member of at most one frame.
 
 #include "iron_ui.h"
 
@@ -13,7 +14,6 @@
 #include <string.h>
 
 #define UI_FRAME_BUTTON_TYPE "FRAME"
-#define UI_FRAME_MAX_DEPTH   32
 
 const uint32_t ui_frame_palette[UI_FRAME_PALETTE_COUNT] = {
     0xff4982a0, // Blue
@@ -214,6 +214,9 @@ ui_node_t *ui_frame_new(int id, float x, float y) {
 }
 
 ui_node_t *ui_frame_of(ui_node_canvas_t *c, int id) {
+	if (ui_node_is_frame(ui_frame_find(c, id))) {
+		return NULL; // A frame is in no frame
+	}
 	for (int i = 0; i < c->nodes->length; ++i) {
 		ui_node_t *f = c->nodes->buffer[i];
 		if (ui_node_is_frame(f) && f->id != id && ui_frame_has_member(f, id)) {
@@ -221,35 +224,6 @@ ui_node_t *ui_frame_of(ui_node_canvas_t *c, int id) {
 		}
 	}
 	return NULL;
-}
-
-// Whether the node inner_id is inside the frame outer_id, directly or through nested frames
-bool ui_frame_contains(ui_node_canvas_t *c, int outer_id, int inner_id) {
-	int id = inner_id;
-	for (int depth = 0; depth < UI_FRAME_MAX_DEPTH; ++depth) {
-		ui_node_t *f = ui_frame_of(c, id);
-		if (f == NULL) {
-			return false;
-		}
-		if (f->id == outer_id) {
-			return true;
-		}
-		id = f->id;
-	}
-	return false;
-}
-
-static int ui_frame_depth(ui_node_canvas_t *c, int id) {
-	int depth = 0;
-	while (depth < UI_FRAME_MAX_DEPTH) {
-		ui_node_t *f = ui_frame_of(c, id);
-		if (f == NULL) {
-			break;
-		}
-		id = f->id;
-		depth++;
-	}
-	return depth;
 }
 
 static bool ui_frame_id_in(const int *ids, int count, int id) {
@@ -273,7 +247,7 @@ void ui_frame_leave(ui_node_canvas_t *c, int id) {
 int ui_frame_free_nodes(ui_node_canvas_t *c, const int *ids, int count, int *out) {
 	int n = 0;
 	for (int i = 0; i < count; ++i) {
-		if (ui_frame_find(c, ids[i]) != NULL && ui_frame_of(c, ids[i]) == NULL && !ui_frame_id_in(out, n, ids[i])) {
+		if (ui_frame_find(c, ids[i]) != NULL && !ui_node_is_frame(ui_frame_find(c, ids[i])) && ui_frame_of(c, ids[i]) == NULL && !ui_frame_id_in(out, n, ids[i])) {
 			out[n++] = ids[i];
 		}
 	}
@@ -283,11 +257,8 @@ int ui_frame_free_nodes(ui_node_canvas_t *c, const int *ids, int count, int *out
 void ui_frame_join(ui_node_canvas_t *c, ui_node_t *frame, const int *ids, int count) {
 	for (int i = 0; i < count; ++i) {
 		int id = ids[i];
-		if (id == frame->id || ui_frame_find(c, id) == NULL) {
-			continue;
-		}
-		if (ui_frame_contains(c, id, frame->id)) {
-			continue; // A frame can not be put into itself through its own members
+		if (id == frame->id || ui_frame_find(c, id) == NULL || ui_node_is_frame(ui_frame_find(c, id))) {
+			continue; // Frames do not nest
 		}
 		ui_node_t *parent = ui_frame_of(c, id);
 		if (parent != NULL && ui_frame_id_in(ids, count, parent->id)) {
@@ -308,8 +279,9 @@ int ui_frame_drag_set(ui_node_canvas_t *c, const int *selected, int count, int *
 			out[n++] = selected[i];
 		}
 	}
-	// Members of selected frames follow, nested ones too (the list grows while it is walked)
-	for (int i = 0; i < n; ++i) {
+	// The members of the selected frames follow (only the frame's own, a frame has no frame inside)
+	int selected_n = n;
+	for (int i = 0; i < selected_n; ++i) {
 		ui_node_t *f = ui_frame_find(c, out[i]);
 		if (!ui_node_is_frame(f)) {
 			continue;
@@ -317,7 +289,7 @@ int ui_frame_drag_set(ui_node_canvas_t *c, const int *selected, int count, int *
 		int ids[UI_FRAME_MAX_MEMBERS];
 		int m = ui_frame_read(f, ids, UI_FRAME_MAX_MEMBERS, NULL);
 		for (int j = 0; j < m && n < max; ++j) {
-			if (ui_frame_find(c, ids[j]) != NULL && !ui_frame_id_in(out, n, ids[j])) {
+			if (ui_frame_find(c, ids[j]) != NULL && !ui_node_is_frame(ui_frame_find(c, ids[j])) && !ui_frame_id_in(out, n, ids[j])) {
 				out[n++] = ids[j];
 			}
 		}
@@ -337,12 +309,8 @@ ui_node_t *ui_frame_drop_target(ui_node_canvas_t *c, float x, float y, const int
 		if (x < f->x || x > f->x + w || y < f->y || y > f->y + h) {
 			continue;
 		}
-		bool excluded = false;
-		for (int j = 0; j < count && !excluded; ++j) {
-			excluded = drag_ids[j] == f->id || ui_frame_contains(c, drag_ids[j], f->id);
-		}
-		if (excluded) {
-			continue;
+		if (ui_frame_id_in(drag_ids, count, f->id)) {
+			continue; // A dragged frame is never a target (and never taken by one)
 		}
 		if (best == NULL || w * h < best_area) {
 			best      = f;
@@ -352,11 +320,17 @@ ui_node_t *ui_frame_drop_target(ui_node_canvas_t *c, float x, float y, const int
 	if (best == NULL) {
 		return NULL;
 	}
-	// Nothing to do when everything dragged is in the frame already
+	// Only nodes join, and only those that do not travel with a dragged frame: nothing to do when each of them is in the frame already
 	for (int j = 0; j < count; ++j) {
-		if (!ui_frame_has_member(best, drag_ids[j])) {
-			return best;
+		ui_node_t *n = ui_frame_find(c, drag_ids[j]);
+		if (n == NULL || ui_node_is_frame(n) || ui_frame_has_member(best, drag_ids[j])) {
+			continue;
 		}
+		ui_node_t *home = ui_frame_of(c, drag_ids[j]);
+		if (home != NULL && ui_frame_id_in(drag_ids, count, home->id)) {
+			continue;
+		}
+		return best;
 	}
 	return NULL;
 }
@@ -370,13 +344,7 @@ static bool ui_frame_differs(float a, float b) {
 }
 
 void ui_frame_fit(ui_node_canvas_t *c, ui_frame_node_h_t node_h, ui_frame_node_h_t node_top) {
-	int frames = 0;
-	for (int i = 0; i < c->nodes->length; ++i) {
-		frames += ui_node_is_frame(c->nodes->buffer[i]) ? 1 : 0;
-	}
-	// Nested frames are fitted from the inside out: a pass per level
-	for (int pass = 0; pass < frames + 1; ++pass) {
-		bool changed = false;
+	{
 		for (int i = 0; i < c->nodes->length; ++i) {
 			ui_node_t *f = c->nodes->buffer[i];
 			if (!ui_node_is_frame(f)) {
@@ -389,13 +357,13 @@ void ui_frame_fit(ui_node_canvas_t *c, ui_frame_node_h_t node_h, ui_frame_node_h
 			float minx = 0, miny = 0, maxx = 0, maxy = 0;
 			for (int j = 0; j < count; ++j) {
 				ui_node_t *m = ids[j] != f->id ? ui_frame_find(c, ids[j]) : NULL;
-				if (m == NULL || (ui_node_is_frame(m) && ui_frame_contains(c, m->id, f->id))) { // A file can hold a cycle, the outer frame is dropped from the inner one
+				if (m == NULL || ui_node_is_frame(m)) { // Missing nodes are pruned, a frame is never a member (a file can say so: healed here)
 					continue;
 				}
 				ids[valid++] = ids[j];
 				float mw     = ui_frame_node_w(m);
-				float mh     = ui_node_is_frame(m) ? ui_frame_get_height(m) : node_h(c, m);
-				float mtop   = m->y - (ui_node_is_frame(m) || node_top == NULL ? 0.0f : node_top(c, m));
+				float mh     = node_h(c, m);
+				float mtop   = m->y - (node_top == NULL ? 0.0f : node_top(c, m));
 				if (valid == 1) {
 					minx = m->x;
 					miny = mtop;
@@ -415,9 +383,6 @@ void ui_frame_fit(ui_node_canvas_t *c, ui_frame_node_h_t node_h, ui_frame_node_h
 				float ny = miny - UI_FRAME_MARGIN - UI_FRAME_HEADER;
 				float nw = maxx - minx + UI_FRAME_MARGIN * 2.0f;
 				h        = maxy - miny + UI_FRAME_MARGIN * 2.0f + UI_FRAME_HEADER;
-				if (ui_frame_differs(f->x, nx) || ui_frame_differs(f->y, ny) || ui_frame_differs(f->width, nw)) {
-					changed = true;
-				}
 				f->x     = nx;
 				f->y     = ny;
 				f->width = nw;
@@ -427,11 +392,7 @@ void ui_frame_fit(ui_node_canvas_t *c, ui_frame_node_h_t node_h, ui_frame_node_h
 			}
 			if (valid != count || ui_frame_differs(h, stored_h)) {
 				ui_frame_set_data(f, ids, valid, h); // Also drops members that are gone
-				changed = true;
 			}
-		}
-		if (!changed) {
-			break;
 		}
 	}
 }
@@ -451,25 +412,11 @@ ui_frame_hit_t ui_frame_hit(float x, float y, float w, float h, float px, float 
 }
 
 int ui_frame_draw_order(ui_node_canvas_t *c, int *order, int max) {
-	int depth[UI_FRAME_MAX_MEMBERS];
 	int n = 0;
 	for (int i = 0; i < c->nodes->length && n < max && n < UI_FRAME_MAX_MEMBERS; ++i) {
 		if (ui_node_is_frame(c->nodes->buffer[i])) {
-			order[n] = i;
-			depth[n] = ui_frame_depth(c, c->nodes->buffer[i]->id);
-			n++;
+			order[n++] = i; // The array order: a later frame is drawn over an earlier one
 		}
-	}
-	// Outer frames first, stable inside a level
-	for (int i = 1; i < n; ++i) {
-		int o = order[i], d = depth[i], j = i - 1;
-		while (j >= 0 && depth[j] > d) {
-			order[j + 1] = order[j];
-			depth[j + 1] = depth[j];
-			j--;
-		}
-		order[j + 1] = o;
-		depth[j + 1] = d;
 	}
 	return n;
 }
