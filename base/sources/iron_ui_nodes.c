@@ -883,11 +883,11 @@ bool ui_is_node_type_excluded(char *type) {
 
 // Node frames: drawing and interaction (the data and the pure rules are in iron_ui_frames.c)
 
-static int    ui_frame_edit_id    = -1; // Frame whose label is being edited
-static bool   ui_frame_edit_start = false;
-static int    ui_frame_click_id   = -1; // Last header press, for the double click
-static double ui_frame_click_time = 0.0;
-static ui_node_canvas_t *ui_frame_canvas = NULL; // Canvas of the last frame pass
+static int               ui_frame_edit_id    = -1; // Frame whose label is being edited
+static bool              ui_frame_edit_start = false;
+static int               ui_frame_click_id   = -1; // Last header press, for the double click
+static double            ui_frame_click_time = 0.0;
+static ui_node_canvas_t *ui_frame_canvas     = NULL; // Canvas of the last frame pass
 
 // A label edit or a double click does not carry over to another canvas (the frame ids repeat there)
 static void ui_frame_canvas_switched(ui_node_canvas_t *canvas) {
@@ -2139,37 +2139,23 @@ ui_node_t *ui_frame_create(ui_node_canvas_t *canvas, float x, float y) {
 	return f;
 }
 
-ui_node_t *ui_frame_create_selected(ui_nodes_t *nodes, ui_node_canvas_t *canvas) {
+ui_node_t *ui_frame_add(ui_nodes_t *nodes, ui_node_canvas_t *canvas, float x, float y) {
 	int ids[UI_FRAME_MAX_MEMBERS];
-	int count = 0;
-	for (int i = 0; i < nodes->nodes_selected_id->length && count < UI_FRAME_MAX_MEMBERS; ++i) {
-		if (ui_get_node(canvas->nodes, nodes->nodes_selected_id->buffer[i]) != NULL) {
-			ids[count++] = nodes->nodes_selected_id->buffer[i];
-		}
-	}
-	if (count == 0) {
-		return NULL;
-	}
-	ui_node_t *f = ui_frame_create(canvas, 0, 0);
+	int count    = ui_frame_free_nodes(canvas, nodes->nodes_selected_id->buffer,
+	                                   nodes->nodes_selected_id->length < UI_FRAME_MAX_MEMBERS ? nodes->nodes_selected_id->length : UI_FRAME_MAX_MEMBERS, ids);
+	ui_node_t *f = ui_frame_create(canvas, x, y); // With members the fit moves it around them
 	ui_frame_join(canvas, f, ids, count);
 	nodes->nodes_selected_id->length = 0;
 	i32_array_push(nodes->nodes_selected_id, f->id);
 	return f;
 }
 
-void ui_frame_remove_selected(ui_nodes_t *nodes, ui_node_canvas_t *canvas) {
-	for (int i = 0; i < nodes->nodes_selected_id->length; ++i) {
-		ui_frame_leave(canvas, nodes->nodes_selected_id->buffer[i]);
-	}
-}
-
-bool ui_frame_selection_has_member(ui_nodes_t *nodes, ui_node_canvas_t *canvas) {
-	for (int i = 0; i < nodes->nodes_selected_id->length; ++i) {
-		if (ui_frame_of(canvas, nodes->nodes_selected_id->buffer[i]) != NULL) {
-			return true;
-		}
-	}
-	return false;
+void ui_frame_pick_up(ui_nodes_t *nodes, ui_node_canvas_t *canvas, int id) {
+	ui_frame_leave(canvas, id);
+	nodes->nodes_selected_id->length = 0;
+	i32_array_push(nodes->nodes_selected_id, id);
+	nodes->nodes_drag = true; // As a new node: it follows the cursor until the next click puts it down
+	nodes->dragged    = true;
 }
 
 ////

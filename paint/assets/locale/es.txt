@@ -15,6 +15,7 @@ Acerca de...
 Absoluto
 Añadir
 Añadir animación
+
 Añadir muestra
 Añadir nueva muestra
 Añadir color seleccionado a muestras
@@ -293,7 +294,6 @@ Fracción
 Fotograma
 Número de fotogramas
 Tasa de fotogramas
-
 Tasa de fotogramas
 Fotogramas
 Frecuencia

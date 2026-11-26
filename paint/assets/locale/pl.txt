@@ -15,6 +15,7 @@ O...
 Bezwględna
 Dodaj
 Dodaj animację
+
 Dodaj próbkę
 Dodaj nową próbkę
 Dodaj wybrany kolor do próbek
@@ -293,7 +294,6 @@ Ułamek
 Klatka
 Liczba klatek
 Liczba klatek na sekundę
-
 Liczba klatek na sekundę
 Klatki
 Częstotliwość

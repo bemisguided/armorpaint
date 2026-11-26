@@ -15,6 +15,7 @@ O programu...
 Absolutní
 Přidat
 Přidat animaci
+
 Přidat vzorek
 Přidat nový vzorek
 Přidat vybranou barvu do vzorků
@@ -293,7 +294,6 @@ Zlomek
 Snímek
 Počet snímků
 Snímková frekvence
-
 Snímková frekvence
 Snímky
 Frekvence

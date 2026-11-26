@@ -270,6 +270,16 @@ void ui_frame_leave(ui_node_canvas_t *c, int id) {
 	}
 }
 
+int ui_frame_free_nodes(ui_node_canvas_t *c, const int *ids, int count, int *out) {
+	int n = 0;
+	for (int i = 0; i < count; ++i) {
+		if (ui_frame_find(c, ids[i]) != NULL && ui_frame_of(c, ids[i]) == NULL && !ui_frame_id_in(out, n, ids[i])) {
+			out[n++] = ids[i];
+		}
+	}
+	return n;
+}
+
 void ui_frame_join(ui_node_canvas_t *c, ui_node_t *frame, const int *ids, int count) {
 	for (int i = 0; i < count; ++i) {
 		int id = ids[i];

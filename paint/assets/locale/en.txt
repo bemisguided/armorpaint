@@ -15,6 +15,7 @@ About...
 Absolute
 Add
 Add Animation
+Add Frame
 Add Swatch
 Add new swatch
 Add picked color to swatches
@@ -293,7 +294,6 @@ Fraction
 Frame
 Frame Count
 Frame Rate
-Frame Selected
 Framerate
 Frames
 Frequency

@@ -15,6 +15,7 @@ Névjegy...
 Abszolút
 Hozzáadás
 Animáció hozzáadása
+
 Színminta hozzáadása
 Új színminta hozzáadása
 Kiválasztott szín hozzáadása a mintákhoz
@@ -293,7 +294,6 @@ Tört
 Képkocka
 Képkockák száma
 Képkockasebesség
-
 Képkockasebesség
 Képkockák
 Frekvencia
