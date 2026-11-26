@@ -397,34 +397,29 @@ void ui_viewnodes_on_socket_released_group_menu(void *_) {
 static i32 _ui_nodes_context_x = 0; // Where the context menu was opened, in node canvas coordinates
 static i32 _ui_nodes_context_y = 0;
 
+static i32 _ui_nodes_context_node_id = -1; // Node the context menu was opened on
+
 static void ui_nodes_add_frame(void *_) {
 	ui_nodes_push_undo(NULL);
-	ui_node_canvas_t *canvas = ui_nodes_get_canvas(true);
-	ui_nodes_t       *nodes  = ui_nodes_get_nodes();
-	ui_node_t        *frame  = ui_frame_create(canvas, _ui_nodes_context_x, _ui_nodes_context_y);
-	nodes->nodes_selected_id = i32_array_create_from_raw((i32[]){frame->id}, 1);
-	ui_nodes_hwnd->redraws   = 2;
-}
-
-static void ui_nodes_frame_selected(void *_) {
-	ui_nodes_t *nodes = ui_nodes_get_nodes();
-	if (nodes->nodes_selected_id->length == 0) {
-		return;
-	}
-	ui_nodes_push_undo(NULL);
-	ui_frame_create_selected(nodes, ui_nodes_get_canvas(true));
+	ui_frame_add(ui_nodes_get_nodes(), ui_nodes_get_canvas(true), _ui_nodes_context_x, _ui_nodes_context_y);
 	ui_nodes_hwnd->redraws = 2;
 }
 
 static void ui_nodes_remove_from_frame(void *_) {
 	ui_nodes_push_undo(NULL);
-	ui_frame_remove_selected(ui_nodes_get_nodes(), ui_nodes_get_canvas(true));
+	ui_frame_pick_up(ui_nodes_get_nodes(), ui_nodes_get_canvas(true), _ui_nodes_context_node_id);
 	ui_nodes_hwnd->redraws = 2;
 }
 
 void ui_viewnodes_on_canvas_context_menu() {
 	ui_node_t *selected = _ui_nodes_on_canvas_released_selected;
 	g_ui->_y += 1;
+	if (selected == NULL) { // Empty canvas: only the frame
+		if (ui_menu_button(tr("Add Frame"), any_map_get(g_keymap, "node_add_frame"), ICON_NONE)) {
+			sys_notify_on_next_frame(&ui_nodes_add_frame, NULL);
+		}
+		return;
+	}
 	bool is_protected = selected == NULL || string_equals(selected->type, "OUTPUT_MATERIAL_PBR") || string_equals(selected->type, "GROUP_INPUT") ||
 	                    string_equals(selected->type, "GROUP_OUTPUT") || string_equals(selected->type, "brush_output_node") ||
 	                    string_equals(selected->type, "MESH_OUTPUT");
@@ -464,16 +459,11 @@ void ui_viewnodes_on_canvas_context_menu() {
 	}
 	g_ui->enabled = true;
 	ui_menu_separator();
-	if (ui_menu_button(tr("Frame"), "", ICON_NONE)) {
+	if (ui_menu_button(tr("Add Frame"), any_map_get(g_keymap, "node_add_frame"), ICON_NONE)) {
 		sys_notify_on_next_frame(&ui_nodes_add_frame, NULL);
 	}
-	ui_nodes_t *context_nodes = ui_nodes_get_nodes();
-	g_ui->enabled             = context_nodes->nodes_selected_id->length > 0;
-	if (ui_menu_button(tr("Frame Selected"), any_map_get(g_keymap, "node_frame_selected"), ICON_NONE)) {
-		sys_notify_on_next_frame(&ui_nodes_frame_selected, NULL);
-	}
-	g_ui->enabled = ui_frame_selection_has_member(context_nodes, ui_nodes_get_canvas(true));
-	if (ui_menu_button(tr("Remove from Frame"), "", ICON_NONE)) {
+	if (ui_frame_of(ui_nodes_get_canvas(true), selected->id) != NULL && ui_menu_button(tr("Remove from Frame"), "", ICON_NONE)) {
+		_ui_nodes_context_node_id = selected->id;
 		sys_notify_on_next_frame(&ui_nodes_remove_from_frame, NULL);
 	}
 	g_ui->enabled = !is_protected && !ui_node_is_frame(selected); // A frame has no output
@@ -953,8 +943,10 @@ void ui_nodes_update(void *_) {
 				ui_nodes_node_search_spawn = NULL;
 			}
 
-			if (keymap_shortcut(any_map_get(g_keymap, "node_frame_selected"), SHORTCUT_TYPE_STARTED)) {
-				ui_nodes_frame_selected(NULL);
+			if (keymap_shortcut(any_map_get(g_keymap, "node_add_frame"), SHORTCUT_TYPE_STARTED)) {
+				_ui_nodes_context_x = ui_nodes_get_node_x();
+				_ui_nodes_context_y = ui_nodes_get_node_y();
+				ui_nodes_add_frame(NULL);
 			}
 
 			if (keymap_shortcut(any_map_get(g_keymap, "view_reset"), SHORTCUT_TYPE_STARTED)) {

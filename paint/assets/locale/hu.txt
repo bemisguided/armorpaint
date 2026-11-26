@@ -20,6 +20,7 @@ Abszolút
 
 Hozzáadás
 Animáció hozzáadása
+
 Színminta hozzáadása
 
 
@@ -329,7 +330,6 @@ Tört
 Képkocka
 Képkockák száma
 Képkockasebesség
-
 Képkockasebesség
 Képkockák
 Frekvencia

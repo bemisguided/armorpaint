@@ -20,6 +20,7 @@ Mutlak
 
 Tambah
 Tambah Animasi
+
 Tambah Contoh Warna
 
 
@@ -329,7 +330,6 @@ Pecahan
 Bingkai
 Jumlah Bingkai
 Laju Bingkai
-
 Laju Bingkai
 Bingkai
 Frekuensi

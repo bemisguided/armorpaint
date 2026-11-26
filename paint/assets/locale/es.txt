@@ -20,6 +20,7 @@ Absoluto
 
 Añadir
 Añadir animación
+
 Añadir muestra
 
 
@@ -329,7 +330,6 @@ Fracción
 Fotograma
 Número de fotogramas
 Tasa de fotogramas
-
 Tasa de fotogramas
 Fotogramas
 Frecuencia

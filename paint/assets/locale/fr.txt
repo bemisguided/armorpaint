@@ -20,6 +20,7 @@ Absolu
 
 Ajouter
 Ajouter une animation
+
 Ajouter l'échantillon
 
 
@@ -329,7 +330,6 @@ Fraction
 Image
 Nombre d'images
 Fréquence d'images
-
 Fréquence d'images
 Images
 Fréquence

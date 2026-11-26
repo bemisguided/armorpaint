@@ -20,6 +20,7 @@ Absolutbetrag
 
 Hinzufügen
 Animation hinzufügen
+
 Farbfeld hinzufügen
 
 
@@ -329,7 +330,6 @@ Nachkommastellen
 Bild
 Bildanzahl
 Bildrate
-
 Bildrate
 Bilder
 Frequenz

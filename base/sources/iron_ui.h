@@ -664,14 +664,14 @@ void                  ui_frame_leave(ui_node_canvas_t *c, int id);
 void                  ui_frame_join(ui_node_canvas_t *c, ui_node_t *frame, const int *ids, int count);
 int                   ui_frame_drag_set(ui_node_canvas_t *c, const int *selected, int count, int *out, int max);
 ui_node_t            *ui_frame_drop_target(ui_node_canvas_t *c, float x, float y, const int *drag_ids, int count);
-void                  ui_frame_fit(ui_node_canvas_t *c, ui_frame_node_h_t node_h);
+void                  ui_frame_fit(ui_node_canvas_t *c, ui_frame_node_h_t node_h, ui_frame_node_h_t node_top); // node_top: what a node draws above its y (a preview), may be NULL
 ui_frame_hit_t        ui_frame_hit(float x, float y, float w, float h, float px, float py, float header_h, float edge);
 int                   ui_frame_draw_order(ui_node_canvas_t *c, int *order, int max);
 float                 ui_frame_label_size(float base, float zoom, float frame_w, float frame_h, float text_w);
-ui_node_t            *ui_frame_create_selected(ui_nodes_t *nodes, ui_node_canvas_t *canvas); // Frame Selected, NULL when nothing is selected
-ui_node_t            *ui_frame_create(ui_node_canvas_t *canvas, float x, float y);           // An empty frame, canvas position
-void                  ui_frame_remove_selected(ui_nodes_t *nodes, ui_node_canvas_t *canvas); // Remove from Frame
-bool                  ui_frame_selection_has_member(ui_nodes_t *nodes, ui_node_canvas_t *canvas);
+int                   ui_frame_free_nodes(ui_node_canvas_t *c, const int *ids, int count, int *out); // The ids that are in no frame yet
+ui_node_t            *ui_frame_create(ui_node_canvas_t *canvas, float x, float y);                    // An empty frame, canvas position
+ui_node_t            *ui_frame_add(ui_nodes_t *nodes, ui_node_canvas_t *canvas, float x, float y);    // Add Frame: around the selected nodes that are in no frame, else empty at x, y
+void                  ui_frame_pick_up(ui_nodes_t *nodes, ui_node_canvas_t *canvas, int id);          // Remove from Frame: the node leaves its frame and is dragged with the cursor
 ui_node_t            *ui_node_pick(ui_node_canvas_t *canvas, float px, float py); // Node or frame header/edge at a window point, NULL if none
 
 float                  UI_NODES_SCALE();

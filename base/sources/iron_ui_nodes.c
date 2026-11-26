@@ -1480,13 +1480,36 @@ bool ui_is_node_type_excluded(char *type) {
 
 // Node frames: drawing and interaction (the data and the pure rules are in iron_ui_frames.c)
 
-static int    ui_frame_edit_id    = -1; // Frame whose label is being edited
-static bool   ui_frame_edit_start = false;
-static int    ui_frame_click_id   = -1; // Last header press, for the double click
-static double ui_frame_click_time = 0.0;
+static int               ui_frame_edit_id    = -1; // Frame whose label is being edited
+static bool              ui_frame_edit_start = false;
+static int               ui_frame_click_id   = -1; // Last header press, for the double click
+static double            ui_frame_click_time = 0.0;
+static ui_node_canvas_t *ui_frame_canvas     = NULL; // Canvas of the last frame pass
+
+// A label edit or a double click does not carry over to another canvas (the frame ids repeat there)
+static void ui_frame_canvas_switched(ui_node_canvas_t *canvas) {
+	if (canvas != ui_frame_canvas) {
+		ui_frame_canvas     = canvas;
+		ui_frame_edit_id    = -1;
+		ui_frame_edit_start = false;
+		ui_frame_click_id   = -1;
+	}
+}
 
 static float ui_frame_node_h(ui_node_canvas_t *canvas, ui_node_t *node) {
 	return UI_NODE_H(canvas, node) / UI_NODES_SCALE();
+}
+
+// What a node draws above its top edge (its preview image), canvas units: the frame has to hold it
+static float ui_frame_node_top(ui_node_canvas_t *canvas, ui_node_t *node) {
+	if (!(node->flags & UI_NODE_FLAG_PREVIEW) || ui_nodes_preview_texture == NULL) {
+		return 0.0;
+	}
+	gpu_texture_t *image = ui_nodes_preview_texture(node);
+	if (image == NULL || image->width <= 0) {
+		return 0.0;
+	}
+	return (node->width != 0 ? node->width : 140.0) * (image->height / (float)image->width);
 }
 
 // A node on top of a frame takes the press before the frame behind it
@@ -1600,6 +1623,27 @@ static void ui_frame_draw(ui_node_t *f, ui_node_canvas_t *canvas, bool drop_targ
 	draw_set_color(0xffffffff);
 }
 
+// Whether a box (window pixels) touches a node that is not a frame
+static bool ui_frame_label_over_node(ui_node_canvas_t *canvas, float x, float y, float w, float h) {
+	for (int i = 0; i < canvas->nodes->length; ++i) {
+		ui_node_t *n = canvas->nodes->buffer[i];
+		if (!ui_node_is_frame(n) && UI_NODE_X(n) < x + w && UI_NODE_X(n) + UI_NODE_W(n) > x && UI_NODE_Y(n) < y + h && UI_NODE_Y(n) + UI_NODE_H(canvas, n) > y) {
+			return true;
+		}
+	}
+	return false;
+}
+
+// The label size of a frame in canvas units (the zoom aware stop), base is the label size at zoom 1
+static float ui_frame_label_canvas_size(ui_node_t *f, char *text, float *base) {
+	ui_t *current = ui_get_current();
+	float scale   = UI_NODES_SCALE();
+	*base         = current->ops->theme->FONT_SIZE;
+	int   bpx     = (int)(*base * scale + 0.5);
+	float tw      = draw_string_width(current->ops->font, bpx, text) / scale;
+	return ui_frame_label_size(*base, current_nodes->zoom, f->width, ui_frame_get_height(f), tw);
+}
+
 // Label and color swatch, above the nodes so an enlarged label stays readable where it overlaps them
 static void ui_frame_draw_header(ui_node_t *f, ui_node_canvas_t *canvas) {
 	ui_t *current = ui_get_current();
@@ -1621,6 +1665,11 @@ static void ui_frame_draw_header(ui_node_t *f, ui_node_canvas_t *canvas) {
 
 	float room = w - pad * 2.0 - ss - ui_p(10);
 	if (ui_frame_edit_id == f->id) {
+		// The field uses the size of the drawn label, not the size of a node text
+		float base;
+		float size = ui_frame_label_canvas_size(f, ui_tr(f->name), &base);
+		ui_set_scale(scale * size / base);
+		draw_set_font(current->ops->font, current->font_size);
 		float ui_x   = current->_x;
 		float ui_y   = current->_y;
 		float ui_w   = current->_w;
@@ -1645,6 +1694,8 @@ static void ui_frame_draw_header(ui_node_t *f, ui_node_canvas_t *canvas) {
 		if (current->text_selected_id != tid) {
 			ui_frame_edit_id = -1;
 		}
+		ui_set_scale(scale);
+		current->elements_baked = true;
 		draw_set_font(current->ops->font, current->font_size);
 		current->_x = ui_x;
 		current->_y = ui_y;
@@ -1654,10 +1705,8 @@ static void ui_frame_draw_header(ui_node_t *f, ui_node_canvas_t *canvas) {
 
 	// Label, the size follows the zoom in stops
 	char *text = ui_tr(f->name);
-	float base = current->ops->theme->FONT_SIZE;
-	int   bpx  = (int)(base * scale + 0.5);
-	float tw   = draw_string_width(current->ops->font, bpx, text) / scale;
-	float size = ui_frame_label_size(base, current_nodes->zoom, f->width, ui_frame_get_height(f), tw);
+	float base;
+	float size = ui_frame_label_canvas_size(f, text, &base);
 	int   px   = (int)(size * scale + 0.5);
 	if (px < 1) {
 		px = 1;
@@ -1684,9 +1733,11 @@ static void ui_frame_draw_header(ui_node_t *f, ui_node_canvas_t *canvas) {
 	}
 	float lw = draw_string_width(current->ops->font, px, label);
 	float ly = y + ui_p(UI_FRAME_LABEL_PAD) * 0.6;
-	if (size > base * 1.01) {
-		draw_set_color(0x70000000 | rgb); // Backing plate
-		ui_fill_round_rect(x + pad * 0.5, ly - ui_p(2), lw + pad, px * 1.35, ui_p(4));
+	// Backing plate for an enlarged label, only where it lies over a node (on the frame itself the label reads without it)
+	float plate_x = x + pad * 0.5, plate_y = ly - ui_p(2), plate_w = lw + pad, plate_h = px * 1.35;
+	if (size > base * 1.01 && ui_frame_label_over_node(canvas, plate_x, plate_y, plate_w, plate_h)) {
+		draw_set_color(0x70000000 | rgb);
+		ui_fill_round_rect(plate_x, plate_y, plate_w, plate_h, ui_p(4));
 	}
 	draw_set_color(current->ops->theme->TEXT_COL);
 	draw_string(label, x + pad, ly);
@@ -1834,12 +1885,19 @@ void ui_node_canvas(ui_nodes_t *nodes, ui_node_canvas_t *canvas) {
 			}
 		}
 	}
-	ui_frame_fit(canvas, ui_frame_node_h);
+	ui_frame_canvas_switched(canvas);
+	ui_frame_fit(canvas, ui_frame_node_h, ui_frame_node_top);
 	ui_node_t *frame_drop = NULL; // Frame under the dragged selection
 	if (current_nodes->nodes_drag && current_nodes->dragged && !dragging_link) {
 		float cx, cy;
 		ui_frame_to_canvas(current->input_x - wx, current->input_y - wy, &cx, &cy);
 		frame_drop = ui_frame_drop_target(canvas, cx, cy, current_nodes->nodes_selected_id->buffer, current_nodes->nodes_selected_id->length);
+	}
+	if (drop_check && frame_drop != NULL) {
+		// Drop the dragged selection on a frame to add it: the frame takes it in before it is drawn, so it fits the node at once
+		ui_frame_join(canvas, frame_drop, current_nodes->nodes_selected_id->buffer, current_nodes->nodes_selected_id->length);
+		current->changed = true;
+		ui_frame_fit(canvas, ui_frame_node_h, ui_frame_node_top);
 	}
 	int  frames      = ui_frame_draw_order(canvas, frame_order, UI_FRAME_MAX_MEMBERS);
 	bool frame_taken = false;
@@ -2146,12 +2204,7 @@ void ui_node_canvas(ui_nodes_t *nodes, ui_node_canvas_t *canvas) {
 		}
 	}
 
-	// Drop the dragged selection on a frame to add it
-	if (drop_check && frame_drop != NULL) {
-		ui_frame_join(canvas, frame_drop, current_nodes->nodes_selected_id->buffer, current_nodes->nodes_selected_id->length);
-		current->changed = true;
-	}
-	ui_frame_fit(canvas, ui_frame_node_h);
+	ui_frame_fit(canvas, ui_frame_node_h, ui_frame_node_top);
 
 	if (ui_nodes_on_canvas_released != NULL && current->input_enabled && (current->input_released || current->input_released_r) && !ui_nodes_socket_released) {
 		ui_nodes_on_canvas_released();
@@ -2765,37 +2818,23 @@ ui_node_t *ui_frame_create(ui_node_canvas_t *canvas, float x, float y) {
 	return f;
 }
 
-ui_node_t *ui_frame_create_selected(ui_nodes_t *nodes, ui_node_canvas_t *canvas) {
+ui_node_t *ui_frame_add(ui_nodes_t *nodes, ui_node_canvas_t *canvas, float x, float y) {
 	int ids[UI_FRAME_MAX_MEMBERS];
-	int count = 0;
-	for (int i = 0; i < nodes->nodes_selected_id->length && count < UI_FRAME_MAX_MEMBERS; ++i) {
-		if (ui_get_node(canvas->nodes, nodes->nodes_selected_id->buffer[i]) != NULL) {
-			ids[count++] = nodes->nodes_selected_id->buffer[i];
-		}
-	}
-	if (count == 0) {
-		return NULL;
-	}
-	ui_node_t *f = ui_frame_create(canvas, 0, 0);
+	int count    = ui_frame_free_nodes(canvas, nodes->nodes_selected_id->buffer,
+	                                   nodes->nodes_selected_id->length < UI_FRAME_MAX_MEMBERS ? nodes->nodes_selected_id->length : UI_FRAME_MAX_MEMBERS, ids);
+	ui_node_t *f = ui_frame_create(canvas, x, y); // With members the fit moves it around them
 	ui_frame_join(canvas, f, ids, count);
 	nodes->nodes_selected_id->length = 0;
 	i32_array_push(nodes->nodes_selected_id, f->id);
 	return f;
 }
 
-void ui_frame_remove_selected(ui_nodes_t *nodes, ui_node_canvas_t *canvas) {
-	for (int i = 0; i < nodes->nodes_selected_id->length; ++i) {
-		ui_frame_leave(canvas, nodes->nodes_selected_id->buffer[i]);
-	}
-}
-
-bool ui_frame_selection_has_member(ui_nodes_t *nodes, ui_node_canvas_t *canvas) {
-	for (int i = 0; i < nodes->nodes_selected_id->length; ++i) {
-		if (ui_frame_of(canvas, nodes->nodes_selected_id->buffer[i]) != NULL) {
-			return true;
-		}
-	}
-	return false;
+void ui_frame_pick_up(ui_nodes_t *nodes, ui_node_canvas_t *canvas, int id) {
+	ui_frame_leave(canvas, id);
+	nodes->nodes_selected_id->length = 0;
+	i32_array_push(nodes->nodes_selected_id, id);
+	nodes->nodes_drag = true; // As a new node: it follows the cursor until the next click puts it down
+	nodes->dragged    = true;
 }
 
 ////

@@ -20,6 +20,7 @@ Absolutní
 
 Přidat
 Přidat animaci
+
 Přidat vzorek
 
 
@@ -329,7 +330,6 @@ Zlomek
 Snímek
 Počet snímků
 Snímková frekvence
-
 Snímková frekvence
 Snímky
 Frekvence

@@ -20,6 +20,7 @@ Absolute
 Active stop
 Add
 Add Animation
+Add Frame
 Add Swatch
 Add color stop
 Add new swatch
@@ -329,7 +330,6 @@ Fraction
 Frame
 Frame Count
 Frame Rate
-Frame Selected
 Framerate
 Frames
 Frequency

@@ -270,6 +270,16 @@ void ui_frame_leave(ui_node_canvas_t *c, int id) {
 	}
 }
 
+int ui_frame_free_nodes(ui_node_canvas_t *c, const int *ids, int count, int *out) {
+	int n = 0;
+	for (int i = 0; i < count; ++i) {
+		if (ui_frame_find(c, ids[i]) != NULL && ui_frame_of(c, ids[i]) == NULL && !ui_frame_id_in(out, n, ids[i])) {
+			out[n++] = ids[i];
+		}
+	}
+	return n;
+}
+
 void ui_frame_join(ui_node_canvas_t *c, ui_node_t *frame, const int *ids, int count) {
 	for (int i = 0; i < count; ++i) {
 		int id = ids[i];
@@ -359,7 +369,7 @@ static bool ui_frame_differs(float a, float b) {
 	return !(fabsf(a - b) <= 0.01f); // nan differs
 }
 
-void ui_frame_fit(ui_node_canvas_t *c, ui_frame_node_h_t node_h) {
+void ui_frame_fit(ui_node_canvas_t *c, ui_frame_node_h_t node_h, ui_frame_node_h_t node_top) {
 	int frames = 0;
 	for (int i = 0; i < c->nodes->length; ++i) {
 		frames += ui_node_is_frame(c->nodes->buffer[i]) ? 1 : 0;
@@ -385,15 +395,16 @@ void ui_frame_fit(ui_node_canvas_t *c, ui_frame_node_h_t node_h) {
 				ids[valid++] = ids[j];
 				float mw     = ui_frame_node_w(m);
 				float mh     = ui_node_is_frame(m) ? ui_frame_get_height(m) : node_h(c, m);
+				float mtop   = m->y - (ui_node_is_frame(m) || node_top == NULL ? 0.0f : node_top(c, m));
 				if (valid == 1) {
 					minx = m->x;
-					miny = m->y;
+					miny = mtop;
 					maxx = m->x + mw;
 					maxy = m->y + mh;
 				}
 				else {
 					minx = fminf(minx, m->x);
-					miny = fminf(miny, m->y);
+					miny = fminf(miny, mtop);
 					maxx = fmaxf(maxx, m->x + mw);
 					maxy = fmaxf(maxy, m->y + mh);
 				}
