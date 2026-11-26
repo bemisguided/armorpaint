@@ -1026,6 +1026,17 @@ static void ui_frame_draw(ui_node_t *f, ui_node_canvas_t *canvas, bool drop_targ
 	draw_set_color(0xffffffff);
 }
 
+// Whether a box (window pixels) touches a node that is not a frame
+static bool ui_frame_label_over_node(ui_node_canvas_t *canvas, float x, float y, float w, float h) {
+	for (int i = 0; i < canvas->nodes->length; ++i) {
+		ui_node_t *n = canvas->nodes->buffer[i];
+		if (!ui_node_is_frame(n) && UI_NODE_X(n) < x + w && UI_NODE_X(n) + UI_NODE_W(n) > x && UI_NODE_Y(n) < y + h && UI_NODE_Y(n) + UI_NODE_H(canvas, n) > y) {
+			return true;
+		}
+	}
+	return false;
+}
+
 // The label size of a frame in canvas units (the zoom aware stop), base is the label size at zoom 1
 static float ui_frame_label_canvas_size(ui_node_t *f, char *text, float *base) {
 	ui_t *current = ui_get_current();
@@ -1125,9 +1136,11 @@ static void ui_frame_draw_header(ui_node_t *f, ui_node_canvas_t *canvas) {
 	}
 	float lw = draw_string_width(current->ops->font, px, label);
 	float ly = y + ui_p(UI_FRAME_LABEL_PAD) * 0.6;
-	if (size > base * 1.01) {
-		draw_set_color(0x70000000 | rgb); // Backing plate
-		ui_fill_round_rect(x + pad * 0.5, ly - ui_p(2), lw + pad, px * 1.35, ui_p(4));
+	// Backing plate for an enlarged label, only where it lies over a node (on the frame itself the label reads without it)
+	float plate_x = x + pad * 0.5, plate_y = ly - ui_p(2), plate_w = lw + pad, plate_h = px * 1.35;
+	if (size > base * 1.01 && ui_frame_label_over_node(canvas, plate_x, plate_y, plate_w, plate_h)) {
+		draw_set_color(0x70000000 | rgb);
+		ui_fill_round_rect(plate_x, plate_y, plate_w, plate_h, ui_p(4));
 	}
 	draw_set_color(current->ops->theme->TEXT_COL);
 	draw_string(label, x + pad, ly);
