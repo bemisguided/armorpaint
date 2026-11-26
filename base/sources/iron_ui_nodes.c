@@ -1003,6 +1003,16 @@ static void ui_frame_draw(ui_node_t *f, ui_node_canvas_t *canvas, bool drop_targ
 	draw_set_color(0xffffffff);
 }
 
+// The label size of a frame in canvas units (the zoom aware stop), base is the label size at zoom 1
+static float ui_frame_label_canvas_size(ui_node_t *f, char *text, float *base) {
+	ui_t *current = ui_get_current();
+	float scale   = UI_NODES_SCALE();
+	*base         = current->ops->theme->FONT_SIZE;
+	int   bpx     = (int)(*base * scale + 0.5);
+	float tw      = draw_string_width(current->ops->font, bpx, text) / scale;
+	return ui_frame_label_size(*base, current_nodes->zoom, f->width, ui_frame_get_height(f), tw);
+}
+
 // Label and color swatch, above the nodes so an enlarged label stays readable where it overlaps them
 static void ui_frame_draw_header(ui_node_t *f, ui_node_canvas_t *canvas) {
 	ui_t *current = ui_get_current();
@@ -1024,6 +1034,11 @@ static void ui_frame_draw_header(ui_node_t *f, ui_node_canvas_t *canvas) {
 
 	float room = w - pad * 2.0 - ss - ui_p(10);
 	if (ui_frame_edit_id == f->id) {
+		// The field uses the size of the drawn label, not the size of a node text
+		float base;
+		float size = ui_frame_label_canvas_size(f, ui_tr(f->name), &base);
+		ui_set_scale(scale * size / base);
+		draw_set_font(current->ops->font, current->font_size);
 		float ui_x   = current->_x;
 		float ui_y   = current->_y;
 		float ui_w   = current->_w;
@@ -1048,6 +1063,8 @@ static void ui_frame_draw_header(ui_node_t *f, ui_node_canvas_t *canvas) {
 		if (current->text_selected_id != tid) {
 			ui_frame_edit_id = -1;
 		}
+		ui_set_scale(scale);
+		current->elements_baked = true;
 		draw_set_font(current->ops->font, current->font_size);
 		current->_x = ui_x;
 		current->_y = ui_y;
@@ -1057,10 +1074,8 @@ static void ui_frame_draw_header(ui_node_t *f, ui_node_canvas_t *canvas) {
 
 	// Label, the size follows the zoom in stops
 	char *text = ui_tr(f->name);
-	float base = current->ops->theme->FONT_SIZE;
-	int   bpx  = (int)(base * scale + 0.5);
-	float tw   = draw_string_width(current->ops->font, bpx, text) / scale;
-	float size = ui_frame_label_size(base, current_nodes->zoom, f->width, ui_frame_get_height(f), tw);
+	float base;
+	float size = ui_frame_label_canvas_size(f, text, &base);
 	int   px   = (int)(size * scale + 0.5);
 	if (px < 1) {
 		px = 1;
