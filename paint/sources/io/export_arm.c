@@ -238,7 +238,7 @@ buffer_t *export_arm_encode_project(char *path) {
 	string_array_t *mesh_files    = export_arm_meshes_to_files(relative_to);
 
 	i32 bits_pos = base_bits;
-	i32 bpp      = bits_pos == TEXTURE_BITS_BITS8 ? 8 : bits_pos == TEXTURE_BITS_BITS16 ? 16 : 32;
+	i32 bpp      = bits_pos == TEXTURE_BITS_BITS8 ? 8 : 16;
 
 	layer_data_t_array_t *ld = any_array_create_from_raw((void *[]){}, 0);
 	export_arm_progress(0.1);
@@ -383,11 +383,7 @@ buffer_t *export_arm_encode_project(char *path) {
 
 	tab_timeline_export(g_project);
 
-#ifdef IRON_BGRA
-	g_project->is_bgra = true;
-#else
 	g_project->is_bgra = false;
-#endif
 
 	bool pack_assets = g_context->pack_assets_on_save;
 #ifdef IRON_WASM
@@ -553,11 +549,7 @@ void export_arm_material(slot_material_t *m, char *path) {
 		packed_assets = export_arm_get_packed_assets(path, texture_files);
 	}
 
-#ifdef IRON_BGRA
-	buffer_t *buf = lz4_encode(buffer_bgra64_swap(gpu_get_texture_pixels(m->image)));
-#else
 	buffer_t *buf = lz4_encode(gpu_get_texture_pixels(m->image));
-#endif
 	buffer_t_array_t *micons = any_array_create_from_raw(
 	    (void *[]){
 	        buf,
@@ -589,9 +581,6 @@ void export_arm_material(slot_material_t *m, char *path) {
 
 	if (g_context->write_icon_on_export) { // Separate icon files
 		buffer_t *buf = buffer_half_to_u8(gpu_get_texture_pixels(m->image));
-#ifdef IRON_BGRA
-		buf = buffer_bgra_swap(buf);
-#endif
 		iron_write_png(string("%s_icon.png", substring(path, 0, string_length(path) - 4)), buf, m->image->width, m->image->height, 0);
 		iron_write_jpg(string("%s_icon.jpg", substring(path, 0, string_length(path) - 4)), buf, m->image->width, m->image->height, 0, 50);
 	}
@@ -629,11 +618,7 @@ void export_arm_brush(slot_brush_t *b, char *path) {
 		packed_assets = export_arm_get_packed_assets(path, texture_files);
 	}
 
-#ifdef IRON_BGRA
-	buffer_t *buf = lz4_encode(buffer_bgra_swap(gpu_get_texture_pixels(b->image)));
-#else
 	buffer_t *buf = lz4_encode(gpu_get_texture_pixels(b->image));
-#endif
 	buffer_t_array_t *bicons = any_array_create_from_raw(
 	    (void *[]){
 	        buf,
@@ -649,9 +634,6 @@ void export_arm_brush(slot_brush_t *b, char *path) {
 
 	if (g_context->write_icon_on_export) { // Separate icon files
 		buffer_t *buf = gpu_get_texture_pixels(b->image);
-#ifdef IRON_BGRA
-		buf = buffer_bgra_swap(buf);
-#endif
 		iron_write_png(string("%s_icon.png", substring(path, 0, string_length(path) - 4)), buf, b->image->width, b->image->height, 0);
 		iron_write_jpg(string("%s_icon.jpg", substring(path, 0, string_length(path) - 4)), buf, b->image->width, b->image->height, 0, 50);
 	}

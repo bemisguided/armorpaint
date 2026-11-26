@@ -112,6 +112,7 @@ void util_uv_cache_dilate_map() {
 	gpu_end();
 	util_uv_dilatemap_cached = true;
 	util_uv_dilate_bytes     = NULL;
+	util_uv_dilatemap_version++;
 }
 
 // Draws mesh triangles at their uvs as 1.0 into an R8 target

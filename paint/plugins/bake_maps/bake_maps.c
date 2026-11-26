@@ -2064,10 +2064,6 @@ static void bake_maps_gpu_done(void *_) {
 		}
 	}
 	memcpy(bake_maps_gpu_out, pixels->buffer, bytes);
-#ifdef IRON_BGRA
-	buffer_t out = {.buffer = bake_maps_gpu_out, .length = (u32)bytes};
-	buffer_bgra_swap(&out); // Render targets read back in the native order
-#endif
 	bake_maps_gpu_last = true;
 }
 
@@ -2382,13 +2378,7 @@ static i32 bake_maps_btp(i32 type) {
 // The texture gets the bake properties of the finished map: bake type, encoding, object (paint_id) and tile, -1 = any.
 static void bake_maps_write_file(char *file, u8 *out, i32 w, i32 h, i32 object_paint_id, i32 tile) {
 	buffer_t pixels = {.buffer = out, .length = w * h * 4};
-#ifdef IRON_BGRA
-	buffer_bgra_swap(&pixels); // The png writer takes the native order, the bake is RGBA
-#endif
 	iron_write_png(file, &pixels, w, h, 0);
-#ifdef IRON_BGRA
-	buffer_bgra_swap(&pixels);
-#endif
 
 	asset_t_array_t *assets = g_project->_->assets;
 	bool             found  = false;
@@ -3309,9 +3299,6 @@ static minic_val_t bake_maps_inpaint_apply(minic_val_t *a, int n) {
 		inpaint_normalize(&j, todo, count);
 	}
 	buffer_t b = {.buffer = px, .length = w * h * 4};
-#ifdef IRON_BGRA
-	buffer_bgra_swap(&b); // The png writer takes the native order, the decoded png is RGBA
-#endif
 	iron_write_png(path, &b, w, h, 0);
 	if (bake_rays_texmap_pair < 0) {
 		bake_maps_write_tiles(path, px, w, h); // Tile files follow an edited atlas, a per object result is one tile

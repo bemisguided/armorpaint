@@ -121,20 +121,20 @@ void script_project_set_resolution(i32 res) {
 	layers_on_resized();
 }
 
-// Export dialog Color combo: 0 8bit, 1 16bit, 2 32bit. Rebuilds the layers next frame like the combo
+// Export dialog Color combo: 0 8bit, 1 16bit. Rebuilds the layers next frame like the combo
 static void script_export_set_bits_next(void *data) {
 	layers_set_bits();
 }
 
 void script_export_set_bits(i32 bits) {
-	if (bits < TEXTURE_BITS_BITS8 || bits > TEXTURE_BITS_BITS32) {
+	if (bits < TEXTURE_BITS_BITS8 || bits > TEXTURE_BITS_BITS16) {
 		return;
 	}
 	base_bits = bits;
 	sys_notify_on_next_frame(script_export_set_bits_next, NULL);
 }
 
-// Export dialog Format combo: 0 png, 1 jpg (8bit only; 16bit and 32bit always write exr)
+// Export dialog Format combo: 0 png, 1 jpg (8bit only; 16bit always writes exr)
 void script_export_set_format(i32 format) {
 	if (format < TEXTURE_LDR_FORMAT_PNG || format > TEXTURE_LDR_FORMAT_JPG) {
 		return;
