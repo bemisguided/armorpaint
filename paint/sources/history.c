@@ -377,7 +377,7 @@ void history_swap_object_transform(history_step_t *step) {
 	physics_body_t *pb = o->_->body;
 	if (pb != NULL) {
 		physics_body_sync_transform(pb);
-		sim_world_invalidate();
+		sim_world_collider_moved();
 	}
 	util_mesh_transform_changed();
 	context_select_paint_object(g_project->_->paint_objects->buffer[step->object]);
@@ -960,7 +960,7 @@ void history_reset() {
 	history_steps = any_array_create_from_raw(
 	    (void *[]){
 	        ALLOC_INIT(history_step_t,
-	                   {.name = tr("New"), .layer = 0, .layer_type = LAYER_SLOT_TYPE_LAYER, .layer_parent = -1, .object = 0, .material = 0, .brush = 0}),
+			           {.name = tr("New"), .layer = 0, .layer_type = LAYER_SLOT_TYPE_LAYER, .layer_parent = -1, .object = 0, .material = 0, .brush = 0}),
 	    },
 	    1);
 	history_undos  = 0;

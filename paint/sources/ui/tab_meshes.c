@@ -683,6 +683,13 @@ static bool tab_meshes_float_input(f32 *value, void *id, char *label) {
 	return true;
 }
 
+static void tab_meshes_collider_moved(mesh_object_t *o) {
+	if (o->base->_->body != NULL) {
+		physics_body_sync_transform(o->base->_->body);
+		sim_world_collider_moved();
+	}
+}
+
 void tab_meshes_draw_transform_loc(mesh_object_t *o, char *ns) {
 	transform_t *t        = o->base->transform;
 	vec4_t       prev_loc = t->loc;
@@ -697,6 +704,7 @@ void tab_meshes_draw_transform_loc(mesh_object_t *o, char *ns) {
 		history_object_transform(o, prev_loc, t->rot, t->scale);
 		transform_build_matrix(t);
 		transform_compute_dim(t);
+		tab_meshes_collider_moved(o);
 		util_mesh_transform_changed();
 		g_context->ddirty = 2;
 	}
@@ -719,6 +727,7 @@ void tab_meshes_draw_transform_rot(mesh_object_t *o, char *ns) {
 		t->rot = quat_from_euler(rot.x, rot.y, rot.z);
 		transform_build_matrix(t);
 		transform_compute_dim(t);
+		tab_meshes_collider_moved(o);
 		util_mesh_transform_changed();
 		g_context->ddirty = 2;
 	}
@@ -738,6 +747,7 @@ void tab_meshes_draw_transform_scale(mesh_object_t *o, char *ns) {
 		history_object_transform(o, t->loc, t->rot, prev_scale);
 		transform_build_matrix(t);
 		transform_compute_dim(t);
+		tab_meshes_collider_moved(o);
 		util_mesh_transform_changed();
 		g_context->ddirty = 2;
 	}

@@ -181,7 +181,7 @@ void tab_materials_draw_slots_menu() {
 
 	if (ui_menu_button(tr("To Fill Layer"), "", ICON_SPHERE)) {
 		context_select_material(i);
-		layers_create_fill_layers(asset_selection_get(ASSET_TRAY_MATERIALS), UV_TYPE_UVMAP, mat4_nan(), -1);
+		layers_create_fill_layers(asset_selection_get(ASSET_TRAY_MATERIALS), UV_TYPE_UVMAP, mat4_nan(), -1, 0);
 	}
 
 	if (ui_menu_button(tr("Export"), "", ICON_EXPORT)) {

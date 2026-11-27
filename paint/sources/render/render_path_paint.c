@@ -414,8 +414,8 @@ void render_path_paint_commands_paint(bool dilation) {
 		render_path_set_target("texpaint_colorid", NULL, NULL, GPU_CLEAR_COLOR, 0xff000000, 0.0);
 		render_path_bind_target("gbuffer2", "gbuffer2");
 		render_path_paint_draw_fullscreen_triangle();
-		render_target_t *rt = any_map_get(render_path_render_targets, "texpaint_colorid");
-		buffer_t        *a  = gpu_get_texture_pixels(rt->_image);
+		render_target_t *rt             = any_map_get(render_path_render_targets, "texpaint_colorid");
+		buffer_t        *a              = gpu_get_texture_pixels(rt->_image);
 		g_context->colorid_picked_color = color_set_rb(g_context->colorid_picked_color, buffer_get_u8(a, 0));
 		g_context->colorid_picked_color = color_set_gb(g_context->colorid_picked_color, buffer_get_u8(a, 1));
 		g_context->colorid_picked_color = color_set_bb(g_context->colorid_picked_color, buffer_get_u8(a, 2));
@@ -506,7 +506,7 @@ void render_path_paint_commands_paint(bool dilation) {
 				g_context->color_picker_callback(g_context->picked_color);
 			}
 
-// Picked surface values
+			// Picked surface values
 			g_context->picked_color->base    = color_set_rb(g_context->picked_color->base, buffer_get_u8(a, 0));
 			g_context->picked_color->base    = color_set_gb(g_context->picked_color->base, buffer_get_u8(a, 1));
 			g_context->picked_color->base    = color_set_bb(g_context->picked_color->base, buffer_get_u8(a, 2));
@@ -1372,16 +1372,16 @@ void render_path_paint_set_plane_mesh() {
 		    54);
 		mesh_data_t *raw =
 		    ALLOC_INIT(mesh_data_t, {.name          = ".PlaneTiled",
-		                             .vertex_arrays = any_array_create_from_raw(
+			                         .vertex_arrays = any_array_create_from_raw(
 		                                 (void *[]){
 		                                     ALLOC_INIT(vertex_array_t, {.attrib = "pos", .values = i16_array_create_from_array(posa), .data = "short4norm"}),
 		                                     ALLOC_INIT(vertex_array_t, {.attrib = "nor", .values = i16_array_create_from_array(nora), .data = "short2norm"}),
 		                                     ALLOC_INIT(vertex_array_t, {.attrib = "tex", .values = i16_array_create_from_array(texa), .data = "short2norm"}),
 		                                 },
 		                                 3),
-		                             .index_array = u32_array_create_from_array(inda),
-		                             .scale_pos   = 1.5,
-		                             .scale_tex   = 1.0});
+			                         .index_array = u32_array_create_from_array(inda),
+			                         .scale_pos   = 1.5,
+			                         .scale_tex   = 1.0});
 		mesh_data_t   *md       = mesh_data_create(raw);
 		mesh_object_t *mo       = scene_get_child(".Plane")->ext;
 		shader_data_t *material = mo->material;
@@ -1519,9 +1519,8 @@ static gpu_texture_t *render_path_paint_dilate_get_temp(gpu_texture_t *t) {
 	if (temp->format == t->format) {
 		return temp;
 	}
-	if (render_path_paint_dilate_temp != NULL &&
-	    (render_path_paint_dilate_temp->width != t->width || render_path_paint_dilate_temp->height != t->height ||
-	     render_path_paint_dilate_temp->format != t->format)) {
+	if (render_path_paint_dilate_temp != NULL && (render_path_paint_dilate_temp->width != t->width || render_path_paint_dilate_temp->height != t->height ||
+	                                              render_path_paint_dilate_temp->format != t->format)) {
 		gpu_delete_texture(render_path_paint_dilate_temp);
 		render_path_paint_dilate_temp = NULL;
 	}

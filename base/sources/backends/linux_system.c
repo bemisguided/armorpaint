@@ -5,6 +5,7 @@
 #include <ctype.h>
 #include <errno.h>
 #include <iron_gpu.h>
+#include <iron_string.h>
 #include <iron_system.h>
 #include <limits.h>
 #include <pwd.h>
@@ -1112,9 +1113,8 @@ bool iron_keyboard_active() {
 
 void iron_load_url(const char *url) {
 	if (strncmp(url, "http://", sizeof("http://") - 1) == 0 || strncmp(url, "https://", sizeof("https://") - 1) == 0) {
-		char openUrlCommand[256];
-		snprintf(openUrlCommand, 256, "xdg-open %s", url);
-		system(openUrlCommand);
+		char *quoted = string_replace_all_tmp((char *)url, "'", "'\\''");
+		system(string_tmp("xdg-open '%s'", quoted));
 	}
 }
 
@@ -1501,11 +1501,11 @@ extern void (*iron_save_and_quit)(bool);
 #include "../libs/nfd_gtk.h"
 static bool iron_gtk_setlocale_disabled = false;
 void        iron_gtk_disable_setlocale() {
-    if (iron_gtk_setlocale_disabled || !iron_gtk_load()) {
-        return;
-    }
-    gtk_disable_setlocale();
-    iron_gtk_setlocale_disabled = true;
+	if (iron_gtk_setlocale_disabled || !iron_gtk_load()) {
+		return;
+	}
+	gtk_disable_setlocale();
+	iron_gtk_setlocale_disabled = true;
 }
 #endif
 
