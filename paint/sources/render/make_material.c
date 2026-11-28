@@ -182,8 +182,10 @@ static bool make_material_node_has_output_link(ui_node_canvas_t *canvas, ui_node
 
 void make_material_bake_node_preview(ui_node_t *node, ui_node_canvas_t *group, ui_node_t_array_t *parents) {
 	ui_node_canvas_t *canvas = group != NULL ? group : g_context->material->canvas;
-	if (!make_material_node_has_output_link(canvas, node) && (!string_equals(node->type, "TEX_SKY") || g_context->node_previews == NULL ||
-	                                                          any_map_get(g_context->node_previews, make_material_node_preview_id(node, parents)) == NULL)) {
+	// Fork: an image node bakes even without an output link, its result is shown in the node and read on its own (make_image_node)
+	if (make_image_node_type_of(node->type) == NULL && !make_material_node_has_output_link(canvas, node) &&
+	    (!string_equals(node->type, "TEX_SKY") || g_context->node_previews == NULL ||
+	     any_map_get(g_context->node_previews, make_material_node_preview_id(node, parents)) == NULL)) {
 		return;
 	}
 	if (string_equals(node->type, "BLUR")) {
