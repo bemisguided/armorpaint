@@ -278,44 +278,50 @@ void script_history_redo() {
 	history_redo();
 }
 
-static gpu_texture_t *script_flood_fill_result(ui_node_t *node) {
-	return node != NULL ? make_image_node_result(node) : NULL;
+// Every native below that reads an image node first makes it ready (make_image_node_test_ready): a read is a request, like the node
+// preview of the app, so a node without an output link bakes for the script (at once) and from then on. The bake rule itself is read
+// without requesting by script_image_node_rule_state.
+static bool script_image_node_ready(ui_node_t *node) {
+	return node != NULL && make_image_node_test_ready(node);
 }
 
-// Off: an unlinked image node bakes only when shown or read, like the plain build (make_image_node_wanted); on (default): every image node bakes
-void script_image_node_bake_unlinked(bool on) {
-	extern bool make_image_node_test_bake_unlinked;
-	make_image_node_test_bake_unlinked = on;
+static gpu_texture_t *script_flood_fill_result(ui_node_t *node) {
+	return script_image_node_ready(node) ? make_image_node_result(node) : NULL;
+}
+
+// -1 no state, else skipped + 2 * requested + 4 * captured (make_image_node_test_rule_state), without requesting the node
+i32 script_image_node_rule_state(ui_node_t *node) {
+	return node != NULL ? make_image_node_test_rule_state(node) : -1;
 }
 
 bool script_flood_fill_pending(ui_node_t *node) {
-	return node != NULL && make_image_node_is_pending(node);
+	return script_image_node_ready(node) && make_image_node_is_pending(node);
 }
 
 i32 script_flood_fill_islands(ui_node_t *node) {
-	return node != NULL ? make_image_node_result_count(node) : -1;
+	return script_image_node_ready(node) ? make_image_node_result_count(node) : -1;
 }
 
 // Float number index of the node's summary (the Levels histogram: 0..255 bins, 256 min, 257 max, 258 mean, 259 low, 260 high percentile), -1 when there is none
 f32 script_image_node_summary(ui_node_t *node, i32 index) {
-	f32 *summary = node != NULL ? make_image_node_summary(node) : NULL;
+	f32 *summary = script_image_node_ready(node) ? make_image_node_summary(node) : NULL;
 	return summary != NULL && index >= 0 ? summary[index] : -1.0;
 }
 
 // Capture of a pass-through node (Tile UV): 0 renders of its capture so far, 1 width of its capture target (0: none), 2 the input is a baked
 // result bound directly (0/1), 3 captures that found the shader text unchanged (make_image_node_pass_through_info); -1 for an unknown node
 f32 script_image_node_capture_info(ui_node_t *node, i32 which) {
-	return node != NULL ? (f32)make_image_node_pass_through_info(node, which) : -1.0;
+	return script_image_node_ready(node) ? (f32)make_image_node_pass_through_info(node, which) : -1.0;
 }
 
 // Numbers of the node's last capture and bake (make_image_node_stat): 0 capture bytes, 1 readback bytes, 2 renders, 3 capture ms, 4 process ms
 f32 script_image_node_stat(ui_node_t *node, i32 which) {
-	return node != NULL ? (f32)make_image_node_stat(node, which) : -1.0;
+	return script_image_node_ready(node) ? (f32)make_image_node_stat(node, which) : -1.0;
 }
 
 // Numbers of a node with a result by reference (make_image_node_gpu_stat): 0 renders since the start, 1 ms of its last render
 f32 script_image_node_gpu_stat(ui_node_t *node, i32 which) {
-	return node != NULL ? (f32)make_image_node_gpu_stat(node, which) : -1.0;
+	return script_image_node_ready(node) ? (f32)make_image_node_gpu_stat(node, which) : -1.0;
 }
 
 // The GPU pass helper (make_image_node_test_gpu_pass): the value at pixel (x, y), channel, of a ping-pong result (which 0 and 2) or of the second

@@ -799,7 +799,7 @@ i32_array_t           *script_layer_objects(slot_layer_t *l);
 bool                   script_layer_all_tiles(slot_layer_t *l);
 i32_array_t           *script_layer_tiles(slot_layer_t *l);
 bool                   script_flood_fill_pending(ui_node_t *node);
-void                   script_image_node_bake_unlinked(bool on);
+i32                    script_image_node_rule_state(ui_node_t *node);
 i32                    script_flood_fill_islands(ui_node_t *node);
 f32                    script_image_node_summary(ui_node_t *node, i32 index);
 f32                    script_image_node_stat(ui_node_t *node, i32 which);
@@ -1194,6 +1194,8 @@ void                      make_image_node_regenerate();
 i32                       make_image_node_capture_count();
 void                     *make_image_node_summary(ui_node_t *node);
 #ifdef ARMORPAINT_TEST_NATIVES
+bool                      make_image_node_test_ready(ui_node_t *node);
+i32                       make_image_node_test_rule_state(ui_node_t *node);
 bool                      make_image_node_is_pending(ui_node_t *node);
 gpu_texture_t            *make_image_node_result(ui_node_t *node);
 i32                       make_image_node_result_count(ui_node_t *node);
