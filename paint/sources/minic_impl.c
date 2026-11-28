@@ -411,6 +411,8 @@ i32 script_sound_remove(char *s) {
 		slot_sound_t *sound = g_project->_->sounds->buffer[i];
 		if (string_equals(sound->name, s)) {
 			data_delete_sound(sound->file);
+			meta_free(sound->meta);
+			sound->meta = NULL;
 			array_splice(g_project->_->sounds, i, 1);
 			return 1;
 		}

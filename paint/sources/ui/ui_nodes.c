@@ -762,12 +762,23 @@ void ui_nodes_draw_menubar() {
 			}
 		}
 		if (commit && ui_nodes_group_stack->length == 0) {
+			// The field wrote c->name on every keystroke, put the old name back and rename through the same path as the Details dialog (unique name, undo)
 			char *name = c->name;
-			if (string_equals(name, "")) {
-				name = ui_nodes_canvas_name_prev;
+			c->name    = ui_nodes_canvas_name_prev;
+			i32 index  = -1;
+			for (i32 i = 0; ui_nodes_canvas_type == CANVAS_TYPE_MATERIAL && i < g_project->_->materials->length; ++i) {
+				if (g_project->_->materials->buffer[i]->canvas == c) {
+					index = i;
+				}
 			}
-			name    = ui_nodes_canvas_type == CANVAS_TYPE_MATERIAL ? slot_material_unique_name(c, name) : slot_brush_unique_name(c, name);
-			c->name = string_copy(name);
+			for (i32 i = 0; ui_nodes_canvas_type == CANVAS_TYPE_BRUSH && i < g_project->_->brushes->length; ++i) {
+				if (g_project->_->brushes->buffer[i]->canvas == c) {
+					index = i;
+				}
+			}
+			if (asset_rename(ui_nodes_canvas_type == CANVAS_TYPE_MATERIAL ? MC_MATERIAL : MC_BRUSH, index, name)) {
+				base_redraw_ui();
+			}
 		}
 	}
 

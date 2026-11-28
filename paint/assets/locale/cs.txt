@@ -18,6 +18,7 @@ Přidat animaci
 Přidat vzorek
 Přidat nový vzorek
 Přidat vybranou barvu do vzorků
+
 Vše
 Veškeré zpracování probíhá lokálně na zařízení
 Povolit převrácenou kameru
@@ -187,6 +188,8 @@ Cíl
 Detail
 Drsnost detailu
 Měřítko detailu
+
+
 Diagonála
 Rozdíl
 Rozšířit poloměr
@@ -220,6 +223,7 @@ Duplikovat vrstvu
 Duplikovat materiál
 Duplikovat vzorek
 Upravit
+
 Upravit obrázek
 Upravit uzly
 Upravit skript
@@ -592,6 +596,7 @@ Znovu importovat síť
 Znovu importovat textury
 Relativní posun
 Odstranit
+
 Přejmenovat vrstvu
 Renderovací engine
 Přeorientováno
@@ -717,6 +722,8 @@ Supersampling
 Vzorky
 Vzorky...
 Symetrie
+
+
 Tangenta
 Cíl
 Šablona
@@ -859,4 +866,5 @@ trojúhelníky
 typ
 bez názvu
 x
+
 {shortcut} a pohyb myší

@@ -18,6 +18,7 @@ Animáció hozzáadása
 Színminta hozzáadása
 Új színminta hozzáadása
 Kiválasztott szín hozzáadása a mintákhoz
+
 Összes
 Minden feldolgozás helyben történik
 Fejjel lefelé álló kamera engedélyezése
@@ -187,6 +188,8 @@ Cél
 Részletesség
 Részletesség érdessége
 Részletesség méretezése
+
+
 Átlós
 Különbség
 Tágítás sugara
@@ -220,6 +223,7 @@ Réteg duplikálása
 Anyag duplikálása
 Színminta duplikálása
 Szerkesztés
+
 Kép szerkesztése
 Csomópontok szerkesztése
 Szkript szerkesztése
@@ -592,6 +596,7 @@ Háló újraimportálása
 Textúrák újraimportálása
 Relatív eltolás
 Eltávolítás
+
 Réteg átnevezése
 Renderelő
 Áttájolt
@@ -717,6 +722,8 @@ Szuperminta (Super Sample)
 Színminták
 Színminták...
 Szimmetria
+
+
 Tangens
 Cél
 Sablon
@@ -859,4 +866,5 @@ Háromszögek
 típus
 Névtelen
 x
+
 {shortcut} és egér mozgatása

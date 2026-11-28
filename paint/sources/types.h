@@ -6,6 +6,17 @@
 #include "minic.h"
 #include "minic_tcc.h"
 
+// Metadata of an item, see util/util_meta.c. Saved as the entries of project_t.metas by io/project_format.c, decoded by field
+// position: keep the order. tags are user strings. Keys are parallel key / value arrays of i32 for app data (no key is defined yet, unknown keys are kept).
+// NULL arrays mean empty, a NULL meta_t pointer on an item means no metadata.
+typedef struct meta {
+	i32             category; // meta_category_t, only set on the entries of project_t.metas
+	i32             index;    // Position of the item in its own list, only set on the entries of project_t.metas
+	string_array_t *tags;     // User tags
+	i32_array_t    *i32_keys;
+	i32_array_t    *i32_values;
+} meta_t;
+
 typedef struct slot_brush {
 	struct ui_nodes       *nodes;
 	struct ui_node_canvas *canvas;
@@ -14,6 +25,7 @@ typedef struct slot_brush {
 	struct gpu_texture    *image_wave; // Stroke preview, generated at runtime
 	bool                   preview_ready;
 	i32                    id;
+	struct meta           *meta; // NULL = empty
 } slot_brush_t;
 
 typedef struct mesh_nodes {
@@ -139,6 +151,7 @@ typedef struct slot_font {
 	struct draw_font   *font;
 	char               *name;
 	char               *file;
+	struct meta        *meta; // NULL = empty
 } slot_font_t;
 
 typedef struct slot_sound {
@@ -147,6 +160,7 @@ typedef struct slot_sound {
 	sound_t            *sound;
 	char               *name;
 	char               *file;
+	struct meta        *meta; // NULL = empty
 } slot_sound_t;
 
 typedef struct config {
@@ -251,6 +265,7 @@ typedef struct slot_material {
 	bool                   paint_height;
 	bool                   paint_emis;
 	bool                   paint_subs;
+	struct meta           *meta; // NULL = empty
 } slot_material_t;
 
 typedef struct tab_draw {
@@ -640,8 +655,14 @@ typedef struct history_step {
 	i32_array_t                 *merge_parents;
 	i32                          merge_start;
 	i32                          merge_length;
-	i32                          undo_slots; // Undo layers written for this step
-	bool                         with_prev;  // Undone and redone together with the previous step
+	i32                          undo_slots;      // Undo layers written for this step
+	bool                         with_prev;       // Undone and redone together with the previous step
+	i32                          asset_category;  // Rename or Edit Details: meta_category_t of the item, found again by history_asset_index
+	i32                          asset_index;     // Index of the item in its category list when the step was made
+	void                        *asset_ref;       // The item (asset_t, slot_font_t, slot_sound_t, slot_material_t, slot_brush_t) when the step was made
+	char                        *asset_item_name; // Name the item has whenever the step is undone or redone
+	char                        *asset_name;      // Rename of a material or brush: the name on the other side of the step
+	meta_t *meta; // Edit of tags or keys: the metadata on the other side of the step. Material or brush slot removed by a step: its metadata
 } history_step_t;
 
 typedef struct logic_node {
@@ -744,6 +765,7 @@ typedef struct project {
 	struct i32_array                            *mesh_nodes_objects; // Object index for each mesh_nodes canvas
 	struct f32_array_t_array                    *mesh_paths;         // Path and curve tool points
 	struct ui_node_canvas_t_array               *mesh_groups;
+	struct meta_t_array                         *metas; // Item metadata, sparse entries, see io/project_format.c
 	project_runtime_t                           *_;
 } project_t;
 
@@ -752,6 +774,7 @@ typedef struct asset {
 	char          *name;
 	char          *file;
 	gpu_texture_t *image;
+	struct meta   *meta; // NULL = empty
 } asset_t;
 
 typedef struct packed_asset {
@@ -1099,6 +1122,12 @@ typedef struct material_data2_t_array {
 	int                length;
 	int                capacity;
 } material_data2_t_array_t;
+
+typedef struct meta_t_array {
+	meta_t **buffer;
+	int      length;
+	int      capacity;
+} meta_t_array_t;
 
 typedef struct ui_node_t_array {
 	ui_node_t **buffer;

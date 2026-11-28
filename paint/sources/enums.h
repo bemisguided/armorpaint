@@ -607,4 +607,17 @@ typedef enum {
 	HISTORY_ACTION_REPLACE_SWATCHES,
 	HISTORY_ACTION_EDIT_SWATCH,
 	HISTORY_ACTION_OBJECT_TRANSFORM,
+	HISTORY_ACTION_RENAME_ASSET,
+	HISTORY_ACTION_EDIT_META,
 } history_action_t;
+
+// Kinds of items that carry metadata (meta_t.category), saved in project files: explicit numbers, never renumber or reuse.
+// The categories follow the project arrays (assets, fonts, sounds, materials, brushes), see util_meta.c
+typedef enum {
+	MC_TEXTURE  = 0,
+	MC_FONT     = 1,
+	MC_SOUND    = 2,
+	MC_MATERIAL = 3,
+	MC_BRUSH    = 4,
+	MC_COUNT    = 5,
+} meta_category_t;

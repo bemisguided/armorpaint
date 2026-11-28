@@ -18,6 +18,7 @@ Adicionar Animação
 Adicionar Amostra
 Adicionar nova amostra
 Adicionar cor selecionada às amostras
+
 Tudo
 Todo o processamento é feito localmente no dispositivo
 Permitir Câmera Invertida
@@ -187,6 +188,8 @@ Destino
 Detalhe
 Rugosidade do Detalhe
 Escala do Detalhe
+
+
 Diagonal
 Diferença
 Dilatar Raio
@@ -220,6 +223,7 @@ Duplicar Camada
 Duplicar Material
 Duplicar Amostra
 Editar
+
 Editar Imagem
 Editar Nós
 Editar Script
@@ -592,6 +596,7 @@ Reimportar Malha
 Reimportar Texturas
 Deslocamento Relativo
 Remover
+
 Renomear Camada
 Renderizador
 Reorientado
@@ -717,6 +722,8 @@ Super Amostragem
 Amostras
 Amostras...
 Simetria
+
+
 Tangente
 Destino
 Modelo
@@ -859,4 +866,5 @@ triângulos
 tipo
 sem título
 x
+
 {shortcut} e mover mouse

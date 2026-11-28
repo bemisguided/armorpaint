@@ -151,6 +151,8 @@ void tab_textures_delete_texture(asset_t *asset) {
 	}
 
 	data_delete_texture(asset->file);
+	meta_free(asset->meta);
+	asset->meta = NULL;
 	array_splice(g_project->_->assets, index, 1);
 	sys_notify_on_next_frame(&tab_textures_delete_texture_on_next_frame, NULL);
 
@@ -209,6 +211,9 @@ void tab_textures_draw_context_menu() {
 			ui_header_handle->redraws = 2;
 			g_context->ddirty         = 2;
 		}
+	}
+	if (ui_menu_button(tr("Details..."), "", ICON_EDIT)) {
+		ui_asset_details_show(MC_TEXTURE, _tab_textures_draw_i);
 	}
 	if (ui_menu_button(tr("Delete"), "delete", ICON_DELETE)) {
 		tab_textures_delete_selected();
@@ -368,24 +373,7 @@ void tab_textures_draw(i32 *htab) {
 
 		ui_begin_sticky();
 
-		f32_array_t *row = string_equals(tab_textures_search, "") ? f32_array_create_from_raw(
-		                                                                (f32[]){
-		                                                                    -100,
-		                                                                    -100,
-		                                                                    -100,
-		                                                                    -200,
-		                                                                },
-		                                                                4)
-		                                                          : f32_array_create_from_raw(
-		                                                                (f32[]){
-		                                                                    -100,
-		                                                                    -100,
-		                                                                    -100,
-		                                                                    -200,
-		                                                                    -40,
-		                                                                },
-		                                                                5);
-		ui_row(row);
+		ui_row(ui_asset_tray_row(MC_TEXTURE, 3, -100, -200, !string_equals(tab_textures_search, "")));
 
 		if (ui_icon_button(tr("Import"), ICON_IMPORT, UI_ALIGN_CENTER)) {
 			ui_files_show(string_array_join(path_texture_formats(), ","), false, true, &tab_textures_draw_import);
@@ -407,6 +395,7 @@ void tab_textures_draw(i32 *htab) {
 		if (g_ui->is_ctrl_down && g_ui->is_key_pressed && g_ui->key_code == KEY_CODE_F) {
 			ui_start_text_edit(&tab_textures_search, UI_ALIGN_LEFT);
 		}
+		ui_asset_tags_filter(MC_TEXTURE);
 		if (!string_equals(tab_textures_search, "") && (ui_button(tr("X"), UI_ALIGN_CENTER, "") || g_ui->is_escape_down)) {
 			tab_textures_search = "";
 		}
@@ -425,7 +414,7 @@ void tab_textures_draw(i32 *htab) {
 			}
 
 			// Indices of the assets passing the search filter
-			i32_array_t *filtered = asset_tray_filter(ASSET_TRAY_TEXTURES, search);
+			i32_array_t *filtered = asset_tray_filter(ASSET_TRAY_TEXTURES, search, true);
 			asset_tray_begin(ASSET_TRAY_TEXTURES, search, filtered);
 
 			bool drag_pos_set = false;
@@ -480,7 +469,7 @@ void tab_textures_draw(i32 *htab) {
 					asset_tray_ring_draw(ASSET_TRAY_TEXTURES, asset, uix, uiy, 1, 1, w + 2, w + 2);
 
 					// Reordering
-					if (_state == UI_STATE_HOVERED && base_drag_asset != NULL && string_equals(search, "")) {
+					if (_state == UI_STATE_HOVERED && base_drag_asset != NULL && string_equals(search, "") && !ui_asset_tags_active(MC_TEXTURE)) {
 						tab_textures_drag_pos = (mouse_x > uix + g_ui->_window_x + imgw_val / 2.0) ? i + 1 : i;
 						drag_pos_set          = true;
 					}

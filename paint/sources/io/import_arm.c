@@ -737,7 +737,11 @@ static i32_array_t *import_arm_import_referenced_assets(project_t *project, char
 		if (any_map_get(data_cached_textures, abs) == NULL && !iron_file_exists(abs)) {
 			import_arm_make_pink(abs);
 		}
+		i32 assets_before = g_project->_->assets->length;
 		import_texture_run(abs, false);
+		if (g_project->_->assets->length > assets_before) { // New texture, keeps its saved metadata
+			g_project->_->assets->buffer[assets_before]->meta = project_format_load_meta(project, MC_TEXTURE, i);
+		}
 		for (i32 j = 0; j < g_project->_->assets->length; ++j) {
 			if (string_equals(g_project->_->assets->buffer[j]->file, abs)) {
 				src_to_dest->buffer[i] = j;
@@ -837,7 +841,8 @@ static void import_arm_import_materials(project_t *project, char *path, i32_arra
 		}
 		ui_node_canvas_t *c = util_clone_canvas(project->material_nodes->buffer[i]); // Project data is temporary
 		import_arm_init_nodes_mapped(project, c->nodes, src_to_dest_asset);
-		g_context->material = slot_material_create(m0, c);
+		g_context->material       = slot_material_create(m0, c);
+		g_context->material->meta = project_format_load_meta(project, MC_MATERIAL, i);
 		if (project->material_datas != NULL && i < project->material_datas->length) {
 			material_data2_t *md              = project->material_datas->buffer[i];
 			g_context->material->paint_base   = md->paint_base;
@@ -1268,7 +1273,11 @@ void import_arm_run_project(char *path) {
 			import_arm_make_pink(abs);
 		}
 		bool hdr_as_envmap = path_has_ext(abs, "hdr") && g_project->envmap != NULL && string_equals(g_project->envmap, path_normalize(abs));
+		i32  assets_before = g_project->_->assets->length;
 		import_texture_run(abs, hdr_as_envmap);
+		if (g_project->_->assets->length > assets_before) { // Not skipped as already imported
+			g_project->_->assets->buffer[assets_before]->meta = project_format_load_meta(g_project, MC_TEXTURE, i);
+		}
 		progress_loaded++;
 		ui_header_draw_progress(0.1 + 0.7 * (0.8 * import_arm_progress_unpacked / (f32)progress_bytes + 0.2 * progress_loaded / (f32)progress_assets));
 	}
@@ -1285,7 +1294,7 @@ void import_arm_run_project(char *path) {
 			// Convert font path from relative to absolute
 			char *abs = data_is_abs(file) ? file : string("%s%s", base, file);
 			if (iron_file_exists(abs)) {
-				import_font_run(abs);
+				import_font_run_meta(abs, project_format_load_meta(g_project, MC_FONT, i));
 			}
 		}
 	}
@@ -1305,7 +1314,11 @@ void import_arm_run_project(char *path) {
 				import_arm_unpack_sound(g_project, abs, file, false);
 			}
 			if (iron_file_exists(abs) || (data_cached_sounds != NULL && any_map_get(data_cached_sounds, abs) != NULL)) {
+				i32 sounds_before = g_project->_->sounds->length;
 				import_sound_run(abs);
+				if (g_project->_->sounds->length > sounds_before) {
+					g_project->_->sounds->buffer[sounds_before]->meta = project_format_load_meta(g_project, MC_SOUND, i);
+				}
 			}
 			progress_loaded++;
 			ui_header_draw_progress(0.1 + 0.7 * (0.8 * import_arm_progress_unpacked / (f32)progress_bytes + 0.2 * progress_loaded / (f32)progress_assets));
@@ -1488,6 +1501,7 @@ void import_arm_run_project(char *path) {
 		g_context->material->paint_height = md->paint_height;
 		g_context->material->paint_emis   = md->paint_emis;
 		g_context->material->paint_subs   = md->paint_subs;
+		g_context->material->meta         = project_format_load_meta(g_project, MC_MATERIAL, i);
 
 		any_array_push(g_project->_->materials, g_context->material);
 	}
@@ -1520,7 +1534,8 @@ void import_arm_run_project(char *path) {
 	for (i32 i = 0; i < g_project->brush_nodes->length; ++i) {
 		ui_node_canvas_t *n = g_project->brush_nodes->buffer[i];
 		import_arm_init_nodes(n->nodes);
-		g_context->brush = slot_brush_create(n);
+		g_context->brush       = slot_brush_create(n);
+		g_context->brush->meta = project_format_load_meta(g_project, MC_BRUSH, i);
 		any_array_push(g_project->_->brushes, g_context->brush);
 		make_material_parse_brush();
 		brush_output_node_parse_inputs();
@@ -1620,6 +1635,7 @@ void import_arm_run_project(char *path) {
 	base_update_tools();
 	ui_dock_redraw(TAB_AREA_SIDEBAR0);
 	ui_dock_redraw(TAB_AREA_SIDEBAR1);
+	ui_dock_redraw(TAB_AREA_STATUS); // Textures, Fonts and Sounds trays
 	g_context->ddirty = 4;
 	data_delete_blob(path);
 }
@@ -1669,7 +1685,11 @@ void import_arm_run_brush_from_project(project_t *project, char *path) {
 		if (any_map_get(data_cached_textures, abs) == NULL && !iron_file_exists(abs)) {
 			import_arm_make_pink(abs);
 		}
+		i32 assets_before = g_project->_->assets->length;
 		import_texture_run(abs, true);
+		if (g_project->_->assets->length > assets_before) { // New texture, keeps its saved metadata
+			g_project->_->assets->buffer[assets_before]->meta = project_format_load_meta(project, MC_TEXTURE, i);
+		}
 	}
 
 	slot_brush_t_array_t *imported = any_array_create_from_raw((void *[]){}, 0);
@@ -1677,7 +1697,8 @@ void import_arm_run_brush_from_project(project_t *project, char *path) {
 	for (i32 i = 0; i < project->brush_nodes->length; ++i) {
 		ui_node_canvas_t *c = util_clone_canvas(project->brush_nodes->buffer[i]);
 		import_arm_init_nodes(c->nodes);
-		g_context->brush = slot_brush_create(c);
+		g_context->brush       = slot_brush_create(c);
+		g_context->brush->meta = project_format_load_meta(project, MC_BRUSH, i);
 		any_array_push(g_project->_->brushes, g_context->brush);
 		any_array_push(imported, g_context->brush);
 		make_material_parse_brush();

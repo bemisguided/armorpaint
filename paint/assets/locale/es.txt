@@ -18,6 +18,7 @@ Añadir animación
 Añadir muestra
 Añadir nueva muestra
 Añadir color seleccionado a muestras
+
 Todo
 Todo el procesamiento se realiza localmente en el dispositivo
 Permitir cámara invertida
@@ -187,6 +188,8 @@ Destino
 Detalle
 Rugosidad del detalle
 Escala del detalle
+
+
 Diagonal
 Diferencia
 Expandir radio
@@ -220,6 +223,7 @@ Duplicar capa
 Duplicar material
 Duplicar muestra
 Editar
+
 Editar imagen
 Editar nodos
 Editar script
@@ -592,6 +596,7 @@ Reimportar malla
 Reimportar texturas
 Desplazamiento relativo
 Eliminar
+
 Renombrar capa
 Renderizar
 Reorientado
@@ -717,6 +722,8 @@ Supermuestreado
 Muestras
 Muestras...
 Simetría
+
+
 Tangente
 Destino
 Plantilla
@@ -859,4 +866,5 @@ Triángulos
 tipo
 Sin título
 x
+
 {shortcut} y mover ratón

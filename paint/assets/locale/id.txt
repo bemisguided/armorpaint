@@ -18,6 +18,7 @@ Tambah Animasi
 Tambah Contoh Warna
 Tambah contoh warna baru
 Tambah warna yang dipilih ke contoh warna
+
 Semua
 Semua pemrosesan dilakukan secara lokal di perangkat
 Izinkan Kamera Terbalik
@@ -187,6 +188,8 @@ Tujuan
 Detail
 Kekasaran Detail
 Skala Detail
+
+
 Diagonal
 Perbedaan
 Perluas Radius
@@ -220,6 +223,7 @@ Duplikat Lapisan
 Duplikat Material
 Duplikat Contoh Warna
 Sunting
+
 Sunting Gambar
 Sunting Node
 Sunting Skrip
@@ -592,6 +596,7 @@ Impor Ulang Mesh
 Impor Ulang Tekstur
 Offset Relatif
 Hapus
+
 Ganti Nama Lapisan
 Renderer
 Diorientasi Ulang
@@ -717,6 +722,8 @@ Super Sampel
 Contoh Warna
 Contoh Warna...
 Simetri
+
+
 Tangen
 Target
 Templat
@@ -859,4 +866,5 @@ segitiga
 jenis
 tanpa judul
 x
+
 {shortcut} dan gerakkan mouse
