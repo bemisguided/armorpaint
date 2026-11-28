@@ -1465,6 +1465,8 @@ static gpu_texture_t         *render_path_paint_dilate_index         = NULL;
 static i32                    render_path_paint_dilate_index_version = -1;
 static i32                    render_path_paint_dilate_index_radius  = -1;
 static gpu_texture_t         *render_path_paint_dilate_temp          = NULL; // For masks in 16 bit projects
+static gpu_texture_t         *render_path_paint_dilate_mask_index    = NULL; // Fork: index map and temp of render_path_paint_dilate_by_mask
+static gpu_texture_t         *render_path_paint_dilate_mask_temp     = NULL;
 
 static void render_path_paint_dilate_load_pipeline(gpu_compute_pipeline_t *pipe, char *name) {
 	char     *file   = string_tmp("%s%s", name, sys_shader_ext());
@@ -1489,6 +1491,16 @@ void render_path_paint_dilate_init() {
 	render_path_paint_dilate_ready = true;
 }
 
+// Writes the index map of the islands of map (texels with r > 0) into index
+static void render_path_paint_dilate_index_of(gpu_texture_t *index, gpu_texture_t *map) {
+	f32 params[4] = {(f32)g_config->dilate_radius, 0.0, 0.0, 0.0};
+	gpu_compute_set_pipeline(&render_path_paint_dilate_index_pipe);
+	gpu_compute_set_texture(0, index);
+	gpu_compute_set_texture(1, map);
+	gpu_compute_set_constants(params, sizeof(params));
+	gpu_compute_dispatch(map->width, map->height);
+}
+
 static void render_path_paint_dilate_update_index() {
 	gpu_texture_t *map = util_uv_dilatemap;
 	if (render_path_paint_dilate_index != NULL &&
@@ -1505,13 +1517,7 @@ static void render_path_paint_dilate_update_index() {
 	}
 	render_path_paint_dilate_index_version = util_uv_dilatemap_version;
 	render_path_paint_dilate_index_radius  = g_config->dilate_radius;
-
-	f32 params[4] = {(f32)g_config->dilate_radius, 0.0, 0.0, 0.0};
-	gpu_compute_set_pipeline(&render_path_paint_dilate_index_pipe);
-	gpu_compute_set_texture(0, render_path_paint_dilate_index);
-	gpu_compute_set_texture(1, map);
-	gpu_compute_set_constants(params, sizeof(params));
-	gpu_compute_dispatch(map->width, map->height);
+	render_path_paint_dilate_index_of(render_path_paint_dilate_index, map);
 }
 
 static gpu_texture_t *render_path_paint_dilate_get_temp(gpu_texture_t *t) {
@@ -1530,23 +1536,27 @@ static gpu_texture_t *render_path_paint_dilate_get_temp(gpu_texture_t *t) {
 	return render_path_paint_dilate_temp;
 }
 
-static void render_path_paint_dilate_compute(char *target) {
-	gpu_texture_t       *t      = ((render_target_t *)any_map_get(render_path_render_targets, target))->_image;
-	gpu_texture_t       *temp   = render_path_paint_dilate_get_temp(t);
+// Dilates t along the index map through temp (same size and format as t): each texel with an index takes the color of its nearest island texel
+static void render_path_paint_dilate_texture(gpu_texture_t *t, gpu_texture_t *index, gpu_texture_t *temp) {
 	gpu_texture_format_t format = t->format;
 	render_path_paint_dilate_load(format);
 
 	gpu_compute_set_pipeline(&render_path_paint_dilate_pipes[format]);
 	gpu_compute_set_texture(0, temp);
 	gpu_compute_set_texture(1, t);
-	gpu_compute_set_texture(2, render_path_paint_dilate_index);
+	gpu_compute_set_texture(2, index);
 	gpu_compute_dispatch(t->width, t->height);
 
 	gpu_compute_set_pipeline(&render_path_paint_dilate_copy_pipes[format]);
 	gpu_compute_set_texture(0, t);
-	gpu_compute_set_texture(1, render_path_paint_dilate_index);
+	gpu_compute_set_texture(1, index);
 	gpu_compute_set_texture(2, temp);
 	gpu_compute_dispatch(t->width, t->height);
+}
+
+static void render_path_paint_dilate_compute(char *target) {
+	gpu_texture_t *t = ((render_target_t *)any_map_get(render_path_render_targets, target))->_image;
+	render_path_paint_dilate_texture(t, render_path_paint_dilate_index, render_path_paint_dilate_get_temp(t));
 }
 
 void render_path_paint_dilate(bool base, bool nor_pack) {
@@ -1571,4 +1581,39 @@ void render_path_paint_dilate(bool base, bool nor_pack) {
 			render_path_paint_dilate_compute(string_tmp("texpaint_pack%d", tid));
 		}
 	}
+}
+
+// Fork: dilates t (rgba32 or rgba64, the size of mask, not temptex0) by the dilate radius around the islands of mask (texels with r > 0),
+// for the coverage masks of util_layer.c. Has its own index map, the cached one of the painted layers stays valid.
+// Returns false when nothing ran: no radius, or compute is not available right now.
+bool render_path_paint_dilate_by_mask(gpu_texture_t *t, gpu_texture_t *mask) {
+	if (g_config->dilate_radius <= 0 || (t->format != GPU_TEXTURE_FORMAT_RGBA32 && t->format != GPU_TEXTURE_FORMAT_RGBA64)) {
+		return false;
+	}
+	// Compute runs between render passes
+	if (_render_path_current_image != NULL) {
+		render_path_end();
+	}
+	if (gpu_in_use || !render_path_paint_dilate_ready) {
+		return false;
+	}
+	if (render_path_paint_dilate_mask_index != NULL &&
+	    (render_path_paint_dilate_mask_index->width != mask->width || render_path_paint_dilate_mask_index->height != mask->height)) {
+		gpu_delete_texture(render_path_paint_dilate_mask_index);
+		render_path_paint_dilate_mask_index = NULL;
+	}
+	if (render_path_paint_dilate_mask_index == NULL) {
+		render_path_paint_dilate_mask_index = gpu_create_render_target(mask->width, mask->height, GPU_TEXTURE_FORMAT_R32);
+	}
+	if (render_path_paint_dilate_mask_temp != NULL &&
+	    (render_path_paint_dilate_mask_temp->width != t->width || render_path_paint_dilate_mask_temp->height != t->height || render_path_paint_dilate_mask_temp->format != t->format)) {
+		gpu_delete_texture(render_path_paint_dilate_mask_temp);
+		render_path_paint_dilate_mask_temp = NULL;
+	}
+	if (render_path_paint_dilate_mask_temp == NULL) {
+		render_path_paint_dilate_mask_temp = gpu_create_render_target(t->width, t->height, t->format);
+	}
+	render_path_paint_dilate_index_of(render_path_paint_dilate_mask_index, mask);
+	render_path_paint_dilate_texture(t, render_path_paint_dilate_mask_index, render_path_paint_dilate_mask_temp);
+	return true;
 }
