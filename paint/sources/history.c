@@ -608,6 +608,8 @@ slot_layer_t *history_undo_slot(i32 i) {
 	return l;
 }
 
+static i32 history_pending_undo_slots = 0; // Undo layers written for the next pushed step
+
 void history_copy_to_undo(i32 from_id, i32 to_id, bool is_mask) {
 	char *to_id_s   = i32_to_string(to_id);
 	char *from_id_s = i32_to_string(from_id);
@@ -643,6 +645,7 @@ void history_copy_to_undo(i32 from_id, i32 to_id, bool is_mask) {
 		render_path_draw_shader(string_tmp("Scene/copy_mrt3_pass/%s", pipe));
 	}
 	history_undo_i = (history_undo_i + 1) % g_config->undo_steps;
+	history_pending_undo_slots++;
 }
 
 void history_copy_merging_layers2(slot_layer_t_array_t *layers) {
@@ -885,6 +888,42 @@ void history_reset() {
 	history_undo_i = 0;
 }
 
+static bool history_grouping     = false;
+static bool history_group_pushed = false;
+
+// Steps pushed until history_group_end() are undone and redone as one
+void history_group_begin() {
+	history_grouping     = true;
+	history_group_pushed = false;
+}
+
+void history_group_end() {
+	history_grouping = false;
+}
+
+// The undo limit counts groups (a step and the with_prev steps after it), so a group of more steps than undo_steps is never cut and old groups
+// go whole. Steps that wrote undo layers are limited separately to the ring size (undo_steps layers), or the ring would overwrite their data.
+// The newest step always stays.
+static void history_trim() {
+	while (true) {
+		i32 groups = 0;
+		i32 slots  = 0;
+		for (i32 i = 1; i < history_steps->length; ++i) {
+			groups += history_steps->buffer[i]->with_prev ? 0 : 1;
+			slots += history_steps->buffer[i]->undo_slots;
+		}
+		if (history_steps->length <= 2 || (groups <= g_config->undo_steps && slots <= g_config->undo_steps)) {
+			break;
+		}
+		// The first step is the base that is never undone, an older group is dropped as a whole
+		history_step_free(array_shift(history_steps));
+		while (groups > 1 && history_steps->length > 1 && history_steps->buffer[1]->with_prev) {
+			history_step_free(array_shift(history_steps));
+		}
+	}
+	history_undos = history_steps->length - 1;
+}
+
 history_step_t *history_push(history_action_t action) {
 	char *name = history_action_to_string(action);
 #if defined(IRON_WINDOWS) || defined(IRON_LINUX) || defined(IRON_MACOS)
@@ -899,9 +938,6 @@ history_step_t *history_push(history_action_t action) {
 		ui_menubar_menu_handle->redraws = 2;
 	}
 
-	if (history_undos < g_config->undo_steps) {
-		history_undos++;
-	}
 	if (history_redos > 0) {
 		for (i32 i = 0; i < history_redos; ++i) {
 			history_step_free(array_pop(history_steps));
@@ -929,12 +965,16 @@ history_step_t *history_push(history_action_t action) {
 		                            .layer_object   = g_context->layer->object_mask,
 		                            .layer_blending = g_context->layer->blending});
 
-	any_array_push(history_steps, step);
-
-	while (history_steps->length > g_config->undo_steps + 1) {
-		history_step_free(array_shift(history_steps));
+	if (history_grouping) {
+		step->with_prev      = history_group_pushed;
+		history_group_pushed = true;
 	}
-	return history_steps->buffer[history_steps->length - 1];
+	step->undo_slots           = history_pending_undo_slots;
+	history_pending_undo_slots = 0;
+
+	any_array_push(history_steps, step);
+	history_trim();
+	return step;
 }
 
 void history_edit_nodes(ui_node_canvas_t *canvas, i32 canvas_type, i32 canvas_group) {
@@ -1025,6 +1065,7 @@ history_step_t *history_delete_layer(slot_layer_t *l) {
 
 void history_clear_layer() {
 	history_swap_active();
+	history_pending_undo_slots++;
 	history_push(HISTORY_ACTION_CLEAR_LAYER);
 }
 

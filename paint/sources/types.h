@@ -640,7 +640,8 @@ typedef struct history_step {
 	i32_array_t                 *merge_parents;
 	i32                          merge_start;
 	i32                          merge_length;
-	bool                         with_prev; // Undone and redone together with the previous step
+	i32                          undo_slots; // Undo layers written for this step
+	bool                         with_prev;  // Undone and redone together with the previous step
 } history_step_t;
 
 typedef struct logic_node {
