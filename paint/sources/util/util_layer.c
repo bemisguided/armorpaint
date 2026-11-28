@@ -1564,6 +1564,34 @@ static void _layers_coverage_scissor(i32 slot) {
 	gpu_scissor(x, y, w, h);
 }
 
+// Pads the uv islands in pipes_temp_mask_image (white on black) by the dilate radius, like the painted texels
+// (render_path_paint_dilate), then keeps the padding inside the kept slots: only_slot, or with -1 the slots the layer covers.
+// mask holds the islands. The compute dilate ignores scissors, so every other grid cell is painted black again afterwards.
+static void _layers_coverage_dilate(gpu_texture_t *mask, slot_layer_t *l, i32 tile_filter, i32 only_slot) {
+	if (!render_path_paint_dilate_by_mask(pipes_temp_mask_image, mask)) {
+		return;
+	}
+	i32 stride = util_udim_stride();
+	i32 count  = util_udim_count();
+	i32 w      = util_udim_tile_res_x();
+	i32 h      = util_udim_tile_res_y();
+	i32 cols   = (pipes_temp_mask_image->width + w - 1) / w;
+	i32 rows   = (pipes_temp_mask_image->height + h - 1) / h;
+	draw_begin(pipes_temp_mask_image, false, 0);
+	draw_set_color(0xff000000);
+	for (i32 r = 0; r < rows; ++r) {
+		for (i32 c = 0; c < cols; ++c) {
+			i32  slot = r * stride + c;
+			bool kept = c < stride && slot < count && (only_slot >= 0 ? slot == only_slot : _layers_coverage_slot(l, slot, tile_filter));
+			if (!kept) {
+				draw_filled_rect(c * w, r * h, w, h);
+			}
+		}
+	}
+	draw_set_color(0xffffffff);
+	draw_end();
+}
+
 // Writes the footprint of the layer's effective coverage (ancestors included) and the filters into pipes_temp_mask_image,
 // white where the layer applies. Returns false and writes nothing when no mask is needed (unrestricted layer, no filter).
 // Callers skip layers layers_coverage_applies rejects. Tile-only restrictions fill whole slots (gutter included), object
@@ -1680,27 +1708,8 @@ bool layers_coverage_mask(slot_layer_t *l, i32 object_filter, i32 tile_filter) {
 	draw_set_pipeline(NULL);
 	draw_end();
 
-	// Padding like the painted texels get (render_path_paint_dilate), kept inside the covered slots
-	if (g_config->dilate_radius > 0 && covered > 0) {
-		gpu_texture_t *dilatemap = util_uv_dilatemap;
-		util_uv_dilatemap        = rt->_image; // Read by the texdilate and dilate_radius links
-		_gpu_begin(pipes_temp_mask_image, NULL, NULL, GPU_CLEAR_NONE, 0, 0.0);
-		for (i32 s = 0; s < count; ++s) {
-			if (!all && !_layers_coverage_slot(l, s, tile_filter)) {
-				continue;
-			}
-			if (!all) {
-				_layers_coverage_scissor(s);
-			}
-			render_path_bind_target("coverage_mask", "tex");
-			render_path_draw_shader_keep_target("Scene/dilate_pass/dilate_pass");
-			if (all) {
-				break;
-			}
-		}
-		gpu_disable_scissor();
-		gpu_end();
-		util_uv_dilatemap = dilatemap;
+	if (covered > 0) {
+		_layers_coverage_dilate(rt->_image, l, tile_filter, -1);
 	}
 
 	return true;
@@ -1729,17 +1738,7 @@ bool layers_object_slot_mask(mesh_object_t *o, i32 slot) {
 	draw_set_pipeline(NULL);
 	draw_end();
 
-	if (g_config->dilate_radius > 0) {
-		gpu_texture_t *dilatemap = util_uv_dilatemap;
-		util_uv_dilatemap        = rt->_image;
-		_gpu_begin(pipes_temp_mask_image, NULL, NULL, GPU_CLEAR_NONE, 0, 0.0);
-		_layers_coverage_scissor(slot);
-		render_path_bind_target("coverage_mask", "tex");
-		render_path_draw_shader_keep_target("Scene/dilate_pass/dilate_pass");
-		gpu_disable_scissor();
-		gpu_end();
-		util_uv_dilatemap = dilatemap;
-	}
+	_layers_coverage_dilate(rt->_image, NULL, -1, slot);
 	return true;
 }
 
