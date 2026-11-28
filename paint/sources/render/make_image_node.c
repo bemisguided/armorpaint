@@ -1509,7 +1509,18 @@ static void make_image_node_refresh(slot_material_t *m, ui_node_t *node) {
 // Lists the image nodes of nodes (the current material, groups included) with their states
 // True when the result of the node is used: an output link, its preview in the node, or a request (make_image_node_request).
 // Like upstream's rule for unlinked nodes (make_material_bake_node_preview): what nothing shows or reads is not captured.
+#ifdef ARMORPAINT_TEST_NATIVES
+// The test build bakes every image node by default: the GUI scripts read unlinked nodes after a fixed wait.
+// The test of the rule turns it off (script_image_node_bake_unlinked).
+bool make_image_node_test_bake_unlinked = true;
+#endif
+
 static bool make_image_node_wanted(make_image_node_state_t *s, ui_node_t *node, bool output_linked) {
+#ifdef ARMORPAINT_TEST_NATIVES
+	if (make_image_node_test_bake_unlinked) {
+		return true;
+	}
+#endif
 	return output_linked || s->requested || (node->flags & UI_NODE_FLAG_PREVIEW);
 }
 

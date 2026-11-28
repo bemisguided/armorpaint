@@ -282,6 +282,12 @@ static gpu_texture_t *script_flood_fill_result(ui_node_t *node) {
 	return node != NULL ? make_image_node_result(node) : NULL;
 }
 
+// Off: an unlinked image node bakes only when shown or read, like the plain build (make_image_node_wanted); on (default): every image node bakes
+void script_image_node_bake_unlinked(bool on) {
+	extern bool make_image_node_test_bake_unlinked;
+	make_image_node_test_bake_unlinked = on;
+}
+
 bool script_flood_fill_pending(ui_node_t *node) {
 	return node != NULL && make_image_node_is_pending(node);
 }

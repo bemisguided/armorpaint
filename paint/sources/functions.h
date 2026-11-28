@@ -799,6 +799,7 @@ i32_array_t           *script_layer_objects(slot_layer_t *l);
 bool                   script_layer_all_tiles(slot_layer_t *l);
 i32_array_t           *script_layer_tiles(slot_layer_t *l);
 bool                   script_flood_fill_pending(ui_node_t *node);
+void                   script_image_node_bake_unlinked(bool on);
 i32                    script_flood_fill_islands(ui_node_t *node);
 f32                    script_image_node_summary(ui_node_t *node, i32 index);
 f32                    script_image_node_stat(ui_node_t *node, i32 which);
