@@ -1645,6 +1645,7 @@ void                   render_path_paint_bind_layers();
 void                   render_path_paint_unbind_layers();
 void                   render_path_paint_dilate(bool base, bool nor_pack);
 void                   render_path_paint_dilate_init();
+bool                   render_path_paint_dilate_by_mask(gpu_texture_t *t, gpu_texture_t *mask);
 void                   export_texture_run(char *path, bool bake_material);
 export_mode_t             export_texture_default_mode();
 char                   *export_texture_file_label(char *name);
