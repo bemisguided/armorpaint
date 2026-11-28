@@ -81,6 +81,7 @@ typedef struct make_image_node_state {
 	bool               cycle_seen;    // The running capture sampled a node that depends on this node, see make_image_node_edge_cyclic
 	bool               cycle_told;    // The Console told about the loop this node is in
 	bool               requested;     // Its result was shown or read (make_image_node_request): it bakes without an output link too
+	bool               skipped;       // The last traverse skipped it (unlinked and not wanted), see make_image_node_wanted
 	void              *summary;       // What the type's summarize made of the last bake (type->summary_size bytes), NULL for a type without
 #ifdef ARMORPAINT_TEST_NATIVES
 	i32                result_count;  // What the type's process returned for the last bake (Flood Fill: islands), for the test natives
@@ -1961,7 +1962,8 @@ void make_image_node_on_traverse(ui_node_t *node, ui_node_canvas_t *group, ui_no
 	if (linked) {
 		return; // A stroke changes layers, never the image space input (Layer nodes are neutral there)
 	}
-	if (!make_image_node_wanted(s, node, output_linked)) {
+	s->skipped = !make_image_node_wanted(s, node, output_linked);
+	if (s->skipped) {
 		return;
 	}
 	if (make_image_node_unchanged(s)) {
@@ -2045,7 +2047,7 @@ static void make_image_node_request_state(make_image_node_state_t *s) {
 		return;
 	}
 	s->requested = true;
-	if (!make_image_node_unchanged(s)) {
+	if (s->skipped && !make_image_node_unchanged(s)) { // A node that was already wanted is kept fresh by the traverse
 		s->needs_capture = true;
 		make_image_node_schedule();
 	}
