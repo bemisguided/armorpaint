@@ -1238,21 +1238,39 @@ void ui_nodes_render_popup() {
 	}
 }
 
-void ui_nodes_accept_asset_drop(i32 index) {
+// Dropped nodes are laid out in a row from the drop point and selected
+static void ui_nodes_place_dropped(ui_node_t *n, i32 position, i32_array_t *selected) {
+	n->x += position * ((n->width != 0 ? n->width : 140.0) + 20.0);
+	i32_array_push(selected, n->id);
+}
+
+// The release that ends the drop lands on the first new node and must not be taken as a click selecting only that node
+static void ui_nodes_select_dropped(i32_array_t *selected) {
+	ui_nodes_t *nodes        = ui_nodes_get_nodes();
+	nodes->nodes_selected_id = selected;
+	nodes->dragged           = true;
+}
+
+// One image texture node per asset index
+void ui_nodes_accept_asset_drops(i32_array_t *indices) {
 	if (ui_nodes_canvas_type == CANVAS_TYPE_MESH && g_context->paint_object == NULL) {
 		return;
 	}
 	ui_nodes_push_undo(NULL);
-	node_group_t *g = ui_nodes_group_stack->length > 0 ? ui_nodes_group_stack->buffer[ui_nodes_group_stack->length - 1] : NULL;
-	ui_node_t    *n = ui_nodes_canvas_type == CANVAS_TYPE_MESH       ? nodes_mesh_create_node_in(ui_nodes_get_canvas(true), ui_nodes_get_nodes(), "TEX_IMAGE")
-	                  : ui_nodes_canvas_type == CANVAS_TYPE_MATERIAL ? nodes_material_create_node("TEX_IMAGE", g)
-	                                                                 : nodes_brush_create_node("TEX_IMAGE");
-	n->buttons->buffer[0]->default_value->buffer[0] = index;
-	ui_nodes_get_nodes()->nodes_selected_id         = i32_array_create_from_raw(
-	    (i32[]){
-	        n->id,
-	    },
-	    1);
+	node_group_t *g        = ui_nodes_group_stack->length > 0 ? ui_nodes_group_stack->buffer[ui_nodes_group_stack->length - 1] : NULL;
+	i32_array_t  *selected = i32_array_create_from_raw((i32[]){}, 0);
+	for (i32 i = 0; i < indices->length; ++i) {
+		ui_node_t *n = ui_nodes_canvas_type == CANVAS_TYPE_MESH       ? nodes_mesh_create_node_in(ui_nodes_get_canvas(true), ui_nodes_get_nodes(), "TEX_IMAGE")
+		               : ui_nodes_canvas_type == CANVAS_TYPE_MATERIAL ? nodes_material_create_node("TEX_IMAGE", g)
+		                                                              : nodes_brush_create_node("TEX_IMAGE");
+		n->buttons->buffer[0]->default_value->buffer[0] = indices->buffer[i];
+		ui_nodes_place_dropped(n, i, selected);
+	}
+	ui_nodes_select_dropped(selected);
+}
+
+void ui_nodes_accept_asset_drop(i32 index) {
+	ui_nodes_accept_asset_drops(i32_array_create_from_raw((i32[]){index}, 1));
 }
 
 void ui_nodes_accept_layer_drop(i32 index) {
@@ -1275,19 +1293,24 @@ void ui_nodes_accept_layer_drop(i32 index) {
 	    1);
 }
 
-void ui_nodes_accept_material_drop(i32 index) {
+// One material node per material index
+void ui_nodes_accept_material_drops(i32_array_t *indices) {
 	if (ui_nodes_canvas_type == CANVAS_TYPE_MESH) {
 		return;
 	}
 	ui_nodes_push_undo(NULL);
-	node_group_t *g                                 = ui_nodes_group_stack->length > 0 ? ui_nodes_group_stack->buffer[ui_nodes_group_stack->length - 1] : NULL;
-	ui_node_t    *n                                 = nodes_material_create_node("MATERIAL", g);
-	n->buttons->buffer[0]->default_value->buffer[0] = index;
-	ui_nodes_get_nodes()->nodes_selected_id         = i32_array_create_from_raw(
-	    (i32[]){
-	        n->id,
-	    },
-	    1);
+	node_group_t *g        = ui_nodes_group_stack->length > 0 ? ui_nodes_group_stack->buffer[ui_nodes_group_stack->length - 1] : NULL;
+	i32_array_t  *selected = i32_array_create_from_raw((i32[]){}, 0);
+	for (i32 i = 0; i < indices->length; ++i) {
+		ui_node_t *n                                    = nodes_material_create_node("MATERIAL", g);
+		n->buttons->buffer[0]->default_value->buffer[0] = indices->buffer[i];
+		ui_nodes_place_dropped(n, i, selected);
+	}
+	ui_nodes_select_dropped(selected);
+}
+
+void ui_nodes_accept_material_drop(i32 index) {
+	ui_nodes_accept_material_drops(i32_array_create_from_raw((i32[]){index}, 1));
 }
 
 void ui_nodes_accept_swatch_drop(swatch_color_t *swatch) {

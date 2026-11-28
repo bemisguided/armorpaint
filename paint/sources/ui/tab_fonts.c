@@ -24,10 +24,23 @@ void tab_fonts_delete_font(slot_font_t *font) {
 	ui_dock_redraw(2);
 }
 
+// The built-in font always stays
+static void tab_fonts_delete_one(void *font) {
+	tab_fonts_delete_font(font);
+}
+
+static bool tab_fonts_can_delete(void *font) {
+	return !string_equals(((slot_font_t *)font)->file, "");
+}
+
+void tab_fonts_delete_selected() {
+	asset_tray_delete_selected(ASSET_TRAY_FONTS, &tab_fonts_delete_one, &tab_fonts_can_delete, 0, false);
+}
+
 void tab_fonts_draw_context_menu_draw() {
 	i32 i = _tab_fonts_draw_i;
 	if (g_project->_->fonts->length > 1 && ui_menu_button(tr("Delete"), "delete", ICON_DELETE) && !string_equals(g_project->_->fonts->buffer[i]->file, "")) {
-		tab_fonts_delete_font(g_project->_->fonts->buffer[i]);
+		tab_fonts_delete_selected();
 	}
 }
 
@@ -96,12 +109,8 @@ void tab_fonts_draw(i32 *htab) {
 			return;
 		}
 
-		i32_array_t *filtered = i32_array_create_from_raw((i32[]){}, 0);
-		for (i32 i = 0; i < g_project->_->fonts->length; ++i) {
-			if (string_equals(search, "") || string_index_of(to_lower_case(g_project->_->fonts->buffer[i]->name), search) >= 0) {
-				i32_array_push(filtered, i);
-			}
-		}
+		i32_array_t *filtered = asset_tray_filter(ASSET_TRAY_FONTS, search);
+		asset_tray_begin(ASSET_TRAY_FONTS, search, filtered);
 
 		bool drag_pos_set = false;
 		f32  uix          = 0.0;
@@ -136,14 +145,12 @@ void tab_fonts_draw(i32 *htab) {
 
 				gpu_texture_t *img = g_project->_->fonts->buffer[i]->image;
 
-				if (g_context->font == g_project->_->fonts->buffer[i]) {
-					// ui_fill(1, -2, img.width + 3, img.height + 3, ui.ops.theme.HIGHLIGHT_COL); // TODO
-					i32 w = 50 * a;
-					ui_rect_round(-1, -1, w + 2, w + 2, g_theme->HIGHLIGHT_COL, 2 * UI_SCALE());
-				}
-
-				uix      = g_ui->_x;
-				uiy      = g_ui->_y;
+				slot_font_t *font = g_project->_->fonts->buffer[i];
+				i32          w    = 50 * a;
+				uix               = g_ui->_x;
+				uiy               = g_ui->_y;
+				asset_tray_plate_draw(ASSET_TRAY_FONTS, font, uix, uiy, -1, -1, w + 2, w + 2);
+				asset_selection_marquee_cell(font, uix, uiy, imgw_val, imgw_val);
 				i32 tile = UI_SCALE() > 1 ? 100 : 50;
 
 				if (base_drag_font != NULL && tab_fonts_drag_pos == i) {
@@ -158,6 +165,7 @@ void tab_fonts_draw(i32 *htab) {
 				else {
 					state = ui_sub_image(resource_get("icons.k"), -1, imgw, tile * 6, tile, tile, tile);
 				}
+				asset_tray_ring_draw(ASSET_TRAY_FONTS, font, uix, uiy, -1, -1, w + 2, w + 2);
 				g_ui->image_scroll_align = true;
 
 				if (state == UI_STATE_HOVERED && base_drag_font != NULL && string_equals(search, "")) {
@@ -166,21 +174,24 @@ void tab_fonts_draw(i32 *htab) {
 				}
 
 				if (state == UI_STATE_STARTED) {
-					if (g_context->font != g_project->_->fonts->buffer[i]) {
-						_tab_fonts_draw_i = i;
+					bool         can_drag;
+					slot_font_t *primary = asset_tray_press(ASSET_TRAY_FONTS, font, filtered, &can_drag);
+					if (g_context->font != primary) {
+						_tab_fonts_draw_i = array_index_of(g_project->_->fonts, primary);
 						sys_notify_on_next_frame(&tab_fonts_draw_select_font, NULL);
 					}
-					base_drag_off_x = -(mouse_x - uix - g_ui->_window_x - 3);
-					base_drag_off_y = -(mouse_y - uiy - g_ui->_window_y + 1);
-					base_drag_font  = g_project->_->fonts->buffer[i];
-					if (sys_time() - g_context->select_time < 0.2) {
-						ui_base_show_2d_view(VIEW_2D_TYPE_FONT);
-						base_drag_font   = NULL;
-						base_is_dragging = false;
+					if (can_drag) {
+						bool double_click = asset_tray_drag_begin(uix, uiy);
+						base_drag_font    = font;
+						if (double_click) {
+							ui_base_show_2d_view(VIEW_2D_TYPE_FONT);
+							base_drag_font   = NULL;
+							base_is_dragging = false;
+						}
 					}
-					g_context->select_time = sys_time();
 				}
 				if (g_ui->is_hovered && g_ui->input_released_r) {
+					asset_selection_context(ASSET_TRAY_FONTS, font);
 					_tab_fonts_draw_i = i;
 					sys_notify_on_next_frame(&tab_fonts_draw_context_menu, NULL);
 				}
@@ -217,6 +228,8 @@ void tab_fonts_draw(i32 *htab) {
 			ui_fill(imgw_val + 1, -2, 2, imgw_val + 4, g_theme->HIGHLIGHT_COL);
 		}
 
+		asset_tray_end(ASSET_TRAY_FONTS);
+
 		if (!drag_pos_set) {
 			tab_fonts_drag_pos = -1;
 		}
@@ -225,7 +238,7 @@ void tab_fonts_draw(i32 *htab) {
 		                g_ui->input_y < g_ui->_window_y + g_ui->_window_h;
 		if (in_focus && g_ui->is_delete_down && g_project->_->fonts->length > 1 && !string_equals(g_context->font->file, "")) {
 			g_ui->is_delete_down = false;
-			tab_fonts_delete_font(g_context->font);
+			tab_fonts_delete_selected();
 		}
 		if (in_focus) {
 			i32 i = array_index_of(g_project->_->fonts, g_context->font);
@@ -250,10 +263,6 @@ void tab_fonts_accept_font_drop(slot_font_t *font) {
 		return;
 	}
 
-	i32 font_pos = array_index_of(g_project->_->fonts, font);
-	if (font_pos != -1 && math_abs(font_pos - tab_fonts_drag_pos) > 0) {
-		array_remove(g_project->_->fonts, font);
-		i32 new_pos = tab_fonts_drag_pos - font_pos > 0 ? tab_fonts_drag_pos - 1 : tab_fonts_drag_pos;
-		array_insert(g_project->_->fonts, new_pos, font);
-	}
+	any_array_t *moving = asset_selection_drag_items(ASSET_TRAY_FONTS, font, true);
+	asset_selection_reorder(g_project->_->fonts, moving, tab_fonts_drag_pos, NULL);
 }

@@ -618,12 +618,15 @@ packed_asset_t_array_t *export_arm_get_packed_assets(char *project_path, string_
 }
 
 void export_arm_run_material(char *path) {
+	export_arm_material(g_context->material, path);
+}
+
+void export_arm_material(slot_material_t *m, char *path) {
 	if (!ends_with(path, ".arm")) {
 		path = string("%s.arm", path);
 	}
 	ui_node_canvas_t_array_t *mnodes  = any_array_create_from_raw((void *[]){}, 0);
 	ui_node_canvas_t_array_t *mgroups = NULL;
-	slot_material_t          *m       = g_context->material;
 	ui_node_canvas_t         *c       = util_clone_canvas(m->canvas);
 	asset_t_array_t          *assets  = any_array_create_from_raw((void *[]){}, 0);
 	if (ui_nodes_has_group(c)) {
@@ -695,11 +698,14 @@ void export_arm_run_material(char *path) {
 }
 
 void export_arm_run_brush(char *path) {
+	export_arm_brush(g_context->brush, path);
+}
+
+void export_arm_brush(slot_brush_t *b, char *path) {
 	if (!ends_with(path, ".arm")) {
 		path = string("%s.arm", path);
 	}
 	ui_node_canvas_t_array_t *bnodes = any_array_create_from_raw((void *[]){}, 0);
-	slot_brush_t             *b      = g_context->brush;
 	ui_node_canvas_t         *c      = util_clone_canvas(b->canvas);
 	asset_t_array_t          *assets = any_array_create_from_raw((void *[]){}, 0);
 	for (i32 i = 0; i < c->nodes->length; ++i) {

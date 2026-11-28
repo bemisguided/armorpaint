@@ -35,16 +35,24 @@ void tab_brushes_draw_make_selected_preview(void *_) {
 	}
 }
 
-void tab_brushes_draw_duplicate(void *_) {
-	i32 i            = _tab_brushes_draw_i;
+static void *tab_brushes_duplicate(void *source) {
 	g_context->brush = slot_brush_create(NULL);
 	any_array_push(g_project->_->brushes, g_context->brush);
-	ui_node_canvas_t *cloned = util_clone_canvas(g_project->_->brushes->buffer[i]->canvas);
+	ui_node_canvas_t *cloned = util_clone_canvas(((slot_brush_t *)source)->canvas);
 	cloned->name             = string_copy(slot_brush_unique_name(cloned, cloned->name));
 	g_context->brush->canvas = cloned;
 	context_set_brush(g_context->brush);
 	util_render_make_brush_preview();
 	history_duplicate_brush();
+	return g_context->brush;
+}
+
+static void tab_brushes_set_active(void *brush) {
+	context_set_brush(brush);
+}
+
+void tab_brushes_duplicate_selected(void *_) {
+	asset_tray_duplicate_selected(ASSET_TRAY_BRUSHES, &tab_brushes_duplicate, &tab_brushes_set_active);
 }
 
 void tab_brushes_delete_brush(slot_brush_t *b) {
@@ -56,21 +64,30 @@ void tab_brushes_delete_brush(slot_brush_t *b) {
 	ui_dock_redraw(1);
 }
 
+static void tab_brushes_delete_one(void *brush) {
+	tab_brushes_delete_brush(brush);
+}
+
+// At least one brush always stays, one undo step for all
+void tab_brushes_delete_selected() {
+	asset_tray_delete_selected(ASSET_TRAY_BRUSHES, &tab_brushes_delete_one, NULL, 1, true);
+}
+
 void tab_brushes_draw_context_menu() {
 	i32 i = _tab_brushes_draw_i;
 	// let b: slot_brush_t = brushes[i];
 
 	if (ui_menu_button(tr("Export"), "", ICON_EXPORT)) {
 		context_select_brush(i);
-		box_export_show_brush();
+		box_export_show_brush(asset_selection_get(ASSET_TRAY_BRUSHES));
 	}
 
 	if (ui_menu_button(tr("Duplicate"), "ctrl+d", ICON_DUPLICATE)) {
-		sys_notify_on_next_frame(&tab_brushes_draw_duplicate, NULL);
+		sys_notify_on_next_frame(&tab_brushes_duplicate_selected, NULL);
 	}
 
 	if (g_project->_->brushes->length > 1 && ui_menu_button(tr("Delete"), "delete", ICON_DELETE)) {
-		tab_brushes_delete_brush(g_project->_->brushes->buffer[i]);
+		tab_brushes_delete_selected();
 	}
 }
 
@@ -120,6 +137,8 @@ void tab_brushes_draw(i32 *htab) {
 			return;
 		}
 
+		asset_tray_begin(ASSET_TRAY_BRUSHES, NULL, NULL);
+
 		bool drag_pos_set = false;
 		f32  uix          = 0.0;
 		f32  uiy          = 0.0;
@@ -152,14 +171,12 @@ void tab_brushes_draw(i32 *htab) {
 				gpu_texture_t *img      = UI_SCALE() > 1 ? g_project->_->brushes->buffer[i]->image : g_project->_->brushes->buffer[i]->image_icon;
 				gpu_texture_t *img_full = g_project->_->brushes->buffer[i]->image;
 
-				if (g_context->brush == g_project->_->brushes->buffer[i]) {
-					// ui_fill(1, -2, img.width + 3, img.height + 3, ui.ops.theme.HIGHLIGHT_COL); // TODO
-					i32 w = 50 * a;
-					ui_rect_round(-1, -1, w + 2, w + 2, g_theme->HIGHLIGHT_COL, 2 * UI_SCALE());
-				}
-
-				uix      = g_ui->_x;
-				uiy      = g_ui->_y;
+				slot_brush_t *brush = g_project->_->brushes->buffer[i];
+				i32           w     = 50 * a;
+				uix                 = g_ui->_x;
+				uiy                 = g_ui->_y;
+				asset_tray_plate_draw(ASSET_TRAY_BRUSHES, brush, uix, uiy, -1, -1, w + 2, w + 2);
+				asset_selection_marquee_cell(brush, uix, uiy, imgw_val, imgw_val);
 				i32 tile = UI_SCALE() > 1 ? 100 : 50;
 
 				if (base_drag_brush != NULL && tab_brushes_drag_pos == i) {
@@ -170,6 +187,7 @@ void tab_brushes_draw(i32 *htab) {
 				ui_state_t state         = g_project->_->brushes->buffer[i]->preview_ready
 				                               ? ui_image(img, 0xffffffff, imgw)
 				                               : ui_sub_image(resource_get("icons.k"), -1, imgw, tile * 5, tile, tile, tile);
+				asset_tray_ring_draw(ASSET_TRAY_BRUSHES, brush, uix, uiy, -1, -1, w + 2, w + 2);
 				g_ui->image_scroll_align = true;
 
 				if (state == UI_STATE_HOVERED && base_drag_brush != NULL) {
@@ -178,20 +196,23 @@ void tab_brushes_draw(i32 *htab) {
 				}
 
 				if (state == UI_STATE_STARTED) {
-					if (g_context->brush != g_project->_->brushes->buffer[i]) {
-						context_select_brush(i);
+					bool          can_drag;
+					slot_brush_t *primary = asset_tray_press(ASSET_TRAY_BRUSHES, brush, NULL, &can_drag);
+					if (g_context->brush != primary) {
+						context_set_brush(primary);
 					}
-					base_drag_off_x = -(mouse_x - uix - g_ui->_window_x - 3);
-					base_drag_off_y = -(mouse_y - uiy - g_ui->_window_y + 1);
-					base_drag_brush = g_context->brush;
-					if (sys_time() - g_context->select_time < 0.2) {
-						ui_base_show_brush_nodes();
-						base_drag_brush  = NULL;
-						base_is_dragging = false;
+					if (can_drag) {
+						bool double_click = asset_tray_drag_begin(uix, uiy);
+						base_drag_brush   = g_context->brush;
+						if (double_click) {
+							ui_base_show_brush_nodes();
+							base_drag_brush  = NULL;
+							base_is_dragging = false;
+						}
 					}
-					g_context->select_time = sys_time();
 				}
 				if (g_ui->is_hovered && g_ui->input_released_r) {
+					asset_selection_context(ASSET_TRAY_BRUSHES, brush);
 					context_select_brush(i);
 
 					_tab_brushes_draw_i = i;
@@ -232,6 +253,8 @@ void tab_brushes_draw(i32 *htab) {
 			ui_fill(imgw_val + 1, -2, 2, imgw_val + 4, g_theme->HIGHLIGHT_COL);
 		}
 
+		asset_tray_end(ASSET_TRAY_BRUSHES);
+
 		if (!drag_pos_set) {
 			tab_brushes_drag_pos = -1;
 		}
@@ -240,11 +263,10 @@ void tab_brushes_draw(i32 *htab) {
 		                g_ui->input_y < g_ui->_window_y + g_ui->_window_h;
 		if (in_focus && g_ui->is_delete_down && g_project->_->brushes->length > 1) {
 			g_ui->is_delete_down = false;
-			tab_brushes_delete_brush(g_context->brush);
+			tab_brushes_delete_selected();
 		}
 		if (in_focus && g_ui->is_ctrl_down && g_ui->is_key_pressed && g_ui->key_code == KEY_CODE_D) {
-			_tab_brushes_draw_i = array_index_of(g_project->_->brushes, g_context->brush);
-			sys_notify_on_next_frame(&tab_brushes_draw_duplicate, NULL);
+			sys_notify_on_next_frame(&tab_brushes_duplicate_selected, NULL);
 		}
 		if (in_focus) {
 			i32 i = array_index_of(g_project->_->brushes, g_context->brush);
@@ -269,10 +291,6 @@ void tab_brushes_accept_brush_drop(slot_brush_t *brush) {
 		return;
 	}
 
-	i32 brush_pos = array_index_of(g_project->_->brushes, brush);
-	if (brush_pos != -1 && math_abs(brush_pos - tab_brushes_drag_pos) > 0) {
-		array_remove(g_project->_->brushes, brush);
-		i32 new_pos = tab_brushes_drag_pos - brush_pos > 0 ? tab_brushes_drag_pos - 1 : tab_brushes_drag_pos;
-		array_insert(g_project->_->brushes, new_pos, brush);
-	}
+	any_array_t *moving = asset_selection_drag_items(ASSET_TRAY_BRUSHES, brush, true);
+	asset_selection_reorder(g_project->_->brushes, moving, tab_brushes_drag_pos, NULL);
 }
