@@ -1166,7 +1166,8 @@ void                      make_curvature_bake(ui_node_t *node, ui_node_canvas_t 
 void                      make_image_node_register(image_node_type_t *type);
 image_node_type_t        *make_image_node_type_of(char *node_type);
 bool                      make_image_node_reconcile(ui_node_t *node, ui_node_canvas_t *canvas);
-void                      make_image_node_on_traverse(ui_node_t *node, ui_node_canvas_t *group, ui_node_t_array_t *parents, bool linked);
+void                      make_image_node_on_traverse(ui_node_t *node, ui_node_canvas_t *group, ui_node_t_array_t *parents, bool linked, bool output_linked);
+void                      make_image_node_request(ui_node_t *node);
 void                      make_image_node_delete_states(slot_material_t *m, string_array_t *keep);
 f32                       make_image_node_input_value(ui_node_t *node, i32 input);
 i32                       make_image_node_capture_index();

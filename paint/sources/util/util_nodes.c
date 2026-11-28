@@ -475,6 +475,10 @@ void ui_nodes_make_node_preview(ui_node_t *node) {
 	ui_node_canvas_t  *group_canvas  = ui_nodes_group_stack->length > 0 ? ui_nodes_group_stack->buffer[ui_nodes_group_stack->length - 1]->canvas : NULL;
 	ui_node_t_array_t *group_parents = ui_nodes_group_parents();
 
+	if (make_image_node_type_of(node->type) != NULL) {
+		make_image_node_request(node); // Fork: the preview shows the result of an image node, unlinked it bakes from now on
+	}
+
 	if (string_equals(node->type, "TEX_SKY")) {
 		gpu_texture_t *current = _draw_current;
 		bool           in_use  = gpu_in_use;

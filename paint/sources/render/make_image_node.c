@@ -80,6 +80,7 @@ typedef struct make_image_node_state {
 	u32                captured_asset_version;
 	bool               cycle_seen;    // The running capture sampled a node that depends on this node, see make_image_node_edge_cyclic
 	bool               cycle_told;    // The Console told about the loop this node is in
+	bool               requested;     // Its result was shown or read (make_image_node_request): it bakes without an output link too
 	void              *summary;       // What the type's summarize made of the last bake (type->summary_size bytes), NULL for a type without
 #ifdef ARMORPAINT_TEST_NATIVES
 	i32                result_count;  // What the type's process returned for the last bake (Flood Fill: islands), for the test natives
@@ -1506,6 +1507,21 @@ static void make_image_node_refresh(slot_material_t *m, ui_node_t *node) {
 }
 
 // Lists the image nodes of nodes (the current material, groups included) with their states
+// True when the result of the node is used: an output link, its preview in the node, or a request (make_image_node_request).
+// Like upstream's rule for unlinked nodes (make_material_bake_node_preview): what nothing shows or reads is not captured.
+static bool make_image_node_wanted(make_image_node_state_t *s, ui_node_t *node, bool output_linked) {
+	return output_linked || s->requested || (node->flags & UI_NODE_FLAG_PREVIEW);
+}
+
+static bool make_image_node_output_linked(ui_node_canvas_t *canvas, ui_node_t *node) {
+	for (i32 i = 0; i < canvas->links->length; ++i) {
+		if (canvas->links->buffer[i]->from_id == node->id) {
+			return true;
+		}
+	}
+	return false;
+}
+
 static void make_image_node_collect(any_array_t *entries, ui_node_t_array_t *nodes, ui_node_canvas_t *group, ui_node_t_array_t *parents) {
 	for (i32 i = 0; i < nodes->length; ++i) {
 		ui_node_t *node = nodes->buffer[i];
@@ -1779,7 +1795,8 @@ static ui_node_t *make_image_node_run_material(slot_material_t *m, bool force_al
 			}
 			bool pass_through = s->type != NULL && s->type->pass_through_capture;
 			bool rendered     = false;
-			if (force_all || s->needs_capture || upstream_baked) {
+			bool wanted = make_image_node_wanted(s, e->node, make_image_node_output_linked(e->group != NULL ? e->group : m->canvas, e->node));
+			if (force_all || s->needs_capture || (upstream_baked && wanted)) {
 				if (pass_through) {
 					rendered = make_image_node_capture_pass_through(s, e->id, e->node, e->group, e->parents, force_all || upstream_baked);
 				}
@@ -1920,8 +1937,9 @@ static void make_image_node_update(void *_) {
 	make_image_node_redraw_nodes();
 }
 
-// Node preview traversal hook (make_material_bake_node_preview), linked = refresh during a paint stroke
-void make_image_node_on_traverse(ui_node_t *node, ui_node_canvas_t *group, ui_node_t_array_t *parents, bool linked) {
+// Node preview traversal hook (make_material_bake_node_preview), linked = refresh during a paint stroke, output_linked = the node
+// has an outgoing link. An unwanted node keeps its state and result (listed as used) but is not captured.
+void make_image_node_on_traverse(ui_node_t *node, ui_node_canvas_t *group, ui_node_t_array_t *parents, bool linked, bool output_linked) {
 	make_image_node_reconcile(node, group != NULL ? group : g_context->material->canvas);
 	char *id = make_material_node_preview_id(node, parents);
 	any_array_push(g_context->node_previews_used, id); // Keeps the baked result
@@ -1931,6 +1949,9 @@ void make_image_node_on_traverse(ui_node_t *node, ui_node_canvas_t *group, ui_no
 	}
 	if (linked) {
 		return; // A stroke changes layers, never the image space input (Layer nodes are neutral there)
+	}
+	if (!make_image_node_wanted(s, node, output_linked)) {
+		return;
 	}
 	if (make_image_node_unchanged(s)) {
 		return; // Selecting a layer or any other re-parse of an unchanged graph does not capture
@@ -2008,10 +2029,30 @@ i32 make_image_node_capture_count() {
 	return make_image_node_captures;
 }
 
-// What the node type's summarize made of the last bake (the Levels histogram), NULL while the node is not baked or has none
+static void make_image_node_request_state(make_image_node_state_t *s) {
+	if (s == NULL || s->requested) {
+		return;
+	}
+	s->requested = true;
+	if (!make_image_node_unchanged(s)) {
+		s->needs_capture = true;
+		make_image_node_schedule();
+	}
+}
+
+// Something shows or reads the result of the node (its preview, its summary in the node, a script): from now on it bakes like a
+// linked node, also without an output link. Upstream's TEX_SKY does the same: an unlinked sky bakes once its preview exists.
+void make_image_node_request(ui_node_t *node) {
+	char *id;
+	make_image_node_request_state(make_image_node_state_of(node, &id));
+}
+
+// What the node type's summarize made of the last bake (the Levels histogram), NULL while the node is not baked or has none.
+// It is shown in the node, so asking for it is a request.
 void *make_image_node_summary(ui_node_t *node) {
 	char                    *id;
 	make_image_node_state_t *s = make_image_node_state_of(node, &id);
+	make_image_node_request_state(s);
 	return s != NULL && s->has_baked ? s->summary : NULL;
 }
 
@@ -2020,12 +2061,14 @@ void *make_image_node_summary(ui_node_t *node) {
 bool make_image_node_is_pending(ui_node_t *node) {
 	char                    *id;
 	make_image_node_state_t *s = make_image_node_state_of(node, &id);
+	make_image_node_request_state(s); // A script waits for the node to read it next
 	return s != NULL && (s->pending || s->needs_capture || make_image_node_force_all);
 }
 
 gpu_texture_t *make_image_node_result(ui_node_t *node) {
 	char                    *id;
 	make_image_node_state_t *s = make_image_node_state_of(node, &id);
+	make_image_node_request_state(s);
 	if (s != NULL && s->type != NULL && s->type->pass_through_capture) {
 		// The result of a pass-through node (Tile UV) is its capture: what the old baked node held (the capture was copied as it is)
 		if (s->direct && s->direct_id != NULL) {
